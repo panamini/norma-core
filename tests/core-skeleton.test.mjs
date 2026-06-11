@@ -5,6 +5,7 @@ import * as core from "../dist/src/index.js";
 import {
   CORE_DIAGNOSTIC_CODES,
   CORE_SKELETON_OPERATION_REGISTRY,
+  createCoreError,
   createCoreWarning,
   executeCoreOperation,
   suppressCoreWarnings,
@@ -51,6 +52,27 @@ test("validateCoreSkeleton returns a structured result", () => {
   assertStructuredResult(result);
   assert.equal(result.status, "ok");
   assert.equal(result.errors.length, 0);
+});
+
+test("structured result arrays are not shared across calls", () => {
+  const firstResult = validateCoreSkeleton();
+  const secondResult = validateCoreSkeleton();
+
+  assert.notEqual(firstResult.errors, secondResult.errors);
+  assert.notEqual(firstResult.warnings, secondResult.warnings);
+  assert.notEqual(firstResult.outputRefs, secondResult.outputRefs);
+
+  firstResult.errors.push(
+    createCoreError({
+      code: "InternalInvariantViolation",
+      message: "Synthetic mutation must not leak to later results.",
+    }),
+  );
+
+  const laterResult = validateCoreSkeleton();
+
+  assert.equal(laterResult.status, "ok");
+  assert.equal(laterResult.errors.length, 0);
 });
 
 test("required and additional PR1 diagnostics are exported", () => {
@@ -125,7 +147,7 @@ test("known stub operation returns not implemented without fake output", () => {
   assert.equal(result.status, "not_implemented");
   assert.equal(result.output, null);
   assert.deepEqual(result.outputRefs, []);
-  assert.ok(diagnosticCodes(result).includes("NotImplemented"));
+  assert.ok(diagnosticCodes(result).includes("OperationNotImplemented"));
 });
 
 test("known stub operation with unsupported version returns UnsupportedOperation", () => {
@@ -179,6 +201,28 @@ test("forbidden core dependency returns ForbiddenCoreDependency", () => {
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
   assert.ok(diagnosticCodes(result).includes("ForbiddenCoreDependency"));
+});
+
+test("dependency boundary does not reject allowed substrings inside words", () => {
+  const result = validateCoreDependencyBoundary([
+    "@norma/build-tools",
+    "@norma/client-core",
+    "@norma/cascade-core",
+  ]);
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.errors, []);
+});
+
+test("dependency boundary rejects forbidden dependency segments", () => {
+  for (const dependencyRef of ["ui", "camera-adapter", "opencv", "core-plugin-adapter"]) {
+    const result = validateCoreDependencyBoundary([dependencyRef]);
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed", dependencyRef);
+    assert.ok(diagnosticCodes(result).includes("ForbiddenCoreDependency"), dependencyRef);
+  }
 });
 
 test("the skeleton registry exposes only the known stub operation", () => {

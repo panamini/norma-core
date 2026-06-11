@@ -253,14 +253,14 @@ export function operationKey(name: OperationName, version: OperationVersion): Op
   return `${name}@${version}`;
 }
 
-export function unsupportedOperation(operationName: OperationName): CoreResult {
+export function unsupportedOperation(operationRef: OperationName | OperationKey): CoreResult {
   return createCoreResult({
     status: "failed",
     errors: [
       createCoreError({
         code: "UnsupportedOperation",
-        message: `Operation is not registered: ${operationName}.`,
-        sourceRef: { kind: "operation", ref: operationName },
+        message: `Operation is not registered: ${operationRef}.`,
+        sourceRef: { kind: "operation", ref: operationRef },
       }),
     ],
   });
@@ -273,7 +273,7 @@ export function notImplementedOperation(operation: OperationDefinition): CoreRes
     status: "not_implemented",
     errors: [
       createCoreError({
-        code: "NotImplemented",
+        code: "OperationNotImplemented",
         message: `Operation is registered as a PR1 stub and has no business implementation: ${operation.name}.`,
         sourceRef: { kind: "operation", ref: operation.name },
         provenance,
@@ -363,8 +363,8 @@ export function validateOutputProvenance(
 
 export function validateCoreDependencyBoundary(dependencyRefs: readonly string[]): CoreResult {
   const forbiddenDependency = dependencyRefs.find((dependencyRef) => {
-    const normalizedDependencyRef = dependencyRef.toLowerCase();
-    return FORBIDDEN_CORE_DEPENDENCY_TERMS.some((term) => normalizedDependencyRef.includes(term));
+    const dependencySegments = dependencyRefSegments(dependencyRef);
+    return FORBIDDEN_CORE_DEPENDENCY_TERMS.some((term) => dependencySegments.includes(term));
   });
 
   if (forbiddenDependency !== undefined) {
@@ -411,7 +411,14 @@ export function validateCoreSkeleton(): CoreResult {
 }
 
 function createCoreResult<TOutput = unknown>(input: CoreResultInput<TOutput>): CoreResult<TOutput> {
-  return { ...DEFAULT_RESULT_FIELDS, ...input };
+  const result = { ...DEFAULT_RESULT_FIELDS, ...input };
+
+  return {
+    ...result,
+    warnings: [...result.warnings],
+    errors: [...result.errors],
+    outputRefs: [...result.outputRefs],
+  };
 }
 
 function createProvenance(
@@ -611,6 +618,10 @@ function isStringArray(value: unknown): value is readonly string[] {
 
 function isValidCoreInput(input: unknown): boolean {
   return input === undefined || isRecord(input);
+}
+
+function dependencyRefSegments(dependencyRef: string): readonly string[] {
+  return dependencyRef.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
