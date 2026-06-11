@@ -387,22 +387,13 @@ export function executeCoreOperation(
     return requestValidation.result;
   }
 
-  const dependencyBoundaryResult = dependencyBoundaryForRequest(requestValidation.request);
-  if (dependencyBoundaryResult !== null) {
-    return dependencyBoundaryResult;
-  }
+  const preflightFailure = firstFailure([
+    dependencyBoundaryForRequest(requestValidation.request),
+    inputShapeForRequest(requestValidation.request),
+    failedResultOnly(validateOperationCallContract(requestValidation.request)),
+  ]);
 
-  const inputShapeResult = inputShapeForRequest(requestValidation.request);
-  if (inputShapeResult !== null) {
-    return inputShapeResult;
-  }
-
-  const callContractResult = validateOperationCallContract(requestValidation.request);
-  if (callContractResult.status !== "ok") {
-    return callContractResult;
-  }
-
-  return executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
+  return preflightFailure ?? executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
 }
 
 export function suppressCoreWarnings(
@@ -489,38 +480,14 @@ export function validateOperationCallContract(request: unknown = {}): CoreResult
   }
 
   const operationRequest = requestValidation.request;
-  const dependencyBoundaryResult = dependencyBoundaryForRequest(operationRequest);
-  if (dependencyBoundaryResult !== null) {
-    return dependencyBoundaryResult;
-  }
+  const failure = firstFailure([
+    dependencyBoundaryForRequest(operationRequest),
+    inputShapeForRequest(operationRequest),
+    validateCanonicalCallShapes(operationRequest),
+    validateCallContractGuardrails(operationRequest),
+  ]);
 
-  const inputShapeResult = inputShapeForRequest(operationRequest);
-  if (inputShapeResult !== null) {
-    return inputShapeResult;
-  }
-
-  const canonicalShapeResult = validateCanonicalCallShapes(operationRequest);
-  if (canonicalShapeResult !== null) {
-    return canonicalShapeResult;
-  }
-
-  if (hasFreeFormPromptInput(operationRequest.input)) {
-    return freeFormPromptNotAllowed();
-  }
-
-  if (hasHiddenTolerance(operationRequest)) {
-    return hiddenToleranceNotAllowed();
-  }
-
-  if (hasHiddenOutputChangingDefault(operationRequest)) {
-    return hiddenOutputChangingDefault();
-  }
-
-  if (usesPackScopedReferences(operationRequest) && !hasEffectivePackLock(operationRequest)) {
-    return implicitPackNotAllowed();
-  }
-
-  return createCoreResult({
+  return failure ?? createCoreResult({
     status: "ok",
     provenance: createProvenance("core.operation-call-contract.validate", "0.1.0"),
   });
@@ -531,37 +498,22 @@ export function validateCoreOperationResult(result: unknown): CoreResult {
     return invalidInputShape("result", "Operation result must be an object.");
   }
 
-  if (!("output" in result)) {
-    return missingResultOutput();
+  const shapeFailure = validateOperationResultShape(result);
+  if (shapeFailure !== null) {
+    return shapeFailure;
   }
 
-  if (!Array.isArray(result.warnings) || !Array.isArray(result.errors)) {
-    return missingResultDiagnostics();
-  }
-
-  if (!Array.isArray(result.outputRefs)) {
-    return invalidInputShape("outputRefs", "Operation result outputRefs must be an array.");
-  }
-
-  const provenance = result.provenance === null || isRecord(result.provenance) ? (result.provenance as Provenance | null) : null;
-  if (result.outputRefs.length > 0 && provenance === null) {
-    return createCoreResult({
-      status: "failed",
-      outputRefs: result.outputRefs as SourceReference[],
-      errors: [
-        createCoreError({
-          code: "MissingProvenance",
-          message: "Derived operation result output cannot be accepted without provenance.",
-          sourceRef: { kind: "provenance", ref: "missing" },
-        }),
-      ],
-    });
+  const outputRefs = result.outputRefs as readonly SourceReference[];
+  const provenance = operationResultProvenance(result);
+  const provenanceFailure = validateOperationResultProvenance(outputRefs, provenance);
+  if (provenanceFailure !== null) {
+    return provenanceFailure;
   }
 
   return createCoreResult({
     status: "ok",
     warnings: result.warnings as readonly CoreWarning[],
-    outputRefs: result.outputRefs as readonly SourceReference[],
+    outputRefs,
     provenance,
     output: result.output,
   });
@@ -793,38 +745,118 @@ function operationInvariantViolation(operationName: OperationName): CoreResult {
 }
 
 function validateCanonicalCallShapes(request: CoreOperationRequest): CoreResult | null {
-  if (request.requestedOutputs !== undefined && !isStringArray(request.requestedOutputs)) {
-    return invalidInputShape("requestedOutputs", "Requested outputs must be strings.");
+  return firstFailure([
+    validateOptionalStringArray(request.requestedOutputs, "requestedOutputs", "Requested outputs must be strings."),
+    validateOptionalStringArray(request.requestedArtifacts, "requestedArtifacts", "Requested artifacts must be strings."),
+    validateOptionalStringArray(request.hiddenDefaults, "hiddenDefaults", "Hidden defaults must be named with strings."),
+    validateRuleRefsShape(request.ruleRefs),
+    validateSourceReferencesShape(request.sourceReferences),
+    validateFeatureFlagsShape(request.featureFlags),
+    validateOutputChangingDefaultsShape(request.outputChangingDefaults),
+  ]);
+}
+
+function validateCallContractGuardrails(request: CoreOperationRequest): CoreResult | null {
+  return firstFailure([
+    validateFreeFormPromptGuardrail(request),
+    validateHiddenToleranceGuardrail(request),
+    validateHiddenDefaultGuardrail(request),
+    validateImplicitPackGuardrail(request),
+  ]);
+}
+
+function validateOperationResultShape(result: Record<string, unknown>): CoreResult | null {
+  return firstFailure([
+    validateResultOutputShape(result),
+    validateResultDiagnosticsShape(result),
+    validateResultOutputRefsShape(result),
+  ]);
+}
+
+function validateFreeFormPromptGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasFreeFormPromptInput(request.input) ? freeFormPromptNotAllowed() : null;
+}
+
+function validateHiddenToleranceGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasHiddenTolerance(request) ? hiddenToleranceNotAllowed() : null;
+}
+
+function validateHiddenDefaultGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasHiddenOutputChangingDefault(request) ? hiddenOutputChangingDefault() : null;
+}
+
+function validateImplicitPackGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return usesPackScopedReferences(request) && !hasEffectivePackLock(request) ? implicitPackNotAllowed() : null;
+}
+
+function validateResultOutputShape(result: Record<string, unknown>): CoreResult | null {
+  return "output" in result ? null : missingResultOutput();
+}
+
+function validateResultDiagnosticsShape(result: Record<string, unknown>): CoreResult | null {
+  return Array.isArray(result.warnings) && Array.isArray(result.errors) ? null : missingResultDiagnostics();
+}
+
+function validateResultOutputRefsShape(result: Record<string, unknown>): CoreResult | null {
+  return Array.isArray(result.outputRefs)
+    ? null
+    : invalidInputShape("outputRefs", "Operation result outputRefs must be an array.");
+}
+
+function operationResultProvenance(result: Record<string, unknown>): Provenance | null {
+  return result.provenance === null || isRecord(result.provenance) ? (result.provenance as Provenance | null) : null;
+}
+
+function validateOperationResultProvenance(
+  outputRefs: readonly SourceReference[],
+  provenance: Provenance | null,
+): CoreResult | null {
+  if (outputRefs.length === 0 || provenance !== null) {
+    return null;
   }
 
-  if (request.requestedArtifacts !== undefined && !isStringArray(request.requestedArtifacts)) {
-    return invalidInputShape("requestedArtifacts", "Requested artifacts must be strings.");
-  }
+  return createCoreResult({
+    status: "failed",
+    outputRefs,
+    errors: [
+      createCoreError({
+        code: "MissingProvenance",
+        message: "Derived operation result output cannot be accepted without provenance.",
+        sourceRef: { kind: "provenance", ref: "missing" },
+      }),
+    ],
+  });
+}
 
-  if (request.hiddenDefaults !== undefined && !isStringArray(request.hiddenDefaults)) {
-    return invalidInputShape("hiddenDefaults", "Hidden defaults must be named with strings.");
-  }
+function validateOptionalStringArray(value: unknown, targetRef: string, message: string): CoreResult | null {
+  return value === undefined || isStringArray(value) ? null : invalidInputShape(targetRef, message);
+}
 
-  if (request.ruleRefs !== undefined && !isStringArray(request.ruleRefs) && !isSourceReferenceArray(request.ruleRefs)) {
-    return invalidInputShape("ruleRefs", "Rule references must be strings or source references.");
-  }
+function validateRuleRefsShape(value: unknown): CoreResult | null {
+  return value === undefined || isStringArray(value) || isSourceReferenceArray(value)
+    ? null
+    : invalidInputShape("ruleRefs", "Rule references must be strings or source references.");
+}
 
-  if (request.sourceReferences !== undefined && !isSourceReferenceArray(request.sourceReferences)) {
-    return invalidInputShape("sourceReferences", "Source references must expose kind and ref strings.");
-  }
+function validateSourceReferencesShape(value: unknown): CoreResult | null {
+  return value === undefined || isSourceReferenceArray(value)
+    ? null
+    : invalidInputShape("sourceReferences", "Source references must expose kind and ref strings.");
+}
 
-  if (request.featureFlags !== undefined && !isBooleanRecord(request.featureFlags)) {
-    return invalidInputShape("featureFlags", "Feature flags must be explicit booleans.");
-  }
+function validateFeatureFlagsShape(value: unknown): CoreResult | null {
+  return value === undefined || isBooleanRecord(value)
+    ? null
+    : invalidInputShape("featureFlags", "Feature flags must be explicit booleans.");
+}
 
-  if (request.outputChangingDefaults !== undefined && !isOutputChangingDefaultArray(request.outputChangingDefaults)) {
-    return invalidInputShape(
-      "outputChangingDefaults",
-      "Output-changing defaults must expose a string name and boolean explicit/versioned flags.",
-    );
-  }
-
-  return null;
+function validateOutputChangingDefaultsShape(value: unknown): CoreResult | null {
+  return value === undefined || isOutputChangingDefaultArray(value)
+    ? null
+    : invalidInputShape(
+        "outputChangingDefaults",
+        "Output-changing defaults must expose a string name and boolean explicit/versioned flags.",
+      );
 }
 
 function hasFreeFormPromptInput(input: unknown): boolean {
@@ -931,6 +963,14 @@ function missingResultDiagnostics(): CoreResult {
   });
 }
 
+function firstFailure(results: readonly (CoreResult | null)[]): CoreResult | null {
+  return results.find((result) => result !== null) ?? null;
+}
+
+function failedResultOnly(result: CoreResult): CoreResult | null {
+  return result.status === "ok" ? null : result;
+}
+
 function failedRequestValidation(result: CoreResult): FailedOperationValidation {
   return { ok: false, result };
 }
@@ -960,12 +1000,15 @@ function isOutputChangingDefaultArray(value: unknown): value is readonly OutputC
 }
 
 function isOutputChangingDefault(value: unknown): value is OutputChangingDefault {
-  return (
-    isRecord(value) &&
-    typeof value.name === "string" &&
-    (!("explicit" in value) || typeof value.explicit === "boolean") &&
-    (!("versioned" in value) || typeof value.versioned === "boolean")
-  );
+  if (!isRecord(value) || typeof value.name !== "string") {
+    return false;
+  }
+
+  return hasOptionalBooleanField(value, "explicit") && hasOptionalBooleanField(value, "versioned");
+}
+
+function hasOptionalBooleanField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || typeof value[key] === "boolean";
 }
 
 function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean {
