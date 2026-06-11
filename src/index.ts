@@ -138,9 +138,46 @@ interface CoreResultInput<TOutput> {
   output?: TOutput | null;
 }
 
+type FailedOperationValidation = {
+  ok: false;
+  result: CoreResult;
+};
+
+type OperationRequestValidation =
+  | {
+      ok: true;
+      request: CoreOperationRequest;
+      operationName: OperationName;
+    }
+  | FailedOperationValidation;
+
+type OperationDescriptorValidation =
+  | {
+      ok: true;
+      operationName: OperationName;
+    }
+  | FailedOperationValidation;
+
 const CORE_SOURCE_REFERENCE: SourceReference = Object.freeze({
   kind: "core",
   ref: "norma-core/pr1-skeleton",
+});
+
+const DEFAULT_DIAGNOSTIC_FIELDS = Object.freeze({
+  targetRef: null,
+  sourceRef: CORE_SOURCE_REFERENCE,
+  provenance: null,
+});
+
+const DEFAULT_RESULT_FIELDS = Object.freeze({
+  warnings: [],
+  errors: [],
+  provenance: null,
+  outputRefs: [],
+  runRef: null,
+  packLockRef: null,
+  operationContextRef: null,
+  output: null,
 });
 
 const PR1_STUB_OPERATION: OperationDefinition = Object.freeze({
@@ -172,28 +209,31 @@ export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
 ] as const;
 
 export function createCoreError(input: DiagnosticInput): CoreError {
+  const diagnostic = { ...DEFAULT_DIAGNOSTIC_FIELDS, ...input };
+
   return {
-    code: input.code,
-    severity: input.severity === "fatal" ? "fatal" : "error",
-    message: input.message,
-    targetRef: input.targetRef ?? null,
-    source: input.sourceRef ?? CORE_SOURCE_REFERENCE,
+    code: diagnostic.code,
+    severity: errorSeverity(diagnostic.severity),
+    message: diagnostic.message,
+    targetRef: diagnostic.targetRef,
+    source: diagnostic.sourceRef,
     blocking: true,
-    provenance: input.provenance ?? null,
+    provenance: diagnostic.provenance,
   };
 }
 
 export function createCoreWarning(input: DiagnosticInput): CoreWarning {
-  const severity = warningSeverity(input.severity);
+  const diagnostic = { ...DEFAULT_DIAGNOSTIC_FIELDS, ...input };
+  const severity = warningSeverity(diagnostic.severity);
 
   return {
-    code: input.code,
+    code: diagnostic.code,
     severity,
-    message: input.message,
-    targetRef: input.targetRef ?? null,
-    source: input.sourceRef ?? CORE_SOURCE_REFERENCE,
-    blocking: input.blocking ?? severity === "critical",
-    provenance: input.provenance ?? null,
+    message: diagnostic.message,
+    targetRef: diagnostic.targetRef,
+    source: diagnostic.sourceRef,
+    blocking: warningBlocking(diagnostic.blocking, severity),
+    provenance: diagnostic.provenance,
   };
 }
 
@@ -231,82 +271,22 @@ export function executeCoreOperation(
   request: CoreOperationRequest = {},
   registry: OperationRegistry = CORE_SKELETON_OPERATION_REGISTRY,
 ): CoreResult {
-  if (!isRecord(request)) {
-    return invalidInputShape("request", "Core operation request must be an object.");
+  const requestValidation = validateOperationRequest(request);
+  if (!requestValidation.ok) {
+    return requestValidation.result;
   }
 
-  const dependencyBoundaryResult = dependencyBoundaryForRequest(request);
+  const dependencyBoundaryResult = dependencyBoundaryForRequest(requestValidation.request);
   if (dependencyBoundaryResult !== null) {
     return dependencyBoundaryResult;
   }
 
-  if (request.operation === undefined || request.operation === null) {
-    return createCoreResult({
-      status: "failed",
-      errors: [
-        createCoreError({
-          code: "MissingOperation",
-          message: "Core operation is required.",
-        }),
-      ],
-    });
+  const inputShapeResult = inputShapeForRequest(requestValidation.request);
+  if (inputShapeResult !== null) {
+    return inputShapeResult;
   }
 
-  if (!isRecord(request.operation)) {
-    return invalidInputShape("operation", "Operation descriptor must be an object.");
-  }
-
-  const operationName = request.operation.name;
-  if (typeof operationName !== "string" || operationName.length === 0) {
-    return createCoreResult({
-      status: "failed",
-      errors: [
-        createCoreError({
-          code: "MissingOperationName",
-          message: "Operation name is required.",
-          sourceRef: { kind: "operation", ref: "missing-name" },
-        }),
-      ],
-    });
-  }
-
-  const operationVersion = request.operation.version;
-  if (typeof operationVersion !== "string" || operationVersion.length === 0) {
-    return createCoreResult({
-      status: "failed",
-      errors: [
-        createCoreError({
-          code: "MissingOperationVersion",
-          message: "Operation version is required.",
-          sourceRef: { kind: "operation", ref: operationName },
-        }),
-      ],
-    });
-  }
-
-  if ("input" in request && !isValidCoreInput(request.input)) {
-    return invalidInputShape("input", "Core PR1 input must be a structured object when provided.");
-  }
-
-  const operation = registry[operationName];
-  if (operation === undefined) {
-    return unsupportedOperation(operationName);
-  }
-
-  if (operation.status === "stub") {
-    return notImplementedOperation(operation);
-  }
-
-  return createCoreResult({
-    status: "failed",
-    errors: [
-      createCoreError({
-        code: "InternalInvariantViolation",
-        message: `Operation registry entry has an unsupported status: ${operationName}.`,
-        sourceRef: { kind: "operation", ref: operationName },
-      }),
-    ],
-  });
+  return executeRegisteredOperation(requestValidation.operationName, registry);
 }
 
 export function suppressCoreWarnings(
@@ -411,17 +391,7 @@ export function validateCoreSkeleton(): CoreResult {
 }
 
 function createCoreResult<TOutput = unknown>(input: CoreResultInput<TOutput>): CoreResult<TOutput> {
-  return {
-    status: input.status,
-    warnings: input.warnings ?? [],
-    errors: input.errors ?? [],
-    provenance: input.provenance ?? null,
-    outputRefs: input.outputRefs ?? [],
-    runRef: input.runRef ?? null,
-    packLockRef: input.packLockRef ?? null,
-    operationContextRef: input.operationContextRef ?? null,
-    output: input.output ?? null,
-  };
+  return { ...DEFAULT_RESULT_FIELDS, ...input };
 }
 
 function createProvenance(
@@ -459,17 +429,154 @@ function warningSeverity(severity: DiagnosticSeverity | undefined): CoreWarning[
   return "warning";
 }
 
+function errorSeverity(severity: DiagnosticSeverity | undefined): CoreError["severity"] {
+  return severity === "fatal" ? "fatal" : "error";
+}
+
+function warningBlocking(blocking: boolean | undefined, severity: CoreWarning["severity"]): boolean {
+  if (blocking !== undefined) {
+    return blocking;
+  }
+
+  return severity === "critical";
+}
+
 function dependencyBoundaryForRequest(request: CoreOperationRequest): CoreResult | null {
   if (request.dependencyRefs === undefined) {
     return null;
   }
 
-  if (!Array.isArray(request.dependencyRefs) || !request.dependencyRefs.every((dependencyRef) => typeof dependencyRef === "string")) {
+  if (!isStringArray(request.dependencyRefs)) {
     return invalidInputShape("dependencyRefs", "Dependency references must be strings.");
   }
 
   const result = validateCoreDependencyBoundary(request.dependencyRefs);
   return result.status === "ok" ? null : result;
+}
+
+function validateOperationRequest(request: CoreOperationRequest): OperationRequestValidation {
+  if (!isRecord(request)) {
+    return failedRequestValidation(invalidInputShape("request", "Core operation request must be an object."));
+  }
+
+  const operationValidation = validateOperationDescriptor(request.operation);
+  if (!operationValidation.ok) {
+    return operationValidation;
+  }
+
+  return { ok: true, request, operationName: operationValidation.operationName };
+}
+
+function validateOperationDescriptor(operation: unknown): OperationDescriptorValidation {
+  if (operation == null) {
+    return failedRequestValidation(missingOperation());
+  }
+
+  if (!isRecord(operation)) {
+    return failedRequestValidation(invalidInputShape("operation", "Operation descriptor must be an object."));
+  }
+
+  return validateOperationIdentity(operation);
+}
+
+function validateOperationIdentity(operation: Record<string, unknown>): OperationDescriptorValidation {
+  const operationName = nonEmptyString(operation.name);
+  if (operationName === null) {
+    return failedRequestValidation(missingOperationName());
+  }
+
+  const operationVersion = nonEmptyString(operation.version);
+  if (operationVersion === null) {
+    return failedRequestValidation(missingOperationVersion(operationName));
+  }
+
+  return { ok: true, operationName };
+}
+
+function executeRegisteredOperation(operationName: OperationName, registry: OperationRegistry): CoreResult {
+  const operation = registry[operationName];
+  if (operation === undefined) {
+    return unsupportedOperation(operationName);
+  }
+
+  if (operation.status === "stub") {
+    return notImplementedOperation(operation);
+  }
+
+  return operationInvariantViolation(operationName);
+}
+
+function inputShapeForRequest(request: CoreOperationRequest): CoreResult | null {
+  if (!("input" in request)) {
+    return null;
+  }
+
+  return isValidCoreInput(request.input)
+    ? null
+    : invalidInputShape("input", "Core PR1 input must be a structured object when provided.");
+}
+
+function missingOperation(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingOperation",
+        message: "Core operation is required.",
+      }),
+    ],
+  });
+}
+
+function missingOperationName(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingOperationName",
+        message: "Operation name is required.",
+        sourceRef: { kind: "operation", ref: "missing-name" },
+      }),
+    ],
+  });
+}
+
+function missingOperationVersion(operationName: OperationName): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingOperationVersion",
+        message: "Operation version is required.",
+        sourceRef: { kind: "operation", ref: operationName },
+      }),
+    ],
+  });
+}
+
+function operationInvariantViolation(operationName: OperationName): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "InternalInvariantViolation",
+        message: `Operation registry entry has an unsupported status: ${operationName}.`,
+        sourceRef: { kind: "operation", ref: operationName },
+      }),
+    ],
+  });
+}
+
+function failedRequestValidation(result: CoreResult): FailedOperationValidation {
+  return { ok: false, result };
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isValidCoreInput(input: unknown): boolean {
