@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr1";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr2";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
