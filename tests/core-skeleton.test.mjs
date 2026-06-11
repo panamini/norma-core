@@ -34,6 +34,7 @@ function assertStructuredResult(result) {
   assert.ok(Array.isArray(result.errors));
   assert.ok(Array.isArray(result.warnings));
   assert.ok(Array.isArray(result.outputRefs));
+  assert.ok("output" in result);
   assert.ok("provenance" in result);
   assert.ok("runRef" in result);
   assert.ok("packLockRef" in result);
@@ -90,6 +91,13 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingOperationVersion",
       "InternalInvariantViolation",
       "ForbiddenCoreDependency",
+      "ImplicitPackNotAllowed",
+      "HiddenToleranceNotAllowed",
+      "FreeFormPromptNotAllowed",
+      "HiddenOutputChangingDefault",
+      "MissingResultOutput",
+      "MissingResultDiagnostics",
+      "MissingOperationContext",
     ]),
   );
 });
@@ -170,6 +178,146 @@ test("malformed input returns InvalidInputShape", () => {
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
   assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
+});
+
+test("PR2 operation contract exports canonical validation levels", () => {
+  assert.deepEqual(core.CORE_VALIDATION_LEVELS, ["call", "result", "replay"]);
+});
+
+test("PR2 operation registry exposes only conceptual V1 stub operations", () => {
+  assert.deepEqual(Object.keys(core.CORE_OPERATION_REGISTRY), [
+    "core.validateGeometry@0.1.0",
+    "core.resolveRules@0.1.0",
+    "core.generateConstruction@0.1.0",
+    "core.measureConstruction@0.1.0",
+    "core.evaluateComposition@0.1.0",
+    "core.compareEvaluations@0.1.0",
+  ]);
+
+  for (const operation of Object.values(core.CORE_OPERATION_REGISTRY)) {
+    assert.equal(operation.status, "stub");
+  }
+});
+
+test("operation without operationVersion returns MissingOperationVersion", () => {
+  const result = executeCoreOperation({
+    operation: { name: "core.skeleton.stub" },
+    input: {},
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingOperationVersion"));
+});
+
+test("operation call contract rejects implicit pack usage", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.resolveRules", version: "0.1.0" },
+    input: {},
+    packLock: null,
+    ruleSetRef: "surface-basic-third-grid",
+    requestedOutputs: ["rule-resolution"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("ImplicitPackNotAllowed"));
+});
+
+test("operation call contract rejects hidden tolerance", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.measureConstruction", version: "0.1.0" },
+    input: {},
+    operationContext: { ref: { id: "context:measurement" } },
+    requestedOutputs: ["measurements"],
+    requestedArtifacts: [],
+    hiddenDefaults: ["tolerance"],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("HiddenToleranceNotAllowed"));
+});
+
+test("operation call contract rejects free-form prompt input", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.validateGeometry", version: "0.1.0" },
+    input: { prompt: "draw a pleasing golden rectangle" },
+    requestedOutputs: ["validated-geometry"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("FreeFormPromptNotAllowed"));
+});
+
+test("operation call contract rejects output-changing defaults that are not explicit", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.evaluateComposition", version: "0.1.0" },
+    input: {},
+    operationContext: { ref: { id: "context:evaluation" } },
+    evaluationProfileRef: "profile:basic",
+    requestedOutputs: ["evaluation"],
+    requestedArtifacts: [],
+    outputChangingDefaults: [{ name: "roundingPolicy", explicit: false, versioned: false }],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("HiddenOutputChangingDefault"));
+});
+
+test("operation result contract rejects missing warnings or errors arrays", () => {
+  const result = core.validateCoreOperationResult({
+    status: "ok",
+    output: {},
+    outputRefs: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingResultDiagnostics"));
+});
+
+test("operation result contract rejects derived output without provenance", () => {
+  const result = core.validateCoreOperationResult({
+    status: "ok",
+    output: { derived: true },
+    outputRefs: [{ kind: "core-output", ref: "derived:1" }],
+    warnings: [],
+    errors: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingProvenance"));
+});
+
+test("operation result contract rejects missing output field", () => {
+  const result = core.validateCoreOperationResult({
+    status: "ok",
+    outputRefs: [],
+    warnings: [],
+    errors: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingResultOutput"));
 });
 
 test("critical warnings cannot be suppressed", () => {
