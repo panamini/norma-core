@@ -3,7 +3,11 @@ export type OperationName = string;
 export type OperationVersion = string;
 export type OperationKey = `${OperationName}@${OperationVersion}`;
 
-export type OperationStatus = "ok" | "failed" | "not_implemented";
+export const CORE_OPERATION_STATUSES = ["ok", "failed", "not_implemented"] as const;
+export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
+
+export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
+export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
 export const CORE_VERSION: CoreVersion = "0.1.0-pr1";
 
@@ -19,6 +23,13 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperationVersion",
   "InternalInvariantViolation",
   "ForbiddenCoreDependency",
+  "ImplicitPackNotAllowed",
+  "HiddenToleranceNotAllowed",
+  "FreeFormPromptNotAllowed",
+  "HiddenOutputChangingDefault",
+  "MissingResultOutput",
+  "MissingResultDiagnostics",
+  "MissingOperationContext",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -109,6 +120,11 @@ export interface CoreResult<TOutput = unknown> {
   output: TOutput | null;
 }
 
+export interface OperationDescriptor {
+  name?: OperationName;
+  version?: OperationVersion;
+}
+
 export interface OperationDefinition {
   name: OperationName;
   version: OperationVersion;
@@ -117,13 +133,68 @@ export interface OperationDefinition {
 
 export type OperationRegistry = Readonly<Record<OperationKey, OperationDefinition>>;
 
-export interface CoreOperationRequest {
-  operation?: {
-    name?: OperationName;
-    version?: OperationVersion;
-  };
+export const CORE_CANONICAL_VARIABLES = [
+  "operation",
+  "operationVersion",
+  "input",
+  "operationContext",
+  "packLock",
+  "ruleRefs",
+  "ruleSetRef",
+  "evaluationProfileRef",
+  "tolerances",
+  "coordinateSystem",
+  "metricPolicy",
+  "requestedOutputs",
+  "requestedArtifacts",
+  "featureFlags",
+  "sourceReferences",
+  "status",
+  "warnings",
+  "errors",
+  "provenance",
+  "runRef",
+  "output",
+  "outputRefs",
+] as const;
+
+export type CoreCanonicalVariable = (typeof CORE_CANONICAL_VARIABLES)[number];
+
+export interface OutputChangingDefault {
+  name: string;
+  explicit?: boolean;
+  versioned?: boolean;
+}
+
+export interface OperationCallContract {
+  operation?: OperationDescriptor;
+  operationVersion?: OperationVersion;
   input?: unknown;
+  operationContext?: OperationContext | OperationContextRef | null;
+  packLock?: PackLock | PackLockRef | null;
+  ruleRefs?: readonly string[] | readonly SourceReference[];
+  ruleSetRef?: string;
+  evaluationProfileRef?: string;
+  tolerances?: unknown;
+  coordinateSystem?: unknown;
+  metricPolicy?: unknown;
+  requestedOutputs?: readonly string[];
+  requestedArtifacts?: readonly string[];
+  featureFlags?: Readonly<Record<string, boolean>>;
+  sourceReferences?: readonly SourceReference[];
+  hiddenDefaults?: readonly string[];
+  outputChangingDefaults?: readonly OutputChangingDefault[];
   dependencyRefs?: readonly string[];
+}
+
+export interface CoreOperationRequest extends OperationCallContract {}
+
+export interface OperationResultContract<TOutput = unknown> extends CoreResult<TOutput> {
+  run?: Run | null;
+  packLock?: PackLock | null;
+  operationContext?: OperationContext | null;
+  artifactRefs?: readonly SourceReference[];
+  explanationRefs?: readonly SourceReference[];
 }
 
 interface DiagnosticInput {
@@ -198,10 +269,34 @@ const PR1_STUB_OPERATION: OperationDefinition = Object.freeze({
   status: "stub",
 });
 
+const CORE_V1_CONCEPTUAL_OPERATIONS = [
+  Object.freeze({ name: "core.validateGeometry", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.resolveRules", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.generateConstruction", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.measureConstruction", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.evaluateComposition", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.compareEvaluations", version: "0.1.0", status: "stub" }),
+] as const satisfies readonly OperationDefinition[];
+
 export const EMPTY_OPERATION_REGISTRY: OperationRegistry = Object.freeze({});
 
 export const CORE_SKELETON_OPERATION_REGISTRY: OperationRegistry = Object.freeze({
   [operationKey(PR1_STUB_OPERATION.name, PR1_STUB_OPERATION.version)]: PR1_STUB_OPERATION,
+});
+
+export const CORE_OPERATION_REGISTRY: OperationRegistry = Object.freeze({
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[0].name, CORE_V1_CONCEPTUAL_OPERATIONS[0].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[0],
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[1].name, CORE_V1_CONCEPTUAL_OPERATIONS[1].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[1],
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[2].name, CORE_V1_CONCEPTUAL_OPERATIONS[2].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[2],
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[3].name, CORE_V1_CONCEPTUAL_OPERATIONS[3].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[3],
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[4].name, CORE_V1_CONCEPTUAL_OPERATIONS[4].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[4],
+  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[5].name, CORE_V1_CONCEPTUAL_OPERATIONS[5].version)]:
+    CORE_V1_CONCEPTUAL_OPERATIONS[5],
 });
 
 export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
@@ -302,6 +397,11 @@ export function executeCoreOperation(
     return inputShapeResult;
   }
 
+  const callContractResult = validateOperationCallContract(requestValidation.request);
+  if (callContractResult.status !== "ok") {
+    return callContractResult;
+  }
+
   return executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
 }
 
@@ -380,6 +480,91 @@ export function validateCoreDependencyBoundary(dependencyRefs: readonly string[]
   }
 
   return createCoreResult({ status: "ok" });
+}
+
+export function validateOperationCallContract(request: unknown = {}): CoreResult {
+  const requestValidation = validateOperationRequest(request as CoreOperationRequest);
+  if (!requestValidation.ok) {
+    return requestValidation.result;
+  }
+
+  const operationRequest = requestValidation.request;
+  const dependencyBoundaryResult = dependencyBoundaryForRequest(operationRequest);
+  if (dependencyBoundaryResult !== null) {
+    return dependencyBoundaryResult;
+  }
+
+  const inputShapeResult = inputShapeForRequest(operationRequest);
+  if (inputShapeResult !== null) {
+    return inputShapeResult;
+  }
+
+  const canonicalShapeResult = validateCanonicalCallShapes(operationRequest);
+  if (canonicalShapeResult !== null) {
+    return canonicalShapeResult;
+  }
+
+  if (hasFreeFormPromptInput(operationRequest.input)) {
+    return freeFormPromptNotAllowed();
+  }
+
+  if (hasHiddenTolerance(operationRequest)) {
+    return hiddenToleranceNotAllowed();
+  }
+
+  if (hasHiddenOutputChangingDefault(operationRequest)) {
+    return hiddenOutputChangingDefault();
+  }
+
+  if (usesPackScopedReferences(operationRequest) && !hasEffectivePackLock(operationRequest)) {
+    return implicitPackNotAllowed();
+  }
+
+  return createCoreResult({
+    status: "ok",
+    provenance: createProvenance("core.operation-call-contract.validate", "0.1.0"),
+  });
+}
+
+export function validateCoreOperationResult(result: unknown): CoreResult {
+  if (!isRecord(result)) {
+    return invalidInputShape("result", "Operation result must be an object.");
+  }
+
+  if (!("output" in result)) {
+    return missingResultOutput();
+  }
+
+  if (!Array.isArray(result.warnings) || !Array.isArray(result.errors)) {
+    return missingResultDiagnostics();
+  }
+
+  if (!Array.isArray(result.outputRefs)) {
+    return invalidInputShape("outputRefs", "Operation result outputRefs must be an array.");
+  }
+
+  const provenance = result.provenance === null || isRecord(result.provenance) ? (result.provenance as Provenance | null) : null;
+  if (result.outputRefs.length > 0 && provenance === null) {
+    return createCoreResult({
+      status: "failed",
+      outputRefs: result.outputRefs as SourceReference[],
+      errors: [
+        createCoreError({
+          code: "MissingProvenance",
+          message: "Derived operation result output cannot be accepted without provenance.",
+          sourceRef: { kind: "provenance", ref: "missing" },
+        }),
+      ],
+    });
+  }
+
+  return createCoreResult({
+    status: "ok",
+    warnings: result.warnings as readonly CoreWarning[],
+    outputRefs: result.outputRefs as readonly SourceReference[],
+    provenance,
+    output: result.output,
+  });
 }
 
 export function missingRequiredDiagnosticCodes(diagnosticCodes: readonly DiagnosticCode[]): readonly DiagnosticCode[] {
@@ -485,7 +670,8 @@ function validateOperationRequest(request: CoreOperationRequest): OperationReque
     return failedRequestValidation(invalidInputShape("request", "Core operation request must be an object."));
   }
 
-  const operationValidation = validateOperationDescriptor(request.operation);
+  const operationVersionOverride = typeof request.operationVersion === "string" ? request.operationVersion : undefined;
+  const operationValidation = validateOperationDescriptor(request.operation, operationVersionOverride);
   if (!operationValidation.ok) {
     return operationValidation;
   }
@@ -498,7 +684,7 @@ function validateOperationRequest(request: CoreOperationRequest): OperationReque
   };
 }
 
-function validateOperationDescriptor(operation: unknown): OperationDescriptorValidation {
+function validateOperationDescriptor(operation: unknown, operationVersionOverride?: OperationVersion): OperationDescriptorValidation {
   if (operation == null) {
     return failedRequestValidation(missingOperation());
   }
@@ -507,16 +693,19 @@ function validateOperationDescriptor(operation: unknown): OperationDescriptorVal
     return failedRequestValidation(invalidInputShape("operation", "Operation descriptor must be an object."));
   }
 
-  return validateOperationIdentity(operation);
+  return validateOperationIdentity(operation, operationVersionOverride);
 }
 
-function validateOperationIdentity(operation: Record<string, unknown>): OperationDescriptorValidation {
+function validateOperationIdentity(
+  operation: Record<string, unknown>,
+  operationVersionOverride?: OperationVersion,
+): OperationDescriptorValidation {
   const operationName = nonEmptyString(operation.name);
   if (operationName === null) {
     return failedRequestValidation(missingOperationName());
   }
 
-  const operationVersion = nonEmptyString(operation.version);
+  const operationVersion = nonEmptyString(operationVersionOverride ?? operation.version);
   if (operationVersion === null) {
     return failedRequestValidation(missingOperationVersion(operationName));
   }
@@ -603,6 +792,145 @@ function operationInvariantViolation(operationName: OperationName): CoreResult {
   });
 }
 
+function validateCanonicalCallShapes(request: CoreOperationRequest): CoreResult | null {
+  if (request.requestedOutputs !== undefined && !isStringArray(request.requestedOutputs)) {
+    return invalidInputShape("requestedOutputs", "Requested outputs must be strings.");
+  }
+
+  if (request.requestedArtifacts !== undefined && !isStringArray(request.requestedArtifacts)) {
+    return invalidInputShape("requestedArtifacts", "Requested artifacts must be strings.");
+  }
+
+  if (request.hiddenDefaults !== undefined && !isStringArray(request.hiddenDefaults)) {
+    return invalidInputShape("hiddenDefaults", "Hidden defaults must be named with strings.");
+  }
+
+  if (request.ruleRefs !== undefined && !isStringArray(request.ruleRefs) && !isSourceReferenceArray(request.ruleRefs)) {
+    return invalidInputShape("ruleRefs", "Rule references must be strings or source references.");
+  }
+
+  if (request.sourceReferences !== undefined && !isSourceReferenceArray(request.sourceReferences)) {
+    return invalidInputShape("sourceReferences", "Source references must expose kind and ref strings.");
+  }
+
+  if (request.featureFlags !== undefined && !isBooleanRecord(request.featureFlags)) {
+    return invalidInputShape("featureFlags", "Feature flags must be explicit booleans.");
+  }
+
+  if (request.outputChangingDefaults !== undefined && !isOutputChangingDefaultArray(request.outputChangingDefaults)) {
+    return invalidInputShape(
+      "outputChangingDefaults",
+      "Output-changing defaults must expose a string name and boolean explicit/versioned flags.",
+    );
+  }
+
+  return null;
+}
+
+function hasFreeFormPromptInput(input: unknown): boolean {
+  if (!isRecord(input)) {
+    return false;
+  }
+
+  return hasNonEmptyString(input, "prompt") || hasNonEmptyString(input, "freeFormPrompt");
+}
+
+function hasHiddenTolerance(request: CoreOperationRequest): boolean {
+  return request.hiddenDefaults?.some((defaultName) => isToleranceName(defaultName)) ?? false;
+}
+
+function hasHiddenOutputChangingDefault(request: CoreOperationRequest): boolean {
+  return request.outputChangingDefaults?.some(
+    (defaultValue) => defaultValue.explicit !== true || defaultValue.versioned !== true,
+  ) ?? false;
+}
+
+function usesPackScopedReferences(request: CoreOperationRequest): boolean {
+  return request.ruleRefs !== undefined || request.ruleSetRef !== undefined || request.evaluationProfileRef !== undefined;
+}
+
+function hasEffectivePackLock(request: CoreOperationRequest): boolean {
+  return request.packLock !== undefined && request.packLock !== null;
+}
+
+function freeFormPromptNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "FreeFormPromptNotAllowed",
+        message: "Free-form prompt text cannot be used as Norma Core source input.",
+        sourceRef: { kind: "input", ref: "prompt" },
+      }),
+    ],
+  });
+}
+
+function implicitPackNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "ImplicitPackNotAllowed",
+        message: "Pack-scoped operation data requires an explicit effective packLock.",
+        sourceRef: { kind: "packLock", ref: "implicit" },
+      }),
+    ],
+  });
+}
+
+function hiddenToleranceNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "HiddenToleranceNotAllowed",
+        message: "Tolerance defaults that can affect output must be explicit and visible.",
+        sourceRef: { kind: "tolerance", ref: "hidden" },
+      }),
+    ],
+  });
+}
+
+function hiddenOutputChangingDefault(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "HiddenOutputChangingDefault",
+        message: "Output-changing defaults must be explicit and versioned or rejected.",
+        sourceRef: { kind: "operation-context", ref: "default" },
+      }),
+    ],
+  });
+}
+
+function missingResultOutput(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingResultOutput",
+        message: "Operation result contract requires an explicit output field, even when null.",
+        sourceRef: { kind: "result", ref: "output" },
+      }),
+    ],
+  });
+}
+
+function missingResultDiagnostics(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingResultDiagnostics",
+        message: "Operation result contract requires visible warnings and errors arrays.",
+        sourceRef: { kind: "result", ref: "diagnostics" },
+      }),
+    ],
+  });
+}
+
 function failedRequestValidation(result: CoreResult): FailedOperationValidation {
   return { ok: false, result };
 }
@@ -613,6 +941,39 @@ function nonEmptyString(value: unknown): string | null {
 
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isSourceReferenceArray(value: unknown): value is readonly SourceReference[] {
+  return Array.isArray(value) && value.every(isSourceReference);
+}
+
+function isSourceReference(value: unknown): value is SourceReference {
+  return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string";
+}
+
+function isBooleanRecord(value: unknown): value is Readonly<Record<string, boolean>> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "boolean");
+}
+
+function isOutputChangingDefaultArray(value: unknown): value is readonly OutputChangingDefault[] {
+  return Array.isArray(value) && value.every(isOutputChangingDefault);
+}
+
+function isOutputChangingDefault(value: unknown): value is OutputChangingDefault {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    (!("explicit" in value) || typeof value.explicit === "boolean") &&
+    (!("versioned" in value) || typeof value.versioned === "boolean")
+  );
+}
+
+function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean {
+  return typeof value[key] === "string" && value[key].length > 0;
+}
+
+function isToleranceName(value: string): boolean {
+  return value.toLowerCase().includes("tolerance");
 }
 
 function isValidCoreInput(input: unknown): boolean {
