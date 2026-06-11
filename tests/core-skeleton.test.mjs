@@ -319,6 +319,39 @@ test("operation result contract rejects missing warnings or errors arrays", () =
   assert.ok(diagnosticCodes(result).includes("MissingResultDiagnostics"));
 });
 
+test("operation result contract rejects malformed warnings or errors entries", () => {
+  for (const resultShape of [
+    {
+      status: "ok",
+      output: null,
+      outputRefs: [],
+      warnings: [42, "bad"],
+      errors: [],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+    {
+      status: "failed",
+      output: null,
+      outputRefs: [],
+      warnings: [],
+      errors: [42, "bad"],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+  ]) {
+    const result = core.validateCoreOperationResult(resultShape);
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
+  }
+});
+
 test("operation result contract rejects missing or invalid status", () => {
   for (const resultShape of [
     {
