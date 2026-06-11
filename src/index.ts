@@ -1,6 +1,7 @@
 export type CoreVersion = string;
 export type OperationName = string;
 export type OperationVersion = string;
+export type OperationKey = `${OperationName}@${OperationVersion}`;
 
 export type OperationStatus = "ok" | "failed" | "not_implemented";
 
@@ -21,6 +22,15 @@ export const CORE_DIAGNOSTIC_CODES = [
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
+
+export const REQUIRED_PR1_DIAGNOSTIC_CODES = [
+  "MissingOperation",
+  "UnsupportedOperation",
+  "NotImplemented",
+  "InvalidInputShape",
+  "CriticalWarningNotSuppressible",
+  "MissingProvenance",
+] as const satisfies readonly DiagnosticCode[];
 
 export type DiagnosticSeverity = "info" | "warning" | "critical" | "error" | "fatal";
 
@@ -105,7 +115,7 @@ export interface OperationDefinition {
   status: "stub";
 }
 
-export type OperationRegistry = Readonly<Record<OperationName, OperationDefinition>>;
+export type OperationRegistry = Readonly<Record<OperationKey, OperationDefinition>>;
 
 export interface CoreOperationRequest {
   operation?: {
@@ -148,6 +158,7 @@ type OperationRequestValidation =
       ok: true;
       request: CoreOperationRequest;
       operationName: OperationName;
+      operationVersion: OperationVersion;
     }
   | FailedOperationValidation;
 
@@ -155,6 +166,7 @@ type OperationDescriptorValidation =
   | {
       ok: true;
       operationName: OperationName;
+      operationVersion: OperationVersion;
     }
   | FailedOperationValidation;
 
@@ -189,7 +201,7 @@ const PR1_STUB_OPERATION: OperationDefinition = Object.freeze({
 export const EMPTY_OPERATION_REGISTRY: OperationRegistry = Object.freeze({});
 
 export const CORE_SKELETON_OPERATION_REGISTRY: OperationRegistry = Object.freeze({
-  [PR1_STUB_OPERATION.name]: PR1_STUB_OPERATION,
+  [operationKey(PR1_STUB_OPERATION.name, PR1_STUB_OPERATION.version)]: PR1_STUB_OPERATION,
 });
 
 export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
@@ -235,6 +247,10 @@ export function createCoreWarning(input: DiagnosticInput): CoreWarning {
     blocking: warningBlocking(diagnostic.blocking, severity),
     provenance: diagnostic.provenance,
   };
+}
+
+export function operationKey(name: OperationName, version: OperationVersion): OperationKey {
+  return `${name}@${version}`;
 }
 
 export function unsupportedOperation(operationName: OperationName): CoreResult {
@@ -286,7 +302,7 @@ export function executeCoreOperation(
     return inputShapeResult;
   }
 
-  return executeRegisteredOperation(requestValidation.operationName, registry);
+  return executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
 }
 
 export function suppressCoreWarnings(
@@ -367,10 +383,14 @@ export function validateCoreDependencyBoundary(dependencyRefs: readonly string[]
   return createCoreResult({ status: "ok" });
 }
 
-export function validateCoreSkeleton(): CoreResult {
-  const missingDiagnosticCodes = CORE_DIAGNOSTIC_CODES.filter(
-    (code) => !CORE_DIAGNOSTIC_CODES.includes(code),
+export function missingRequiredDiagnosticCodes(diagnosticCodes: readonly DiagnosticCode[]): readonly DiagnosticCode[] {
+  return REQUIRED_PR1_DIAGNOSTIC_CODES.filter(
+    (code) => !diagnosticCodes.includes(code),
   );
+}
+
+export function validateCoreSkeleton(): CoreResult {
+  const missingDiagnosticCodes = missingRequiredDiagnosticCodes(CORE_DIAGNOSTIC_CODES);
 
   if (missingDiagnosticCodes.length > 0) {
     return createCoreResult({
@@ -464,7 +484,12 @@ function validateOperationRequest(request: CoreOperationRequest): OperationReque
     return operationValidation;
   }
 
-  return { ok: true, request, operationName: operationValidation.operationName };
+  return {
+    ok: true,
+    request,
+    operationName: operationValidation.operationName,
+    operationVersion: operationValidation.operationVersion,
+  };
 }
 
 function validateOperationDescriptor(operation: unknown): OperationDescriptorValidation {
@@ -490,13 +515,18 @@ function validateOperationIdentity(operation: Record<string, unknown>): Operatio
     return failedRequestValidation(missingOperationVersion(operationName));
   }
 
-  return { ok: true, operationName };
+  return { ok: true, operationName, operationVersion };
 }
 
-function executeRegisteredOperation(operationName: OperationName, registry: OperationRegistry): CoreResult {
-  const operation = registry[operationName];
+function executeRegisteredOperation(
+  operationName: OperationName,
+  operationVersion: OperationVersion,
+  registry: OperationRegistry,
+): CoreResult {
+  const key = operationKey(operationName, operationVersion);
+  const operation = registry[key];
   if (operation === undefined) {
-    return unsupportedOperation(operationName);
+    return unsupportedOperation(key);
   }
 
   if (operation.status === "stub") {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import * as core from "../dist/src/index.js";
 import {
   CORE_DIAGNOSTIC_CODES,
   CORE_SKELETON_OPERATION_REGISTRY,
@@ -71,6 +72,30 @@ test("required and additional PR1 diagnostics are exported", () => {
   );
 });
 
+test("required PR1 diagnostics are exported separately for skeleton validation", () => {
+  assert.deepEqual(
+    new Set(core.REQUIRED_PR1_DIAGNOSTIC_CODES),
+    new Set([
+      "MissingOperation",
+      "UnsupportedOperation",
+      "NotImplemented",
+      "InvalidInputShape",
+      "CriticalWarningNotSuppressible",
+      "MissingProvenance",
+    ]),
+  );
+});
+
+test("required diagnostic comparison detects a missing required diagnostic", () => {
+  const diagnosticCodesWithoutMissingOperation = CORE_DIAGNOSTIC_CODES.filter(
+    (code) => code !== "MissingOperation",
+  );
+
+  assert.deepEqual(core.missingRequiredDiagnosticCodes(diagnosticCodesWithoutMissingOperation), [
+    "MissingOperation",
+  ]);
+});
+
 test("missing operation returns MissingOperation", () => {
   const result = executeCoreOperation({});
 
@@ -101,6 +126,17 @@ test("known stub operation returns not implemented without fake output", () => {
   assert.equal(result.output, null);
   assert.deepEqual(result.outputRefs, []);
   assert.ok(diagnosticCodes(result).includes("NotImplemented"));
+});
+
+test("known stub operation with unsupported version returns UnsupportedOperation", () => {
+  const result = executeCoreOperation({
+    operation: { name: "core.skeleton.stub", version: "9.9.9" },
+    input: {},
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("UnsupportedOperation"));
 });
 
 test("malformed input returns InvalidInputShape", () => {
@@ -146,5 +182,5 @@ test("forbidden core dependency returns ForbiddenCoreDependency", () => {
 });
 
 test("the skeleton registry exposes only the known stub operation", () => {
-  assert.deepEqual(Object.keys(CORE_SKELETON_OPERATION_REGISTRY), ["core.skeleton.stub"]);
+  assert.deepEqual(Object.keys(CORE_SKELETON_OPERATION_REGISTRY), ["core.skeleton.stub@0.1.0"]);
 });
