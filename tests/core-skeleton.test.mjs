@@ -4,6 +4,7 @@ import test from "node:test";
 import * as core from "../dist/src/index.js";
 import {
   CORE_DIAGNOSTIC_CODES,
+  CORE_VERSION,
   CORE_SKELETON_OPERATION_REGISTRY,
   createCoreError,
   createCoreWarning,
@@ -65,6 +66,10 @@ function assertFailedWithDiagnostic(result, diagnosticCode) {
 function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
+
+test("core version reflects PR2 operation contracts", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr2");
+});
 
 test("validateCoreSkeleton returns a structured result", () => {
   const result = validateCoreSkeleton();
