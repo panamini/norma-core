@@ -193,6 +193,7 @@ test("derived output without provenance returns MissingProvenance", () => {
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
   assert.ok(diagnosticCodes(result).includes("MissingProvenance"));
+  assert.ok(result.errors.some((error) => error.code === "MissingProvenance"));
 });
 
 test("forbidden core dependency returns ForbiddenCoreDependency", () => {

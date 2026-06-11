@@ -343,10 +343,9 @@ export function validateOutputProvenance(
     return createCoreResult({
       status: "failed",
       outputRefs,
-      warnings: [
-        createCoreWarning({
+      errors: [
+        createCoreError({
           code: "MissingProvenance",
-          severity: "critical",
           message: "Derived output cannot be accepted without provenance.",
           sourceRef: { kind: "provenance", ref: "missing" },
         }),
