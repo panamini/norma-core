@@ -56,6 +56,12 @@ function assertStructuredResult(result) {
   }
 }
 
+function assertFailedWithDiagnostic(result, diagnosticCode) {
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes(diagnosticCode));
+}
+
 test("validateCoreSkeleton returns a structured result", () => {
   const result = validateCoreSkeleton();
 
@@ -138,9 +144,7 @@ test("required diagnostic comparison detects a missing required diagnostic", () 
 test("missing operation returns MissingOperation", () => {
   const result = executeCoreOperation({});
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("MissingOperation"));
+  assertFailedWithDiagnostic(result, "MissingOperation");
 });
 
 test("unknown operation returns UnsupportedOperation", () => {
@@ -150,9 +154,7 @@ test("unknown operation returns UnsupportedOperation", () => {
     input: {},
   });
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("UnsupportedOperation"));
+  assertFailedWithDiagnostic(result, "UnsupportedOperation");
 });
 
 test("known stub operation returns not implemented without fake output", () => {
@@ -178,9 +180,7 @@ test("known stub operation with unsupported version returns UnsupportedOperation
     input: {},
   });
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("UnsupportedOperation"));
+  assertFailedWithDiagnostic(result, "UnsupportedOperation");
 });
 
 test("malformed input returns InvalidInputShape", () => {

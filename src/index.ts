@@ -154,6 +154,8 @@ export const CORE_CANONICAL_VARIABLES = [
   "errors",
   "provenance",
   "runRef",
+  "packLockRef",
+  "operationContextRef",
   "output",
   "outputRefs",
 ] as const;
@@ -284,20 +286,7 @@ export const CORE_SKELETON_OPERATION_REGISTRY: OperationRegistry = Object.freeze
   [operationKey(PR1_STUB_OPERATION.name, PR1_STUB_OPERATION.version)]: PR1_STUB_OPERATION,
 });
 
-export const CORE_OPERATION_REGISTRY: OperationRegistry = Object.freeze({
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[0].name, CORE_V1_CONCEPTUAL_OPERATIONS[0].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[0],
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[1].name, CORE_V1_CONCEPTUAL_OPERATIONS[1].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[1],
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[2].name, CORE_V1_CONCEPTUAL_OPERATIONS[2].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[2],
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[3].name, CORE_V1_CONCEPTUAL_OPERATIONS[3].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[3],
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[4].name, CORE_V1_CONCEPTUAL_OPERATIONS[4].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[4],
-  [operationKey(CORE_V1_CONCEPTUAL_OPERATIONS[5].name, CORE_V1_CONCEPTUAL_OPERATIONS[5].version)]:
-    CORE_V1_CONCEPTUAL_OPERATIONS[5],
-});
+export const CORE_OPERATION_REGISTRY: OperationRegistry = operationRegistryFromDefinitions(CORE_V1_CONCEPTUAL_OPERATIONS);
 
 export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
   "ui",
@@ -348,6 +337,14 @@ export function operationKey(name: OperationName, version: OperationVersion): Op
   return `${name}@${version}`;
 }
 
+function operationRegistryFromDefinitions(operations: readonly OperationDefinition[]): OperationRegistry {
+  return Object.freeze(
+    Object.fromEntries(
+      operations.map((operation) => [operationKey(operation.name, operation.version), operation]),
+    ),
+  ) as OperationRegistry;
+}
+
 export function unsupportedOperation(operationRef: OperationName | OperationKey): CoreResult {
   return createCoreResult({
     status: "failed",
@@ -369,7 +366,7 @@ export function notImplementedOperation(operation: OperationDefinition): CoreRes
     errors: [
       createCoreError({
         code: "OperationNotImplemented",
-        message: `Operation is registered as a PR1 stub and has no business implementation: ${operation.name}.`,
+        message: `Operation is registered as a stub operation and has no business implementation: ${operation.name}.`,
         sourceRef: { kind: "operation", ref: operation.name },
         provenance,
       }),
@@ -758,6 +755,7 @@ function validateCanonicalCallShapes(request: CoreOperationRequest): CoreResult 
 
 function validateCallContractGuardrails(request: CoreOperationRequest): CoreResult | null {
   return firstFailure([
+    validateOperationContextGuardrail(request),
     validateFreeFormPromptGuardrail(request),
     validateHiddenToleranceGuardrail(request),
     validateHiddenDefaultGuardrail(request),
@@ -767,10 +765,15 @@ function validateCallContractGuardrails(request: CoreOperationRequest): CoreResu
 
 function validateOperationResultShape(result: Record<string, unknown>): CoreResult | null {
   return firstFailure([
+    validateResultStatusShape(result),
     validateResultOutputShape(result),
     validateResultDiagnosticsShape(result),
     validateResultOutputRefsShape(result),
   ]);
+}
+
+function validateOperationContextGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasEffectiveOperationContext(request) ? null : missingOperationContext();
 }
 
 function validateFreeFormPromptGuardrail(request: CoreOperationRequest): CoreResult | null {
@@ -789,6 +792,12 @@ function validateImplicitPackGuardrail(request: CoreOperationRequest): CoreResul
   return usesPackScopedReferences(request) && !hasEffectivePackLock(request) ? implicitPackNotAllowed() : null;
 }
 
+function validateResultStatusShape(result: Record<string, unknown>): CoreResult | null {
+  return isOperationStatus(result.status)
+    ? null
+    : invalidInputShape("status", "Operation result status must be one of CORE_OPERATION_STATUSES.");
+}
+
 function validateResultOutputShape(result: Record<string, unknown>): CoreResult | null {
   return "output" in result ? null : missingResultOutput();
 }
@@ -798,9 +807,9 @@ function validateResultDiagnosticsShape(result: Record<string, unknown>): CoreRe
 }
 
 function validateResultOutputRefsShape(result: Record<string, unknown>): CoreResult | null {
-  return Array.isArray(result.outputRefs)
+  return isSourceReferenceArray(result.outputRefs)
     ? null
-    : invalidInputShape("outputRefs", "Operation result outputRefs must be an array.");
+    : invalidInputShape("outputRefs", "Operation result outputRefs must be source references.");
 }
 
 function operationResultProvenance(result: Record<string, unknown>): Provenance | null {
@@ -885,6 +894,10 @@ function hasEffectivePackLock(request: CoreOperationRequest): boolean {
   return request.packLock !== undefined && request.packLock !== null;
 }
 
+function hasEffectiveOperationContext(request: CoreOperationRequest): boolean {
+  return request.operationContext !== undefined && request.operationContext !== null;
+}
+
 function freeFormPromptNotAllowed(): CoreResult {
   return createCoreResult({
     status: "failed",
@@ -963,6 +976,19 @@ function missingResultDiagnostics(): CoreResult {
   });
 }
 
+function missingOperationContext(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingOperationContext",
+        message: "Significant operation calls require an explicit operationContext.",
+        sourceRef: { kind: "operation-context", ref: "missing" },
+      }),
+    ],
+  });
+}
+
 function firstFailure(results: readonly (CoreResult | null)[]): CoreResult | null {
   return results.find((result) => result !== null) ?? null;
 }
@@ -977,6 +1003,10 @@ function failedRequestValidation(result: CoreResult): FailedOperationValidation 
 
 function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function isOperationStatus(value: unknown): value is OperationStatus {
+  return typeof value === "string" && CORE_OPERATION_STATUSES.includes(value as OperationStatus);
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
