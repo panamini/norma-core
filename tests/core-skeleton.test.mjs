@@ -62,6 +62,10 @@ function assertFailedWithDiagnostic(result, diagnosticCode) {
   assert.ok(diagnosticCodes(result).includes(diagnosticCode));
 }
 
+function assertInvalidOperationResultShape(resultShape) {
+  assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
+}
+
 test("validateCoreSkeleton returns a structured result", () => {
   const result = validateCoreSkeleton();
 
@@ -344,11 +348,7 @@ test("operation result contract rejects malformed warnings or errors entries", (
       operationContextRef: null,
     },
   ]) {
-    const result = core.validateCoreOperationResult(resultShape);
-
-    assertStructuredResult(result);
-    assert.equal(result.status, "failed");
-    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
+    assertInvalidOperationResultShape(resultShape);
   }
 });
 
@@ -376,11 +376,7 @@ test("operation result contract rejects missing or invalid status", () => {
       operationContextRef: null,
     },
   ]) {
-    const result = core.validateCoreOperationResult(resultShape);
-
-    assertStructuredResult(result);
-    assert.equal(result.status, "failed");
-    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
+    assertInvalidOperationResultShape(resultShape);
   }
 });
 
@@ -403,7 +399,7 @@ test("operation result contract rejects derived output without provenance", () =
 });
 
 test("operation result contract rejects malformed outputRefs entries", () => {
-  const result = core.validateCoreOperationResult({
+  assertInvalidOperationResultShape({
     status: "ok",
     output: { derived: true },
     outputRefs: [42, "bad"],
@@ -414,10 +410,6 @@ test("operation result contract rejects malformed outputRefs entries", () => {
     packLockRef: null,
     operationContextRef: null,
   });
-
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
 });
 
 test("operation result contract rejects missing output field", () => {

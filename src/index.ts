@@ -803,7 +803,21 @@ function validateResultOutputShape(result: Record<string, unknown>): CoreResult 
 }
 
 function validateResultDiagnosticsShape(result: Record<string, unknown>): CoreResult | null {
-  return Array.isArray(result.warnings) && Array.isArray(result.errors) ? null : missingResultDiagnostics();
+  if (!hasResultDiagnosticsArrays(result)) {
+    return missingResultDiagnostics();
+  }
+
+  return hasStructuredResultDiagnostics(result)
+    ? null
+    : invalidInputShape("diagnostics", "Operation result warnings and errors must contain structured diagnostics.");
+}
+
+function hasResultDiagnosticsArrays(result: Record<string, unknown>): boolean {
+  return ["warnings", "errors"].every((key) => Array.isArray(result[key]));
+}
+
+function hasStructuredResultDiagnostics(result: Record<string, unknown>): boolean {
+  return isCoreWarningArray(result.warnings) && isCoreErrorArray(result.errors);
 }
 
 function validateResultOutputRefsShape(result: Record<string, unknown>): CoreResult | null {
@@ -1019,6 +1033,80 @@ function isSourceReferenceArray(value: unknown): value is readonly SourceReferen
 
 function isSourceReference(value: unknown): value is SourceReference {
   return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string";
+}
+
+function isCoreWarningArray(value: unknown): value is readonly CoreWarning[] {
+  return Array.isArray(value) && value.every(isCoreWarning);
+}
+
+function isCoreWarning(value: unknown): value is CoreWarning {
+  return isDiagnostic(value) && isWarningSeverity(value.severity);
+}
+
+function isCoreErrorArray(value: unknown): value is readonly CoreError[] {
+  return Array.isArray(value) && value.every(isCoreError);
+}
+
+function isCoreError(value: unknown): value is CoreError {
+  return isDiagnostic(value) && isErrorSeverity(value.severity) && value.blocking === true;
+}
+
+const DIAGNOSTIC_SHAPE_CHECKS = [
+  hasDiagnosticCode,
+  hasDiagnosticSeverity,
+  hasDiagnosticMessage,
+  hasDiagnosticTargetRef,
+  hasDiagnosticSource,
+  hasDiagnosticBlocking,
+  hasDiagnosticProvenance,
+] as const;
+
+function isDiagnostic(value: unknown): value is Diagnostic {
+  return isRecord(value) && DIAGNOSTIC_SHAPE_CHECKS.every((check) => check(value));
+}
+
+function hasDiagnosticCode(value: Record<string, unknown>): boolean {
+  return isDiagnosticCode(value.code);
+}
+
+function hasDiagnosticSeverity(value: Record<string, unknown>): boolean {
+  return isDiagnosticSeverity(value.severity);
+}
+
+function hasDiagnosticMessage(value: Record<string, unknown>): boolean {
+  return typeof value.message === "string";
+}
+
+function hasDiagnosticTargetRef(value: Record<string, unknown>): boolean {
+  return value.targetRef === null || typeof value.targetRef === "string";
+}
+
+function hasDiagnosticSource(value: Record<string, unknown>): boolean {
+  return isSourceReference(value.source);
+}
+
+function hasDiagnosticBlocking(value: Record<string, unknown>): boolean {
+  return typeof value.blocking === "boolean";
+}
+
+function hasDiagnosticProvenance(value: Record<string, unknown>): boolean {
+  return value.provenance === null || isRecord(value.provenance);
+}
+
+function isDiagnosticCode(value: unknown): value is DiagnosticCode {
+  return typeof value === "string" && CORE_DIAGNOSTIC_CODES.includes(value as DiagnosticCode);
+}
+
+function isDiagnosticSeverity(value: unknown): value is DiagnosticSeverity {
+  return isWarningSeverity(value) || isErrorSeverity(value);
+}
+
+function isWarningSeverity(value: unknown): value is CoreWarning["severity"] {
+  return value === "info" || value === "warning" || value === "critical";
+}
+
+function isErrorSeverity(value: unknown): value is CoreError["severity"] {
+  return value === "error" || value === "fatal";
 }
 
 function isBooleanRecord(value: unknown): value is Readonly<Record<string, boolean>> {
