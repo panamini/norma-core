@@ -1,0 +1,22 @@
+{
+  "name": "@norma/core",
+  "version": "0.1.0-pr1.0",
+  "description": "Minimal TypeScript skeleton for the Norma Core engine boundary.",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}
