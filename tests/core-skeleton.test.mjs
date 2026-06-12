@@ -67,8 +67,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR2 operation contracts", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr2");
+test("core version reflects PR3 geometry model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr3");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -122,6 +122,10 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingResultOutput",
       "MissingResultDiagnostics",
       "MissingOperationContext",
+      "MissingCoordinateSystem",
+      "UnsupportedGeometryV1",
+      "InvalidGeometryV1",
+      "MissingMetricPolicy",
     ]),
   );
 });
@@ -693,6 +697,18 @@ test("PR3 rejects geometry without an explicit coordinate system", () => {
   });
 
   assertGeometryFailed(result, "MissingCoordinateSystem");
+});
+
+test("PR3 rejects metric coordinate geometry without metric policy", () => {
+  const result = core.validateGeometryV1({
+    kind: "surface-space",
+    id: "surface:missing-metric-policy",
+    coordinateSystem: metricCoordinateSystem2d,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+  });
+
+  assertGeometryFailed(result, "MissingMetricPolicy");
 });
 
 test("PR3 rejects geometry outside V1", () => {
