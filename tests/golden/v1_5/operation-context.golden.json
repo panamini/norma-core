@@ -1,0 +1,223 @@
+{
+  "coordinatePolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "coordinate-policy",
+        "ref": "norma-canonical-2d-metric"
+      }
+    ],
+    "value": {
+      "coordinateScale": "metric",
+      "dimensions": 2,
+      "id": "norma-canonical-2d-metric",
+      "kind": "coordinate-system",
+      "origin": "bottom-left",
+      "xAxis": "right",
+      "yAxis": "up"
+    }
+  },
+  "coreVersion": "0.1.0-pr12",
+  "featureFlags": {
+    "mvpDemoHarness": true
+  },
+  "geometryModelVersion": "geometry-v1",
+  "id": "operation-context:core.mvp-demo.run:0.1.0-pr12:geometry-v1:norma-canonical-2d-metric:pixel-length-policy:mvp-demo-tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:mvpDemoHarness:true",
+  "kind": "operation-context",
+  "metricPolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "metric-policy",
+        "ref": "pixel-length-policy"
+      }
+    ],
+    "value": {
+      "id": "pixel-length-policy",
+      "kind": "metric-policy",
+      "quantity": "length",
+      "unit": "px"
+    }
+  },
+  "numericPolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "numeric-policy",
+        "ref": "runtime.numeric.finite-number"
+      }
+    ],
+    "value": {
+      "finiteOnly": true,
+      "id": "runtime.numeric.finite-number",
+      "kind": "numeric-policy",
+      "precision": "number"
+    }
+  },
+  "operationName": "core.mvp-demo.run",
+  "operationVersion": "0.1.0-pr12",
+  "orderingPolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "ordering-policy",
+        "ref": "runtime.ordering.output-refs-v1"
+      }
+    ],
+    "value": {
+      "featureFlags": "key-ascending",
+      "id": "runtime.ordering.output-refs-v1",
+      "kind": "ordering-policy",
+      "outputRefs": "kind-rank-then-ref"
+    }
+  },
+  "provenance": {
+    "inputRefs": [
+      {
+        "kind": "evaluation-profile",
+        "ref": "basic-grid-alignment"
+      },
+      {
+        "kind": "evaluation-tolerances",
+        "ref": "mvp-demo-evaluation-tolerances"
+      },
+      {
+        "kind": "tolerance-policy",
+        "ref": "mvp-demo-tolerance-policy"
+      },
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:structured-input"
+      },
+      {
+        "kind": "coordinate-policy",
+        "ref": "norma-canonical-2d-metric"
+      },
+      {
+        "kind": "coordinate-system",
+        "ref": "norma-canonical-2d-metric"
+      },
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.basic-proportions@0.1.0"
+      },
+      {
+        "kind": "metric-policy",
+        "ref": "pixel-length-policy"
+      },
+      {
+        "kind": "numeric-policy",
+        "ref": "runtime.numeric.finite-number"
+      },
+      {
+        "kind": "ordering-policy",
+        "ref": "runtime.ordering.output-refs-v1"
+      },
+      {
+        "kind": "rounding-policy",
+        "ref": "runtime.rounding.none"
+      },
+      {
+        "kind": "rule-set",
+        "ref": "surface-basic-third-grid"
+      },
+      {
+        "kind": "surface",
+        "ref": "surface:1200x800"
+      }
+    ],
+    "operationName": "core.runtime-v1.operation-context.create",
+    "operationVersion": "0.1.0",
+    "source": {
+      "kind": "core",
+      "ref": "norma-core/runtime-readiness-v1"
+    }
+  },
+  "ref": {
+    "id": "operation-context:core.mvp-demo.run:0.1.0-pr12:geometry-v1:norma-canonical-2d-metric:pixel-length-policy:mvp-demo-tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:mvpDemoHarness:true"
+  },
+  "roundingPolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "rounding-policy",
+        "ref": "runtime.rounding.none"
+      }
+    ],
+    "value": {
+      "id": "runtime.rounding.none",
+      "kind": "rounding-policy",
+      "mode": "none",
+      "precision": null
+    }
+  },
+  "sourceRefs": [
+    {
+      "kind": "evaluation-profile",
+      "ref": "basic-grid-alignment"
+    },
+    {
+      "kind": "evaluation-tolerances",
+      "ref": "mvp-demo-evaluation-tolerances"
+    },
+    {
+      "kind": "tolerance-policy",
+      "ref": "mvp-demo-tolerance-policy"
+    },
+    {
+      "kind": "mvp-demo-input",
+      "ref": "mvp-demo:structured-input"
+    },
+    {
+      "kind": "coordinate-policy",
+      "ref": "norma-canonical-2d-metric"
+    },
+    {
+      "kind": "coordinate-system",
+      "ref": "norma-canonical-2d-metric"
+    },
+    {
+      "kind": "ratio-pack",
+      "ref": "norma.basic-proportions@0.1.0"
+    },
+    {
+      "kind": "metric-policy",
+      "ref": "pixel-length-policy"
+    },
+    {
+      "kind": "numeric-policy",
+      "ref": "runtime.numeric.finite-number"
+    },
+    {
+      "kind": "ordering-policy",
+      "ref": "runtime.ordering.output-refs-v1"
+    },
+    {
+      "kind": "rounding-policy",
+      "ref": "runtime.rounding.none"
+    },
+    {
+      "kind": "rule-set",
+      "ref": "surface-basic-third-grid"
+    },
+    {
+      "kind": "surface",
+      "ref": "surface:1200x800"
+    }
+  ],
+  "tolerancePolicy": {
+    "explicit": true,
+    "sourceRefs": [
+      {
+        "kind": "tolerance-policy",
+        "ref": "mvp-demo-tolerance-policy"
+      }
+    ],
+    "value": {
+      "coordinateTolerance": 0,
+      "id": "mvp-demo-tolerance-policy",
+      "kind": "tolerance-policy",
+      "metricTolerance": 1
+    }
+  }
+}

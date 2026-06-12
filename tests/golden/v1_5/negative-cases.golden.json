@@ -1,0 +1,2199 @@
+{
+  "cases": [
+    {
+      "actualDiagnosticCodes": [
+        "MissingPackLock"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingPackLock",
+          "message": "Evaluation requires an explicit PackLock or PR4-compatible pre-lock.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "pack-lock",
+            "ref": "missing"
+          },
+          "targetRef": "packLock"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingPackLock"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingPackLock",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingEvaluationProfile"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingEvaluationProfile",
+          "message": "Evaluation requires an explicit EvaluationProfile.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "evaluation-profile",
+            "ref": "missing"
+          },
+          "targetRef": "profile"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingEvaluationProfile"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingEvaluationProfile",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "actualStatus": "non_comparable",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "expectedStatus": "non_comparable",
+      "fixtureId": "DifferentTolerancesForComparison",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "NonComparableEvaluations",
+          "message": "Evaluations do not share the required comparison context.",
+          "provenance": {
+            "inputRefs": [
+              {
+                "kind": "evaluation",
+                "ref": "evaluation:A:basic-grid-alignment"
+              },
+              {
+                "kind": "evaluation",
+                "ref": "evaluation:B:basic-grid-alignment"
+              },
+              {
+                "kind": "minimal-score",
+                "ref": "minimal-score:evaluation:A:basic-grid-alignment"
+              },
+              {
+                "kind": "minimal-score",
+                "ref": "minimal-score:evaluation:B:basic-grid-alignment"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:left-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:left-third:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:left-third:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:middle-third:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:coverage:surface:surface:1200x800"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:left-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:containment:surface:contains:wide-left"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:containment:surface:contains:offset-right"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:overlap:wide-left:offset-right"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:coverage:surface:surface:1200x800"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:area:element:wide-left"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:area:element:offset-right"
+              },
+              {
+                "kind": "measurement-set",
+                "ref": "measurement-set:construction:surface:1200x800:surface-basic-third-grid"
+              },
+              {
+                "kind": "composition-2d",
+                "ref": "composition:A"
+              },
+              {
+                "kind": "evaluation-profile",
+                "ref": "basic-grid-alignment"
+              },
+              {
+                "kind": "ratio-pack",
+                "ref": "norma.basic-proportions@0.1.0"
+              },
+              {
+                "kind": "pack-lock",
+                "ref": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+              },
+              {
+                "kind": "pack-lock-prelock",
+                "ref": "prelock:norma.basic-proportions@0.1.0"
+              },
+              {
+                "kind": "evaluation-tolerances",
+                "ref": "mvp-demo-evaluation-tolerances"
+              },
+              {
+                "kind": "tolerance-policy",
+                "ref": "mvp-demo-tolerance-policy"
+              },
+              {
+                "kind": "surface",
+                "ref": "surface:1200x800"
+              },
+              {
+                "kind": "coordinate-system",
+                "ref": "norma-canonical-2d-metric"
+              },
+              {
+                "kind": "metric-policy",
+                "ref": "pixel-length-policy"
+              },
+              {
+                "kind": "operation-context",
+                "ref": "operation-context:core.mvp-demo.run:0.1.0-pr12:geometry-v1:norma-canonical-2d-metric:pixel-length-policy:mvp-demo-tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:mvpDemoHarness:true"
+              },
+              {
+                "kind": "composition-2d",
+                "ref": "composition:B"
+              },
+              {
+                "kind": "evaluation-tolerances",
+                "ref": "mvp-demo-evaluation-tolerances-other"
+              }
+            ],
+            "operationName": "core.comparison.basic.compare",
+            "operationVersion": "0.1.0",
+            "source": {
+              "kind": "core",
+              "ref": "norma-core/comparison-v1"
+            }
+          },
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/comparison-v1"
+          },
+          "targetRef": "sharedContext"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "BeautyScoreRejected"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "BeautyScoreRejected",
+          "message": "PR8 rejects beauty score requests.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "requested-output",
+            "ref": "beauty-score"
+          },
+          "targetRef": "requestedOutputs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "BeautyScoreRejected"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "BeautyScoreRequested",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRatioReference"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRatioReference",
+          "message": "Ratio family references an absent ratio: 1/3.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/ratio-pack-v1"
+          },
+          "targetRef": "ratioFamilies.thirds.ratioRefs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRatioReference"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "RatioAbsentFromPack",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRuleDeclaration"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRuleDeclaration",
+          "message": "Rule set references an absent rule declaration: missingRule.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/ratio-pack-v1"
+          },
+          "targetRef": "ruleSets.surface-basic-third-grid.ruleRefs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRuleDeclaration"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingRule",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ImplicitPackNotAllowed"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "ImplicitPackNotAllowed",
+          "message": "MVP demo requires an explicit ratio pack.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/mvp-demo"
+          },
+          "targetRef": "ratioPack"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "ImplicitPackNotAllowed"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "ImplicitPackRejected",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "actualStatus": "non_comparable",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "expectedStatus": "non_comparable",
+      "fixtureId": "MismatchContext",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "NonComparableEvaluations",
+          "message": "Evaluations do not share the required comparison context.",
+          "provenance": {
+            "inputRefs": [
+              {
+                "kind": "evaluation",
+                "ref": "evaluation:A:basic-grid-alignment"
+              },
+              {
+                "kind": "evaluation",
+                "ref": "evaluation:B:basic-grid-alignment"
+              },
+              {
+                "kind": "minimal-score",
+                "ref": "minimal-score:evaluation:A:basic-grid-alignment"
+              },
+              {
+                "kind": "minimal-score",
+                "ref": "minimal-score:evaluation:B:basic-grid-alignment"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:left-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:containment:surface:contains:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:left-third:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:left-third:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:overlap:middle-third:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:coverage:surface:surface:1200x800"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:left-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:middle-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:A:area:element:right-third"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/2"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:2/3"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:containment:surface:contains:wide-left"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:containment:surface:contains:offset-right"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:overlap:wide-left:offset-right"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:coverage:surface:surface:1200x800"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:area:element:wide-left"
+              },
+              {
+                "kind": "measurement",
+                "ref": "measurement:B:area:element:offset-right"
+              },
+              {
+                "kind": "measurement-set",
+                "ref": "measurement-set:construction:surface:1200x800:surface-basic-third-grid"
+              },
+              {
+                "kind": "composition-2d",
+                "ref": "composition:A"
+              },
+              {
+                "kind": "evaluation-profile",
+                "ref": "basic-grid-alignment"
+              },
+              {
+                "kind": "ratio-pack",
+                "ref": "norma.basic-proportions@0.1.0"
+              },
+              {
+                "kind": "pack-lock",
+                "ref": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+              },
+              {
+                "kind": "pack-lock-prelock",
+                "ref": "prelock:norma.basic-proportions@0.1.0"
+              },
+              {
+                "kind": "evaluation-tolerances",
+                "ref": "mvp-demo-evaluation-tolerances"
+              },
+              {
+                "kind": "tolerance-policy",
+                "ref": "mvp-demo-tolerance-policy"
+              },
+              {
+                "kind": "surface",
+                "ref": "surface:1200x800"
+              },
+              {
+                "kind": "coordinate-system",
+                "ref": "norma-canonical-2d-metric"
+              },
+              {
+                "kind": "metric-policy",
+                "ref": "pixel-length-policy"
+              },
+              {
+                "kind": "operation-context",
+                "ref": "operation-context:core.mvp-demo.run:0.1.0-pr12:geometry-v1:norma-canonical-2d-metric:pixel-length-policy:mvp-demo-tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:mvpDemoHarness:true"
+              },
+              {
+                "kind": "composition-2d",
+                "ref": "composition:B"
+              },
+              {
+                "kind": "operation-context",
+                "ref": "operation-context:mvp-demo-other-context"
+              }
+            ],
+            "operationName": "core.comparison.basic.compare",
+            "operationVersion": "0.1.0",
+            "source": {
+              "kind": "core",
+              "ref": "norma-core/comparison-v1"
+            }
+          },
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/comparison-v1"
+          },
+          "targetRef": "sharedContext"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ArtifactWouldBecomeSourceOfTruth"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "ArtifactWouldBecomeSourceOfTruth",
+          "message": "Artifact cannot be used as a Norma Core source object.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "artifact",
+            "ref": "result"
+          },
+          "targetRef": "result"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "ArtifactWouldBecomeSourceOfTruth"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "ArtifactAsSourceRejected",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ArtifactStale"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "ArtifactStale"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "StaleArtifact",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "ArtifactStale",
+          "message": "Artifact source refs differ from expected source refs.",
+          "provenance": null,
+          "severity": "warning",
+          "source": {
+            "kind": "artifact",
+            "ref": "artifact:simple-visual:mvp-demo:simple-visual"
+          },
+          "targetRef": "artifact:simple-visual:mvp-demo:simple-visual"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [],
+      "actualStatus": "non_replayable",
+      "errors": [],
+      "expectedDiagnosticCodes": [],
+      "expectedStatus": "non_replayable",
+      "fixtureId": "NonReplayableArtifact",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "validateRunReadiness",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "PackContentIdentityMismatch",
+        "PackVersionMismatch"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "PackContentIdentityMismatch",
+          "message": "Pack content identity differs between run contexts.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "contentIdentity"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "PackVersionMismatch",
+        "PackContentIdentityMismatch"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "PackLockMismatch",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "PackVersionMismatch",
+          "message": "Pack versions differ between run contexts.",
+          "provenance": null,
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "packVersion"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "OperationVersionMismatch",
+        "GeometryModelVersionMismatch"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "OperationVersionMismatch",
+        "GeometryModelVersionMismatch",
+        "TolerancePolicyMismatch"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "OperationContextMismatch",
+      "notes": null,
+      "pass": false,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "GeometryModelVersionMismatch",
+          "message": "geometryModelVersion differs between run contexts.",
+          "provenance": null,
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "geometryModelVersion"
+        },
+        {
+          "blocking": false,
+          "code": "OperationVersionMismatch",
+          "message": "operationVersion differs between run contexts.",
+          "provenance": null,
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "operationVersion"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [],
+      "actualStatus": "to verify",
+      "errors": [],
+      "expectedDiagnosticCodes": [],
+      "expectedStatus": "to verify",
+      "fixtureId": "UnsupportedReplayTarget",
+      "notes": "Replay target support does not exist until replayRun is implemented.",
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "fixture metadata",
+      "toVerify": "Replay target support does not exist until replayRun is implemented.",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRun"
+      ],
+      "actualStatus": "non_replayable",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRun",
+          "message": "Run must be a complete PR11 Run object.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "run"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRun"
+      ],
+      "expectedStatus": "non_replayable",
+      "fixtureId": "MalformedRunEnvelope",
+      "notes": "Future verifyRun should decide whether this maps to invalid rather than the existing readiness MissingRun result.",
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "validateRunReadiness",
+      "toVerify": "Future verifyRun should decide whether this maps to invalid rather than the existing readiness MissingRun result.",
+      "warnings": []
+    }
+  ],
+  "kind": "v1_5-negative-cases-snapshot",
+  "manifestSource": "PR12 MVP demo harness plus existing PR17 runtime comparison/readiness helpers"
+}

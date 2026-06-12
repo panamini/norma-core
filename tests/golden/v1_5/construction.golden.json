@@ -1,0 +1,3238 @@
+{
+  "constructionTrace": {
+    "appliedRuleRefs": [
+      "verticalThirds",
+      "horizontalThirds",
+      "centerAxes",
+      "thirdGrid",
+      "surfaceDiagonals",
+      "deriveIntersections"
+    ],
+    "createdObjectRefs": [
+      {
+        "kind": "construction",
+        "ref": "construction:surface:1200x800:surface-basic-third-grid"
+      },
+      {
+        "kind": "diagonal",
+        "ref": "diagonal:surface:1200x800:bottom-left-to-top-right"
+      },
+      {
+        "kind": "diagonal",
+        "ref": "diagonal:surface:1200x800:top-left-to-bottom-right"
+      },
+      {
+        "kind": "grid",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1"
+      },
+      {
+        "kind": "grid-cell",
+        "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:x:1/2"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:x:1/3"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:x:2/3"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:y:1/2"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:y:1/3"
+      },
+      {
+        "kind": "guide",
+        "ref": "guide:y:2/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:diagonal-diagonal:center"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-1/2:bottom"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-1/2:top"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-1/3:bottom"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-1/3:top"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-2/3:bottom"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:x-2/3:top"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-1/2:left"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-1/2:right"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-1/3:left"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-1/3:right"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-2/3:left"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-border:y-2/3:right"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/2:y-1/2"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/2:y-1/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/2:y-2/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/3:y-1/2"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/3:y-1/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-1/3:y-2/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-2/3:y-1/2"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-2/3:y-1/3"
+      },
+      {
+        "kind": "intersection-point",
+        "ref": "intersection:guide-guide:x-2/3:y-2/3"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:0"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:1"
+      },
+      {
+        "kind": "zone",
+        "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:2"
+      }
+    ],
+    "id": "construction-trace:surface:1200x800:surface-basic-third-grid",
+    "kind": "construction-trace",
+    "operationRefs": [
+      "core.construction-v1.generate@0.1.0",
+      "core.construction-v1.guides.generate@0.1.0",
+      "core.construction-v1.zones.generate@0.1.0",
+      "core.construction-v1.grid.generate@0.1.0",
+      "core.construction-v1.diagonals.generate@0.1.0",
+      "core.construction-v1.intersections.derive@0.1.0"
+    ],
+    "provenance": {
+      "inputRef": "surface:1200x800",
+      "kind": "construction-provenance",
+      "operationRef": "core.construction-v1.generate@0.1.0",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "ruleRef": "surface-basic-third-grid",
+      "sourceRefs": [
+        {
+          "kind": "operation",
+          "ref": "core.construction-v1.generate@0.1.0"
+        },
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        },
+        {
+          "kind": "resolved-rule-set",
+          "ref": "surface-basic-third-grid"
+        },
+        {
+          "kind": "rule",
+          "ref": "surface-basic-third-grid"
+        },
+        {
+          "kind": "surface-space",
+          "ref": "surface:1200x800"
+        }
+      ]
+    },
+    "ruleApplications": [
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:0"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:1"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:2"
+          }
+        ],
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "ruleRef": "verticalThirds"
+      },
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1"
+          },
+          {
+            "kind": "zone",
+            "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2"
+          }
+        ],
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "ruleRef": "horizontalThirds"
+      },
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          }
+        ],
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "ruleRef": "centerAxes"
+      },
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "grid",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1"
+          },
+          {
+            "kind": "grid-cell",
+            "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2"
+          }
+        ],
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "ruleRef": "thirdGrid"
+      },
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "diagonal",
+            "ref": "diagonal:surface:1200x800:bottom-left-to-top-right"
+          },
+          {
+            "kind": "diagonal",
+            "ref": "diagonal:surface:1200x800:top-left-to-bottom-right"
+          }
+        ],
+        "operationRef": "core.construction-v1.diagonals.generate@0.1.0",
+        "ruleRef": "surfaceDiagonals"
+      },
+      {
+        "createdObjectRefs": [
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:diagonal-diagonal:center"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-1/2:bottom"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-1/2:top"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-1/3:bottom"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-1/3:top"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-2/3:bottom"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:x-2/3:top"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-1/2:left"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-1/2:right"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-1/3:left"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-1/3:right"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-2/3:left"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-border:y-2/3:right"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/2:y-1/2"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/2:y-1/3"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/2:y-2/3"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/3:y-1/2"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/3:y-1/3"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-1/3:y-2/3"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-2/3:y-1/2"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-2/3:y-1/3"
+          },
+          {
+            "kind": "intersection-point",
+            "ref": "intersection:guide-guide:x-2/3:y-2/3"
+          }
+        ],
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "ruleRef": "deriveIntersections"
+      }
+    ],
+    "warnings": []
+  },
+  "coordinateSystem": {
+    "coordinateScale": "metric",
+    "dimensions": 2,
+    "id": "norma-canonical-2d-metric",
+    "kind": "coordinate-system",
+    "origin": "bottom-left",
+    "xAxis": "right",
+    "yAxis": "up"
+  },
+  "diagonals": [
+    {
+      "end": {
+        "kind": "point",
+        "x": 1200,
+        "y": 800
+      },
+      "id": "diagonal:surface:1200x800:bottom-left-to-top-right",
+      "kind": "diagonal",
+      "normalizedEnd": {
+        "kind": "point",
+        "x": 1,
+        "y": 1
+      },
+      "normalizedStart": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.diagonals.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.diagonals.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "surfaceDiagonals",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.diagonals.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "surfaceDiagonals"
+          }
+        ]
+      },
+      "ruleRef": "surfaceDiagonals",
+      "sourceSurfaceRef": "surface:1200x800",
+      "start": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "end": {
+        "kind": "point",
+        "x": 1200,
+        "y": 0
+      },
+      "id": "diagonal:surface:1200x800:top-left-to-bottom-right",
+      "kind": "diagonal",
+      "normalizedEnd": {
+        "kind": "point",
+        "x": 1,
+        "y": 0
+      },
+      "normalizedStart": {
+        "kind": "point",
+        "x": 0,
+        "y": 1
+      },
+      "operationRef": "core.construction-v1.diagonals.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.diagonals.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "surfaceDiagonals",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.diagonals.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "surfaceDiagonals"
+          }
+        ]
+      },
+      "ruleRef": "surfaceDiagonals",
+      "sourceSurfaceRef": "surface:1200x800",
+      "start": {
+        "kind": "point",
+        "x": 0,
+        "y": 800
+      }
+    }
+  ],
+  "grid": {
+    "cells": [
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 0,
+          "y": 0
+        },
+        "columnIndex": 0,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0,
+          "y": 0
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 0,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:y:1/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 400,
+          "y": 0
+        },
+        "columnIndex": 1,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0.3333333333333333,
+          "y": 0
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 0,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:x:2/3",
+          "guide:y:1/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 800,
+          "y": 0
+        },
+        "columnIndex": 2,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.33333333333333337,
+          "x": 0.6666666666666666,
+          "y": 0
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 0,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:2/3",
+          "guide:y:1/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 0,
+          "y": 266.66666666666663
+        },
+        "columnIndex": 0,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0,
+          "y": 0.3333333333333333
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 1,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:y:1/3",
+          "guide:y:2/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 400,
+          "y": 266.66666666666663
+        },
+        "columnIndex": 1,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0.3333333333333333,
+          "y": 0.3333333333333333
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 1,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:x:2/3",
+          "guide:y:1/3",
+          "guide:y:2/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666663,
+          "kind": "rect",
+          "width": 400,
+          "x": 800,
+          "y": 266.66666666666663
+        },
+        "columnIndex": 2,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.3333333333333333,
+          "kind": "rect",
+          "width": 0.33333333333333337,
+          "x": 0.6666666666666666,
+          "y": 0.3333333333333333
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 1,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:2/3",
+          "guide:y:1/3",
+          "guide:y:2/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666674,
+          "kind": "rect",
+          "width": 400,
+          "x": 0,
+          "y": 533.3333333333333
+        },
+        "columnIndex": 0,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.33333333333333337,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0,
+          "y": 0.6666666666666666
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 2,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:y:2/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666674,
+          "kind": "rect",
+          "width": 400,
+          "x": 400,
+          "y": 533.3333333333333
+        },
+        "columnIndex": 1,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.33333333333333337,
+          "kind": "rect",
+          "width": 0.3333333333333333,
+          "x": 0.3333333333333333,
+          "y": 0.6666666666666666
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:1/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 2,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:1/3",
+          "guide:x:2/3",
+          "guide:y:2/3"
+        ]
+      },
+      {
+        "bounds": {
+          "height": 266.66666666666674,
+          "kind": "rect",
+          "width": 400,
+          "x": 800,
+          "y": 533.3333333333333
+        },
+        "columnIndex": 2,
+        "id": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2",
+        "kind": "grid-cell",
+        "normalizedBounds": {
+          "height": 0.33333333333333337,
+          "kind": "rect",
+          "width": 0.33333333333333337,
+          "x": 0.6666666666666666,
+          "y": 0.6666666666666666
+        },
+        "operationRef": "core.construction-v1.grid.generate@0.1.0",
+        "provenance": {
+          "inputRef": "surface:1200x800",
+          "kind": "construction-provenance",
+          "operationRef": "core.construction-v1.grid.generate@0.1.0",
+          "packRef": "norma.basic-proportions@0.1.0",
+          "ruleRef": "thirdGrid",
+          "sourceRefs": [
+            {
+              "kind": "ratio-sequence",
+              "ref": "1:1:1"
+            },
+            {
+              "kind": "operation",
+              "ref": "core.construction-v1.grid.generate@0.1.0"
+            },
+            {
+              "kind": "grid",
+              "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:x:2/3"
+            },
+            {
+              "kind": "guide",
+              "ref": "guide:y:2/3"
+            },
+            {
+              "kind": "ratio-pack",
+              "ref": "norma.basic-proportions@0.1.0"
+            },
+            {
+              "kind": "surface-space",
+              "ref": "surface:1200x800"
+            },
+            {
+              "kind": "rule",
+              "ref": "thirdGrid"
+            }
+          ]
+        },
+        "rowIndex": 2,
+        "ruleRef": "thirdGrid",
+        "sourceGridRef": "grid:surface:1200x800:thirdGrid:1:1:1",
+        "sourceGuideRefs": [
+          "guide:x:2/3",
+          "guide:y:2/3"
+        ]
+      }
+    ],
+    "columns": 3,
+    "id": "grid:surface:1200x800:thirdGrid:1:1:1",
+    "kind": "grid",
+    "operationRef": "core.construction-v1.grid.generate@0.1.0",
+    "provenance": {
+      "inputRef": "surface:1200x800",
+      "kind": "construction-provenance",
+      "operationRef": "core.construction-v1.grid.generate@0.1.0",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "ruleRef": "thirdGrid",
+      "sourceRefs": [
+        {
+          "kind": "ratio-sequence",
+          "ref": "1:1:1"
+        },
+        {
+          "kind": "operation",
+          "ref": "core.construction-v1.grid.generate@0.1.0"
+        },
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        },
+        {
+          "kind": "surface-space",
+          "ref": "surface:1200x800"
+        },
+        {
+          "kind": "rule",
+          "ref": "thirdGrid"
+        }
+      ]
+    },
+    "rows": 3,
+    "ruleRef": "thirdGrid",
+    "sourcePartitionPatternRefs": [
+      "thirds"
+    ],
+    "sourceSequenceRef": "1:1:1"
+  },
+  "guides": [
+    {
+      "axis": "x",
+      "id": "guide:x:1/3",
+      "kind": "guide",
+      "normalizedPosition": 0.3333333333333333,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "vertical",
+      "position": 400,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "1/3"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "verticalThirds"
+          }
+        ]
+      },
+      "ratioRef": "1/3",
+      "ruleRef": "verticalThirds"
+    },
+    {
+      "axis": "x",
+      "id": "guide:x:1/2",
+      "kind": "guide",
+      "normalizedPosition": 0.5,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "vertical",
+      "position": 600,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "centerAxes",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "1/2"
+          },
+          {
+            "kind": "rule",
+            "ref": "centerAxes"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ratioRef": "1/2",
+      "ruleRef": "centerAxes"
+    },
+    {
+      "axis": "x",
+      "id": "guide:x:2/3",
+      "kind": "guide",
+      "normalizedPosition": 0.6666666666666666,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "vertical",
+      "position": 800,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "2/3"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "verticalThirds"
+          }
+        ]
+      },
+      "ratioRef": "2/3",
+      "ruleRef": "verticalThirds"
+    },
+    {
+      "axis": "y",
+      "id": "guide:y:1/3",
+      "kind": "guide",
+      "normalizedPosition": 0.3333333333333333,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "horizontal",
+      "position": 266.66666666666663,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "1/3"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "horizontalThirds"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ratioRef": "1/3",
+      "ruleRef": "horizontalThirds"
+    },
+    {
+      "axis": "y",
+      "id": "guide:y:1/2",
+      "kind": "guide",
+      "normalizedPosition": 0.5,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "horizontal",
+      "position": 400,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "centerAxes",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "1/2"
+          },
+          {
+            "kind": "rule",
+            "ref": "centerAxes"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ratioRef": "1/2",
+      "ruleRef": "centerAxes"
+    },
+    {
+      "axis": "y",
+      "id": "guide:y:2/3",
+      "kind": "guide",
+      "normalizedPosition": 0.6666666666666666,
+      "operationRef": "core.construction-v1.guides.generate@0.1.0",
+      "orientation": "horizontal",
+      "position": 533.3333333333333,
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.guides.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio",
+            "ref": "2/3"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.guides.generate@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "horizontalThirds"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ratioRef": "2/3",
+      "ruleRef": "horizontalThirds"
+    }
+  ],
+  "id": "construction:surface:1200x800:surface-basic-third-grid",
+  "intersections": [
+    {
+      "id": "intersection:guide-guide:x-1/3:y-1/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.3333333333333333,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 400,
+        "y": 266.66666666666663
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-1/3:y-1/2",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.3333333333333333,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 400,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/2"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-1/3:y-2/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.3333333333333333,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 400,
+        "y": 533.3333333333333
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:2/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-1/2:y-1/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 266.66666666666663
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/2"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-1/2:y-1/2",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/2"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/2"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-1/2:y-2/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 533.3333333333333
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/2"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:2/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-2/3:y-1/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.6666666666666666,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 800,
+        "y": 266.66666666666663
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:2/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-2/3:y-1/2",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.6666666666666666,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 800,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:2/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/2"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-guide:x-2/3:y-2/3",
+      "intersectionKind": "guide-guide",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.6666666666666666,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 800,
+        "y": 533.3333333333333
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:2/3"
+        },
+        {
+          "kind": "guide",
+          "ref": "guide:y:2/3"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-1/3:bottom",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.3333333333333333,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 400,
+        "y": 0
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:bottom"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:bottom"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-1/3:top",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.3333333333333333,
+        "y": 1
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 400,
+        "y": 800
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:top"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:top"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-1/2:bottom",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 0
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:bottom"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/2"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:bottom"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-1/2:top",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 1
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 800
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:top"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:1/2"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:top"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-2/3:bottom",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.6666666666666666,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 800,
+        "y": 0
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:bottom"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:2/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:bottom"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:x-2/3:top",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.6666666666666666,
+        "y": 1
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 800,
+        "y": 800
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:top"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:x:2/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:top"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-1/3:left",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 0,
+        "y": 266.66666666666663
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:left"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:left"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-1/3:right",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 1,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 1200,
+        "y": 266.66666666666663
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:right"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:right"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-1/2:left",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 0,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:left"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/2"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:left"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-1/2:right",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 1,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 1200,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/2"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:right"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:1/2"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:right"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-2/3:left",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 0,
+        "y": 533.3333333333333
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:left"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:2/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:left"
+        }
+      ]
+    },
+    {
+      "id": "intersection:guide-border:y-2/3:right",
+      "intersectionKind": "guide-border",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 1,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 1200,
+        "y": 533.3333333333333
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "surface-border",
+            "ref": "surface:1200x800:right"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "guide",
+          "ref": "guide:y:2/3"
+        },
+        {
+          "kind": "surface-border",
+          "ref": "surface:1200x800:right"
+        }
+      ]
+    },
+    {
+      "id": "intersection:diagonal-diagonal:center",
+      "intersectionKind": "diagonal-diagonal",
+      "kind": "intersection-point",
+      "normalizedPoint": {
+        "kind": "point",
+        "x": 0.5,
+        "y": 0.5
+      },
+      "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+      "point": {
+        "kind": "point",
+        "x": 600,
+        "y": 400
+      },
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.intersections.derive@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "sourceRefs": [
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.intersections.derive@0.1.0"
+          },
+          {
+            "kind": "rule",
+            "ref": "deriveIntersections"
+          },
+          {
+            "kind": "diagonal",
+            "ref": "diagonal:surface:1200x800:bottom-left-to-top-right"
+          },
+          {
+            "kind": "diagonal",
+            "ref": "diagonal:surface:1200x800:top-left-to-bottom-right"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "deriveIntersections",
+      "sourceObjectRefs": [
+        {
+          "kind": "diagonal",
+          "ref": "diagonal:surface:1200x800:bottom-left-to-top-right"
+        },
+        {
+          "kind": "diagonal",
+          "ref": "diagonal:surface:1200x800:top-left-to-bottom-right"
+        }
+      ]
+    }
+  ],
+  "kind": "construction",
+  "metricPolicy": {
+    "id": "pixel-length-policy",
+    "kind": "metric-policy",
+    "quantity": "length",
+    "unit": "px"
+  },
+  "packRef": "norma.basic-proportions@0.1.0",
+  "provenance": {
+    "inputRef": "surface:1200x800",
+    "kind": "construction-provenance",
+    "operationRef": "core.construction-v1.generate@0.1.0",
+    "packRef": "norma.basic-proportions@0.1.0",
+    "ruleRef": "surface-basic-third-grid",
+    "sourceRefs": [
+      {
+        "kind": "operation",
+        "ref": "core.construction-v1.generate@0.1.0"
+      },
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.basic-proportions@0.1.0"
+      },
+      {
+        "kind": "resolved-rule-set",
+        "ref": "surface-basic-third-grid"
+      },
+      {
+        "kind": "rule",
+        "ref": "surface-basic-third-grid"
+      },
+      {
+        "kind": "surface-space",
+        "ref": "surface:1200x800"
+      }
+    ]
+  },
+  "ruleSetRef": "surface-basic-third-grid",
+  "sourceGeometryRef": {
+    "kind": "surface-space",
+    "ref": "surface:1200x800"
+  },
+  "tolerancePolicy": {
+    "coordinateTolerance": 0,
+    "id": "mvp-demo-tolerance-policy",
+    "kind": "tolerance-policy",
+    "metricTolerance": 1
+  },
+  "warnings": [],
+  "zones": [
+    {
+      "axis": "vertical",
+      "bounds": {
+        "height": 800,
+        "kind": "rect",
+        "width": 400,
+        "x": 0,
+        "y": 0
+      },
+      "id": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:0",
+      "index": 0,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 1,
+        "kind": "rect",
+        "width": 0.3333333333333333,
+        "x": 0,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "verticalThirds"
+          }
+        ]
+      },
+      "ruleRef": "verticalThirds",
+      "sourceGuideRefs": [
+        "guide:x:1/3"
+      ]
+    },
+    {
+      "axis": "vertical",
+      "bounds": {
+        "height": 800,
+        "kind": "rect",
+        "width": 400,
+        "x": 400,
+        "y": 0
+      },
+      "id": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:1",
+      "index": 1,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 1,
+        "kind": "rect",
+        "width": 0.3333333333333333,
+        "x": 0.3333333333333333,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "verticalThirds"
+          }
+        ]
+      },
+      "ruleRef": "verticalThirds",
+      "sourceGuideRefs": [
+        "guide:x:1/3",
+        "guide:x:2/3"
+      ]
+    },
+    {
+      "axis": "vertical",
+      "bounds": {
+        "height": 800,
+        "kind": "rect",
+        "width": 400,
+        "x": 800,
+        "y": 0
+      },
+      "id": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:2",
+      "index": 2,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 1,
+        "kind": "rect",
+        "width": 0.33333333333333337,
+        "x": 0.6666666666666666,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:x:2/3"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          },
+          {
+            "kind": "rule",
+            "ref": "verticalThirds"
+          }
+        ]
+      },
+      "ruleRef": "verticalThirds",
+      "sourceGuideRefs": [
+        "guide:x:2/3"
+      ]
+    },
+    {
+      "axis": "horizontal",
+      "bounds": {
+        "height": 266.66666666666663,
+        "kind": "rect",
+        "width": 1200,
+        "x": 0,
+        "y": 0
+      },
+      "id": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0",
+      "index": 0,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 0.3333333333333333,
+        "kind": "rect",
+        "width": 1,
+        "x": 0,
+        "y": 0
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "rule",
+            "ref": "horizontalThirds"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "horizontalThirds",
+      "sourceGuideRefs": [
+        "guide:y:1/3"
+      ]
+    },
+    {
+      "axis": "horizontal",
+      "bounds": {
+        "height": 266.66666666666663,
+        "kind": "rect",
+        "width": 1200,
+        "x": 0,
+        "y": 266.66666666666663
+      },
+      "id": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1",
+      "index": 1,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 0.3333333333333333,
+        "kind": "rect",
+        "width": 1,
+        "x": 0,
+        "y": 0.3333333333333333
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:1/3"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "rule",
+            "ref": "horizontalThirds"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "horizontalThirds",
+      "sourceGuideRefs": [
+        "guide:y:1/3",
+        "guide:y:2/3"
+      ]
+    },
+    {
+      "axis": "horizontal",
+      "bounds": {
+        "height": 266.66666666666674,
+        "kind": "rect",
+        "width": 1200,
+        "x": 0,
+        "y": 533.3333333333333
+      },
+      "id": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2",
+      "index": 2,
+      "kind": "zone",
+      "normalizedBounds": {
+        "height": 0.33333333333333337,
+        "kind": "rect",
+        "width": 1,
+        "x": 0,
+        "y": 0.6666666666666666
+      },
+      "operationRef": "core.construction-v1.zones.generate@0.1.0",
+      "provenance": {
+        "inputRef": "surface:1200x800",
+        "kind": "construction-provenance",
+        "operationRef": "core.construction-v1.zones.generate@0.1.0",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "sourceRefs": [
+          {
+            "kind": "ratio-sequence",
+            "ref": "1:1:1"
+          },
+          {
+            "kind": "operation",
+            "ref": "core.construction-v1.zones.generate@0.1.0"
+          },
+          {
+            "kind": "guide",
+            "ref": "guide:y:2/3"
+          },
+          {
+            "kind": "rule",
+            "ref": "horizontalThirds"
+          },
+          {
+            "kind": "ratio-pack",
+            "ref": "norma.basic-proportions@0.1.0"
+          },
+          {
+            "kind": "surface-space",
+            "ref": "surface:1200x800"
+          }
+        ]
+      },
+      "ruleRef": "horizontalThirds",
+      "sourceGuideRefs": [
+        "guide:y:2/3"
+      ]
+    }
+  ]
+}
