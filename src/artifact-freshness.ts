@@ -20,7 +20,6 @@ import {
 } from "./serialization.js";
 
 export type ArtifactFreshnessStatus = "current" | "lossy" | "stale" | "non_replayable" | "invalid";
-export type ArtifactFreshnessStrictness = "audit" | "strict";
 
 export interface VerifyArtifactFreshnessInput {
   artifact: unknown;
@@ -30,7 +29,6 @@ export interface VerifyArtifactFreshnessInput {
   expectedRunRef?: RunRef | null;
   expectedOptions?: unknown;
   expectedOperationContextRef?: OperationContextRef | null;
-  strictness?: ArtifactFreshnessStrictness;
 }
 
 export interface ArtifactFreshnessVerification {
@@ -253,7 +251,7 @@ function nonReplayableErrorsFor(artifact: Artifact, missingSourceRefs: readonly 
 
   if (artifact.status === "non_replayable" && artifact.runRef !== null && missingSourceRefs.length === 0) {
     errors.push(freshnessError(
-      "MissingArtifactRunRef",
+      "ArtifactNonReplayable",
       "Artifact is marked non_replayable and cannot be verified as fresh.",
       artifact.id,
       { kind: "artifact", ref: artifact.id },

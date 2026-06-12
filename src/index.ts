@@ -100,6 +100,7 @@ export const CORE_DIAGNOSTIC_CODES = [
   "ArtifactWouldBecomeSourceOfTruth",
   "ArtifactInventedSourceData",
   "ArtifactCriticalWarningHidden",
+  "ArtifactNonReplayable",
   "MissingRun",
   "MissingRunInput",
   "MissingRunOutput",

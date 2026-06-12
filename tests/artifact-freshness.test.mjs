@@ -159,6 +159,20 @@ test("PR20 returns non_replayable when required run refs or explicit source obje
   assert.deepEqual(result.missingSourceRefs, core.canonicalizeRefs(artifact.sourceRefs));
 });
 
+test("PR20 reports a non-replayable artifact with a present runRef without claiming the runRef is missing", () => {
+  const { demo } = createTruthPath();
+  const artifact = {
+    ...demo.artifactResults.structuredResults[0].output,
+    status: "non_replayable",
+  };
+
+  const result = core.verifyArtifactFreshness(freshnessInput(artifact));
+
+  assertStatus(result, "non_replayable");
+  assert.ok(diagnosticCodes(result).includes("ArtifactNonReplayable"), diagnosticCodes(result).join(", "));
+  assert.equal(diagnosticCodes(result).includes("MissingArtifactRunRef"), false);
+});
+
 test("PR20 rejects malformed or non-derived artifacts as invalid", () => {
   const { demo } = createTruthPath();
   const artifact = demo.artifactResults.structuredResults[0].output;
