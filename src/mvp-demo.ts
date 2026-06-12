@@ -968,6 +968,14 @@ function validateMvpDemoInput(input: MvpDemoInput | null | undefined): MvpDemoVa
     return failedValidation(failedCheck.code, failedCheck.message, failedCheck.targetRef);
   }
 
+  const coherenceFailure = firstValidationFailure([
+    validatePackCoherence(input),
+    validateOperationContextCoherence(input),
+  ]);
+  if (coherenceFailure !== null) {
+    return coherenceFailure;
+  }
+
   return { ok: true, input };
 }
 
@@ -993,6 +1001,39 @@ function failedValidation(
       provenance: createMvpDemoProvenance("validate", [{ kind: "mvp-demo-input", ref: targetRef }]),
     }),
   };
+}
+
+function firstValidationFailure(results: readonly (MvpDemoValidation | null)[]): MvpDemoValidation | null {
+  return results.find((result) => result !== null) ?? null;
+}
+
+function validatePackCoherence(input: MvpDemoInput): MvpDemoValidation | null {
+  const checks = [
+    input.packRef === ratioPackRef(input.ratioPack),
+    input.packLock.packId === input.ratioPack.id,
+    input.packLock.packVersion === input.ratioPack.version,
+    input.packLock.packSchemaVersion === input.ratioPack.schemaVersion,
+    input.packLock.contentIdentity === input.ratioPack.contentIdentity,
+    input.packLockRef.id === input.packLock.ref.id,
+  ];
+
+  return checks.every(Boolean)
+    ? null
+    : failedValidation("InvalidPackLock", "MVP demo packRef, ratioPack, PackLock, and PackLockRef must describe the same effective pack.", "packLock");
+}
+
+function validateOperationContextCoherence(input: MvpDemoInput): MvpDemoValidation | null {
+  const checks = [
+    input.operationContextRef.id === input.operationContext.ref.id,
+    input.operationContext.operationName === MVP_DEMO_OPERATION_NAME,
+    input.operationContext.operationVersion === MVP_DEMO_OPERATION_VERSION,
+    input.operationContext.coordinatePolicy.value.id === input.surface.coordinateSystem.id,
+    input.operationContext.tolerancePolicy.value.id === input.tolerancePolicy.id,
+  ];
+
+  return checks.every(Boolean)
+    ? null
+    : failedValidation("InvalidOperationContext", "MVP demo OperationContext and OperationContextRef must match the demo operation, surface, and tolerance policy.", "operationContext");
 }
 
 function createDemoSurface(): SurfaceSpace {
