@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, and PR5.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, and PR6.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -54,12 +54,20 @@ This trace preserves pack/rule provenance for PR6 without producing construction
 
 PR5 rejects missing rule sets, missing rule declarations, missing rule types, unsupported rule types, invalid rule declarations or rule sets, agent-created rules, and executable rule code in packs with structured diagnostics.
 
+## PR6 Construction Generation
+
+PR6 adds the first structured construction output. `generateConstruction` consumes a valid rectangular `SurfaceSpace`, a validated ratio pack, and a traceable `ResolvedRuleSet`; it rejects missing inputs, unresolved rule sets, unsupported construction geometry, unsupported construction rules, missing provenance, missing traces, and derived objects without sources.
+
+The MVP construction contains guides, zones, one `3 x 3` grid with 9 cells, two surface diagonals, guide-guide intersections, guide-border intersections, a diagonal center intersection, `constructionTrace`, warnings, and provenance. Guide positions and grid partitions are read from the pack/rule set (`1/3`, `1/2`, `2/3`, and `1:1:1`) rather than hidden core constants.
+
+Every derived PR6 object carries minimum provenance back to input, pack, rule, and operation. `constructionTrace` exposes applied rule refs, operation refs, created object refs, rule applications, and warnings so generation is not opaque.
+
 ## Does Not Contain
 
-- Geometry calculations.
+- Geometry calculations outside PR6 construction generation.
 - Implicit ratios or client-defined ratios outside validated packs.
-- Construction, measurements, evaluation, artifacts, or scoring.
-- Rule execution.
+- Measurements, evaluation, artifacts, or scoring.
+- Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
