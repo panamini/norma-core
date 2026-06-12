@@ -412,6 +412,10 @@ test("PR10 rejects missing sources, refs, provenance, options, and artifact-as-s
     "ArtifactWouldBecomeSourceOfTruth",
   );
   assertFailedWithDiagnostic(
+    core.validateArtifact({ ...summary.output, derived: false }),
+    "ArtifactWouldBecomeSourceOfTruth",
+  );
+  assertFailedWithDiagnostic(
     core.validateArtifact({ ...summary.output, sourceRefs: [] }),
     "MissingArtifactSourceRefs",
   );

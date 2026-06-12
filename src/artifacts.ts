@@ -536,6 +536,7 @@ export function generateSimpleVisualArtifact(
     sourceConstructionRef: { kind: "construction", ref: construction.id },
     descriptor: {
       kind: "simple-visual-descriptor",
+      // viewBox uses construction bounds coordinates; child descriptors keep normalized source geometry.
       viewBox: viewBoxFromConstruction(construction),
       guides: construction.guides.map((guide) => ({
         id: guide.id,
@@ -583,12 +584,12 @@ export function generateSimpleVisualArtifact(
 }
 
 export function validateArtifact(artifact: unknown): CoreResult<Artifact> {
-  if (!isArtifact(artifact)) {
-    return resultAs<Artifact>(unsupportedArtifactSource("artifact", "Artifact validation requires an artifact projection."));
+  if (isRecord(artifact) && artifact.kind === "artifact" && artifact.derived === false && typeof artifact.id === "string") {
+    return resultAs<Artifact>(artifactWouldBecomeSourceOfTruth(artifact.id));
   }
 
-  if (!artifact.derived) {
-    return resultAs<Artifact>(artifactWouldBecomeSourceOfTruth(artifact.id));
+  if (!isArtifact(artifact)) {
+    return resultAs<Artifact>(unsupportedArtifactSource("artifact", "Artifact validation requires an artifact projection."));
   }
 
   const failure = firstFailure([
@@ -1062,11 +1063,12 @@ function isExplanation(value: unknown): value is Explanation {
   }
 
   const sourceEvaluationRefs = value.sourceEvaluationRefs;
+  const sourceEvaluationRefCount = Array.isArray(sourceEvaluationRefs) ? sourceEvaluationRefs.length : 0;
   return everyCheck([
     value.kind === "explanation",
     typeof value.summary === "string",
     Array.isArray(sourceEvaluationRefs),
-    Array.isArray(sourceEvaluationRefs) && sourceEvaluationRefs.length > 0,
+    sourceEvaluationRefCount > 0,
     hasSourceRefs(value.sourceMeasurementRefs),
     Array.isArray(value.componentDeltas),
     Array.isArray(value.warnings),
