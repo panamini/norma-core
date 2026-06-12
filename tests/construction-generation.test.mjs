@@ -155,7 +155,7 @@ function clonePack(overrides = {}) {
 }
 
 test("PR7 keeps construction generation vocabulary and diagnostics available", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
 
   for (const diagnosticCode of constructionDiagnosticCodes) {
     assert.ok(CORE_DIAGNOSTIC_CODES.includes(diagnosticCode), diagnosticCode);
