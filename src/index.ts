@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr9";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr10";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -87,6 +87,16 @@ export const CORE_DIAGNOSTIC_CODES = [
   "TieComparison",
   "BeautyDecisionRejected",
   "ComparisonExplanationMissingSource",
+  "MissingArtifactSource",
+  "MissingArtifactSourceRefs",
+  "MissingArtifactProvenance",
+  "MissingArtifactOptions",
+  "MissingArtifactRunRef",
+  "InvalidArtifactInput",
+  "UnsupportedArtifactSource",
+  "ArtifactWouldBecomeSourceOfTruth",
+  "ArtifactInventedSourceData",
+  "ArtifactCriticalWarningHidden",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -2090,3 +2100,4 @@ export * from "./construction.js";
 export * from "./measurements.js";
 export * from "./evaluation.js";
 export * from "./comparison.js";
+export * from "./artifacts.js";

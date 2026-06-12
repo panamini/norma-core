@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, PR8, and PR9.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, PR8, PR9, and PR10.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -92,11 +92,22 @@ PR9 uses the existing minimal scores, component scores, measurement refs, and ev
 
 The decision language is controlled: it may say `A is closer to the declared system`, `B is closer to the declared system`, `tie`, `ambiguous`, or `non comparable`. It does not produce recommendation, optimization, beauty, preference, intent inference, artifacts, reports, SVG, UI, or PR10 outputs.
 
+## PR10 Artifacts
+
+PR10 adds derived artifact projections over already-produced Norma source objects. `generateStructuredResultArtifact`, `generateConstructionSummaryArtifact`, `generateEvaluationReportArtifact`, `generateExplanationArtifact`, and `generateSimpleVisualArtifact` all return `CoreResult` and preserve the PR2 result envelope, diagnostics, provenance, output refs, and conceptual run/runRef visibility.
+
+Artifacts have explicit `sourceRefs`, `provenance`, `warnings`, `errors`, `options`, `outputRefs`, `derived: true`, and a minimal artifact status: `current`, `lossy`, `stale`, or `non_replayable`. Missing run refs are visible through `non_replayable` plus a critical `MissingArtifactRunRef` warning rather than being hidden.
+
+The simple visual artifact is only a descriptor derived from PR6 construction objects. It can carry presentation-only hints, but it is not SVG, not rendering, not an import format, and not a core geometry source.
+
+PR10 rejects artifact-as-source use with `ArtifactWouldBecomeSourceOfTruth`. It does not recalculate construction, measurements, evaluations, comparisons, decisions, scores, or explanations.
+
 ## Does Not Contain
 
 - Geometry calculations outside PR6 construction generation and PR7 measurement facts.
 - Implicit ratios or client-defined ratios outside validated packs.
-- Recommendations, artifacts, standalone scores, optimization, or aesthetic decisions.
+- Recommendations, standalone scores, optimization, or aesthetic decisions.
+- Artifacts as source of truth, artifact imports, SVG/PDF/DXF/PNG exports, or interactive rendering.
 - Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.

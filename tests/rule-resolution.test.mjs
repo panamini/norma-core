@@ -99,7 +99,7 @@ function replaceRuleSetRefs(ruleRefs) {
 }
 
 test("PR7 keeps rule resolution vocabulary, diagnostics, and supported rule types", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
   assert.deepEqual(CORE_RULE_TYPES_V1, expectedRuleTypes);
   assert.deepEqual(Object.keys(CORE_RULE_TYPE_REGISTRY_V1), expectedRuleTypes);
 

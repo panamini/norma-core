@@ -228,7 +228,7 @@ function assertNoForbiddenPr8Fields(value) {
 }
 
 test("PR8 exports evaluation vocabulary, diagnostics, profile, helper, and version", () => {
-  assert.equal(core.CORE_VERSION, "0.1.0-pr9");
+  assert.equal(core.CORE_VERSION, "0.1.0-pr10");
 
   for (const diagnosticCode of evaluationDiagnosticCodes) {
     assert.ok(core.CORE_DIAGNOSTIC_CODES.includes(diagnosticCode), diagnosticCode);
