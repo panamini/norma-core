@@ -342,6 +342,20 @@ test("PR22 treats missing MVP rule-set source truth as explicit non-replayable i
   assert.ok(diagnosticCodes(result).includes("MissingSource"), diagnosticCodes(result).join(", "));
 });
 
+test("PR22 treats malformed ratio packs without ruleSets as non-replayable instead of throwing", () => {
+  const { input, demo } = createTruthPath();
+  const changedInput = structuredClone(input);
+  changedInput.ratioPack = {
+    kind: "ratio-pack",
+    id: input.packRef,
+  };
+
+  const result = core.replayRun(replayInput(changedInput, demo));
+
+  assertReplayResult(result, "non_replayable", false);
+  assert.ok(diagnosticCodes(result).includes("MissingSource"), diagnosticCodes(result).join(", "));
+});
+
 test("PR22 integrates explicit artifact freshness without accepting artifacts as source truth", () => {
   const { input, demo } = createTruthPath();
   const artifact = demo.artifactResults.structuredResults[0].output;

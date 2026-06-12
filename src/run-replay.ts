@@ -550,7 +550,8 @@ function sourceObjectsForMvpDemoInput(input: MvpDemoInput): readonly unknown[] {
     kind: "mvp-demo-input",
     ref: "mvp-demo:structured-input",
   };
-  const ruleSet = input.ratioPack.ruleSets.find((candidate) => candidate.id === input.ruleSetRef);
+  const ruleSets = Array.isArray(input.ratioPack.ruleSets) ? input.ratioPack.ruleSets : [];
+  const ruleSet = ruleSets.find((candidate) => candidate.id === input.ruleSetRef);
   const sourceObjects: unknown[] = [
     { sourceRef: mvpInputRef, sourceObject: { ...input, id: mvpInputRef.ref } },
     { sourceRef: { kind: "surface", ref: input.surface.id }, sourceObject: input.surface },
