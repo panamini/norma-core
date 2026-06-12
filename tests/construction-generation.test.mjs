@@ -320,12 +320,11 @@ test("PR6 rejects missing, unresolved, unsupported, or non-surface construction 
   const unsupportedRuleSet = {
     ...resolveMvpRuleSet(),
     orderedRules: [
-      ...resolveMvpRuleSet().orderedRules,
       {
         ...resolveMvpRuleSet().orderedRules[0],
-        ref: "futureRule",
         type: "futureConstructionRule",
       },
+      ...resolveMvpRuleSet().orderedRules.slice(1),
     ],
   };
   assertFailedWithDiagnostic(

@@ -754,6 +754,34 @@ function validateConstructionInput(input: GenerateConstructionInput | Constructi
     );
   }
 
+  const packRuleSet = packResult.output.ruleSets.find((ruleSet) => ruleSet.id === resolvedRuleSet.ruleSetRef);
+  if (packRuleSet === undefined) {
+    return failedConstructionValidation(
+      invalidConstructionInput("resolvedRuleSet.ruleSetRef", "Resolved rule set must reference a rule set declared in the construction pack."),
+    );
+  }
+
+  const foreignRuleSetRule = resolvedRuleSet.orderedRules.find((rule) => rule.ruleSetRef !== resolvedRuleSet.ruleSetRef);
+  if (foreignRuleSetRule !== undefined) {
+    return failedConstructionValidation(
+      invalidConstructionInput(
+        `resolvedRuleSet.orderedRules.${foreignRuleSetRule.ref}.ruleSetRef`,
+        "Resolved rules must belong to the resolved rule set.",
+      ),
+    );
+  }
+
+  const packRuleRefs = new Set(packRuleSet.ruleRefs);
+  const undeclaredRule = resolvedRuleSet.orderedRules.find((rule) => !packRuleRefs.has(rule.ref));
+  if (undeclaredRule !== undefined) {
+    return failedConstructionValidation(
+      invalidConstructionInput(
+        `resolvedRuleSet.orderedRules.${undeclaredRule.ref}.ref`,
+        "Resolved rules must be referenced by the pack-owned rule set.",
+      ),
+    );
+  }
+
   const foreignRule = resolvedRuleSet.orderedRules.find((rule) => rule.packRef !== packRef);
   if (foreignRule !== undefined) {
     return failedConstructionValidation(
@@ -1608,6 +1636,7 @@ function isResolvedRuleSet(value: unknown): value is ResolvedRuleSet {
     && hasNonEmptyString(value, "ruleSetRef")
     && Array.isArray(value.orderedRules)
     && value.orderedRules.every(isResolvedRule)
+    && Array.isArray(value.resolvedRatioRefs)
     && Array.isArray(value.unsupportedRules)
     && Array.isArray(value.warnings)
     && isRecord(value.provenance)
