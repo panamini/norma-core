@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr3";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr4";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -34,6 +34,17 @@ export const CORE_DIAGNOSTIC_CODES = [
   "UnsupportedGeometryV1",
   "InvalidGeometryV1",
   "MissingMetricPolicy",
+  "MissingRatioPack",
+  "MissingRatioPackVersion",
+  "MissingRatioPackIdentity",
+  "MissingRatioPackContentIdentity",
+  "InvalidRatioPackV1",
+  "UnsupportedRatioPackV1",
+  "DuplicateRatioDefinition",
+  "InvalidRatioValue",
+  "InvalidRatioSequence",
+  "MissingRatioReference",
+  "UnsupportedRatioPackClaim",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -2030,3 +2041,5 @@ function dependencyRefSegments(dependencyRef: string): readonly string[] {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+export * from "./ratio-pack.js";

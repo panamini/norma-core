@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, and PR3.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, and PR4.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -34,11 +34,23 @@ PR3 adds the minimal geometry model that later operations can validate against w
 The PR3 validator returns structured `CoreResult` failures for missing coordinate systems, invalid geometry, missing metric policy for metric coordinate spaces, and unsupported V1 geometry.
 `validateGeometryV1` is a boundary validator only. It does not construct, transform, measure, normalize, score, or repair geometry.
 
+## PR4 Ratio Pack Model
+
+PR4 adds the minimal declarative ratio pack model and the MVP pack `norma.basic-proportions@0.1.0`.
+The pack contains ratios `1/2`, `1/3`, and `2/3`, ratio sequence `1:1:1`, partition patterns `halves` and `thirds`, and the declared rule set `surface-basic-third-grid`.
+
+The ratio pack validator returns structured `CoreResult` failures for missing pack identity fields, missing content identity, duplicate or invalid ratios, invalid ratio sequences, missing ratio references, unsupported pack schema versions, and forbidden beauty/UI/rendering claims.
+`1:1:1` is modeled as a `RatioSequence` with normalized parts, not as three independent ratios.
+`surface-basic-third-grid` is declaration-only in PR4. It is not resolved, executed, or used to generate construction.
+
+PR4 also introduces a pre-lock `RatioPackPreLock` shape that exposes pack id, pack version, schema version, and content identity without finalizing PR11 `PackLock` behavior.
+
 ## Does Not Contain
 
 - Geometry calculations.
-- Ratio packs or implicit ratios.
+- Implicit ratios or client-defined ratios outside validated packs.
 - Construction, measurements, evaluation, artifacts, or scoring.
+- Rule resolution or rule execution.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
