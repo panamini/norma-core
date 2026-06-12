@@ -192,7 +192,7 @@ test("PR6 generates the MVP construction from a resolved rule set", () => {
   assert.deepEqual(verticalGuides.map((guide) => guide.normalizedPosition), [1 / 3, 1 / 2, 2 / 3]);
   assert.deepEqual(horizontalGuides.map((guide) => guide.normalizedPosition), [1 / 3, 1 / 2, 2 / 3]);
   assert.deepEqual(verticalGuides.map((guide) => guide.position), [400, 600, 800]);
-  assert.deepEqual(horizontalGuides.map((guide) => guide.position), [800 / 3, 400, 1600 / 3]);
+  assert.deepEqual(horizontalGuides.map((guide) => guide.position), [800 * (1 / 3), 400, 800 * (2 / 3)]);
 
   assert.equal(construction.zones.length, 6);
   assert.equal(construction.grid.rows, 3);
@@ -283,10 +283,10 @@ test("PR6 reads guide values from the pack instead of hiding ratio constants in 
   });
   const resolvedRuleSet = resolveMvpRuleSet(pack);
 
-  const result = generateConstruction(mvpConstructionInput({ pack, resolvedRuleSet }));
+  const result = generateGuides(mvpConstructionInput({ pack, resolvedRuleSet }));
   assertOk(result);
 
-  const oneThirdVerticalGuide = result.output.guides.find((guide) => guide.id === "guide:x:1/3");
+  const oneThirdVerticalGuide = result.output.find((guide) => guide.id === "guide:x:1/3");
   assert.ok(oneThirdVerticalGuide);
   assert.equal(oneThirdVerticalGuide.normalizedPosition, 2 / 5);
   assert.equal(oneThirdVerticalGuide.position, 480);
@@ -333,4 +333,3 @@ test("PR6 rejects missing, unresolved, unsupported, or non-surface construction 
     "UnsupportedConstructionRule",
   );
 });
-
