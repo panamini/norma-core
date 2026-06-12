@@ -17,7 +17,7 @@ export const RATIO_PACK_V1_SCHEMA_VERSION = "ratio-pack-v1" as const;
 export const BASIC_PROPORTIONS_PACK_ID = "norma.basic-proportions" as const;
 export const BASIC_PROPORTIONS_PACK_VERSION = "0.1.0" as const;
 export const BASIC_PROPORTIONS_PACK_CONTENT_IDENTITY =
-  "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-minimal" as const;
+  "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution" as const;
 export const SURFACE_BASIC_THIRD_GRID_RULE_SET_ID = "surface-basic-third-grid" as const;
 
 export type RatioPackSchemaVersion = typeof RATIO_PACK_V1_SCHEMA_VERSION;
@@ -683,6 +683,11 @@ function validateRuleDeclarations(
     return failedRatioPack(invalidRatioPack("ruleDeclarations", "Ratio pack ruleDeclarations must be an array."));
   }
 
+  const duplicateRuleDeclarationId = firstDuplicate(value.map((declaration) => (isRecord(declaration) ? declaration.id : undefined)));
+  if (duplicateRuleDeclarationId !== null) {
+    return failedRatioPack(invalidRuleDeclaration(`ruleDeclarations.${duplicateRuleDeclarationId}`, `Rule declaration is declared more than once in the ratio pack: ${duplicateRuleDeclarationId}.`));
+  }
+
   const declarations: RuleDeclaration[] = [];
   for (const declaration of value) {
     const declarationValidation = validateRuleDeclaration(
@@ -875,6 +880,11 @@ function validateRuleSets(value: unknown, ruleDeclarationIds: ReadonlySet<string
     return failedRatioPack(invalidRatioPack("ruleSets", "Ratio pack ruleSets must be an array."));
   }
 
+  const duplicateRuleSetId = firstDuplicate(value.map((ruleSet) => (isRecord(ruleSet) ? ruleSet.id : undefined)));
+  if (duplicateRuleSetId !== null) {
+    return failedRatioPack(invalidRuleSet(`ruleSets.${duplicateRuleSetId}`, `Rule set is declared more than once in the ratio pack: ${duplicateRuleSetId}.`));
+  }
+
   const ruleSets: RuleSet[] = [];
   for (const ruleSet of value) {
     if (!isRecord(ruleSet) || ruleSet.kind !== "rule-set" || !hasNonEmptyString(ruleSet, "id") || !isStringArray(ruleSet.ruleRefs) || ruleSet.ruleRefs.length === 0 || ruleSet.declarationOnly !== true) {
@@ -882,6 +892,11 @@ function validateRuleSets(value: unknown, ruleDeclarationIds: ReadonlySet<string
     }
 
     const ruleSetId = ruleSet.id as string;
+    const duplicateRuleRef = firstDuplicate(ruleSet.ruleRefs);
+    if (duplicateRuleRef !== null) {
+      return failedRatioPack(invalidRuleSet(`ruleSets.${ruleSetId}.ruleRefs`, `Rule set references the same rule more than once: ${duplicateRuleRef}.`));
+    }
+
     const missingRuleRef = firstMissingRef(ruleSet.ruleRefs, ruleDeclarationIds);
     if (missingRuleRef !== null) {
       return failedRatioPack(missingRuleDeclaration(missingRuleRef, ruleSetId));

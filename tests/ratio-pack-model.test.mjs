@@ -69,7 +69,7 @@ test("PR4 validates the norma.basic-proportions MVP pack", () => {
   assert.equal(result.output.id, "norma.basic-proportions");
   assert.equal(result.output.version, "0.1.0");
   assert.equal(result.output.schemaVersion, "ratio-pack-v1");
-  assert.equal(result.output.contentIdentity, "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-minimal");
+  assert.equal(result.output.contentIdentity, "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution");
   assert.equal(result.output.preLock.contentIdentity, result.output.contentIdentity);
   assert.deepEqual(
     result.output.ratios.map((ratio) => ratio.id),
@@ -188,6 +188,40 @@ test("PR4 rejects rule declarations that reference absent ratios", () => {
   });
 
   assertFailedWithDiagnostic(validateRatioPackV1(badRuleDeclaration), "MissingRatioReference");
+});
+
+test("PR5 rejects duplicate rule declaration and rule set identifiers", () => {
+  const duplicateRuleDeclaration = clonePack({
+    ruleDeclarations: [
+      ...BASIC_PROPORTIONS_PACK.ruleDeclarations,
+      structuredClone(BASIC_PROPORTIONS_PACK.ruleDeclarations[0]),
+    ],
+  });
+  const duplicateRuleSet = clonePack({
+    ruleSets: [
+      ...BASIC_PROPORTIONS_PACK.ruleSets,
+      structuredClone(BASIC_PROPORTIONS_PACK.ruleSets[0]),
+    ],
+  });
+
+  assertFailedWithDiagnostic(validateRatioPackV1(duplicateRuleDeclaration), "InvalidRuleDeclaration");
+  assertFailedWithDiagnostic(validateRatioPackV1(duplicateRuleSet), "InvalidRuleSet");
+});
+
+test("PR5 rejects duplicate rule refs inside a rule set", () => {
+  const duplicateRuleRef = clonePack({
+    ruleSets: [
+      {
+        ...BASIC_PROPORTIONS_PACK.ruleSets[0],
+        ruleRefs: [
+          ...BASIC_PROPORTIONS_PACK.ruleSets[0].ruleRefs,
+          BASIC_PROPORTIONS_PACK.ruleSets[0].ruleRefs[0],
+        ],
+      },
+    ],
+  });
+
+  assertFailedWithDiagnostic(validateRatioPackV1(duplicateRuleRef), "InvalidRuleSet");
 });
 
 test("PR4 rejects beauty and UI preset claims", () => {
