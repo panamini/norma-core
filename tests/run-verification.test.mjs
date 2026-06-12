@@ -43,11 +43,46 @@ function assertRunVerification(result, status, mode) {
   assert.equal(result.serializationSummary.canonicalOrdering, true);
 }
 
-function sourceObjectsForRun(run) {
+function weakSourceObjectsForRun(run) {
   return run.input.sourceRefs.map((sourceRef) => ({
     sourceRef,
     sourceObject: { kind: `${sourceRef.kind}-source`, id: sourceRef.ref },
   }));
+}
+
+function sourceObjectsForRun(input) {
+  return [
+    {
+      sourceRef: { kind: "mvp-demo-input", ref: "mvp-demo:structured-input" },
+      sourceObject: { ...input, id: "mvp-demo:structured-input" },
+    },
+    { sourceRef: { kind: "surface", ref: input.surface.id }, sourceObject: input.surface },
+    { sourceRef: { kind: "ratio-pack", ref: input.packRef }, sourceObject: input.ratioPack },
+    {
+      sourceRef: { kind: "rule-set", ref: input.ruleSetRef },
+      sourceObject: input.ratioPack.ruleSets.find((ruleSet) => ruleSet.id === input.ruleSetRef),
+    },
+    {
+      sourceRef: { kind: "evaluation-profile", ref: input.evaluationProfile.id },
+      sourceObject: input.evaluationProfile,
+    },
+    {
+      sourceRef: { kind: "tolerance-policy", ref: input.tolerancePolicy.id },
+      sourceObject: input.tolerancePolicy,
+    },
+    {
+      sourceRef: { kind: "evaluation-tolerances", ref: input.evaluationTolerances.id },
+      sourceObject: input.evaluationTolerances,
+    },
+    {
+      sourceRef: { kind: "coordinate-system", ref: input.surface.coordinateSystem.id },
+      sourceObject: input.surface.coordinateSystem,
+    },
+    {
+      sourceRef: { kind: "metric-policy", ref: input.surface.metricPolicy.id },
+      sourceObject: input.surface.metricPolicy,
+    },
+  ];
 }
 
 function sourceObjectsForArtifact(demo, artifact) {
@@ -190,13 +225,13 @@ test("PR21 audit_only preserves coherent run warnings as verified_with_warnings"
 });
 
 test("PR21 replay_eligible verifies visible MVP replay dependencies without executing replay", () => {
-  const { demo } = createTruthPath();
+  const { input, demo } = createTruthPath();
   const result = core.verifyRun({
     run: demo.runEnvelope,
     mode: "replay_eligible",
     packLock: demo.packLock,
     operationContext: demo.operationContext,
-    sourceObjects: sourceObjectsForRun(demo.runEnvelope),
+    sourceObjects: sourceObjectsForRun(input),
     expectedOutputRefs: demo.runEnvelope.outputRefs,
   });
 
@@ -204,6 +239,22 @@ test("PR21 replay_eligible verifies visible MVP replay dependencies without exec
   assert.equal(result.replaySummary.replayEligible, "eligible");
   assert.deepEqual(result.missingSourceRefs, []);
   assert.deepEqual(result.replaySummary.sourceRefsUsed, core.canonicalizeRefs(demo.runEnvelope.input.sourceRefs));
+});
+
+test("PR21 does not accept weak source-object placeholders as replay-eligible source coverage", () => {
+  const { demo } = createTruthPath();
+  const result = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "replay_eligible",
+    packLock: demo.packLock,
+    operationContext: demo.operationContext,
+    sourceObjects: weakSourceObjectsForRun(demo.runEnvelope),
+  });
+
+  assertRunVerification(result, "non_replayable", "replay_eligible");
+  assert.ok(diagnosticCodes(result).includes("MissingSource"), diagnosticCodes(result).join(", "));
+  assert.equal(result.replaySummary.replayEligible, "not_eligible");
+  assert.deepEqual(result.missingSourceRefs, core.canonicalizeRefs(demo.runEnvelope.input.sourceRefs));
 });
 
 test("PR21 replay_eligible reports missing replay dependencies as non_replayable", () => {
@@ -251,6 +302,99 @@ test("PR21 reports explicit PackLock, OperationContext, output ref, and operatio
     assert.ok(result.mismatchCodes.includes(code), result.mismatchCodes.join(", "));
   }
   assert.equal(result.replaySummary.replayEligible, "not_requested");
+});
+
+test("PR21 rejects incoherent run internal refs before merge", () => {
+  const { demo } = createTruthPath();
+  const cases = [
+    {
+      run: {
+        ...demo.runEnvelope,
+        input: { ...demo.runEnvelope.input, packLockRef: { id: `${demo.runEnvelope.packLockRef.id}:changed` } },
+      },
+      code: "PackContentIdentityMismatch",
+    },
+    {
+      run: {
+        ...demo.runEnvelope,
+        input: { ...demo.runEnvelope.input, operationContextRef: { id: `${demo.runEnvelope.operationContextRef.id}:changed` } },
+      },
+      code: "OperationVersionMismatch",
+    },
+    {
+      run: {
+        ...demo.runEnvelope,
+        inputRefs: [{ kind: "surface", ref: "surface:changed" }],
+      },
+      code: "MissingSource",
+    },
+    {
+      run: {
+        ...demo.runEnvelope,
+        input: {
+          ...demo.runEnvelope.input,
+          requestedOutputRefs: { ...demo.runEnvelope.input.requestedOutputRefs, refs: [{ kind: "construction", ref: "construction:changed" }] },
+        },
+      },
+      code: "MissingOutputRefs",
+    },
+  ];
+
+  for (const { run, code } of cases) {
+    const result = core.verifyRun({
+      run,
+      mode: "audit_only",
+      packLock: demo.packLock,
+      operationContext: demo.operationContext,
+    });
+    assertRunVerification(result, "mismatch", "audit_only");
+    assert.ok(diagnosticCodes(result).includes(code), diagnosticCodes(result).join(", "));
+    assert.ok(result.mismatchCodes.includes(code), result.mismatchCodes.join(", "));
+  }
+});
+
+test("PR21 detects PackLock content identity drift even when the ref id is unchanged", () => {
+  const { demo } = createTruthPath();
+  const result = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "audit_only",
+    packLock: { ...demo.packLock, contentIdentity: "different-content-identity" },
+    operationContext: demo.operationContext,
+  });
+
+  assertRunVerification(result, "mismatch", "audit_only");
+  assert.ok(diagnosticCodes(result).includes("PackContentIdentityMismatch"), diagnosticCodes(result).join(", "));
+  assert.ok(result.mismatchCodes.includes("PackContentIdentityMismatch"), result.mismatchCodes.join(", "));
+});
+
+test("PR21 detects OperationContext output-changing policy drift even when the ref id is unchanged", () => {
+  const { demo } = createTruthPath();
+  const featureFlagResult = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "audit_only",
+    packLock: demo.packLock,
+    operationContext: {
+      ...demo.operationContext,
+      featureFlags: { ...demo.operationContext.featureFlags, mvpDemoHarness: false },
+    },
+  });
+  assertRunVerification(featureFlagResult, "mismatch", "audit_only");
+  assert.ok(diagnosticCodes(featureFlagResult).includes("FeatureFlagsMismatch"), diagnosticCodes(featureFlagResult).join(", "));
+
+  const toleranceResult = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "audit_only",
+    packLock: demo.packLock,
+    operationContext: {
+      ...demo.operationContext,
+      tolerancePolicy: {
+        ...demo.operationContext.tolerancePolicy,
+        value: { ...demo.operationContext.tolerancePolicy.value, id: "changed-tolerance-policy" },
+      },
+    },
+  });
+  assertRunVerification(toleranceResult, "mismatch", "audit_only");
+  assert.ok(diagnosticCodes(toleranceResult).includes("TolerancePolicyMismatch"), diagnosticCodes(toleranceResult).join(", "));
 });
 
 test("PR21 returns unsupported for replay_required mode or unsupported operations without fallback", () => {
@@ -303,7 +447,7 @@ test("PR21 returns invalid for malformed input, runtime objects, diagnostics, re
 });
 
 test("PR21 integrates explicit artifact freshness inputs without treating artifacts as source truth", () => {
-  const { demo } = createTruthPath();
+  const { input, demo } = createTruthPath();
   const artifact = demo.artifactResults.structuredResults[0].output;
   const current = core.verifyRun({
     run: demo.runEnvelope,
@@ -317,12 +461,27 @@ test("PR21 integrates explicit artifact freshness inputs without treating artifa
   assert.equal(current.artifactFreshness.length, 1);
   assert.equal(current.artifactFreshness[0].status, "current");
 
+  const nonReplayableAudit = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "audit_only",
+    packLock: demo.packLock,
+    operationContext: demo.operationContext,
+    artifactFreshnessInputs: [
+      freshnessInput(demo, { ...artifact, status: "non_replayable" }),
+    ],
+    requireFreshArtifacts: false,
+  });
+  assertRunVerification(nonReplayableAudit, "verified_with_warnings", "audit_only");
+  assert.equal(nonReplayableAudit.artifactFreshness[0].status, "non_replayable");
+  assert.equal(nonReplayableAudit.errors.length, 0);
+  assert.ok(diagnosticCodes(nonReplayableAudit).includes("ArtifactNonReplayable"), diagnosticCodes(nonReplayableAudit).join(", "));
+
   const staleRequired = core.verifyRun({
     run: demo.runEnvelope,
     mode: "replay_eligible",
     packLock: demo.packLock,
     operationContext: demo.operationContext,
-    sourceObjects: sourceObjectsForRun(demo.runEnvelope),
+    sourceObjects: sourceObjectsForRun(input),
     artifactFreshnessInputs: [
       freshnessInput(demo, { ...artifact, status: "stale" }),
     ],
@@ -335,13 +494,13 @@ test("PR21 integrates explicit artifact freshness inputs without treating artifa
 });
 
 test("PR21 canonicalizes verification results independently of input ordering", () => {
-  const { demo } = createTruthPath();
+  const { input, demo } = createTruthPath();
   const first = core.verifyRun({
     run: demo.runEnvelope,
     mode: "replay_eligible",
     packLock: demo.packLock,
     operationContext: demo.operationContext,
-    sourceObjects: sourceObjectsForRun(demo.runEnvelope),
+    sourceObjects: sourceObjectsForRun(input),
     expectedOutputRefs: demo.runEnvelope.outputRefs,
   });
   const second = core.verifyRun({
@@ -349,7 +508,7 @@ test("PR21 canonicalizes verification results independently of input ordering", 
     mode: "replay_eligible",
     packLock: reverseObjectKeys(demo.packLock),
     operationContext: reverseObjectKeys(demo.operationContext),
-    sourceObjects: sourceObjectsForRun(demo.runEnvelope).reverse(),
+    sourceObjects: sourceObjectsForRun(input).reverse(),
     expectedOutputRefs: [...demo.runEnvelope.outputRefs.refs].reverse(),
   });
 
@@ -359,12 +518,12 @@ test("PR21 canonicalizes verification results independently of input ordering", 
 });
 
 test("PR21 does not mutate run, lock, context, source objects, or artifacts", () => {
-  const { demo } = createTruthPath();
+  const { input, demo } = createTruthPath();
   const artifact = deepFreeze(structuredClone(demo.visualArtifactResult.output));
   const run = deepFreeze(structuredClone(demo.runEnvelope));
   const packLock = deepFreeze(structuredClone(demo.packLock));
   const operationContext = deepFreeze(structuredClone(demo.operationContext));
-  const sourceObjects = deepFreeze(sourceObjectsForRun(run));
+  const sourceObjects = deepFreeze(sourceObjectsForRun(input));
   const freshness = deepFreeze(freshnessInput(demo, artifact));
   const before = structuredClone({ run, packLock, operationContext, sourceObjects, artifact, freshness });
 
