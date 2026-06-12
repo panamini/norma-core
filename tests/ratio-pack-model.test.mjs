@@ -148,6 +148,9 @@ test("PR4 rejects invalid ratio sequences", () => {
 
 test("PR4 rejects missing ratio references", () => {
   const readMissing = readRatioFromPack(BASIC_PROPORTIONS_PACK, "golden");
+  const readMissingSequence = readRatioSequenceFromPack(BASIC_PROPORTIONS_PACK, "missing-sequence");
+  const readMissingPattern = readPartitionPatternFromPack(BASIC_PROPORTIONS_PACK, "missing-pattern");
+  const readMissingRuleSet = readRuleSetFromPack(BASIC_PROPORTIONS_PACK, "missing-rule-set");
   const partitionMissingRatio = clonePack({
     partitionPatterns: [
       {
@@ -162,6 +165,9 @@ test("PR4 rejects missing ratio references", () => {
   });
 
   assertFailedWithDiagnostic(readMissing, "MissingRatioReference");
+  assertFailedWithDiagnostic(readMissingSequence, "MissingRatioReference");
+  assertFailedWithDiagnostic(readMissingPattern, "MissingRatioReference");
+  assertFailedWithDiagnostic(readMissingRuleSet, "MissingRatioReference");
   assertFailedWithDiagnostic(validateRatioPackV1(partitionMissingRatio), "MissingRatioReference");
 });
 
@@ -184,6 +190,12 @@ test("PR4 rejects rule declarations that reference absent ratios", () => {
 });
 
 test("PR4 rejects beauty and UI preset claims", () => {
+  assertOk(validateRatioPackV1(clonePack({
+    metadata: {
+      ...BASIC_PROPORTIONS_PACK.metadata,
+      description: "Better composition of halves as a neutral metadata phrase.",
+    },
+  })));
   assertFailedWithDiagnostic(
     validateRatioPackV1(clonePack({ claims: ["rend beau"] })),
     "UnsupportedRatioPackClaim",

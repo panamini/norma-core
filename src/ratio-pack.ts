@@ -341,7 +341,7 @@ export function readRatioSequenceFromPack(pack: unknown, sequenceId: string): Co
 
   const sequence = validation.value.ratioSequences.find((candidate) => candidate.id === sequenceId);
   if (sequence === undefined) {
-    return invalidRatioSequence(`ratioSequences.${sequenceId}`, `Ratio sequence is not declared in the ratio pack: ${sequenceId}.`) as CoreResult<RatioSequence>;
+    return missingRatioReference(`ratioSequences.${sequenceId}`, `Ratio sequence is not declared in the ratio pack: ${sequenceId}.`) as CoreResult<RatioSequence>;
   }
 
   return ratioPackOk(sequence, "core.ratio-pack-v1.sequence.read", validation.value);
@@ -355,7 +355,7 @@ export function readPartitionPatternFromPack(pack: unknown, patternId: string): 
 
   const pattern = validation.value.partitionPatterns.find((candidate) => candidate.id === patternId);
   if (pattern === undefined) {
-    return invalidRatioPack(`partitionPatterns.${patternId}`, `Partition pattern is not declared in the ratio pack: ${patternId}.`) as CoreResult<PartitionPattern>;
+    return missingRatioReference(`partitionPatterns.${patternId}`, `Partition pattern is not declared in the ratio pack: ${patternId}.`) as CoreResult<PartitionPattern>;
   }
 
   return ratioPackOk(pattern, "core.ratio-pack-v1.partition-pattern.read", validation.value);
@@ -369,7 +369,7 @@ export function readRuleSetFromPack(pack: unknown, ruleSetId: string): CoreResul
 
   const ruleSet = validation.value.ruleSets.find((candidate) => candidate.id === ruleSetId);
   if (ruleSet === undefined) {
-    return invalidRatioPack(`ruleSets.${ruleSetId}`, `Rule set is not declared in the ratio pack: ${ruleSetId}.`) as CoreResult<RuleSet>;
+    return missingRatioReference(`ruleSets.${ruleSetId}`, `Rule set is not declared in the ratio pack: ${ruleSetId}.`) as CoreResult<RuleSet>;
   }
 
   return ratioPackOk(ruleSet, "core.ratio-pack-v1.rule-set.read", validation.value);
@@ -838,15 +838,19 @@ function failedRatioPack<TValue>(result: CoreResult): RatioPackValidation<TValue
   return { ok: false, result };
 }
 
-function firstUnsupportedPackClaim(value: unknown): string | null {
+function firstUnsupportedPackClaim(value: unknown, fieldPath = ""): string | null {
   if (typeof value === "string") {
+    if (!isClaimTextField(fieldPath)) {
+      return null;
+    }
+
     const normalizedValue = value.toLowerCase();
     return UNSUPPORTED_RATIO_PACK_CLAIMS.find((claim) => normalizedValue.includes(claim)) ?? null;
   }
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      const unsupportedClaim = firstUnsupportedPackClaim(item);
+      const unsupportedClaim = firstUnsupportedPackClaim(item, fieldPath);
       if (unsupportedClaim !== null) {
         return unsupportedClaim;
       }
@@ -865,13 +869,17 @@ function firstUnsupportedPackClaim(value: unknown): string | null {
       return key;
     }
 
-    const unsupportedClaim = firstUnsupportedPackClaim(item);
+    const unsupportedClaim = firstUnsupportedPackClaim(item, key);
     if (unsupportedClaim !== null) {
       return unsupportedClaim;
     }
   }
 
   return null;
+}
+
+function isClaimTextField(fieldPath: string): boolean {
+  return fieldPath === "claims" || fieldPath === "claim" || fieldPath === "concept";
 }
 
 function hasRatioPackRequiredObjects(value: Record<string, unknown>): boolean {
