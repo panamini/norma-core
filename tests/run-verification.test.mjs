@@ -153,7 +153,7 @@ test("PR21 audit_only verifies the MVP run by inspection without replay", () => 
     mode: "audit_only",
     packLock: demo.packLock,
     operationContext: demo.operationContext,
-    expectedOutputRefs: [...demo.outputRefs].reverse(),
+    expectedOutputRefs: [...demo.runEnvelope.outputRefs.refs].reverse(),
     expectedOperationName: demo.runEnvelope.operationName,
     expectedOperationVersion: demo.runEnvelope.operationVersion,
   });
@@ -162,7 +162,7 @@ test("PR21 audit_only verifies the MVP run by inspection without replay", () => 
   assert.deepEqual(result.runRef, demo.runEnvelope.runRef);
   assert.equal(result.operationName, "core.mvp-demo.run");
   assert.equal(result.operationVersion, "0.1.0-pr12");
-  assert.deepEqual(result.outputRefs, core.canonicalizeOutputRefs(demo.outputRefs).refs);
+  assert.deepEqual(result.outputRefs, core.canonicalizeOutputRefs(demo.runEnvelope.outputRefs).refs);
   assert.deepEqual(result.sourceRefs, core.canonicalizeRefs(demo.runEnvelope.input.sourceRefs));
   assert.equal(result.replaySummary.replayEligible, "not_requested");
   assert.equal("artifactFreshness" in result, false);
@@ -197,7 +197,7 @@ test("PR21 replay_eligible verifies visible MVP replay dependencies without exec
     packLock: demo.packLock,
     operationContext: demo.operationContext,
     sourceObjects: sourceObjectsForRun(demo.runEnvelope),
-    expectedOutputRefs: demo.outputRefs,
+    expectedOutputRefs: demo.runEnvelope.outputRefs,
   });
 
   assertRunVerification(result, "verified", "replay_eligible");
@@ -342,7 +342,7 @@ test("PR21 canonicalizes verification results independently of input ordering", 
     packLock: demo.packLock,
     operationContext: demo.operationContext,
     sourceObjects: sourceObjectsForRun(demo.runEnvelope),
-    expectedOutputRefs: demo.outputRefs,
+    expectedOutputRefs: demo.runEnvelope.outputRefs,
   });
   const second = core.verifyRun({
     run: reversedRunOrdering(demo.runEnvelope),
@@ -350,7 +350,7 @@ test("PR21 canonicalizes verification results independently of input ordering", 
     packLock: reverseObjectKeys(demo.packLock),
     operationContext: reverseObjectKeys(demo.operationContext),
     sourceObjects: sourceObjectsForRun(demo.runEnvelope).reverse(),
-    expectedOutputRefs: [...demo.outputRefs].reverse(),
+    expectedOutputRefs: [...demo.runEnvelope.outputRefs.refs].reverse(),
   });
 
   assertRunVerification(first, "verified", "replay_eligible");
