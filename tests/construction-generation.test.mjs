@@ -197,6 +197,7 @@ test("PR6 generates the MVP construction from a resolved rule set", () => {
   assert.equal(construction.zones.length, 6);
   assert.equal(construction.grid.rows, 3);
   assert.equal(construction.grid.columns, 3);
+  assert.equal(construction.grid.id, "grid:surface:1200x800:thirdGrid:1:1:1");
   assert.equal(construction.grid.cells.length, 9);
   assert.deepEqual(
     construction.grid.cells.map((cell) => [cell.rowIndex, cell.columnIndex]),
@@ -206,6 +207,8 @@ test("PR6 generates the MVP construction from a resolved rule set", () => {
       [2, 0], [2, 1], [2, 2],
     ],
   );
+  assert.ok(construction.zones.every((zone) => zone.id.startsWith("zone:surface:1200x800:")));
+  assert.ok(construction.zones.every((zone) => !zone.id.includes("-third:")));
 
   assert.equal(construction.diagonals.length, 2);
   assert.deepEqual(construction.diagonals.map((diagonal) => diagonal.id), [
@@ -241,7 +244,7 @@ test("PR6 keeps every derived object and trace minimally provenance-backed", () 
   assert.ok(trace.operationRefs.includes("core.construction-v1.guides.generate@0.1.0"));
   assert.ok(trace.operationRefs.includes("core.construction-v1.intersections.derive@0.1.0"));
   assert.ok(trace.createdObjectRefs.some((ref) => ref.ref === "guide:x:1/3"));
-  assert.ok(trace.createdObjectRefs.some((ref) => ref.ref === "grid:thirdGrid"));
+  assert.ok(trace.createdObjectRefs.some((ref) => ref.ref === "grid:surface:1200x800:thirdGrid:1:1:1"));
   assert.ok(trace.createdObjectRefs.some((ref) => ref.ref === "intersection:diagonal-diagonal:center"));
   assert.deepEqual(trace.warnings, []);
 
@@ -290,6 +293,29 @@ test("PR6 reads guide values from the pack instead of hiding ratio constants in 
   assert.ok(oneThirdVerticalGuide);
   assert.equal(oneThirdVerticalGuide.normalizedPosition, 2 / 5);
   assert.equal(oneThirdVerticalGuide.position, 480);
+});
+
+test("PR6 rejects grid rules with multiple ratio sequences until row and column sequences are explicit", () => {
+  const pack = clonePack({
+    ratioSequences: [
+      ...BASIC_PROPORTIONS_PACK.ratioSequences,
+      {
+        kind: "ratio-sequence",
+        id: "1:1",
+        parts: [1, 1],
+        normalizedParts: [1 / 2, 1 / 2],
+      },
+    ],
+    ruleDeclarations: BASIC_PROPORTIONS_PACK.ruleDeclarations.map((rule) => (
+      rule.id === "thirdGrid" ? { ...rule, sequenceRefs: ["1:1:1", "1:1"] } : rule
+    )),
+  });
+  const resolvedRuleSet = resolveMvpRuleSet(pack);
+
+  assertFailedWithDiagnostic(
+    generateSimpleGrid(mvpConstructionInput({ pack, resolvedRuleSet })),
+    "UnsupportedConstructionRule",
+  );
 });
 
 test("PR6 rejects missing, unresolved, unsupported, or non-surface construction inputs", () => {
