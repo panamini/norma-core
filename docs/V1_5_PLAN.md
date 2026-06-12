@@ -8,10 +8,12 @@ This document does not implement V1.5. It defines the safe planning boundary for
 
 - MVP `v0.1.0` is tagged.
 - PR0-PR12 remain closed and must not be reopened by V1.5 work.
+- GitHub PR #13 delivered the roadmap PR12 MVP demo harness.
 - PR14 merged the MVP checkpoint documentation and release metadata alignment.
 - V1.5 starts after MVP, without reopening the MVP scope.
 - `CORE_VERSION` remains the implemented MVP engine checkpoint identifier unless a later approved runtime PR explicitly changes it.
 - This PR is documentation-only and does not start CLI, SDK, API, MCP, adapter, plugin, replay runtime, release or tag work.
+- This release-level phase plan intentionally lives at `docs/V1_5_PLAN.md`, matching the requested PR15 deliverable and the checkpoint-style `docs/V0_1_CHECKPOINT.md`. Detailed implementation plans inside V1.5 should use `docs/plans/`.
 
 ## 2. V1.5 principles
 
