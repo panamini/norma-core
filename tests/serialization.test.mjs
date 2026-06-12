@@ -189,3 +189,24 @@ test("PR18 excludes or normalizes timestamp-like metadata only through serializa
     "{\"id\":\"run:test\",\"metadata\":{\"createdAt\":\"normalized-timestamp\",\"note\":\"kept\",\"updatedAt\":\"2027-01-01T00:00:00Z\"}}",
   );
 });
+
+test("PR18 rejects unsupported non-plain objects instead of dropping their data", () => {
+  class Box {
+    constructor() {
+      this.value = 1;
+    }
+  }
+
+  assert.throws(
+    () => core.serializeCanonicalJson(new Map([["a", 1]])),
+    /plain JSON-like objects|does not support/,
+  );
+  assert.throws(
+    () => core.serializeCanonicalJson(new Set(["a"])),
+    /plain JSON-like objects|does not support/,
+  );
+  assert.throws(
+    () => core.serializeCanonicalJson(new Box()),
+    /plain JSON-like objects|does not support/,
+  );
+});
