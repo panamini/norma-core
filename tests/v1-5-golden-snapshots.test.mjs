@@ -507,9 +507,9 @@ test("PR19 golden snapshots match committed human-readable JSON", () => {
   }
 });
 
-test("PR19 does not start run verification, replay, or external surfaces", () => {
+test("PR19/PR21 keep replay and external surfaces absent while run verification is explicit", () => {
   assert.equal(typeof core.verifyArtifactFreshness, "function");
-  assert.equal("verifyRun" in core, false);
+  assert.equal(typeof core.verifyRun, "function");
   assert.equal("replayRun" in core, false);
   assert.equal("createCli" in core, false);
   assert.equal("createSdk" in core, false);

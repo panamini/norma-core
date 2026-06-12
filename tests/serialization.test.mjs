@@ -15,7 +15,7 @@ function diagnostic(input) {
   };
 }
 
-test("PR18 exports stable serialization helpers without starting run verification or replay runtime", () => {
+test("PR18 exports stable serialization helpers while PR21 owns verifyRun and replay remains absent", () => {
   assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.equal(typeof core.STABLE_SERIALIZATION_VERSION, "string");
   assert.equal(typeof core.canonicalizeForSerialization, "function");
@@ -24,7 +24,7 @@ test("PR18 exports stable serialization helpers without starting run verificatio
   assert.equal(typeof core.canonicalizeOutputRefs, "function");
   assert.equal(typeof core.canonicalizeDiagnostics, "function");
   assert.equal("replayRun" in core, false);
-  assert.equal("verifyRun" in core, false);
+  assert.equal(typeof core.verifyRun, "function");
 });
 
 test("PR18 serializes object keys deterministically independent of insertion order", () => {
