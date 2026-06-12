@@ -507,10 +507,10 @@ test("PR19 golden snapshots match committed human-readable JSON", () => {
   }
 });
 
-test("PR19/PR21 keep replay and external surfaces absent while run verification is explicit", () => {
+test("PR19/PR21 keep external surfaces absent while PR22 owns replayRun", () => {
   assert.equal(typeof core.verifyArtifactFreshness, "function");
   assert.equal(typeof core.verifyRun, "function");
-  assert.equal("replayRun" in core, false);
+  assert.equal(typeof core.replayRun, "function");
   assert.equal("createCli" in core, false);
   assert.equal("createSdk" in core, false);
   assert.equal("createMcpServer" in core, false);

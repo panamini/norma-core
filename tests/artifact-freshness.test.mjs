@@ -99,10 +99,10 @@ function canonicalFreshness(result) {
   return core.serializeCanonicalJson(result, core.DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
 }
 
-test("PR20 exports verifyArtifactFreshness while PR21 owns verifyRun and replayRun remains absent", () => {
+test("PR20 exports verifyArtifactFreshness while PR21 owns verifyRun and PR22 owns replayRun", () => {
   assert.equal(typeof core.verifyArtifactFreshness, "function");
   assert.equal(typeof core.verifyRun, "function");
-  assert.equal("replayRun" in core, false);
+  assert.equal(typeof core.replayRun, "function");
 });
 
 test("PR20 returns invalid for missing freshness input instead of throwing", () => {

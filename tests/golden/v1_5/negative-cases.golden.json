@@ -406,12 +406,12 @@
       "expectedDiagnosticCodes": [],
       "expectedStatus": "to verify",
       "fixtureId": "UnsupportedReplayTarget",
-      "notes": "Replay target support does not exist until replayRun is implemented.",
+      "notes": "Arbitrary replay target support remains outside MVP-only replayRun.",
       "pass": true,
       "positive": false,
       "snapshotCovered": true,
       "sourceOperation": "fixture metadata",
-      "toVerify": "Replay target support does not exist until replayRun is implemented.",
+      "toVerify": "Arbitrary replay target support remains outside MVP-only replayRun.",
       "warnings": []
     },
     {

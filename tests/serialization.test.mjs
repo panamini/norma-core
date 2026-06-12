@@ -15,7 +15,7 @@ function diagnostic(input) {
   };
 }
 
-test("PR18 exports stable serialization helpers while PR21 owns verifyRun and replay remains absent", () => {
+test("PR18 exports stable serialization helpers while PR21 owns verifyRun and PR22 owns replayRun", () => {
   assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.equal(typeof core.STABLE_SERIALIZATION_VERSION, "string");
   assert.equal(typeof core.canonicalizeForSerialization, "function");
@@ -23,7 +23,7 @@ test("PR18 exports stable serialization helpers while PR21 owns verifyRun and re
   assert.equal(typeof core.canonicalizeRefs, "function");
   assert.equal(typeof core.canonicalizeOutputRefs, "function");
   assert.equal(typeof core.canonicalizeDiagnostics, "function");
-  assert.equal("replayRun" in core, false);
+  assert.equal(typeof core.replayRun, "function");
   assert.equal(typeof core.verifyRun, "function");
 });
 

@@ -173,9 +173,9 @@ function isPlainRecord(value) {
     && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-test("PR21 exports verifyRun without adding replay or external surfaces", () => {
+test("PR21 exports verifyRun while PR22 owns replayRun and external surfaces stay absent", () => {
   assert.equal(typeof core.verifyRun, "function");
-  assert.equal("replayRun" in core, false);
+  assert.equal(typeof core.replayRun, "function");
   assert.equal("createCli" in core, false);
   assert.equal("createSdk" in core, false);
   assert.equal("createMcpServer" in core, false);

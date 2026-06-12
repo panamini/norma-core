@@ -113,7 +113,7 @@
       "expectedStatus": "to verify",
       "expectedDiagnosticCodes": [],
       "snapshotCovered": true,
-      "toVerify": "Replay target support does not exist until replayRun is implemented."
+      "toVerify": "Arbitrary replay target support remains outside MVP-only replayRun."
     },
     {
       "fixtureId": "MalformedRunEnvelope",
