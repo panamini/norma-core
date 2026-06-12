@@ -1,0 +1,45 @@
+{
+  "contentIdentity": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+  "coreVersion": "0.1.0-pr12",
+  "id": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+  "kind": "pack-lock",
+  "packId": "norma.basic-proportions",
+  "packSchemaVersion": "ratio-pack-v1",
+  "packVersion": "0.1.0",
+  "provenance": {
+    "inputRefs": [
+      {
+        "kind": "spec",
+        "ref": "PR4 Minimal ratio pack model"
+      },
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.basic-proportions@0.1.0"
+      },
+      {
+        "kind": "pack-content-identity",
+        "ref": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+      }
+    ],
+    "operationName": "core.runtime-v1.pack-lock.create",
+    "operationVersion": "0.1.0",
+    "source": {
+      "kind": "core",
+      "ref": "norma-core/runtime-readiness-v1"
+    }
+  },
+  "ref": {
+    "id": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+  },
+  "sourceRefs": [
+    {
+      "kind": "spec",
+      "ref": "PR4 Minimal ratio pack model"
+    },
+    {
+      "kind": "ratio-pack",
+      "ref": "norma.basic-proportions@0.1.0"
+    }
+  ],
+  "status": "effective_pr11"
+}

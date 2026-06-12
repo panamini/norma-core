@@ -1,0 +1,1397 @@
+{
+  "kind": "output-refs",
+  "refs": [
+    {
+      "kind": "construction",
+      "ref": "construction:surface:1200x800:surface-basic-third-grid"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:left-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:middle-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:alignment:composition:A:element:right-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:area:element:left-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:area:element:middle-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:area:element:right-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:area:surface:surface:1200x800"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:containment:surface:contains:left-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:containment:surface:contains:middle-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:containment:surface:contains:right-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:surface:surface:1200x800"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:left-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:middle-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:distance:composition:A:element:right-third:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:overlap:left-third:middle-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:overlap:left-third:right-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:overlap:middle-third:right-third"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:bottom"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:center-x"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:center-y"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:left-third:top"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:bottom"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:center-x"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:center-y"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:middle-third:top"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:bottom"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:center-x"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:center-y"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:position:composition:A:element:right-third:top"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:ratio:element:left-third:aspect"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:ratio:element:middle-third:aspect"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:A:ratio:element:right-third:aspect"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:offset-right:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:alignment:composition:B:element:wide-left:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:area:element:offset-right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:area:element:wide-left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:area:surface:surface:1200x800"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:containment:surface:contains:offset-right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:containment:surface:contains:wide-left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:grid-cell:grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:surface:surface:1200x800"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:0"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:1"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:coverage:zone:zone:surface:1200x800:vertical:verticalThirds:1:1:1:2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:offset-right:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:bottom:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-x:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:center-y:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:left:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:right:to:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:distance:composition:B:element:wide-left:top:to:guide:y:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:overlap:wide-left:offset-right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:bottom"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:center-x"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:center-y"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:offset-right:top"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:bottom"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:center-x"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:center-y"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:left"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:position:composition:B:element:wide-left:top"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:ratio:element:offset-right:aspect"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:B:ratio:element:wide-left:aspect"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:angle:diagonal:surface:1200x800:bottom-left-to-top-right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:angle:diagonal:surface:1200x800:top-left-to-bottom-right"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:x:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:x:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:x:2/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:y:1/2"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:y:1/3"
+    },
+    {
+      "kind": "measurement",
+      "ref": "measurement:construction:position:guide:y:2/3"
+    },
+    {
+      "kind": "evaluation",
+      "ref": "evaluation:A:basic-grid-alignment"
+    },
+    {
+      "kind": "evaluation",
+      "ref": "evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "comparison",
+      "ref": "comparison:evaluation:A:basic-grid-alignment:evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "decision",
+      "ref": "decision:comparison:evaluation:A:basic-grid-alignment:evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:construction-summary:mvp-demo:construction-summary"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:evaluation-report:mvp-demo:evaluation-report:A"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:evaluation-report:mvp-demo:evaluation-report:B"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:explanation:mvp-demo:explanation"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:simple-visual:mvp-demo:simple-visual"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:structured-result:mvp-demo:comparison"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:structured-result:mvp-demo:construction"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:structured-result:mvp-demo:evaluation:A"
+    },
+    {
+      "kind": "artifact",
+      "ref": "artifact:structured-result:mvp-demo:evaluation:B"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:alignment"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:area_ratio_match"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:containment"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:coverage_match"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:guide_proximity"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:A:overlap_penalty"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:alignment"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:area_ratio_match"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:containment"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:coverage_match"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:guide_proximity"
+    },
+    {
+      "kind": "component-score",
+      "ref": "component-score:B:overlap_penalty"
+    },
+    {
+      "kind": "confidence",
+      "ref": "confidence:evaluation:A:basic-grid-alignment"
+    },
+    {
+      "kind": "confidence",
+      "ref": "confidence:evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "diagonal",
+      "ref": "diagonal:surface:1200x800:bottom-left-to-top-right"
+    },
+    {
+      "kind": "diagonal",
+      "ref": "diagonal:surface:1200x800:top-left-to-bottom-right"
+    },
+    {
+      "kind": "explanation",
+      "ref": "explanation:comparison:evaluation:A:basic-grid-alignment:evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "grid",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c0"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c1"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r0:c2"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c0"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c1"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r1:c2"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c0"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c1"
+    },
+    {
+      "kind": "grid-cell",
+      "ref": "grid:surface:1200x800:thirdGrid:1:1:1:cell:r2:c2"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:x:1/2"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:x:1/3"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:x:2/3"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:y:1/2"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:y:1/3"
+    },
+    {
+      "kind": "guide",
+      "ref": "guide:y:2/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:diagonal-diagonal:center"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-1/2:bottom"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-1/2:top"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-1/3:bottom"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-1/3:top"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-2/3:bottom"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:x-2/3:top"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-1/2:left"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-1/2:right"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-1/3:left"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-1/3:right"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-2/3:left"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-border:y-2/3:right"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/2:y-1/2"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/2:y-1/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/2:y-2/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/3:y-1/2"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/3:y-1/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-1/3:y-2/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-2/3:y-1/2"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-2/3:y-1/3"
+    },
+    {
+      "kind": "intersection-point",
+      "ref": "intersection:guide-guide:x-2/3:y-2/3"
+    },
+    {
+      "kind": "minimal-score",
+      "ref": "minimal-score:evaluation:A:basic-grid-alignment"
+    },
+    {
+      "kind": "minimal-score",
+      "ref": "minimal-score:evaluation:B:basic-grid-alignment"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:0"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:1"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:horizontal:horizontalThirds:1:1:1:2"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:0"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:1"
+    },
+    {
+      "kind": "zone",
+      "ref": "zone:surface:1200x800:vertical:verticalThirds:1:1:1:2"
+    }
+  ]
+}

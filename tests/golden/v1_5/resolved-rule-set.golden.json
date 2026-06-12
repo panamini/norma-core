@@ -1,0 +1,200 @@
+{
+  "kind": "resolved-rule-set",
+  "orderedRules": [
+    {
+      "declarationRef": "verticalThirds",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "thirds"
+      ],
+      "provenance": {
+        "declarationRef": "verticalThirds",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "verticalThirds",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/3",
+        "2/3"
+      ],
+      "ratioSequenceRefs": [
+        "1:1:1"
+      ],
+      "ref": "verticalThirds",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "divideSurfaceVertical"
+    },
+    {
+      "declarationRef": "horizontalThirds",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "thirds"
+      ],
+      "provenance": {
+        "declarationRef": "horizontalThirds",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "horizontalThirds",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/3",
+        "2/3"
+      ],
+      "ratioSequenceRefs": [
+        "1:1:1"
+      ],
+      "ref": "horizontalThirds",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "divideSurfaceHorizontal"
+    },
+    {
+      "declarationRef": "centerAxes",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "halves"
+      ],
+      "provenance": {
+        "declarationRef": "centerAxes",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "centerAxes",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/2"
+      ],
+      "ratioSequenceRefs": [],
+      "ref": "centerAxes",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "createGuidesFromCandidates"
+    },
+    {
+      "declarationRef": "thirdGrid",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "thirds"
+      ],
+      "provenance": {
+        "declarationRef": "thirdGrid",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "thirdGrid",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/3",
+        "2/3"
+      ],
+      "ratioSequenceRefs": [
+        "1:1:1"
+      ],
+      "ref": "thirdGrid",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "createSimpleGrid"
+    },
+    {
+      "declarationRef": "surfaceDiagonals",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "halves"
+      ],
+      "provenance": {
+        "declarationRef": "surfaceDiagonals",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "surfaceDiagonals",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/2"
+      ],
+      "ratioSequenceRefs": [],
+      "ref": "surfaceDiagonals",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "createDiagonals"
+    },
+    {
+      "declarationRef": "deriveIntersections",
+      "kind": "rule",
+      "packRef": "norma.basic-proportions@0.1.0",
+      "partitionPatternRefs": [
+        "halves",
+        "thirds"
+      ],
+      "provenance": {
+        "declarationRef": "deriveIntersections",
+        "kind": "rule-provenance",
+        "packRef": "norma.basic-proportions@0.1.0",
+        "ruleRef": "deriveIntersections",
+        "ruleSetRef": "surface-basic-third-grid",
+        "source": {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        }
+      },
+      "ratioRefs": [
+        "1/2",
+        "1/3",
+        "2/3"
+      ],
+      "ratioSequenceRefs": [
+        "1:1:1"
+      ],
+      "ref": "deriveIntersections",
+      "ruleSetRef": "surface-basic-third-grid",
+      "type": "deriveIntersections"
+    }
+  ],
+  "provenance": {
+    "kind": "rule-set-resolution-provenance",
+    "packRef": "norma.basic-proportions@0.1.0",
+    "ruleRefs": [
+      "verticalThirds",
+      "horizontalThirds",
+      "centerAxes",
+      "thirdGrid",
+      "surfaceDiagonals",
+      "deriveIntersections"
+    ],
+    "ruleSetRef": "surface-basic-third-grid",
+    "source": {
+      "kind": "core",
+      "ref": "norma-core/rule-resolution-v1"
+    }
+  },
+  "resolvedRatioRefs": [
+    "1/2",
+    "1/3",
+    "2/3"
+  ],
+  "ruleSetRef": "surface-basic-third-grid",
+  "unsupportedRules": [],
+  "warnings": []
+}

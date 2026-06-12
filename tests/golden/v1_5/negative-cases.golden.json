@@ -1,0 +1,450 @@
+{
+  "cases": [
+    {
+      "actualDiagnosticCodes": [
+        "MissingPackLock"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingPackLock",
+          "severity": "error",
+          "source": {
+            "kind": "pack-lock",
+            "ref": "missing"
+          },
+          "targetRef": "packLock"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingPackLock"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingPackLock",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingEvaluationProfile"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingEvaluationProfile",
+          "severity": "error",
+          "source": {
+            "kind": "evaluation-profile",
+            "ref": "missing"
+          },
+          "targetRef": "profile"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingEvaluationProfile"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingEvaluationProfile",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "actualStatus": "non_comparable",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "expectedStatus": "non_comparable",
+      "fixtureId": "DifferentTolerancesForComparison",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "NonComparableEvaluations",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/comparison-v1"
+          },
+          "targetRef": "sharedContext"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "BeautyScoreRejected"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "BeautyScoreRejected",
+          "severity": "error",
+          "source": {
+            "kind": "requested-output",
+            "ref": "beauty-score"
+          },
+          "targetRef": "requestedOutputs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "BeautyScoreRejected"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "BeautyScoreRequested",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRatioReference"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRatioReference",
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/ratio-pack-v1"
+          },
+          "targetRef": "ratioFamilies.thirds.ratioRefs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRatioReference"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "RatioAbsentFromPack",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRuleDeclaration"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRuleDeclaration",
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/ratio-pack-v1"
+          },
+          "targetRef": "ruleSets.surface-basic-third-grid.ruleRefs"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRuleDeclaration"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "MissingRule",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ImplicitPackNotAllowed"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "ImplicitPackNotAllowed",
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/mvp-demo"
+          },
+          "targetRef": "ratioPack"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "ImplicitPackNotAllowed"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "ImplicitPackRejected",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "actualStatus": "non_comparable",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "NonComparableEvaluations"
+      ],
+      "expectedStatus": "non_comparable",
+      "fixtureId": "MismatchContext",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "NonComparableEvaluations",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/comparison-v1"
+          },
+          "targetRef": "sharedContext"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ArtifactWouldBecomeSourceOfTruth"
+      ],
+      "actualStatus": "failed",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "ArtifactWouldBecomeSourceOfTruth",
+          "severity": "error",
+          "source": {
+            "kind": "artifact",
+            "ref": "result"
+          },
+          "targetRef": "result"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "ArtifactWouldBecomeSourceOfTruth"
+      ],
+      "expectedStatus": "failed",
+      "fixtureId": "ArtifactAsSourceRejected",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "ArtifactStale"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "ArtifactStale"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "StaleArtifact",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "ArtifactStale",
+          "severity": "warning",
+          "source": {
+            "kind": "artifact",
+            "ref": "artifact:simple-visual:mvp-demo:simple-visual"
+          },
+          "targetRef": "artifact:simple-visual:mvp-demo:simple-visual"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [],
+      "actualStatus": "non_replayable",
+      "errors": [],
+      "expectedDiagnosticCodes": [],
+      "expectedStatus": "non_replayable",
+      "fixtureId": "NonReplayableArtifact",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "validateRunReadiness",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "PackContentIdentityMismatch",
+        "PackVersionMismatch"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "PackContentIdentityMismatch",
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "contentIdentity"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "PackVersionMismatch",
+        "PackContentIdentityMismatch"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "PackLockMismatch",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "PackVersionMismatch",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "packVersion"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [
+        "OperationVersionMismatch",
+        "GeometryModelVersionMismatch",
+        "TolerancePolicyMismatch"
+      ],
+      "actualStatus": "mismatch",
+      "errors": [],
+      "expectedDiagnosticCodes": [
+        "OperationVersionMismatch",
+        "GeometryModelVersionMismatch",
+        "TolerancePolicyMismatch"
+      ],
+      "expectedStatus": "mismatch",
+      "fixtureId": "OperationContextMismatch",
+      "notes": null,
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "compareRunContext",
+      "warnings": [
+        {
+          "blocking": false,
+          "code": "GeometryModelVersionMismatch",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "geometryModelVersion"
+        },
+        {
+          "blocking": false,
+          "code": "OperationVersionMismatch",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "operationVersion"
+        },
+        {
+          "blocking": false,
+          "code": "TolerancePolicyMismatch",
+          "severity": "warning",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "tolerancePolicy"
+        }
+      ]
+    },
+    {
+      "actualDiagnosticCodes": [],
+      "actualStatus": "to verify",
+      "errors": [],
+      "expectedDiagnosticCodes": [],
+      "expectedStatus": "to verify",
+      "fixtureId": "UnsupportedReplayTarget",
+      "notes": "Replay target support does not exist until replayRun is implemented.",
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "fixture metadata",
+      "toVerify": "Replay target support does not exist until replayRun is implemented.",
+      "warnings": []
+    },
+    {
+      "actualDiagnosticCodes": [
+        "MissingRun"
+      ],
+      "actualStatus": "non_replayable",
+      "errors": [
+        {
+          "blocking": true,
+          "code": "MissingRun",
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/runtime-readiness-v1"
+          },
+          "targetRef": "run"
+        }
+      ],
+      "expectedDiagnosticCodes": [
+        "MissingRun"
+      ],
+      "expectedStatus": "non_replayable",
+      "fixtureId": "MalformedRunEnvelope",
+      "notes": "Future verifyRun should decide whether this maps to invalid rather than the existing readiness MissingRun result.",
+      "pass": true,
+      "positive": false,
+      "snapshotCovered": true,
+      "sourceOperation": "validateRunReadiness",
+      "toVerify": "Future verifyRun should decide whether this maps to invalid rather than the existing readiness MissingRun result.",
+      "warnings": []
+    }
+  ],
+  "kind": "v1_5-negative-cases-snapshot",
+  "manifestSource": "PR12 MVP demo harness plus existing PR17 runtime comparison/readiness helpers"
+}

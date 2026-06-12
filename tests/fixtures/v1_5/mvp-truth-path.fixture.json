@@ -1,0 +1,31 @@
+{
+  "kind": "v1_5-mvp-truth-path-fixture",
+  "fixtureId": "MvpTruthPath",
+  "source": "PR12 MVP demo harness",
+  "sourceOperations": [
+    "createMvpDemoInput",
+    "runMvpDemo"
+  ],
+  "positive": true,
+  "expectedStatus": "ok",
+  "snapshotCovered": true,
+  "snapshotFiles": [
+    "pack-lock.golden.json",
+    "operation-context.golden.json",
+    "resolved-rule-set.golden.json",
+    "construction.golden.json",
+    "measurements-a.golden.json",
+    "measurements-b.golden.json",
+    "evaluation-a.golden.json",
+    "evaluation-b.golden.json",
+    "comparison-decision-explanation.golden.json",
+    "artifact-metadata.golden.json",
+    "run-envelope.golden.json",
+    "output-refs.golden.json"
+  ],
+  "notes": [
+    "Structured core objects remain source truth.",
+    "Artifacts are derived projections and are not replay sources.",
+    "Timestamp-like metadata is excluded from deterministic identity snapshots."
+  ]
+}

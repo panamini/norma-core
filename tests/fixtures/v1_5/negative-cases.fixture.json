@@ -1,0 +1,128 @@
+{
+  "kind": "v1_5-negative-case-fixture-manifest",
+  "source": "PR12 MVP demo harness plus existing PR17 runtime comparison/readiness helpers",
+  "cases": [
+    {
+      "fixtureId": "MissingPackLock",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["MissingPackLock"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "MissingEvaluationProfile",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["MissingEvaluationProfile"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "DifferentTolerancesForComparison",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "non_comparable",
+      "expectedDiagnosticCodes": ["NonComparableEvaluations"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "BeautyScoreRequested",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["BeautyScoreRejected"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "RatioAbsentFromPack",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["MissingRatioReference"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "MissingRule",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["MissingRuleDeclaration"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "ImplicitPackRejected",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["ImplicitPackNotAllowed"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "MismatchContext",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "non_comparable",
+      "expectedDiagnosticCodes": ["NonComparableEvaluations"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "ArtifactAsSourceRejected",
+      "sourceOperation": "runMvpDemo negativeCaseResults",
+      "positive": false,
+      "expectedStatus": "failed",
+      "expectedDiagnosticCodes": ["ArtifactWouldBecomeSourceOfTruth"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "StaleArtifact",
+      "sourceOperation": "compareRunContext",
+      "positive": false,
+      "expectedStatus": "mismatch",
+      "expectedDiagnosticCodes": ["ArtifactStale"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "NonReplayableArtifact",
+      "sourceOperation": "validateRunReadiness",
+      "positive": false,
+      "expectedStatus": "non_replayable",
+      "expectedDiagnosticCodes": [],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "PackLockMismatch",
+      "sourceOperation": "compareRunContext",
+      "positive": false,
+      "expectedStatus": "mismatch",
+      "expectedDiagnosticCodes": ["PackVersionMismatch", "PackContentIdentityMismatch"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "OperationContextMismatch",
+      "sourceOperation": "compareRunContext",
+      "positive": false,
+      "expectedStatus": "mismatch",
+      "expectedDiagnosticCodes": ["OperationVersionMismatch", "GeometryModelVersionMismatch", "TolerancePolicyMismatch"],
+      "snapshotCovered": true
+    },
+    {
+      "fixtureId": "UnsupportedReplayTarget",
+      "sourceOperation": "fixture metadata",
+      "positive": false,
+      "expectedStatus": "to verify",
+      "expectedDiagnosticCodes": [],
+      "snapshotCovered": true,
+      "toVerify": "Replay target support does not exist until replayRun is implemented."
+    },
+    {
+      "fixtureId": "MalformedRunEnvelope",
+      "sourceOperation": "validateRunReadiness",
+      "positive": false,
+      "expectedStatus": "non_replayable",
+      "expectedDiagnosticCodes": ["MissingRun"],
+      "snapshotCovered": true,
+      "toVerify": "Future verifyRun should decide whether this maps to invalid rather than the existing readiness MissingRun result."
+    }
+  ]
+}
