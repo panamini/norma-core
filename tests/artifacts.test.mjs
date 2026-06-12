@@ -420,3 +420,29 @@ test("PR10 rejects missing sources, refs, provenance, options, and artifact-as-s
     "MissingArtifactOptions",
   );
 });
+
+test("PR10 rejects invented source-data fields on artifact projections", () => {
+  const summary = core.generateConstructionSummaryArtifact({
+    construction: generateMvpConstruction(),
+    options: artifactOptions("construction-summary", { lossy: true }),
+    runRef: { id: "run:artifact" },
+  });
+  assertOk(summary);
+
+  assertFailedWithDiagnostic(
+    core.validateArtifact({ ...summary.output, measurements: [{ invented: true }] }),
+    "ArtifactInventedSourceData",
+  );
+  assertFailedWithDiagnostic(
+    core.validateArtifact({ ...summary.output, score: { value: 1 } }),
+    "ArtifactInventedSourceData",
+  );
+
+  const evaluationReport = core.generateEvaluationReportArtifact({
+    evaluation: evaluateComposition("A").output,
+    options: artifactOptions("evaluation-report", { lossy: true }),
+    runRef: { id: "run:artifact" },
+  });
+  assertOk(evaluationReport);
+  assertOk(core.validateArtifact(evaluationReport.output));
+});

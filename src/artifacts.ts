@@ -233,6 +233,79 @@ const EXPLANATION_OPERATION = "core.artifacts-v1.explanation.generate";
 const SIMPLE_VISUAL_OPERATION = "core.artifacts-v1.simple-visual.generate";
 const VALIDATE_ARTIFACT_OPERATION = "core.artifacts-v1.validate";
 
+const ARTIFACT_BASE_FIELDS = [
+  "kind",
+  "id",
+  "artifactType",
+  "status",
+  "sourceRefs",
+  "provenance",
+  "warnings",
+  "errors",
+  "outputRefs",
+  "runRef",
+  "options",
+  "derived",
+] as const;
+
+const ARTIFACT_TYPE_FIELDS: Readonly<Record<ArtifactType, readonly string[]>> = Object.freeze({
+  "structured-result": Object.freeze([
+    "sourceResultRef",
+    "resultStatus",
+    "resultWarnings",
+    "resultErrors",
+    "resultProvenance",
+    "resultOutputRefs",
+    "resultRunRef",
+    "resultPackLockRef",
+    "resultOperationContextRef",
+  ]),
+  "construction-summary": Object.freeze([
+    "sourceConstructionRef",
+    "guideCount",
+    "zoneCount",
+    "gridSummary",
+    "diagonalCount",
+    "intersectionCount",
+    "constructionTraceRefs",
+  ]),
+  "evaluation-report": Object.freeze([
+    "sourceEvaluationRef",
+    "profileRef",
+    "packRef",
+    "packLockRef",
+    "packPreLockRef",
+    "componentScores",
+    "score",
+    "confidence",
+    "measurementSourceRefs",
+  ]),
+  explanation: Object.freeze([
+    "sourceExplanationRef",
+    "summary",
+    "sourceEvaluationRefs",
+    "sourceMeasurementRefs",
+    "componentDeltas",
+  ]),
+  "simple-visual": Object.freeze(["sourceConstructionRef", "descriptor"]),
+});
+
+const ARTIFACT_FORBIDDEN_SOURCE_DATA_FIELDS = [
+  "ratio",
+  "ratios",
+  "rule",
+  "rules",
+  "measurement",
+  "measurements",
+  "score",
+  "scores",
+  "evaluation",
+  "decision",
+  "construction",
+  "sourceGeometry",
+  "svg",
+] as const;
+
 const DEFAULT_RESULT_FIELDS = Object.freeze({
   warnings: [],
   errors: [],
@@ -522,6 +595,7 @@ export function validateArtifact(artifact: unknown): CoreResult<Artifact> {
     hasSourceRefs(artifact.sourceRefs) ? null : missingArtifactSourceRefs("artifact.sourceRefs"),
     artifact.provenance === null ? missingArtifactProvenance("artifact.provenance") : null,
     isArtifactOptions(artifact.options) ? null : missingArtifactOptions("artifact.options"),
+    artifactInventedSourceDataFailure(artifact),
     criticalWarningsHidden(artifact) ? artifactCriticalWarningHidden(artifact.id) : null,
   ]);
 
@@ -705,6 +779,15 @@ function criticalWarningsHidden(artifact: Artifact): boolean {
   return artifact.warnings.some((warning) => warning.severity === "critical" && !warning.blocking);
 }
 
+function artifactInventedSourceDataFailure(artifact: Artifact): CoreResult | null {
+  const allowedFields = new Set([...ARTIFACT_BASE_FIELDS, ...ARTIFACT_TYPE_FIELDS[artifact.artifactType]]);
+  const inventedField = ARTIFACT_FORBIDDEN_SOURCE_DATA_FIELDS.find((field) => (
+    Object.hasOwn(artifact, field) && !allowedFields.has(field)
+  ));
+
+  return inventedField === undefined ? null : artifactInventedSourceData(artifact.id, inventedField);
+}
+
 function viewBoxFromConstruction(construction: Construction): SimpleVisualArtifact["descriptor"]["viewBox"] {
   const rects = [...construction.grid.cells, ...construction.zones].map((object) => object.bounds);
   if (rects.length === 0) {
@@ -843,6 +926,18 @@ function artifactCriticalWarningHidden(targetRef: string): CoreResult {
       artifactError("ArtifactCriticalWarningHidden", "Critical artifact warnings must remain visible and blocking.", targetRef, {
         kind: "artifact",
         ref: targetRef,
+      }),
+    ],
+  });
+}
+
+function artifactInventedSourceData(artifactRef: string, field: string): CoreResult {
+  return createArtifactResult({
+    status: "failed",
+    errors: [
+      artifactError("ArtifactInventedSourceData", `Artifact contains unexpected source-data field: ${field}.`, field, {
+        kind: "artifact",
+        ref: artifactRef,
       }),
     ],
   });
