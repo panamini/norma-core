@@ -300,6 +300,17 @@ export function createOperationContext(
     contextInput.orderingPolicy !== undefined && contextInput.orderingPolicy !== null,
     policySourceRefs(contextInput.orderingPolicy, "ordering-policy"),
   );
+  if (
+    !isCoordinateSystem(coordinatePolicy.value)
+    || metricPolicy.value !== null && !isMetricPolicy(metricPolicy.value)
+    || !isTolerancePolicy(tolerancePolicy.value)
+    || !isRoundingPolicy(roundingPolicy.value)
+    || !isNumericPolicy(numericPolicy.value)
+    || !isOrderingPolicy(orderingPolicy.value)
+  ) {
+    return resultAs<OperationContext>(missingOperationContextResult());
+  }
+
   const sourceRefs = uniqueSourceReferences([
     ...(contextInput.sourceRefs ?? []),
     ...coordinatePolicy.sourceRefs,
@@ -438,6 +449,12 @@ export function createRunOutput(input: CreateRunOutputInput | null | undefined):
     return resultAs<RunOutput>(missingOperationContextResult());
   }
 
+  const provenance = result?.provenance ?? createRuntimeProvenance(CREATE_RUN_OUTPUT_OPERATION, [
+    { kind: "run", ref: runOutputInput.runRef.id },
+    { kind: "pack-lock", ref: packLockRef.id },
+    { kind: "operation-context", ref: operationContextRef.id },
+    ...outputRefs.refs,
+  ]);
   const runOutput: RunOutput = {
     kind: "run-output",
     id: runtimeId(["run-output", runOutputInput.runRef.id, refsIdentity(outputRefs.refs)]),
@@ -445,15 +462,11 @@ export function createRunOutput(input: CreateRunOutputInput | null | undefined):
     resultStatus: result?.status ?? "ok",
     warnings: [...(result?.warnings ?? [])],
     errors: [...(result?.errors ?? [])],
-    provenance: result?.provenance ?? null,
+    provenance,
     packLockRef,
     operationContextRef,
     runRef: runOutputInput.runRef,
   };
-  const provenance = createRuntimeProvenance(CREATE_RUN_OUTPUT_OPERATION, [
-    { kind: "run", ref: runOutputInput.runRef.id },
-    ...runOutput.outputRefs.refs,
-  ]);
 
   return createRuntimeResult({
     status: "ok",
@@ -611,6 +624,10 @@ export function validateRunReadiness(
 
   const runReadinessInput = readinessInput as ValidateRunReadinessInput;
   const run = runReadinessInput.run ?? null;
+  if (run !== null && !isRun(run)) {
+    return readinessFailure("MissingRun", "run", "Run must be a complete PR11 Run object.");
+  }
+
   const comparison = runReadinessInput.comparison ?? null;
   const warnings = [
     ...(run?.warnings ?? []),
@@ -1138,7 +1155,11 @@ function isRun(value: unknown): value is Run {
     && value.kind === "run"
     && nonEmptyString(value.id)
     && isRef(value.runRef)
-    && isRecord(value.outputRefs);
+    && isRef(value.packLockRef)
+    && isRef(value.operationContextRef)
+    && isOutputRefs(value.outputRefs)
+    && isRecord(value.input)
+    && Array.isArray(value.input.sourceRefs);
 }
 
 function isOutputRefs(value: unknown): value is OutputRefs {
@@ -1154,6 +1175,50 @@ function isRef(value: unknown): value is RunRef & PackLockRef & OperationContext
 
 function isSourceReference(value: unknown): value is SourceReference {
   return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string";
+}
+
+function isCoordinateSystem(value: unknown): value is CoordinateSystem {
+  return isRecord(value)
+    && value.kind === "coordinate-system"
+    && nonEmptyString(value.id)
+    && nonEmptyString(value.origin)
+    && nonEmptyString(value.xAxis)
+    && nonEmptyString(value.yAxis)
+    && typeof value.dimensions === "number"
+    && nonEmptyString(value.coordinateScale);
+}
+
+function isMetricPolicy(value: unknown): value is MetricPolicy {
+  return isRecord(value)
+    && value.kind === "metric-policy"
+    && nonEmptyString(value.id)
+    && nonEmptyString(value.quantity)
+    && nonEmptyString(value.unit);
+}
+
+function isTolerancePolicy(value: unknown): value is TolerancePolicy {
+  return isRecord(value)
+    && value.kind === "tolerance-policy"
+    && nonEmptyString(value.id)
+    && typeof value.coordinateTolerance === "number";
+}
+
+function isRoundingPolicy(value: unknown): value is RoundingPolicy {
+  return isRecord(value)
+    && value.kind === "rounding-policy"
+    && nonEmptyString(value.id);
+}
+
+function isNumericPolicy(value: unknown): value is NumericPolicy {
+  return isRecord(value)
+    && value.kind === "numeric-policy"
+    && nonEmptyString(value.id);
+}
+
+function isOrderingPolicy(value: unknown): value is OrderingPolicy {
+  return isRecord(value)
+    && value.kind === "ordering-policy"
+    && nonEmptyString(value.id);
 }
 
 function nonEmptyString(value: unknown): value is string {

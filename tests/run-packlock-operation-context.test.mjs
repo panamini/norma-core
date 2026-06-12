@@ -254,6 +254,38 @@ test("PR11 RunOutput mirrors source result diagnostics and does not duplicate bu
   assert.equal("output" in result.output, false);
 });
 
+test("PR11 RunOutput creates minimal runtime provenance when explicit output refs are provided", () => {
+  const packLock = createPackLock();
+  const operationContext = createOperationContext();
+  const result = core.createRunOutput({
+    runRef: { id: "run:explicit-output-refs" },
+    outputRefs,
+    packLockRef: packLock.ref,
+    operationContextRef: operationContext.ref,
+  });
+
+  assertOk(result);
+  assert.ok(result.output.provenance);
+  assert.equal(result.output.provenance.operationName, "core.runtime-v1.run-output.create");
+  assert.deepEqual(result.output.provenance.inputRefs, [
+    { kind: "run", ref: "run:explicit-output-refs" },
+    { kind: "pack-lock", ref: packLock.ref.id },
+    { kind: "operation-context", ref: operationContext.ref.id },
+    ...result.output.outputRefs.refs,
+  ]);
+});
+
+test("PR11 rejects incomplete OperationContext policies before identity construction", () => {
+  assertFailedWithDiagnostic(
+    core.createOperationContext({
+      operationName: "core.evaluation.basic.evaluate",
+      operationVersion: "0.1.0",
+      coordinatePolicy: { kind: "coordinate-system" },
+    }),
+    "MissingOperationContext",
+  );
+});
+
 test("PR11 compareRunContext exposes required mismatch policy", () => {
   const expectedPackLock = createPackLock();
   const actualPackLock = {
@@ -352,6 +384,17 @@ test("PR11 derives replay-readiness from dependencies and mismatches", () => {
   });
   assertOk(nonReplayable);
   assert.equal(nonReplayable.output, "non_replayable");
+});
+
+test("PR11 validateRunReadiness rejects malformed run wrappers without throwing", () => {
+  assert.doesNotThrow(() => {
+    const result = core.validateRunReadiness({ run: { kind: "run", id: "broken" } });
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("MissingRun"), diagnosticCodes(result).join(", "));
+    assert.equal(result.output, "non_replayable");
+  });
 });
 
 test("PR11 rejects incomplete RunInput and RunOutput dependencies", () => {
