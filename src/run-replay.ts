@@ -3,6 +3,7 @@ import {
   MVP_DEMO_OPERATION_VERSION,
   runMvpDemo,
   type MvpDemoInput,
+  type MvpDemoResult,
 } from "./mvp-demo.js";
 import {
   verifyRun,
@@ -39,6 +40,7 @@ import type {
 export interface ReplayRunInput {
   run: unknown;
   mvpDemoInput?: unknown;
+  recordedMvpResult?: unknown;
   sourceObjects?: readonly unknown[];
   packLock?: unknown;
   operationContext?: unknown;
@@ -56,7 +58,7 @@ export type ReplayRunStatus =
   | "error";
 
 export interface ReplayMismatch {
-  code: string;
+  code: ReplayMismatchCode;
   message: string;
   targetRef: string | null;
   recorded: unknown;
@@ -89,7 +91,7 @@ export interface ReplayRunResult {
   };
 }
 
-type ReplayMismatchCode =
+export type ReplayMismatchCode =
   | "RecordedRunMismatch"
   | "OutputRefsMismatch"
   | "RunRefMismatch"
@@ -97,7 +99,7 @@ type ReplayMismatchCode =
   | "OperationContextRefMismatch"
   | "OperationMismatch"
   | "DiagnosticsMismatch"
-  | "ArtifactFreshnessMismatch";
+  | "MvpOutputMismatch";
 
 type VerifyRunBlockingStatus = Exclude<RunVerification["status"], "verified" | "verified_with_warnings">;
 type OptionalVerificationKey =
@@ -150,6 +152,17 @@ const MVP_DEMO_INPUT_STRING_FIELDS = [
 const MVP_DEMO_INPUT_ARRAY_FIELDS = [
   "requestedOutputs",
   "requestedArtifacts",
+] as const;
+
+const MVP_DEMO_RESULT_RECORD_FIELDS = [
+  "constructionResult",
+  "measurementAResult",
+  "measurementBResult",
+  "evaluationAResult",
+  "evaluationBResult",
+  "comparisonResult",
+  "explanationResult",
+  "runEnvelope",
 ] as const;
 
 const VERIFICATION_REPLAY_STATUS: Readonly<Record<VerifyRunBlockingStatus, ReplayRunStatus>> = Object.freeze({
@@ -287,7 +300,7 @@ function replayVerifiedMvpRun(
     const replayResult = runMvpDemo(mvpDemoInput);
     return replayResult.status !== "ok" || replayResult.output === null
       ? failedReplayResult(verification, replayResult)
-      : comparedReplayResult(input?.run as Run, replayResult.output.runEnvelope, verification);
+      : comparedReplayResult(input?.run as Run, recordedMvpResult(input), replayResult.output, verification);
   } catch (error) {
     return unexpectedReplayFailure(verification, error);
   }
@@ -310,10 +323,12 @@ function failedReplayResult(
 
 function comparedReplayResult(
   recordedRun: Run,
-  replayedRun: Run,
+  recordedMvpResult: MvpDemoResult | null,
+  replayedMvpResult: MvpDemoResult,
   verification: RunVerification,
 ): ReplayRunResult {
-  const mismatches = compareRecordedAndReplayedRun(recordedRun, replayedRun);
+  const replayedRun = replayedMvpResult.runEnvelope;
+  const mismatches = compareRecordedAndReplayedRun(recordedRun, replayedRun, recordedMvpResult, replayedMvpResult);
   const warnings = uniqueWarnings([
     ...verification.warnings,
     ...recordedRun.warnings,
@@ -420,7 +435,12 @@ function replayProvenance(input: ReplayResultDraft): Provenance | null {
   return input.provenance ?? input.verification.provenance;
 }
 
-function compareRecordedAndReplayedRun(recordedRun: Run, replayedRun: Run): readonly ReplayMismatch[] {
+function compareRecordedAndReplayedRun(
+  recordedRun: Run,
+  replayedRun: Run,
+  recordedMvpResult: MvpDemoResult | null,
+  replayedMvpResult: MvpDemoResult,
+): readonly ReplayMismatch[] {
   const mismatches: ReplayMismatch[] = [];
 
   appendMismatch(mismatches, "OperationMismatch", "Recorded operation name differs from replayed operation name.", "operationName", recordedRun.operationName, replayedRun.operationName);
@@ -430,6 +450,9 @@ function compareRecordedAndReplayedRun(recordedRun: Run, replayedRun: Run): read
   appendMismatch(mismatches, "OperationContextRefMismatch", "Recorded OperationContext ref differs from replayed OperationContext ref.", "operationContextRef", recordedRun.operationContextRef, replayedRun.operationContextRef);
   appendMismatch(mismatches, "OutputRefsMismatch", "Recorded output refs differ from replayed output refs.", "outputRefs", canonicalizeOutputRefs(recordedRun.outputRefs), canonicalizeOutputRefs(replayedRun.outputRefs));
   appendMismatch(mismatches, "RecordedRunMismatch", "Recorded deterministic run identity differs from replayed run identity.", "run", deterministicRunIdentity(recordedRun), deterministicRunIdentity(replayedRun));
+  if (recordedMvpResult !== null) {
+    appendMismatch(mismatches, "MvpOutputMismatch", "Recorded MVP outputs differ from replayed MVP outputs.", "mvpOutputs", deterministicMvpOutputSummary(recordedMvpResult), deterministicMvpOutputSummary(replayedMvpResult));
+  }
   appendMismatch(mismatches, "DiagnosticsMismatch", "Recorded blocking or critical diagnostics differ from replayed diagnostics.", "diagnostics", deterministicDiagnostics(recordedRun), deterministicDiagnostics(replayedRun));
 
   return mismatches;
@@ -459,31 +482,39 @@ function appendMismatch(
 function deterministicRunIdentity(run: Run): unknown {
   return {
     kind: run.kind,
-    id: run.id,
-    runRef: run.runRef,
     coreVersion: run.coreVersion,
-    operationName: run.operationName,
-    operationVersion: run.operationVersion,
     input: canonicalRunInput(run.input),
     inputRefs: canonicalizeRefs(run.inputRefs),
-    packLockRef: run.packLockRef,
-    operationContextRef: run.operationContextRef,
-    outputRefs: canonicalizeOutputRefs(run.outputRefs),
-    provenance: run.provenance,
+    provenance: canonicalRunProvenance(run.provenance),
   };
 }
 
-function canonicalRunInput(input: Run["input"]): Run["input"] | null {
+function deterministicMvpOutputSummary(result: MvpDemoResult): unknown {
+  return {
+    construction: result.constructionResult.output,
+    measurementA: result.measurementAResult.output,
+    measurementB: result.measurementBResult.output,
+    evaluationA: result.evaluationAResult.output,
+    evaluationB: result.evaluationBResult.output,
+    comparison: result.comparisonResult.output,
+    explanation: result.explanationResult,
+  };
+}
+
+function canonicalRunInput(input: Run["input"]): unknown {
   if (input === null) {
     return null;
   }
 
   return {
-    ...input,
-    inputRefs: canonicalizeRefs(input.inputRefs),
     sourceRefs: canonicalizeRefs(input.sourceRefs),
-    requestedOutputRefs: canonicalizeOutputRefs(input.requestedOutputRefs),
+    explicitPolicies: input.explicitPolicies,
+    featureFlags: input.featureFlags,
   };
+}
+
+function canonicalRunProvenance(provenance: Provenance | null): unknown {
+  return provenance === null ? null : { source: provenance.source };
 }
 
 function deterministicDiagnostics(run: Run): unknown {
@@ -519,14 +550,11 @@ function sourceObjectsForMvpDemoInput(input: MvpDemoInput): readonly unknown[] {
     kind: "mvp-demo-input",
     ref: "mvp-demo:structured-input",
   };
+  const ruleSet = input.ratioPack.ruleSets.find((candidate) => candidate.id === input.ruleSetRef);
   const sourceObjects: unknown[] = [
     { sourceRef: mvpInputRef, sourceObject: { ...input, id: mvpInputRef.ref } },
     { sourceRef: { kind: "surface", ref: input.surface.id }, sourceObject: input.surface },
     { sourceRef: { kind: "ratio-pack", ref: input.packRef }, sourceObject: input.ratioPack },
-    {
-      sourceRef: { kind: "rule-set", ref: input.ruleSetRef },
-      sourceObject: input.ratioPack.ruleSets.find((ruleSet) => ruleSet.id === input.ruleSetRef),
-    },
     { sourceRef: { kind: "evaluation-profile", ref: input.evaluationProfile.id }, sourceObject: input.evaluationProfile },
     { sourceRef: { kind: "tolerance-policy", ref: input.tolerancePolicy.id }, sourceObject: input.tolerancePolicy },
     { sourceRef: { kind: "evaluation-tolerances", ref: input.evaluationTolerances.id }, sourceObject: input.evaluationTolerances },
@@ -536,8 +564,15 @@ function sourceObjectsForMvpDemoInput(input: MvpDemoInput): readonly unknown[] {
   if (input.surface.metricPolicy !== undefined && input.surface.metricPolicy !== null) {
     sourceObjects.push({ sourceRef: { kind: "metric-policy", ref: input.surface.metricPolicy.id }, sourceObject: input.surface.metricPolicy });
   }
+  if (ruleSet !== undefined) {
+    sourceObjects.push({ sourceRef: { kind: "rule-set", ref: input.ruleSetRef }, sourceObject: ruleSet });
+  }
 
   return sourceObjects;
+}
+
+function recordedMvpResult(input: ReplayRunInput | null): MvpDemoResult | null {
+  return isMvpDemoResult(input?.recordedMvpResult) ? input.recordedMvpResult : null;
 }
 
 function resolveMvpDemoInput(input: ReplayRunInput): MvpDemoInput | null {
@@ -578,6 +613,12 @@ function isMvpDemoInput(value: unknown): value is MvpDemoInput {
     && MVP_DEMO_INPUT_STRING_FIELDS.every((field) => typeof value[field] === "string")
     && MVP_DEMO_INPUT_ARRAY_FIELDS.every((field) => Array.isArray(value[field]))
     && isSourceReferenceArray(value.sourceRefs);
+}
+
+function isMvpDemoResult(value: unknown): value is MvpDemoResult {
+  return isRecord(value)
+    && value.kind === "mvp-demo-result"
+    && MVP_DEMO_RESULT_RECORD_FIELDS.every((field) => isRecord(value[field]));
 }
 
 function malformedMvpDemoInputTargetRef(input: ReplayRunInput | null): string | null {

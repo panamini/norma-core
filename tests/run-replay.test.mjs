@@ -109,6 +109,7 @@ function replayInput(input, demo, overrides = {}) {
   return {
     run: demo.runEnvelope,
     mvpDemoInput: input,
+    recordedMvpResult: demo,
     packLock: demo.packLock,
     operationContext: demo.operationContext,
     ...overrides,
@@ -210,6 +211,25 @@ test("PR22 replays the MVP demo truth path from explicit structured source truth
   assert.equal("artifactFreshness" in result, false);
 });
 
+test("PR22 replays when complete MVP demo input is supplied through sourceObjects only", () => {
+  const { input, demo } = createTruthPath();
+  const result = core.replayRun({
+    run: demo.runEnvelope,
+    sourceObjects: [
+      {
+        sourceRef: { kind: "mvp-demo-input", ref: "mvp-demo:structured-input" },
+        sourceObject: { ...input, id: "mvp-demo:structured-input" },
+      },
+    ],
+    packLock: demo.packLock,
+    operationContext: demo.operationContext,
+  });
+
+  assertReplayResult(result, "replayed", true);
+  assert.equal(result.verification.status, "verified");
+  assert.deepEqual(result.mismatches, []);
+});
+
 test("PR22 preserves non-blocking verification warnings as replayed_with_warnings", () => {
   const { input, demo } = createTruthPath();
   const warning = core.createCoreWarning({
@@ -283,6 +303,43 @@ test("PR22 reports replay mismatch after recomputation when structured MVP sourc
   assert.equal(result.verification.status, "verified");
   assert.ok(result.mismatches.some((mismatch) => mismatch.code === "OutputRefsMismatch"), result.mismatches.map((mismatch) => mismatch.code).join(", "));
   assert.notDeepEqual(result.replayedOutputRefs, result.recordedOutputRefs);
+});
+
+test("PR22 detects replay mismatch when MVP source geometry changes but ids stay stable", () => {
+  const { input, demo } = createTruthPath();
+  const changedInput = structuredClone(input);
+  changedInput.compositionB.elements[0].geometry.width += 1;
+
+  const result = core.replayRun(replayInput(changedInput, demo));
+
+  assertReplayResult(result, "mismatch", true);
+  assert.equal(result.verification.status, "verified");
+  assert.ok(result.mismatches.some((mismatch) => mismatch.code === "MvpOutputMismatch"), result.mismatches.map((mismatch) => mismatch.code).join(", "));
+});
+
+test("PR22 reports specific mismatch codes without duplicate RecordedRunMismatch noise", () => {
+  const { input, demo } = createTruthPath();
+  const changedInput = structuredClone(input);
+  changedInput.compositionB.elements[0].id = "wide-left-changed";
+
+  const result = core.replayRun(replayInput(changedInput, demo));
+  const mismatchCodes = result.mismatches.map((mismatch) => mismatch.code);
+
+  assertReplayResult(result, "mismatch", true);
+  assert.ok(mismatchCodes.includes("OutputRefsMismatch"), mismatchCodes.join(", "));
+  assert.ok(mismatchCodes.includes("RunRefMismatch"), mismatchCodes.join(", "));
+  assert.equal(mismatchCodes.includes("RecordedRunMismatch"), false, mismatchCodes.join(", "));
+});
+
+test("PR22 treats missing MVP rule-set source truth as explicit non-replayable input", () => {
+  const { input, demo } = createTruthPath();
+  const changedInput = structuredClone(input);
+  changedInput.ruleSetRef = "rule-set:missing";
+
+  const result = core.replayRun(replayInput(changedInput, demo));
+
+  assertReplayResult(result, "non_replayable", false);
+  assert.ok(diagnosticCodes(result).includes("MissingSource"), diagnosticCodes(result).join(", "));
 });
 
 test("PR22 integrates explicit artifact freshness without accepting artifacts as source truth", () => {
