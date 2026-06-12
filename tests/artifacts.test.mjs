@@ -207,7 +207,7 @@ function assertArtifactGate(artifact, artifactType) {
 }
 
 test("PR10 exports artifact vocabulary, diagnostics, helpers, and version", () => {
-  assert.equal(core.CORE_VERSION, "0.1.0-pr10");
+  assert.equal(core.CORE_VERSION, "0.1.0-pr11");
   assert.deepEqual(core.ARTIFACT_TYPES, [
     "structured-result",
     "construction-summary",

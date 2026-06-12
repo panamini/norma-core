@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, PR8, PR9, and PR10.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, PR8, PR9, PR10, and PR11.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -102,6 +102,18 @@ The simple visual artifact is only a descriptor derived from PR6 construction ob
 
 PR10 rejects artifact-as-source use with `ArtifactWouldBecomeSourceOfTruth`. It does not recalculate construction, measurements, evaluations, comparisons, decisions, scores, or explanations.
 
+## PR11 Run, PackLock, And OperationContext
+
+PR11 finalizes the MVP replay-readiness envelope without adding a replay engine. It adds concrete `Run`, `PackLock`, `OperationContext`, `RunInput`, `RunOutput`, and `OutputRefs` contracts plus runtime helpers that expose deterministic dependencies for already-produced results.
+
+`createPackLock` builds the effective PR11 lock from a validated ratio pack and preserves pack id, version, schema version, content identity, source refs, and provenance. It does not create a pack registry, storage strategy, cryptographic signature, or final content hash.
+
+`createOperationContext` makes effective defaults visible: core version, operation identity, geometry model version, coordinate policy, metric policy, tolerance policy, rounding policy, numeric policy, ordering policy, feature flags, source refs, and provenance.
+
+`createRun`, `createRunInput`, and `createRunOutput` wrap existing results and refs. They do not recalculate construction, measurements, evaluation, comparison, decision, or artifacts. Output refs are de-duplicated and ordered deterministically by runtime policy, and timestamp metadata is not part of the deterministic run identity.
+
+`validateRunReadiness` derives `ready`, `ready_with_warnings`, `mismatch`, or `non_replayable` from visible dependencies, diagnostics, mismatches, output refs, and source refs. `compareRunContext` exposes explicit mismatch diagnostics for pack version/content identity, operation version, geometry model, tolerance, coordinate, metric policy, feature flags, stale artifacts, and missing sources.
+
 ## Does Not Contain
 
 - Geometry calculations outside PR6 construction generation and PR7 measurement facts.
@@ -110,7 +122,7 @@ PR10 rejects artifact-as-source use with `ArtifactWouldBecomeSourceOfTruth`. It 
 - Artifacts as source of truth, artifact imports, SVG/PDF/DXF/PNG exports, or interactive rendering.
 - Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
-- UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
+- UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay engine.
 - A final JSON schema or final public API contract for future business operations.
 
 ## Rules
@@ -133,7 +145,7 @@ The skeleton stub operation returns `not_implemented` with a blocking diagnostic
 
 ## Runtime Placeholders
 
-`Run`, `PackLock`, and `OperationContext` exist only as conceptual placeholders in PR1. They reserve replay-readiness vocabulary without implementing full replay, pack resolution, context policy, or output-changing defaults.
+`Run`, `PackLock`, and `OperationContext` start as conceptual placeholders in PR1 and become concrete replay-readiness models in PR11. They expose identity, effective context, pack lock, deterministic output refs, mismatch diagnostics, and readiness status without implementing full replay.
 
 ## PR1 Boundary
 

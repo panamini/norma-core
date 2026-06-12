@@ -158,7 +158,7 @@ function assertNoForbiddenDecisionLanguage(value) {
 }
 
 test("PR9 exports comparison vocabulary, diagnostics, helper, and version", () => {
-  assert.equal(core.CORE_VERSION, "0.1.0-pr10");
+  assert.equal(core.CORE_VERSION, "0.1.0-pr11");
   assert.equal(typeof core.compareCompositionsBasic, "function");
   for (const diagnosticCode of comparisonDiagnosticCodes) {
     assert.ok(core.CORE_DIAGNOSTIC_CODES.includes(diagnosticCode), diagnosticCode);

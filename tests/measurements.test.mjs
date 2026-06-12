@@ -200,7 +200,7 @@ function assertNoForbiddenJudgmentFields(value) {
 }
 
 test("PR7 exports measurement vocabulary, diagnostics, helpers, and version", () => {
-  assert.equal(core.CORE_VERSION, "0.1.0-pr10");
+  assert.equal(core.CORE_VERSION, "0.1.0-pr11");
   assert.deepEqual(core.MEASUREMENT_TYPES_V1, measurementTypes);
 
   for (const diagnosticCode of measurementDiagnosticCodes) {
