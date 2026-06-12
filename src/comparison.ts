@@ -186,8 +186,20 @@ export function compareCompositionsBasic(
   const baseWarnings = sharedContextWarnings(sharedContext, provenance);
   const explanation = createExplanation(ctx, sharedContext, provenance, baseWarnings);
   const explanationSourceWarning = explanationSourceWarningFor(ctx, explanation, provenance);
-  const warnings = explanationSourceWarning === null ? baseWarnings : [...baseWarnings, explanationSourceWarning];
   const scoreDelta = scoreDeltaFor(ctx.evaluationA, ctx.evaluationB);
+  const scoreDeltaWarning = scoreDelta === null
+    ? comparisonWarning(
+      "AmbiguousComparison",
+      "Comparison cannot decide closeness without minimal scores for both evaluations.",
+      "scoreDelta",
+      provenance,
+    )
+    : null;
+  const warnings = [
+    ...baseWarnings,
+    ...(explanationSourceWarning === null ? [] : [explanationSourceWarning]),
+    ...(scoreDeltaWarning === null ? [] : [scoreDeltaWarning]),
+  ];
   const status = comparisonStatus(ctx, sharedContext, scoreDelta, warnings);
   const tieWarning = status === "tie"
     ? comparisonWarning("TieComparison", "Comparison scores are inside the explicit tie tolerance.", "tieTolerance", provenance)

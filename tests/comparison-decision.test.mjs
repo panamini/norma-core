@@ -110,7 +110,7 @@ function makeEvaluation(label, scoreValue, overrides = {}) {
     compositionLabel: label,
     measurementRefs,
     componentScores,
-    score: overrides.score ?? {
+    score: Object.hasOwn(overrides, "score") ? overrides.score : {
       kind: "minimal-score",
       id: `minimal-score:${id}`,
       value: scoreValue,
@@ -230,6 +230,14 @@ test("PR9 returns ambiguous when required shared-context proof or explanation so
   assertOk(missingMeasurementSources);
   assert.equal(missingMeasurementSources.output.status, "ambiguous");
   assert.ok(diagnosticCodes(missingMeasurementSources).includes("ComparisonExplanationMissingSource"));
+
+  const missingMinimalScore = core.compareCompositionsBasic(baseComparisonInput({
+    evaluationA: makeEvaluation("A", 0.92, { score: null }),
+  }));
+  assertOk(missingMinimalScore);
+  assert.equal(missingMinimalScore.output.status, "ambiguous");
+  assert.equal(missingMinimalScore.output.decision.selectedEvaluationRef, null);
+  assert.ok(diagnosticCodes(missingMinimalScore).includes("AmbiguousComparison"));
 });
 
 test("PR9 returns non_comparable when shared context differs", () => {
