@@ -1,8 +1,3 @@
-import {
-  CORE_VERSION,
-  NORMA_CANONICAL_COORDINATE_SYSTEM,
-} from "./core-constants.js";
-
 export {
   CORE_VERSION,
   NORMA_CANONICAL_COORDINATE_SYSTEM,

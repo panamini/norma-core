@@ -419,6 +419,20 @@ test("PR11 derives replay-readiness from dependencies and mismatches", () => {
   });
   assertOk(nonReplayable);
   assert.equal(nonReplayable.output, "non_replayable");
+
+  const nonReplayableMismatch = core.validateRunReadiness({
+    run,
+    artifact: { status: "non_replayable" },
+    comparison: {
+      kind: "run-context-comparison",
+      status: "mismatch",
+      warnings: [core.createCoreWarning({ code: "OperationVersionMismatch", message: "Mismatch." })],
+      errors: [],
+      mismatchCodes: ["OperationVersionMismatch"],
+    },
+  });
+  assertOk(nonReplayableMismatch);
+  assert.equal(nonReplayableMismatch.output, "non_replayable");
 });
 
 test("PR11 validateRunReadiness rejects malformed run wrappers without throwing", () => {

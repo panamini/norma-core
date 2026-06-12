@@ -865,12 +865,12 @@ function readinessStatusFor(input: {
     return "non_replayable";
   }
 
-  if (input.errors.length > 0 || input.mismatchCodes.length > 0) {
-    return "mismatch";
-  }
-
   if (input.artifactStatus === "non_replayable") {
     return "non_replayable";
+  }
+
+  if (input.errors.length > 0 || input.mismatchCodes.length > 0) {
+    return "mismatch";
   }
 
   if (input.warnings.length > 0 || input.artifactStatus === "stale") {
