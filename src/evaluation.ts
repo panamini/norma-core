@@ -287,6 +287,17 @@ const EVALUATION_TOLERANCE_FIELDS = [
   "coverage",
   "areaRatio",
 ] as const;
+const EVALUATION_PROFILE_LIMIT_FIELDS = [
+  "noBeautyScore",
+  "noIntentInference",
+  "noComparison",
+  "noDecision",
+  "noRecommendation",
+  "noRatioDefinitions",
+  "noRuleDefinitions",
+  "noMeasurementDefinitions",
+  "requiresExplicitTolerances",
+] as const;
 const EVALUATION_MEASUREMENT_TYPES = [
   "distance",
   "position",
@@ -356,7 +367,13 @@ export function evaluateCompositionBasic(
   const evaluationId = `evaluation:${context.compositionLabel}:${context.profile.id}`;
   const evaluationProvenance = createEvaluationObjectProvenance(evaluationId, context.inputRefs, componentMeasurementRefs);
   const score = context.profile.allowMinimalScore
-    ? createMinimalScore(evaluationId, componentScores, componentMeasurementRefs, evaluationProvenance)
+    ? createMinimalScore(
+      evaluationId,
+      componentScores,
+      context.profile.components,
+      componentMeasurementRefs,
+      evaluationProvenance,
+    )
     : null;
   const confidence = createConfidence(evaluationId, componentScores, componentMeasurementRefs, warnings, evaluationProvenance);
   const scoreValue = score?.value ?? 0;
@@ -584,6 +601,20 @@ function invalidProfileFailure(profile: EvaluationProfile): CoreResult | null {
     return requestedOutputFailure;
   }
 
+  if (!isEvaluationProfileLimits(record["limits"])) {
+    return invalidEvaluationInput(
+      "profile.limits",
+      "EvaluationProfile limits must explicitly keep every PR8 scope guard enabled.",
+    );
+  }
+
+  if (!isEvaluationProvenance(record["provenance"])) {
+    return invalidEvaluationInput(
+      "profile.provenance",
+      "EvaluationProfile provenance must be structured.",
+    );
+  }
+
   for (const component of profile.components) {
     if (!EVALUATION_COMPONENT_IDS.includes(component.id)) {
       return invalidEvaluationInput(
@@ -722,13 +753,19 @@ function scoreAreaRatioMatch(
 function createMinimalScore(
   evaluationId: string,
   componentScores: readonly ComponentScore[],
+  components: readonly EvaluationProfileComponent[],
   measurementSourceRefs: readonly SourceReference[],
   provenance: EvaluationProvenance,
 ): MinimalScore {
-  const totalWeight = componentScores.length;
+  const weightByComponentId = new Map(components.map((component) => [component.id, component.weight]));
+  const totalWeight = componentScores.reduce((sum, componentScore) => {
+    return sum + (weightByComponentId.get(componentScore.componentId) ?? 0);
+  }, 0);
   const value = totalWeight === 0
     ? 0
-    : componentScores.reduce((sum, componentScore) => sum + componentScore.value, 0) / totalWeight;
+    : componentScores.reduce((sum, componentScore) => {
+      return sum + (componentScore.value * (weightByComponentId.get(componentScore.componentId) ?? 0));
+    }, 0) / totalWeight;
 
   return {
     kind: "minimal-score",
@@ -1207,6 +1244,25 @@ function isEvaluationTolerances(value: unknown): value is EvaluationTolerances {
   return value["kind"] === "evaluation-tolerances"
     && typeof value["id"] === "string"
     && hasNonNegativeNumberFields(value, EVALUATION_TOLERANCE_FIELDS);
+}
+
+function isEvaluationProfileLimits(value: unknown): value is EvaluationProfileLimits {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return EVALUATION_PROFILE_LIMIT_FIELDS.every((field) => value[field] === true);
+}
+
+function isEvaluationProvenance(value: unknown): value is EvaluationProvenance {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return value["kind"] === "evaluation-provenance"
+    && hasStringFields(value, ["evaluationRef", "operationRef"])
+    && isSourceReferenceArray(value["inputRefs"])
+    && isSourceReferenceArray(value["sourceRefs"]);
 }
 
 function isMeasurementSet(value: unknown): value is MeasurementSet {
