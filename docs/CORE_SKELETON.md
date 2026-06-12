@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, and PR6.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, and PR7.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -62,11 +62,21 @@ The MVP construction contains guides, zones, one `3 x 3` grid with 9 cells, two 
 
 Every derived PR6 object carries minimum provenance back to input, pack, rule, and operation. `constructionTrace` exposes applied rule refs, operation refs, created object refs, rule applications, and warnings so generation is not opaque.
 
+## PR7 Measurements
+
+PR7 adds calculated measurement facts over the PR6 construction and structured `Composition2D` inputs. `measureGeometry` accepts a traceable construction plus one or more compositions, including the A/B shape used by the MVP flow, and returns a `measurement-set`. `measureAreas` exposes the area, containment, overlap, and coverage subset for one composition.
+
+Measurement V1 contains distance, position, alignment, area, ratio, angle, containment, overlap, and coverage facts. It also includes minimal directional relations and a minimal surface hierarchy that ties surface, construction, zones, grid cells, compositions, and elements together for traceability.
+
+Every measurement declares input references, unit, normalization status, metric policy context, tolerance policy context, and measurement provenance. PR7 can warn about gaps, overlaps, and out-of-tolerance alignment facts, but it does not interpret those facts as quality, intent, preference, or aesthetic value.
+
+PR7 rejects missing measurement input, missing source geometry, missing metric policy for metric measurements, missing tolerance policy, missing measurement provenance, and requested outputs that belong to evaluation, comparison, artifacts, decisions, recommendations, or scores.
+
 ## Does Not Contain
 
-- Geometry calculations outside PR6 construction generation.
+- Geometry calculations outside PR6 construction generation and PR7 measurement facts.
 - Implicit ratios or client-defined ratios outside validated packs.
-- Measurements, evaluation, artifacts, or scoring.
+- Evaluation, artifacts, component scores, or scoring.
 - Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
