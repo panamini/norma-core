@@ -225,3 +225,30 @@ test("PR12 rejects implicit or prompt-like demo inputs instead of choosing hidde
   assert.equal(promptInput.status, "failed");
   assert.ok(diagnosticCodes(promptInput).includes("FreeFormPromptNotAllowed"));
 });
+
+test("PR12 rejects inconsistent supplied pack locks and operation context refs", () => {
+  const validInput = core.createMvpDemoInput();
+  const wrongPackLock = {
+    ...validInput.packLock,
+    packId: "other-pack",
+    ref: { id: "pack-lock:other-pack" },
+  };
+  const wrongPackLockResult = core.runMvpDemo({
+    ...validInput,
+    packLock: wrongPackLock,
+    packLockRef: wrongPackLock.ref,
+  });
+
+  assertStructuredResult(wrongPackLockResult);
+  assert.equal(wrongPackLockResult.status, "failed");
+  assert.ok(diagnosticCodes(wrongPackLockResult).includes("InvalidPackLock"));
+
+  const wrongContextRefResult = core.runMvpDemo({
+    ...validInput,
+    operationContextRef: { id: "operation-context:wrong" },
+  });
+
+  assertStructuredResult(wrongContextRefResult);
+  assert.equal(wrongContextRefResult.status, "failed");
+  assert.ok(diagnosticCodes(wrongContextRefResult).includes("InvalidOperationContext"));
+});
