@@ -370,7 +370,16 @@ function isNonArrayRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {
-  return isNonArrayRecord(value) ? value : null;
+  if (!isNonArrayRecord(value)) {
+    return null;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError("Stable serialization only supports plain JSON-like objects.");
+  }
+
+  return value;
 }
 
 function compareStrings(first: string, second: string): number {
