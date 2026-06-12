@@ -887,15 +887,7 @@ function validateCoordinateSystem(
     return failedGeometryValue(invalidGeometryV1("coordinateSystem", "CoordinateSystem must be a structured object."));
   }
 
-  if (
-    value.kind !== "coordinate-system" ||
-    !hasNonEmptyString(value, "id") ||
-    value.origin !== "bottom-left" ||
-    value.xAxis !== "right" ||
-    value.yAxis !== "up" ||
-    !isCoordinateDimensions(value.dimensions) ||
-    !isCoordinateScale(value.coordinateScale)
-  ) {
+  if (!isCoordinateSystemRecord(value)) {
     return failedGeometryValue(
       invalidGeometryV1(
         "coordinateSystem",
@@ -920,13 +912,7 @@ function validateMetricPolicy(value: unknown, coordinateScale: CoordinateScale):
       : validGeometryValue(null);
   }
 
-  if (
-    !isRecord(value) ||
-    value.kind !== "metric-policy" ||
-    !hasNonEmptyString(value, "id") ||
-    value.quantity !== "length" ||
-    !hasNonEmptyString(value, "unit")
-  ) {
+  if (!isMetricPolicyRecord(value)) {
     return failedGeometryValue(invalidGeometryV1("metricPolicy", "MetricPolicy must explicitly describe length units."));
   }
 
@@ -938,13 +924,7 @@ function validateTolerancePolicy(value: unknown): GeometryValueValidation<Tolera
     return validGeometryValue(null);
   }
 
-  if (
-    !isRecord(value) ||
-    value.kind !== "tolerance-policy" ||
-    !hasNonEmptyString(value, "id") ||
-    !isNonNegativeFiniteNumber(value.coordinateTolerance) ||
-    !hasOptionalNonNegativeFiniteNumber(value, "metricTolerance")
-  ) {
+  if (!isTolerancePolicyRecord(value)) {
     return failedGeometryValue(
       invalidGeometryV1("tolerancePolicy", "TolerancePolicy must expose explicit non-negative tolerances."),
     );
@@ -969,13 +949,7 @@ function validateRect(
     );
   }
 
-  if (
-    value.kind !== "rect" ||
-    !isFiniteNumber(value.x) ||
-    !isFiniteNumber(value.y) ||
-    !isPositiveFiniteNumber(value.width) ||
-    !isPositiveFiniteNumber(value.height)
-  ) {
+  if (!isRectRecord(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Rect must be axis-aligned with positive width and height."));
   }
 
@@ -1035,19 +1009,23 @@ function validatePoint(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Point> {
-  if (!isRecord(value) || value.kind !== "point" || !isFiniteNumber(value.x)) {
+  if (!isRecord(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
   }
 
-  if (coordinateSystem.dimensions === 1 && value.y !== undefined) {
-    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "Point in SegmentSpace V1 cannot declare y."));
-  }
-
-  if (coordinateSystem.dimensions === 2 && !isFiniteNumber(value.y)) {
-    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "2D Point must expose a finite y coordinate."));
+  if (!isPointRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
   }
 
   const point = value as unknown as Point;
+  if (coordinateSystem.dimensions === 1 && point.y !== undefined) {
+    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "Point in SegmentSpace V1 cannot declare y."));
+  }
+
+  if (coordinateSystem.dimensions === 2 && !isFiniteNumber(point.y)) {
+    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "2D Point must expose a finite y coordinate."));
+  }
+
   if (coordinateSystem.coordinateScale === "normalized" && !isNormalizedPoint(point, coordinateSystem.dimensions)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Normalized Point coordinates must stay within [0,1]."));
   }
@@ -1830,6 +1808,138 @@ function isCoordinateScale(value: unknown): value is CoordinateScale {
   return value === "normalized" || value === "metric";
 }
 
+const COORDINATE_SYSTEM_CHECKS = [
+  isCoordinateSystemKind,
+  hasCoordinateSystemId,
+  hasNormaOrigin,
+  hasNormaXAxis,
+  hasNormaYAxis,
+  hasCoordinateSystemDimensions,
+  hasCoordinateSystemScale,
+] as const;
+
+function isCoordinateSystemRecord(value: unknown): value is CoordinateSystem {
+  return isRecord(value) && COORDINATE_SYSTEM_CHECKS.every((check) => check(value));
+}
+
+function isCoordinateSystemKind(value: Record<string, unknown>): boolean {
+  return value.kind === "coordinate-system";
+}
+
+function hasCoordinateSystemId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasNormaOrigin(value: Record<string, unknown>): boolean {
+  return value.origin === "bottom-left";
+}
+
+function hasNormaXAxis(value: Record<string, unknown>): boolean {
+  return value.xAxis === "right";
+}
+
+function hasNormaYAxis(value: Record<string, unknown>): boolean {
+  return value.yAxis === "up";
+}
+
+function hasCoordinateSystemDimensions(value: Record<string, unknown>): boolean {
+  return isCoordinateDimensions(value.dimensions);
+}
+
+function hasCoordinateSystemScale(value: Record<string, unknown>): boolean {
+  return isCoordinateScale(value.coordinateScale);
+}
+
+const METRIC_POLICY_CHECKS = [
+  isMetricPolicyKind,
+  hasMetricPolicyId,
+  hasMetricPolicyQuantity,
+  hasMetricPolicyUnit,
+] as const;
+
+function isMetricPolicyRecord(value: unknown): value is MetricPolicy {
+  return isRecord(value) && METRIC_POLICY_CHECKS.every((check) => check(value));
+}
+
+function isMetricPolicyKind(value: Record<string, unknown>): boolean {
+  return value.kind === "metric-policy";
+}
+
+function hasMetricPolicyId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasMetricPolicyQuantity(value: Record<string, unknown>): boolean {
+  return value.quantity === "length";
+}
+
+function hasMetricPolicyUnit(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "unit");
+}
+
+const TOLERANCE_POLICY_CHECKS = [
+  isTolerancePolicyKind,
+  hasTolerancePolicyId,
+  hasCoordinateTolerance,
+  hasOptionalMetricTolerance,
+] as const;
+
+function isTolerancePolicyRecord(value: unknown): value is TolerancePolicy {
+  return isRecord(value) && TOLERANCE_POLICY_CHECKS.every((check) => check(value));
+}
+
+function isTolerancePolicyKind(value: Record<string, unknown>): boolean {
+  return value.kind === "tolerance-policy";
+}
+
+function hasTolerancePolicyId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasCoordinateTolerance(value: Record<string, unknown>): boolean {
+  return isNonNegativeFiniteNumber(value.coordinateTolerance);
+}
+
+function hasOptionalMetricTolerance(value: Record<string, unknown>): boolean {
+  return hasOptionalNonNegativeFiniteNumber(value, "metricTolerance");
+}
+
+const RECT_CHECKS = [
+  isRectKind,
+  hasRectX,
+  hasRectY,
+  hasPositiveRectWidth,
+  hasPositiveRectHeight,
+] as const;
+
+function isRectRecord(value: unknown): value is Rect {
+  return isRecord(value) && RECT_CHECKS.every((check) => check(value));
+}
+
+function isRectKind(value: Record<string, unknown>): boolean {
+  return value.kind === "rect";
+}
+
+function hasRectX(value: Record<string, unknown>): boolean {
+  return isFiniteNumber(value.x);
+}
+
+function hasRectY(value: Record<string, unknown>): boolean {
+  return isFiniteNumber(value.y);
+}
+
+function hasPositiveRectWidth(value: Record<string, unknown>): boolean {
+  return isPositiveFiniteNumber(value.width);
+}
+
+function hasPositiveRectHeight(value: Record<string, unknown>): boolean {
+  return isPositiveFiniteNumber(value.height);
+}
+
+function isPointRecord(value: unknown): value is Point {
+  return isRecord(value) && value.kind === "point" && isFiniteNumber(value.x);
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -1851,13 +1961,8 @@ function isNormalizedPoint(point: Point, dimensions: CoordinateDimensions): bool
 }
 
 function isNormalizedRect(rect: Rect): boolean {
-  return (
-    isNormalizedValue(rect.x) &&
-    isNormalizedValue(rect.y) &&
-    isNormalizedValue(rect.width) &&
-    isNormalizedValue(rect.height) &&
-    rect.x + rect.width <= 1 &&
-    rect.y + rect.height <= 1
+  return [rect.x, rect.y, rect.width, rect.height, rect.x + rect.width, rect.y + rect.height].every(
+    isNormalizedValue,
   );
 }
 
@@ -1866,15 +1971,17 @@ function samePoint(firstPoint: Point, secondPoint: Point): boolean {
 }
 
 function sameCoordinateSystem(firstSystem: CoordinateSystem, secondSystem: CoordinateSystem): boolean {
-  return (
-    firstSystem.id === secondSystem.id &&
-    firstSystem.origin === secondSystem.origin &&
-    firstSystem.xAxis === secondSystem.xAxis &&
-    firstSystem.yAxis === secondSystem.yAxis &&
-    firstSystem.dimensions === secondSystem.dimensions &&
-    firstSystem.coordinateScale === secondSystem.coordinateScale
-  );
+  return COORDINATE_SYSTEM_COMPARISON_KEYS.every((key) => firstSystem[key] === secondSystem[key]);
 }
+
+const COORDINATE_SYSTEM_COMPARISON_KEYS = [
+  "id",
+  "origin",
+  "xAxis",
+  "yAxis",
+  "dimensions",
+  "coordinateScale",
+] as const;
 
 function isValidCoreInput(input: unknown): boolean {
   return input === undefined || isRecord(input);
