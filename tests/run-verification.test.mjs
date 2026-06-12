@@ -491,6 +491,24 @@ test("PR21 integrates explicit artifact freshness inputs without treating artifa
   assertRunVerification(staleRequired, "mismatch", "replay_eligible");
   assert.ok(diagnosticCodes(staleRequired).includes("ArtifactStale"), diagnosticCodes(staleRequired).join(", "));
   assert.equal(staleRequired.replaySummary.replayEligible, "not_eligible");
+
+  const nonReplayableRequired = core.verifyRun({
+    run: demo.runEnvelope,
+    mode: "replay_eligible",
+    packLock: demo.packLock,
+    operationContext: demo.operationContext,
+    sourceObjects: sourceObjectsForRun(input),
+    artifactFreshnessInputs: [
+      freshnessInput(demo, { ...artifact, status: "non_replayable" }),
+    ],
+    requireFreshArtifacts: true,
+  });
+
+  assertRunVerification(nonReplayableRequired, "non_replayable", "replay_eligible");
+  assert.equal(nonReplayableRequired.artifactFreshness[0].status, "non_replayable");
+  assert.ok(nonReplayableRequired.errors.length > 0);
+  assert.ok(diagnosticCodes(nonReplayableRequired).includes("ArtifactNonReplayable"), diagnosticCodes(nonReplayableRequired).join(", "));
+  assert.equal(nonReplayableRequired.replaySummary.replayEligible, "not_eligible");
 });
 
 test("PR21 canonicalizes verification results independently of input ordering", () => {

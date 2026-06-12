@@ -561,7 +561,7 @@ function validateArtifactFreshness(facts: VerificationFacts, input: Readonly<Rec
 
     if (requireFreshArtifacts && freshness.status === "non_replayable") {
       for (const error of freshness.errors) {
-        facts.nonReplayableDiagnostics.push(error);
+        addExistingError(facts, "non_replayable", error);
       }
       if (freshness.errors.length === 0) {
         addError(facts, "non_replayable", "ArtifactNonReplayable", "Required artifact is non-replayable.", freshness.artifactRef?.ref ?? "artifact");
