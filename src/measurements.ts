@@ -1915,6 +1915,10 @@ function isCoordinateSystemRecord(value: unknown): value is Construction["coordi
   return isRecord(value)
     && value.kind === "coordinate-system"
     && hasNonEmptyString(value, "id")
+    && value.origin === "bottom-left"
+    && value.xAxis === "right"
+    && value.yAxis === "up"
+    && value.dimensions === 2
     && (value.coordinateScale === "metric" || value.coordinateScale === "normalized");
 }
 

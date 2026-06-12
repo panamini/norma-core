@@ -348,6 +348,39 @@ test("PR7 rejects missing source geometry, missing metric policy, and forbidden 
   assertFailedWithDiagnostic(
     core.measureGeometry({
       construction,
+      compositionA: {
+        ...compositionA,
+        coordinateSystem: {
+          kind: "coordinate-system",
+          id: "incomplete-coordinate-system",
+          coordinateScale: "metric",
+        },
+      },
+      operationContextRef: { id: "context:measurement" },
+      requestedOutputs: ["measurements"],
+    }),
+    "InvalidMeasurementInput",
+  );
+
+  assertFailedWithDiagnostic(
+    core.measureGeometry({
+      construction,
+      compositionA: {
+        ...compositionA,
+        coordinateSystem: {
+          ...metricCoordinateSystem2d,
+          origin: "top-left",
+        },
+      },
+      operationContextRef: { id: "context:measurement" },
+      requestedOutputs: ["measurements"],
+    }),
+    "InvalidMeasurementInput",
+  );
+
+  assertFailedWithDiagnostic(
+    core.measureGeometry({
+      construction,
       compositionA,
       operationContextRef: { id: "context:measurement" },
       requestedOutputs: ["evaluation"],
