@@ -53,8 +53,8 @@ function clonePack(overrides = {}) {
   };
 }
 
-test("PR4 exports ratio pack vocabulary, diagnostics, and version", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr4");
+test("PR5 keeps ratio pack vocabulary, diagnostics, and version", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr5");
   assert.equal(BASIC_PROPORTIONS_PACK_ID, "norma.basic-proportions");
   assert.equal(BASIC_PROPORTIONS_PACK_VERSION, "0.1.0");
   assert.equal(SURFACE_BASIC_THIRD_GRID_RULE_SET_ID, "surface-basic-third-grid");
@@ -177,10 +177,11 @@ test("PR4 rejects rule declarations that reference absent ratios", () => {
       {
         kind: "rule-declaration",
         id: "bad-rule",
-        type: "surface.partition-line",
+        type: "divideSurfaceVertical",
         target: "surface",
         ratioRefs: ["4/5"],
         partitionPatternRefs: ["thirds"],
+        requiresCoreSupport: true,
         declarationOnly: true,
       },
     ],
