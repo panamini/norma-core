@@ -510,7 +510,7 @@ export function createRun(input: CreateRunInput | null | undefined): CoreResult<
   const inputResult = runInput.input === undefined || runInput.input === null
     ? createRunInput({
       inputRefs: runInput.inputRefs ?? runInput.result?.provenance?.inputRefs ?? [],
-      sourceRefs: runInput.sourceRefs ?? runInput.result?.provenance?.inputRefs ?? [],
+      sourceRefs: runInput.sourceRefs ?? [],
       packLockRef,
       operationContextRef,
       requestedOutputRefs: runInput.requestedOutputRefs ?? runInput.outputRefs ?? runInput.result?.outputRefs ?? [],
@@ -679,10 +679,19 @@ export function compareRunContext(
   const contextComparisonInput = input as RunContextComparisonInput;
   const warnings: CoreWarning[] = [];
   const errors: CoreError[] = [];
+  const expectedOperationContext = contextComparisonInput.expectedOperationContext ?? null;
+  const actualOperationContext = contextComparisonInput.actualOperationContext ?? null;
+  const canCompareOperationContextFlags = isOperationContext(expectedOperationContext) && isOperationContext(actualOperationContext);
+  const expectedFeatureFlags = contextComparisonInput.expectedFeatureFlags ?? (
+    canCompareOperationContextFlags ? expectedOperationContext.featureFlags : {}
+  );
+  const actualFeatureFlags = contextComparisonInput.actualFeatureFlags ?? (
+    canCompareOperationContextFlags ? actualOperationContext.featureFlags : {}
+  );
   appendPackLockMismatches(warnings, errors, contextComparisonInput.expectedPackLock ?? null, contextComparisonInput.actualPackLock ?? null);
-  appendOperationContextMismatches(warnings, contextComparisonInput.expectedOperationContext ?? null, contextComparisonInput.actualOperationContext ?? null);
+  appendOperationContextMismatches(warnings, expectedOperationContext, actualOperationContext);
 
-  if (!sameFeatureFlags(contextComparisonInput.expectedFeatureFlags ?? {}, contextComparisonInput.actualFeatureFlags ?? {})) {
+  if (!sameFeatureFlags(expectedFeatureFlags, actualFeatureFlags)) {
     warnings.push(runtimeWarning({
       code: "FeatureFlagsMismatch",
       message: "Feature flags differ between run contexts.",

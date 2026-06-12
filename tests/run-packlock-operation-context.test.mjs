@@ -230,6 +230,27 @@ test("PR11 creates stable Run identity and deterministic OutputRefs without usin
   assert.equal(first.outputRefs.refs.filter((ref) => ref.kind === "measurement").length, 1);
 });
 
+test("PR11 createRun does not treat result provenance inputRefs as visible sourceRefs", () => {
+  const packLock = createPackLock();
+  const operationContext = createOperationContext();
+  const result = sourceResult(packLock, operationContext);
+
+  assertFailedWithDiagnostic(
+    core.createRun({
+      operationContext,
+      result: {
+        ...result,
+        provenance: {
+          ...result.provenance,
+          inputRefs: [{ kind: "construction", ref: "construction:not-a-source" }],
+        },
+      },
+      outputRefs,
+    }),
+    "MissingSource",
+  );
+});
+
 test("PR11 RunOutput mirrors source result diagnostics and does not duplicate business output", () => {
   const packLock = createPackLock();
   const operationContext = createOperationContext();
@@ -356,6 +377,20 @@ test("PR11 compareRunContext exposes required mismatch policy", () => {
   ]) {
     assert.ok(diagnosticCodes(result).includes(diagnosticCode), diagnosticCode);
   }
+  assert.equal(result.output.status, "mismatch");
+});
+
+test("PR11 compareRunContext detects feature flag mismatches from OperationContext objects", () => {
+  const expectedContext = createOperationContext({ featureFlags: { alpha: true } });
+  const actualContext = createOperationContext({ featureFlags: { alpha: false } });
+  const result = core.compareRunContext({
+    expectedOperationContext: expectedContext,
+    actualOperationContext: actualContext,
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.ok(diagnosticCodes(result).includes("FeatureFlagsMismatch"), diagnosticCodes(result).join(", "));
   assert.equal(result.output.status, "mismatch");
 });
 
