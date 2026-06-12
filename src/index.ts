@@ -362,7 +362,7 @@ type OperationDescriptorValidation =
 
 const CORE_SOURCE_REFERENCE: SourceReference = Object.freeze({
   kind: "core",
-  ref: "norma-core/pr1-skeleton",
+  ref: "norma-core/core",
 });
 
 const DEFAULT_DIAGNOSTIC_FIELDS = Object.freeze({
@@ -966,7 +966,18 @@ function validateSegment(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Segment> {
-  if (!isRecord(value) || value.kind !== "segment") {
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Segment must be a structured object."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Segment field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (value.kind !== "segment") {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Segment must be a structured object."));
   }
 
@@ -992,7 +1003,18 @@ function validateLine(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Line> {
-  if (!isRecord(value) || value.kind !== "line" || value.bounded !== true) {
+  if (!isRecord(value) || value.kind !== "line") {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Line field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (value.bounded !== true) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
   }
 
@@ -1011,6 +1033,13 @@ function validatePoint(
 ): GeometryValueValidation<Point> {
   if (!isRecord(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Point field is outside V1: ${unsupportedField}.`),
+    );
   }
 
   if (!isPointRecord(value)) {
@@ -1110,6 +1139,13 @@ function validateAnchor(
 ): GeometryValueValidation<Anchor> {
   if (!isRecord(value) || value.kind !== "anchor" || !hasNonEmptyString(value, "id")) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Anchor must expose kind and id."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Anchor field is outside V1: ${unsupportedField}.`),
+    );
   }
 
   if (!hasOptionalStringField(value, "targetElementId")) {
