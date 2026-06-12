@@ -261,6 +261,27 @@ test("PR8 evaluates A and B separately without comparison or decision output", (
   assert.ok(evaluationA.output.score.value > evaluationB.output.score.value);
 });
 
+test("PR8 minimal score uses EvaluationProfile component weights", () => {
+  const weightedProfile = cloneProfile({
+    components: core.BASIC_GRID_ALIGNMENT_PROFILE.components.map((component) => ({
+      ...structuredClone(component),
+      weight: component.id === "guide_proximity" ? 10 : 1,
+    })),
+  });
+  const result = core.evaluateCompositionBasic(baseEvaluationInput("A", { profile: weightedProfile }));
+
+  assertOk(result);
+  const componentScores = result.output.componentScores;
+  const totalWeight = weightedProfile.components.reduce((sum, component) => sum + component.weight, 0);
+  const expectedWeightedScore = componentScores.reduce((sum, componentScore) => {
+    const component = weightedProfile.components.find((candidate) => candidate.id === componentScore.componentId);
+    assert.ok(component);
+    return sum + (componentScore.value * component.weight);
+  }, 0) / totalWeight;
+
+  assert.equal(result.output.score.value, expectedWeightedScore);
+});
+
 test("PR8 rejects missing required evaluation inputs with structured diagnostics", () => {
   assertFailedWithDiagnostic(core.evaluateCompositionBasic(null), "MissingMeasurements");
   assertFailedWithDiagnostic(
@@ -317,6 +338,40 @@ test("PR8 rejects invalid profiles that exceed evaluation scope", () => {
     assert.equal(result.status, "failed");
     assert.ok(result.errors.length > 0);
   }
+});
+
+test("PR8 rejects profiles without limits", () => {
+  const profile = cloneProfile();
+  delete profile.limits;
+
+  assertFailedWithDiagnostic(
+    core.evaluateCompositionBasic(baseEvaluationInput("A", { profile })),
+    "InvalidInputShape",
+  );
+});
+
+test("PR8 rejects profiles with incoherent PR8 limits", () => {
+  assertFailedWithDiagnostic(
+    core.evaluateCompositionBasic(baseEvaluationInput("A", {
+      profile: cloneProfile({
+        limits: {
+          ...structuredClone(core.BASIC_GRID_ALIGNMENT_PROFILE.limits),
+          noBeautyScore: false,
+        },
+      }),
+    })),
+    "InvalidInputShape",
+  );
+});
+
+test("PR8 rejects profiles without structured provenance", () => {
+  const profile = cloneProfile();
+  delete profile.provenance;
+
+  assertFailedWithDiagnostic(
+    core.evaluateCompositionBasic(baseEvaluationInput("A", { profile })),
+    "InvalidInputShape",
+  );
 });
 
 test("PR8 rejects profile measurement sources that are absent from PR7 measurements", () => {
