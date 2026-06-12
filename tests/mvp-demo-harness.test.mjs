@@ -77,7 +77,7 @@ function assertUniqueRefs(refs) {
   assert.equal(uniqueRefs.size, refs.length);
 }
 
-test("PR12 exports the MVP demo harness without run verification or replay helpers", () => {
+test("PR12 exports the MVP demo harness while PR21 owns verifyRun and replayRun remains absent", () => {
   assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.equal(typeof core.createMvpDemoInput, "function");
   assert.equal(typeof core.runMvpDemo, "function");
@@ -98,7 +98,7 @@ test("PR12 exports the MVP demo harness without run verification or replay helpe
     "execute-negative-cases",
   ]);
   assert.equal("replayRun" in core, false);
-  assert.equal("verifyRun" in core, false);
+  assert.equal(typeof core.verifyRun, "function");
   assert.equal(typeof core.verifyArtifactFreshness, "function");
 });
 
