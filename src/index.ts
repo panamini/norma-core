@@ -1,3 +1,13 @@
+import {
+  CORE_VERSION,
+  NORMA_CANONICAL_COORDINATE_SYSTEM,
+} from "./core-constants.js";
+
+export {
+  CORE_VERSION,
+  NORMA_CANONICAL_COORDINATE_SYSTEM,
+} from "./core-constants.js";
+
 export type CoreVersion = string;
 export type OperationName = string;
 export type OperationVersion = string;
@@ -8,8 +18,6 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
-
-export const CORE_VERSION: CoreVersion = "0.1.0-pr10";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -97,6 +105,23 @@ export const CORE_DIAGNOSTIC_CODES = [
   "ArtifactWouldBecomeSourceOfTruth",
   "ArtifactInventedSourceData",
   "ArtifactCriticalWarningHidden",
+  "MissingRun",
+  "MissingRunInput",
+  "MissingRunOutput",
+  "InvalidPackLock",
+  "InvalidOperationContext",
+  "MissingOutputRefs",
+  "MissingSource",
+  "PackVersionMismatch",
+  "PackContentIdentityMismatch",
+  "OperationVersionMismatch",
+  "GeometryModelVersionMismatch",
+  "TolerancePolicyMismatch",
+  "CoordinatePolicyMismatch",
+  "MetricPolicyMismatch",
+  "FeatureFlagsMismatch",
+  "ArtifactStale",
+  "ReplayRunNotImplemented",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -155,24 +180,124 @@ export interface OperationContextRef {
   id: string;
 }
 
+export type ReplayReadinessStatus = "ready" | "ready_with_warnings" | "mismatch" | "non_replayable";
+
+export interface OutputRefs {
+  kind: "output-refs";
+  refs: readonly SourceReference[];
+}
+
+export interface RuntimePolicy<TPolicy> {
+  value: TPolicy;
+  explicit: boolean;
+  sourceRefs: readonly SourceReference[];
+}
+
+export interface RoundingPolicy {
+  kind: "rounding-policy";
+  id: string;
+  mode: "none" | "nearest";
+  precision: number | null;
+}
+
+export interface NumericPolicy {
+  kind: "numeric-policy";
+  id: string;
+  precision: "number";
+  finiteOnly: true;
+}
+
+export interface OrderingPolicy {
+  kind: "ordering-policy";
+  id: string;
+  outputRefs: "kind-rank-then-ref";
+  featureFlags: "key-ascending";
+}
+
+export interface RunInput {
+  kind: "run-input";
+  id: string;
+  inputRefs: readonly SourceReference[];
+  sourceRefs: readonly SourceReference[];
+  packLockRef: PackLockRef;
+  operationContextRef: OperationContextRef;
+  requestedOutputRefs: OutputRefs;
+  explicitPolicies: {
+    coordinatePolicy: RuntimePolicy<CoordinateSystem>;
+    metricPolicy: RuntimePolicy<MetricPolicy | null>;
+    tolerancePolicy: RuntimePolicy<TolerancePolicy>;
+    roundingPolicy: RuntimePolicy<RoundingPolicy>;
+    numericPolicy: RuntimePolicy<NumericPolicy>;
+    orderingPolicy: RuntimePolicy<OrderingPolicy>;
+  };
+  featureFlags: Readonly<Record<string, boolean>>;
+}
+
+export interface RunOutput {
+  kind: "run-output";
+  id: string;
+  outputRefs: OutputRefs;
+  resultStatus: OperationStatus;
+  warnings: readonly CoreWarning[];
+  errors: readonly CoreError[];
+  provenance: Provenance | null;
+  packLockRef: PackLockRef;
+  operationContextRef: OperationContextRef;
+  runRef: RunRef;
+}
+
 export interface Run {
-  ref: RunRef;
+  kind: "run";
+  id: string;
+  runRef: RunRef;
   coreVersion: CoreVersion;
   operationName: OperationName;
   operationVersion: OperationVersion;
-  status: OperationStatus;
+  input: RunInput | null;
+  inputRefs: readonly SourceReference[];
+  packLockRef: PackLockRef;
+  operationContextRef: OperationContextRef;
+  outputRefs: OutputRefs;
+  replayReadinessStatus: ReplayReadinessStatus;
+  warnings: readonly CoreWarning[];
+  errors: readonly CoreError[];
+  provenance: Provenance;
+  metadata?: {
+    createdAt?: string;
+  };
 }
 
 export interface PackLock {
+  kind: "pack-lock";
+  id: string;
   ref: PackLockRef;
   coreVersion: CoreVersion;
-  packRef: string | null;
+  packId: string;
+  packVersion: string;
+  packSchemaVersion: string;
+  contentIdentity: string;
+  sourceRefs: readonly SourceReference[];
+  provenance: Provenance;
+  status: "effective_pr11";
 }
 
 export interface OperationContext {
+  kind: "operation-context";
+  id: string;
   ref: OperationContextRef;
   coreVersion: CoreVersion;
-  contextRef: string | null;
+  operationName: OperationName;
+  operationVersion: OperationVersion;
+  geometryModelVersion: string;
+  coordinatePolicy: RuntimePolicy<CoordinateSystem>;
+  metricPolicy: RuntimePolicy<MetricPolicy | null>;
+  tolerancePolicy: RuntimePolicy<TolerancePolicy>;
+  roundingPolicy: RuntimePolicy<RoundingPolicy>;
+  numericPolicy: RuntimePolicy<NumericPolicy>;
+  orderingPolicy: RuntimePolicy<OrderingPolicy>;
+  featureFlags: Readonly<Record<string, boolean>>;
+  sourceRefs: readonly SourceReference[];
+  provenance: Provenance;
 }
 
 export interface CoreResult<TOutput = unknown> {
@@ -368,16 +493,6 @@ export interface Composition2D extends GeometryPolicyFields {
 }
 
 export type GeometryV1 = SegmentSpace | SurfaceSpace | Composition2D;
-
-export const NORMA_CANONICAL_COORDINATE_SYSTEM: CoordinateSystem = Object.freeze({
-  kind: "coordinate-system",
-  id: "norma-canonical-2d-normalized",
-  origin: "bottom-left",
-  xAxis: "right",
-  yAxis: "up",
-  dimensions: 2,
-  coordinateScale: "normalized",
-});
 
 interface DiagnosticInput {
   code: DiagnosticCode;
@@ -2101,3 +2216,4 @@ export * from "./measurements.js";
 export * from "./evaluation.js";
 export * from "./comparison.js";
 export * from "./artifacts.js";
+export * from "./runtime.js";
