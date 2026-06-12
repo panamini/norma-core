@@ -333,3 +333,57 @@ test("PR6 rejects missing, unresolved, unsupported, or non-surface construction 
     "UnsupportedConstructionRule",
   );
 });
+
+test("PR6 rejects resolved rule sets that are not fully tied to the pack rule set", () => {
+  const resolvedRuleSet = resolveMvpRuleSet();
+  const firstRule = resolvedRuleSet.orderedRules[0];
+
+  const missingResolvedRatioRefs = structuredClone(resolvedRuleSet);
+  delete missingResolvedRatioRefs.resolvedRatioRefs;
+  assertFailedWithDiagnostic(
+    generateConstruction(mvpConstructionInput({ resolvedRuleSet: missingResolvedRatioRefs })),
+    "MissingResolvedRuleSet",
+  );
+
+  assertFailedWithDiagnostic(
+    generateConstruction(mvpConstructionInput({
+      resolvedRuleSet: {
+        ...resolvedRuleSet,
+        ruleSetRef: "inventedRuleSet",
+      },
+    })),
+    "InvalidConstructionInput",
+  );
+
+  assertFailedWithDiagnostic(
+    generateConstruction(mvpConstructionInput({
+      resolvedRuleSet: {
+        ...resolvedRuleSet,
+        orderedRules: [
+          {
+            ...firstRule,
+            ruleSetRef: "inventedRuleSet",
+          },
+          ...resolvedRuleSet.orderedRules.slice(1),
+        ],
+      },
+    })),
+    "InvalidConstructionInput",
+  );
+
+  assertFailedWithDiagnostic(
+    generateConstruction(mvpConstructionInput({
+      resolvedRuleSet: {
+        ...resolvedRuleSet,
+        orderedRules: [
+          {
+            ...firstRule,
+            ref: "inventedRule",
+          },
+          ...resolvedRuleSet.orderedRules.slice(1),
+        ],
+      },
+    })),
+    "InvalidConstructionInput",
+  );
+});
