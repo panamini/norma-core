@@ -183,7 +183,7 @@ function appendExpectedMismatches(
     }
   }
 
-  if ("expectedRunRef" in input) {
+  if (input.expectedRunRef !== undefined) {
     const expectedRunRef = input.expectedRunRef;
     if (expectedRunRef !== null && !isRef(expectedRunRef)) {
       errors.push(invalidArtifactInput("expectedRunRef", "Expected run ref must be a RunRef or null."));
@@ -192,7 +192,7 @@ function appendExpectedMismatches(
     }
   }
 
-  if ("expectedOperationContextRef" in input) {
+  if (input.expectedOperationContextRef !== undefined) {
     const expectedContextRef = input.expectedOperationContextRef;
     if (expectedContextRef !== null && !isRef(expectedContextRef)) {
       errors.push(invalidArtifactInput(
@@ -204,7 +204,7 @@ function appendExpectedMismatches(
     }
   }
 
-  if ("expectedOptions" in input) {
+  if (input.expectedOptions !== undefined) {
     const optionsComparison = compareCanonicalValue(artifact.options, input.expectedOptions);
     if (!optionsComparison.ok) {
       errors.push(invalidArtifactInput("expectedOptions", optionsComparison.message));

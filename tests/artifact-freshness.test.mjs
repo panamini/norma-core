@@ -186,6 +186,21 @@ test("PR20 treats expected null operation context as stale when the artifact car
   assert.ok(diagnosticCodes(result).includes("ArtifactStale"), diagnosticCodes(result).join(", "));
 });
 
+test("PR20 treats explicitly undefined optional expectations as absent", () => {
+  const { demo } = createTruthPath();
+  const artifact = demo.artifactResults.structuredResults[0].output;
+
+  const result = core.verifyArtifactFreshness(freshnessInput(demo, artifact, {
+    expectedRunRef: undefined,
+    expectedOperationContextRef: undefined,
+    expectedOptions: undefined,
+  }));
+
+  assertStatus(result, "current");
+  assert.equal(diagnosticCodes(result).includes("InvalidArtifactInput"), false);
+  assert.equal(diagnosticCodes(result).includes("ArtifactStale"), false);
+});
+
 test("PR20 returns non_replayable when required run refs or explicit source objects are missing", () => {
   const { demo } = createTruthPath();
   const artifact = {
