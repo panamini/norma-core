@@ -364,6 +364,18 @@ test("PR8 rejects profiles with incoherent PR8 limits", () => {
   );
 });
 
+test("PR8 rejects profiles with incomplete PR8 limits", () => {
+  const limits = structuredClone(core.BASIC_GRID_ALIGNMENT_PROFILE.limits);
+  delete limits.requiresExplicitTolerances;
+
+  assertFailedWithDiagnostic(
+    core.evaluateCompositionBasic(baseEvaluationInput("A", {
+      profile: cloneProfile({ limits }),
+    })),
+    "InvalidInputShape",
+  );
+});
+
 test("PR8 rejects profiles without structured provenance", () => {
   const profile = cloneProfile();
   delete profile.provenance;
@@ -371,6 +383,23 @@ test("PR8 rejects profiles without structured provenance", () => {
   assertFailedWithDiagnostic(
     core.evaluateCompositionBasic(baseEvaluationInput("A", { profile })),
     "InvalidInputShape",
+  );
+});
+
+test("PR8 rejects profile components without positive weights", () => {
+  const profile = cloneProfile({
+    components: [
+      {
+        ...structuredClone(core.BASIC_GRID_ALIGNMENT_PROFILE.components[0]),
+        weight: 0,
+      },
+      ...structuredClone(core.BASIC_GRID_ALIGNMENT_PROFILE.components.slice(1)),
+    ],
+  });
+
+  assertFailedWithDiagnostic(
+    core.evaluateCompositionBasic(baseEvaluationInput("A", { profile })),
+    "MissingEvaluationProfile",
   );
 });
 
