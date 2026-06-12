@@ -1,5 +1,6 @@
 # Norma Core Skeleton
 
+This document tracks the Norma Core skeleton boundary across PR1, PR2, and PR3.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -31,6 +32,7 @@ PR3 adds the minimal geometry model that later operations can validate against w
 - `TolerancePolicy` is explicit when supplied.
 
 The PR3 validator returns structured `CoreResult` failures for missing coordinate systems, invalid geometry, missing metric policy for metric coordinate spaces, and unsupported V1 geometry.
+`validateGeometryV1` is a boundary validator only. It does not construct, transform, measure, normalize, score, or repair geometry.
 
 ## Does Not Contain
 
