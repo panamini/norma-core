@@ -28,6 +28,16 @@ interface EffectiveSerializationPolicy {
   readonly normalizedTimestamp: string;
 }
 
+type CanonicalScalarResult =
+  | { readonly handled: true; readonly value: unknown }
+  | { readonly handled: false };
+
+type CanonicalFieldResult =
+  | { readonly include: true; readonly value: unknown }
+  | { readonly include: false };
+
+type DiagnosticComparator = (first: Diagnostic, second: Diagnostic) => number;
+
 export const STABLE_SERIALIZATION_VERSION = "stable-serialization-v1" as const;
 
 export const STABLE_SERIALIZATION_POLICY = Object.freeze({
@@ -68,6 +78,24 @@ const DIAGNOSTIC_SEVERITY_RANK = new Map<string, number>([
   ["critical", 2],
   ["warning", 3],
   ["info", 4],
+]);
+
+const SCALAR_CANONICALIZERS = [
+  canonicalizeNull,
+  canonicalizeStringOrBoolean,
+  canonicalizeNumber,
+  rejectBigInt,
+  canonicalizeOmittedValue,
+] as const;
+
+const DIAGNOSTIC_COMPARATORS: readonly DiagnosticComparator[] = Object.freeze([
+  (first, second) => severityRank(first.severity) - severityRank(second.severity),
+  (first, second) => booleanRank(first.blocking) - booleanRank(second.blocking),
+  (first, second) => compareStrings(first.code, second.code),
+  (first, second) => compareNullableStrings(first.targetRef, second.targetRef),
+  (first, second) => compareStrings(refKey(first.source), refKey(second.source)),
+  (first, second) => compareStrings(provenanceKey(first.provenance), provenanceKey(second.provenance)),
+  (first, second) => compareStrings(first.message, second.message),
 ]);
 
 export function serializeCanonicalJson(
@@ -113,81 +141,61 @@ export function canonicalizeErrors(errors: readonly CoreError[]): readonly CoreE
 }
 
 function canonicalizeValue(value: unknown, policy: EffectiveSerializationPolicy, seen: WeakSet<object>): unknown {
-  if (value === null || typeof value === "string" || typeof value === "boolean") {
-    return value;
+  const scalar = canonicalizeScalar(value);
+  if (scalar.handled) {
+    return scalar.value;
   }
-
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new TypeError("Stable serialization only supports finite numbers.");
-    }
-    return value;
-  }
-
-  if (typeof value === "bigint") {
-    throw new TypeError("Stable serialization does not support bigint values.");
-  }
-
-  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
-    return undefined;
-  }
-
   if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) {
-      throw new TypeError("Stable serialization does not support invalid Date values.");
-    }
-    const timestamp = value.toISOString();
-    return timestamp;
+    return canonicalizeDate(value);
   }
-
   if (Array.isArray(value)) {
-    return value.map((item) => {
-      const canonicalItem = canonicalizeValue(item, policy, seen);
-      return canonicalItem === undefined ? null : canonicalItem;
-    });
+    return canonicalizeArray(value, policy, seen);
   }
 
-  if (typeof value !== "object") {
+  return canonicalizeRecord(value, policy, seen);
+}
+
+function canonicalizeRecord(value: unknown, policy: EffectiveSerializationPolicy, seen: WeakSet<object>): unknown {
+  const record = recordValue(value);
+  if (record === null) {
     return undefined;
   }
 
-  if (seen.has(value)) {
+  if (seen.has(record)) {
     throw new TypeError("Stable serialization does not support circular object graphs.");
   }
 
-  seen.add(value);
-  const record = value as Record<string, unknown>;
+  seen.add(record);
+  const canonicalRecord = canonicalizeRecordFields(record, policy, seen);
+  seen.delete(record);
+
+  return canonicalRecord;
+}
+
+function canonicalizeRecordFields(
+  record: Readonly<Record<string, unknown>>,
+  policy: EffectiveSerializationPolicy,
+  seen: WeakSet<object>,
+): Record<string, unknown> {
   const canonicalRecord: Record<string, unknown> = {};
   for (const key of Object.keys(record).sort(compareStrings)) {
-    if (isTimestampField(key, policy)) {
-      if (policy.timestampPolicy === "omit") {
-        continue;
-      }
-      if (policy.timestampPolicy === "normalize") {
-        canonicalRecord[key] = policy.normalizedTimestamp;
-        continue;
-      }
-    }
-
-    const canonicalField = canonicalizeValue(record[key], policy, seen);
-    if (canonicalField !== undefined) {
-      canonicalRecord[key] = canonicalField;
+    const field = canonicalizeRecordField(key, record[key], policy, seen);
+    if (field.include) {
+      canonicalRecord[key] = field.value;
     }
   }
-  seen.delete(value);
-
   return canonicalRecord;
 }
 
 function effectivePolicy(policy: StableSerializationPolicy): EffectiveSerializationPolicy {
   return {
-    version: policy.version ?? STABLE_SERIALIZATION_POLICY.version,
-    objectKeys: policy.objectKeys ?? STABLE_SERIALIZATION_POLICY.objectKeys,
-    arrays: policy.arrays ?? STABLE_SERIALIZATION_POLICY.arrays,
-    undefinedValues: policy.undefinedValues ?? STABLE_SERIALIZATION_POLICY.undefinedValues,
-    timestampPolicy: policy.timestampPolicy ?? STABLE_SERIALIZATION_POLICY.timestampPolicy,
-    timestampFields: policy.timestampFields ?? STABLE_SERIALIZATION_POLICY.timestampFields,
-    normalizedTimestamp: policy.normalizedTimestamp ?? "normalized-timestamp",
+    version: policyValue(policy.version, STABLE_SERIALIZATION_POLICY.version),
+    objectKeys: policyValue(policy.objectKeys, STABLE_SERIALIZATION_POLICY.objectKeys),
+    arrays: policyValue(policy.arrays, STABLE_SERIALIZATION_POLICY.arrays),
+    undefinedValues: policyValue(policy.undefinedValues, STABLE_SERIALIZATION_POLICY.undefinedValues),
+    timestampPolicy: policyValue(policy.timestampPolicy, STABLE_SERIALIZATION_POLICY.timestampPolicy),
+    timestampFields: policyValue(policy.timestampFields, STABLE_SERIALIZATION_POLICY.timestampFields),
+    normalizedTimestamp: policyValue(policy.normalizedTimestamp, "normalized-timestamp"),
   };
 }
 
@@ -215,17 +223,38 @@ function compareOutputRefs(first: SourceReference, second: SourceReference): num
 }
 
 function compareDiagnostics(first: Diagnostic, second: Diagnostic): number {
-  return severityRank(first.severity) - severityRank(second.severity)
-    || booleanRank(first.blocking) - booleanRank(second.blocking)
-    || compareStrings(first.code, second.code)
-    || compareNullableStrings(first.targetRef, second.targetRef)
-    || compareStrings(refKey(first.source), refKey(second.source))
-    || compareStrings(provenanceKey(first.provenance), provenanceKey(second.provenance))
-    || compareStrings(first.message, second.message);
+  return compareBy(first, second, DIAGNOSTIC_COMPARATORS);
 }
 
 function isTimestampField(key: string, policy: EffectiveSerializationPolicy): boolean {
   return policy.timestampPolicy !== "preserve" && policy.timestampFields.includes(key);
+}
+
+function canonicalizeRecordField(
+  key: string,
+  value: unknown,
+  policy: EffectiveSerializationPolicy,
+  seen: WeakSet<object>,
+): CanonicalFieldResult {
+  const timestamp = canonicalizeTimestampField(key, policy);
+  if (timestamp.include || isTimestampField(key, policy)) {
+    return timestamp;
+  }
+
+  const canonicalField = canonicalizeValue(value, policy, seen);
+  return canonicalField === undefined
+    ? { include: false }
+    : { include: true, value: canonicalField };
+}
+
+function canonicalizeTimestampField(key: string, policy: EffectiveSerializationPolicy): CanonicalFieldResult {
+  if (!isTimestampField(key, policy)) {
+    return { include: false };
+  }
+  if (policy.timestampPolicy === "omit") {
+    return { include: false };
+  }
+  return { include: true, value: policy.normalizedTimestamp };
 }
 
 function outputRefKindRank(kind: string): number {
@@ -233,11 +262,7 @@ function outputRefKindRank(kind: string): number {
 }
 
 function isOutputRefs(value: readonly SourceReference[] | OutputRefs): value is OutputRefs {
-  return typeof value === "object"
-    && value !== null
-    && !Array.isArray(value)
-    && "kind" in value
-    && value.kind === "output-refs";
+  return isNonArrayRecord(value) && "kind" in value && value.kind === "output-refs";
 }
 
 function severityRank(severity: string): number {
@@ -258,6 +283,94 @@ function provenanceKey(provenance: Diagnostic["provenance"]): string {
 
 function compareNullableStrings(first: string | null, second: string | null): number {
   return compareStrings(first ?? "", second ?? "");
+}
+
+function canonicalizeScalar(value: unknown): CanonicalScalarResult {
+  for (const canonicalizer of SCALAR_CANONICALIZERS) {
+    const result = canonicalizer(value);
+    if (result.handled) {
+      return result;
+    }
+  }
+
+  return { handled: false };
+}
+
+function canonicalizeNull(value: unknown): CanonicalScalarResult {
+  return value === null ? { handled: true, value } : { handled: false };
+}
+
+function canonicalizeStringOrBoolean(value: unknown): CanonicalScalarResult {
+  return typeof value === "string" || typeof value === "boolean"
+    ? { handled: true, value }
+    : { handled: false };
+}
+
+function canonicalizeNumber(value: unknown): CanonicalScalarResult {
+  if (typeof value !== "number") {
+    return { handled: false };
+  }
+  if (!Number.isFinite(value)) {
+    throw new TypeError("Stable serialization only supports finite numbers.");
+  }
+  return { handled: true, value };
+}
+
+function rejectBigInt(value: unknown): CanonicalScalarResult {
+  if (typeof value === "bigint") {
+    throw new TypeError("Stable serialization does not support bigint values.");
+  }
+  return { handled: false };
+}
+
+function canonicalizeOmittedValue(value: unknown): CanonicalScalarResult {
+  return value === undefined || typeof value === "function" || typeof value === "symbol"
+    ? { handled: true, value: undefined }
+    : { handled: false };
+}
+
+function canonicalizeDate(value: Date): string {
+  if (Number.isNaN(value.getTime())) {
+    throw new TypeError("Stable serialization does not support invalid Date values.");
+  }
+  return value.toISOString();
+}
+
+function canonicalizeArray(
+  value: readonly unknown[],
+  policy: EffectiveSerializationPolicy,
+  seen: WeakSet<object>,
+): readonly unknown[] {
+  return value.map((item) => {
+    const canonicalItem = canonicalizeValue(item, policy, seen);
+    return canonicalItem === undefined ? null : canonicalItem;
+  });
+}
+
+function compareBy<TValue>(
+  first: TValue,
+  second: TValue,
+  comparators: readonly ((first: TValue, second: TValue) => number)[],
+): number {
+  for (const comparator of comparators) {
+    const compared = comparator(first, second);
+    if (compared !== 0) {
+      return compared;
+    }
+  }
+  return 0;
+}
+
+function policyValue<TValue>(value: TValue | undefined, fallback: TValue): TValue {
+  return value === undefined ? fallback : value;
+}
+
+function isNonArrayRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return isNonArrayRecord(value) ? value : null;
 }
 
 function compareStrings(first: string, second: string): number {
