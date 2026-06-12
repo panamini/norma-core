@@ -53,8 +53,8 @@ function clonePack(overrides = {}) {
   };
 }
 
-test("PR6 keeps ratio pack vocabulary and diagnostics available", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr6");
+test("PR7 keeps ratio pack vocabulary and diagnostics available", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr7");
   assert.equal(BASIC_PROPORTIONS_PACK_ID, "norma.basic-proportions");
   assert.equal(BASIC_PROPORTIONS_PACK_VERSION, "0.1.0");
   assert.equal(SURFACE_BASIC_THIRD_GRID_RULE_SET_ID, "surface-basic-third-grid");

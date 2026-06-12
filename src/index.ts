@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr6";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr7";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -61,6 +61,16 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MissingConstructionProvenance",
   "ConstructionTraceMissing",
   "DerivedObjectMissingSource",
+  "MissingMeasurementInput",
+  "InvalidMeasurementInput",
+  "MissingSourceGeometry",
+  "MissingMeasurementMetricPolicy",
+  "MissingMeasurementTolerancePolicy",
+  "MissingMeasurementProvenance",
+  "MeasurementGapWarning",
+  "MeasurementOverlapWarning",
+  "MeasurementOutOfTolerance",
+  "MeasurementOutputRejected",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -2061,3 +2071,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export * from "./ratio-pack.js";
 export * from "./rules.js";
 export * from "./construction.js";
+export * from "./measurements.js";
