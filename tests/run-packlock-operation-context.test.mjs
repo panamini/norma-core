@@ -178,7 +178,7 @@ test("PR12 exports runtime vocabulary, diagnostics, helpers, and version", () =>
   }
 
   assert.equal("replayRun" in core, false);
-  assert.equal("verifyRun" in core, false);
+  assert.equal(typeof core.verifyRun, "function");
   assert.equal(typeof core.verifyArtifactFreshness, "function");
 });
 
