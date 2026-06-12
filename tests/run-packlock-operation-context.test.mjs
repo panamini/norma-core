@@ -179,7 +179,7 @@ test("PR12 exports runtime vocabulary, diagnostics, helpers, and version", () =>
 
   assert.equal("replayRun" in core, false);
   assert.equal("verifyRun" in core, false);
-  assert.equal("verifyArtifactFreshness" in core, false);
+  assert.equal(typeof core.verifyArtifactFreshness, "function");
 });
 
 test("PR11 creates an effective PackLock from a validated ratio pack without inventing a hash", () => {

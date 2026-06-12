@@ -189,6 +189,7 @@ test("required and additional PR1 diagnostics are exported", () => {
       "ArtifactWouldBecomeSourceOfTruth",
       "ArtifactInventedSourceData",
       "ArtifactCriticalWarningHidden",
+      "ArtifactNonReplayable",
       "MissingRun",
       "MissingRunInput",
       "MissingRunOutput",

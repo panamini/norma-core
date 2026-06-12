@@ -100,6 +100,7 @@ export const CORE_DIAGNOSTIC_CODES = [
   "ArtifactWouldBecomeSourceOfTruth",
   "ArtifactInventedSourceData",
   "ArtifactCriticalWarningHidden",
+  "ArtifactNonReplayable",
   "MissingRun",
   "MissingRunInput",
   "MissingRunOutput",
@@ -2211,6 +2212,7 @@ export * from "./measurements.js";
 export * from "./evaluation.js";
 export * from "./comparison.js";
 export * from "./artifacts.js";
+export * from "./artifact-freshness.js";
 export * from "./runtime.js";
 export * from "./serialization.js";
 export * from "./mvp-demo.js";
