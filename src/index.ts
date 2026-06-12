@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr2";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr3";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -30,6 +30,10 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MissingResultOutput",
   "MissingResultDiagnostics",
   "MissingOperationContext",
+  "MissingCoordinateSystem",
+  "UnsupportedGeometryV1",
+  "InvalidGeometryV1",
+  "MissingMetricPolicy",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -199,6 +203,119 @@ export interface OperationResultContract<TOutput = unknown> extends CoreResult<T
   explanationRefs?: readonly SourceReference[];
 }
 
+export const GEOMETRY_V1_SUPPORTED_KINDS = [
+  "segment-space",
+  "surface-space",
+  "composition-2d",
+] as const;
+
+export type GeometryV1Kind = (typeof GEOMETRY_V1_SUPPORTED_KINDS)[number];
+export type CoordinateScale = "normalized" | "metric";
+export type CoordinateDimensions = 1 | 2;
+
+export interface CoordinateSystem {
+  kind: "coordinate-system";
+  id: string;
+  origin: "bottom-left";
+  xAxis: "right";
+  yAxis: "up";
+  dimensions: CoordinateDimensions;
+  coordinateScale: CoordinateScale;
+}
+
+export interface MetricPolicy {
+  kind: "metric-policy";
+  id: string;
+  quantity: "length";
+  unit: string;
+}
+
+export interface TolerancePolicy {
+  kind: "tolerance-policy";
+  id: string;
+  coordinateTolerance: number;
+  metricTolerance?: number;
+}
+
+export interface Point {
+  kind: "point";
+  x: number;
+  y?: number;
+}
+
+export interface Segment {
+  kind: "segment";
+  start: Point;
+  end: Point;
+}
+
+export interface Line {
+  kind: "line";
+  segment: Segment;
+  bounded: true;
+}
+
+export interface Rect {
+  kind: "rect";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Anchor {
+  kind: "anchor";
+  id: string;
+  point: Point;
+  targetElementId?: string;
+}
+
+export interface Element {
+  kind: "element";
+  id: string;
+  geometry: Rect;
+  anchors?: readonly Anchor[];
+}
+
+interface GeometryPolicyFields {
+  coordinateSystem: CoordinateSystem;
+  metricPolicy?: MetricPolicy | null;
+  tolerancePolicy?: TolerancePolicy | null;
+}
+
+export interface SegmentSpace extends GeometryPolicyFields {
+  kind: "segment-space";
+  id: string;
+  extent: Segment;
+  line?: Line;
+}
+
+export interface SurfaceSpace extends GeometryPolicyFields {
+  kind: "surface-space";
+  id: string;
+  bounds: Rect;
+}
+
+export interface Composition2D extends GeometryPolicyFields {
+  kind: "composition-2d";
+  id: string;
+  surface: SurfaceSpace;
+  elements: readonly Element[];
+  anchors?: readonly Anchor[];
+}
+
+export type GeometryV1 = SegmentSpace | SurfaceSpace | Composition2D;
+
+export const NORMA_CANONICAL_COORDINATE_SYSTEM: CoordinateSystem = Object.freeze({
+  kind: "coordinate-system",
+  id: "norma-canonical-2d-normalized",
+  origin: "bottom-left",
+  xAxis: "right",
+  yAxis: "up",
+  dimensions: 2,
+  coordinateScale: "normalized",
+});
+
 interface DiagnosticInput {
   code: DiagnosticCode;
   severity?: DiagnosticSeverity;
@@ -245,7 +362,7 @@ type OperationDescriptorValidation =
 
 const CORE_SOURCE_REFERENCE: SourceReference = Object.freeze({
   kind: "core",
-  ref: "norma-core/pr1-skeleton",
+  ref: "norma-core/core",
 });
 
 const DEFAULT_DIAGNOSTIC_FIELDS = Object.freeze({
@@ -302,6 +419,36 @@ export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
   "mcp",
   "sdk",
   "cli",
+] as const;
+
+const GEOMETRY_V1_UNSUPPORTED_KINDS = [
+  "3d",
+  "cad-object",
+  "curve",
+  "image",
+  "native-layer",
+  "plugin-object",
+  "polygon",
+] as const;
+
+const GEOMETRY_V1_UNSUPPORTED_FIELDS = [
+  "angle",
+  "cadObject",
+  "color",
+  "curve",
+  "depth",
+  "font",
+  "image",
+  "imageRef",
+  "layer",
+  "nativeLayer",
+  "path",
+  "pluginObject",
+  "rotation",
+  "src",
+  "style",
+  "transform",
+  "z",
 ] as const;
 
 export function createCoreError(input: DiagnosticInput): CoreError {
@@ -541,6 +688,538 @@ export function validateCoreSkeleton(): CoreResult {
     status: "ok",
     provenance: createProvenance("core.skeleton.validate", "0.1.0"),
   });
+}
+
+type GeometryValueValidation<TValue> =
+  | {
+      ok: true;
+      value: TValue;
+    }
+  | {
+      ok: false;
+      result: CoreResult;
+    };
+
+export function validateGeometryV1(geometry: unknown): CoreResult<GeometryV1> {
+  const validation = validateGeometryV1Value(geometry);
+  if (!validation.ok) {
+    return validation.result as CoreResult<GeometryV1>;
+  }
+
+  return createCoreResult({
+    status: "ok",
+    provenance: createProvenance("core.geometry-v1.validate", "0.1.0"),
+    output: validation.value,
+  });
+}
+
+function validateGeometryV1Value(geometry: unknown): GeometryValueValidation<GeometryV1> {
+  if (!isRecord(geometry)) {
+    return failedGeometryValue(invalidGeometryV1("geometry", "Geometry V1 input must be a structured object."));
+  }
+
+  const geometryKind = geometry.kind;
+  if (typeof geometryKind !== "string") {
+    return failedGeometryValue(invalidGeometryV1("kind", "Geometry V1 input requires a string kind."));
+  }
+
+  if (isUnsupportedGeometryV1Kind(geometryKind) || !isGeometryV1Kind(geometryKind)) {
+    return failedGeometryValue(unsupportedGeometryV1("kind", `Geometry kind is outside V1: ${geometryKind}.`));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(geometry);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(unsupportedField, `Geometry field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (geometryKind === "segment-space") {
+    return validateSegmentSpace(geometry);
+  }
+
+  if (geometryKind === "surface-space") {
+    return validateSurfaceSpace(geometry);
+  }
+
+  return validateComposition2D(geometry);
+}
+
+function validateSegmentSpace(value: Record<string, unknown>): GeometryValueValidation<SegmentSpace> {
+  const policiesValidation = validateGeometryPolicies(value, 1);
+  if (!policiesValidation.ok) {
+    return policiesValidation;
+  }
+
+  const extentValidation = validateSegment(value.extent, policiesValidation.value.coordinateSystem, "extent");
+  if (!extentValidation.ok) {
+    return extentValidation;
+  }
+
+  if (value.line !== undefined) {
+    const lineValidation = validateLine(value.line, policiesValidation.value.coordinateSystem, "line");
+    if (!lineValidation.ok) {
+      return lineValidation;
+    }
+  }
+
+  if (!hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1("id", "SegmentSpace requires a non-empty id."));
+  }
+
+  return validGeometryValue(value as unknown as SegmentSpace);
+}
+
+function validateSurfaceSpace(value: Record<string, unknown>): GeometryValueValidation<SurfaceSpace> {
+  const policiesValidation = validateGeometryPolicies(value, 2);
+  if (!policiesValidation.ok) {
+    return policiesValidation;
+  }
+
+  const boundsValidation = validateRect(value.bounds, policiesValidation.value.coordinateSystem, "bounds");
+  if (!boundsValidation.ok) {
+    return boundsValidation;
+  }
+
+  if (!hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1("id", "SurfaceSpace requires a non-empty id."));
+  }
+
+  return validGeometryValue(value as unknown as SurfaceSpace);
+}
+
+function validateComposition2D(value: Record<string, unknown>): GeometryValueValidation<Composition2D> {
+  const policiesValidation = validateGeometryPolicies(value, 2);
+  if (!policiesValidation.ok) {
+    return policiesValidation;
+  }
+
+  if (!hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1("id", "Composition2D requires a non-empty id."));
+  }
+
+  const surfaceValidation = validateSurfaceInput(value.surface);
+  if (!surfaceValidation.ok) {
+    return surfaceValidation;
+  }
+
+  if (!sameCoordinateSystem(policiesValidation.value.coordinateSystem, surfaceValidation.value.coordinateSystem)) {
+    return failedGeometryValue(
+      invalidGeometryV1("surface.coordinateSystem", "Composition2D and SurfaceSpace must use the same coordinate system."),
+    );
+  }
+
+  const elementsValidation = validateElements(value.elements, policiesValidation.value.coordinateSystem);
+  if (!elementsValidation.ok) {
+    return elementsValidation;
+  }
+
+  const anchorsValidation = validateOptionalAnchors(value.anchors, policiesValidation.value.coordinateSystem, "anchors");
+  if (!anchorsValidation.ok) {
+    return anchorsValidation;
+  }
+
+  return validGeometryValue(value as unknown as Composition2D);
+}
+
+function validateSurfaceInput(value: unknown): GeometryValueValidation<SurfaceSpace> {
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1("surface", "Composition2D requires a rectangular SurfaceSpace."));
+  }
+
+  if (value.kind !== "surface-space") {
+    return failedGeometryValue(invalidGeometryV1("surface.kind", "Composition2D surface must be a SurfaceSpace."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`surface.${unsupportedField}`, `SurfaceSpace field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  return validateSurfaceSpace(value);
+}
+
+function validateGeometryPolicies(
+  value: Record<string, unknown>,
+  expectedDimensions: CoordinateDimensions,
+): GeometryValueValidation<GeometryPolicyFields> {
+  const coordinateSystemValidation = validateCoordinateSystem(value.coordinateSystem, expectedDimensions);
+  if (!coordinateSystemValidation.ok) {
+    return coordinateSystemValidation;
+  }
+
+  const metricPolicyValidation = validateMetricPolicy(value.metricPolicy, coordinateSystemValidation.value.coordinateScale);
+  if (!metricPolicyValidation.ok) {
+    return metricPolicyValidation;
+  }
+
+  const tolerancePolicyValidation = validateTolerancePolicy(value.tolerancePolicy);
+  if (!tolerancePolicyValidation.ok) {
+    return tolerancePolicyValidation;
+  }
+
+  const policyFields: GeometryPolicyFields = {
+    coordinateSystem: coordinateSystemValidation.value,
+  };
+
+  if (metricPolicyValidation.value !== null) {
+    policyFields.metricPolicy = metricPolicyValidation.value;
+  }
+
+  if (tolerancePolicyValidation.value !== null) {
+    policyFields.tolerancePolicy = tolerancePolicyValidation.value;
+  }
+
+  return validGeometryValue(policyFields);
+}
+
+function validateCoordinateSystem(
+  value: unknown,
+  expectedDimensions: CoordinateDimensions,
+): GeometryValueValidation<CoordinateSystem> {
+  if (value === undefined || value === null) {
+    return failedGeometryValue(missingCoordinateSystem());
+  }
+
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1("coordinateSystem", "CoordinateSystem must be a structured object."));
+  }
+
+  if (!isCoordinateSystemRecord(value)) {
+    return failedGeometryValue(
+      invalidGeometryV1(
+        "coordinateSystem",
+        "CoordinateSystem must declare the Norma canonical bottom-left, x-right, y-up frame.",
+      ),
+    );
+  }
+
+  if (value.dimensions !== expectedDimensions) {
+    return failedGeometryValue(
+      invalidGeometryV1("coordinateSystem.dimensions", `CoordinateSystem must be ${expectedDimensions}D for this geometry.`),
+    );
+  }
+
+  return validGeometryValue(value as unknown as CoordinateSystem);
+}
+
+function validateMetricPolicy(value: unknown, coordinateScale: CoordinateScale): GeometryValueValidation<MetricPolicy | null> {
+  if (value === undefined || value === null) {
+    return coordinateScale === "metric"
+      ? failedGeometryValue(missingMetricPolicy())
+      : validGeometryValue(null);
+  }
+
+  if (!isMetricPolicyRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1("metricPolicy", "MetricPolicy must explicitly describe length units."));
+  }
+
+  return validGeometryValue(value as unknown as MetricPolicy);
+}
+
+function validateTolerancePolicy(value: unknown): GeometryValueValidation<TolerancePolicy | null> {
+  if (value === undefined || value === null) {
+    return validGeometryValue(null);
+  }
+
+  if (!isTolerancePolicyRecord(value)) {
+    return failedGeometryValue(
+      invalidGeometryV1("tolerancePolicy", "TolerancePolicy must expose explicit non-negative tolerances."),
+    );
+  }
+
+  return validGeometryValue(value as unknown as TolerancePolicy);
+}
+
+function validateRect(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Rect> {
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Rect must be a structured object."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Rect field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (!isRectRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Rect must be axis-aligned with positive width and height."));
+  }
+
+  const rect = value as unknown as Rect;
+  if (coordinateSystem.coordinateScale === "normalized" && !isNormalizedRect(rect)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Normalized Rect coordinates must stay within [0,1]."));
+  }
+
+  return validGeometryValue(rect);
+}
+
+function validateSegment(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Segment> {
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Segment must be a structured object."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Segment field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (value.kind !== "segment") {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Segment must be a structured object."));
+  }
+
+  const startValidation = validatePoint(value.start, coordinateSystem, `${targetRef}.start`);
+  if (!startValidation.ok) {
+    return startValidation;
+  }
+
+  const endValidation = validatePoint(value.end, coordinateSystem, `${targetRef}.end`);
+  if (!endValidation.ok) {
+    return endValidation;
+  }
+
+  if (samePoint(startValidation.value, endValidation.value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "SegmentSpace extent must be bounded by distinct points."));
+  }
+
+  return validGeometryValue(value as unknown as Segment);
+}
+
+function validateLine(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Line> {
+  if (!isRecord(value) || value.kind !== "line") {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Line field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (value.bounded !== true) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
+  }
+
+  const segmentValidation = validateSegment(value.segment, coordinateSystem, `${targetRef}.segment`);
+  if (!segmentValidation.ok) {
+    return segmentValidation;
+  }
+
+  return validGeometryValue(value as unknown as Line);
+}
+
+function validatePoint(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Point> {
+  if (!isRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Point field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (!isPointRecord(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
+  }
+
+  const point = value as unknown as Point;
+  if (coordinateSystem.dimensions === 1 && point.y !== undefined) {
+    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "Point in SegmentSpace V1 cannot declare y."));
+  }
+
+  if (coordinateSystem.dimensions === 2 && !isFiniteNumber(point.y)) {
+    return failedGeometryValue(invalidGeometryV1(`${targetRef}.y`, "2D Point must expose a finite y coordinate."));
+  }
+
+  if (coordinateSystem.coordinateScale === "normalized" && !isNormalizedPoint(point, coordinateSystem.dimensions)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Normalized Point coordinates must stay within [0,1]."));
+  }
+
+  return validGeometryValue(point);
+}
+
+function validateElements(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+): GeometryValueValidation<readonly Element[]> {
+  if (!Array.isArray(value)) {
+    return failedGeometryValue(invalidGeometryV1("elements", "Composition2D requires an elements array."));
+  }
+
+  for (const [index, element] of value.entries()) {
+    const elementValidation = validateElement(element, coordinateSystem, `elements.${index}`);
+    if (!elementValidation.ok) {
+      return elementValidation;
+    }
+  }
+
+  return validGeometryValue(value as readonly Element[]);
+}
+
+function validateElement(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Element> {
+  if (!isRecord(value) || value.kind !== "element" || !hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Element must expose kind and id."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Element field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  const rectValidation = validateRect(value.geometry, coordinateSystem, `${targetRef}.geometry`);
+  if (!rectValidation.ok) {
+    return rectValidation;
+  }
+
+  const anchorsValidation = validateOptionalAnchors(value.anchors, coordinateSystem, `${targetRef}.anchors`);
+  if (!anchorsValidation.ok) {
+    return anchorsValidation;
+  }
+
+  return validGeometryValue(value as unknown as Element);
+}
+
+function validateOptionalAnchors(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<readonly Anchor[] | null> {
+  if (value === undefined || value === null) {
+    return validGeometryValue(null);
+  }
+
+  if (!Array.isArray(value)) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Anchors must be an array when provided."));
+  }
+
+  for (const [index, anchor] of value.entries()) {
+    const anchorValidation = validateAnchor(anchor, coordinateSystem, `${targetRef}.${index}`);
+    if (!anchorValidation.ok) {
+      return anchorValidation;
+    }
+  }
+
+  return validGeometryValue(value as readonly Anchor[]);
+}
+
+function validateAnchor(
+  value: unknown,
+  coordinateSystem: CoordinateSystem,
+  targetRef: string,
+): GeometryValueValidation<Anchor> {
+  if (!isRecord(value) || value.kind !== "anchor" || !hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Anchor must expose kind and id."));
+  }
+
+  const unsupportedField = firstUnsupportedGeometryField(value);
+  if (unsupportedField !== null) {
+    return failedGeometryValue(
+      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Anchor field is outside V1: ${unsupportedField}.`),
+    );
+  }
+
+  if (!hasOptionalStringField(value, "targetElementId")) {
+    return failedGeometryValue(invalidGeometryV1(`${targetRef}.targetElementId`, "Anchor targetElementId must be a string."));
+  }
+
+  const pointValidation = validatePoint(value.point, coordinateSystem, `${targetRef}.point`);
+  if (!pointValidation.ok) {
+    return pointValidation;
+  }
+
+  return validGeometryValue(value as unknown as Anchor);
+}
+
+function missingCoordinateSystem(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingCoordinateSystem",
+        message: "Geometry V1 cannot be accepted without an explicit CoordinateSystem.",
+        sourceRef: { kind: "coordinate-system", ref: "missing" },
+      }),
+    ],
+  });
+}
+
+function unsupportedGeometryV1(targetRef: string, message: string): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "UnsupportedGeometryV1",
+        message,
+        targetRef,
+        sourceRef: { kind: "geometry-v1", ref: targetRef },
+      }),
+    ],
+  });
+}
+
+function invalidGeometryV1(targetRef: string, message: string): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "InvalidGeometryV1",
+        message,
+        targetRef,
+        sourceRef: { kind: "geometry-v1", ref: targetRef },
+      }),
+    ],
+  });
+}
+
+function missingMetricPolicy(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingMetricPolicy",
+        message: "Metric coordinate geometry requires an explicit MetricPolicy.",
+        sourceRef: { kind: "metric-policy", ref: "missing" },
+      }),
+    ],
+  });
+}
+
+function validGeometryValue<TValue>(value: TValue): GeometryValueValidation<TValue> {
+  return { ok: true, value };
+}
+
+function failedGeometryValue<TValue>(result: CoreResult): GeometryValueValidation<TValue> {
+  return { ok: false, result };
 }
 
 function createCoreResult<TOutput = unknown>(input: CoreResultInput<TOutput>): CoreResult<TOutput> {
@@ -1129,6 +1808,14 @@ function hasOptionalBooleanField(value: Record<string, unknown>, key: string): b
   return !(key in value) || typeof value[key] === "boolean";
 }
 
+function hasOptionalStringField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || typeof value[key] === "string";
+}
+
+function hasOptionalNonNegativeFiniteNumber(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || isNonNegativeFiniteNumber(value[key]);
+}
+
 function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean {
   return typeof value[key] === "string" && value[key].length > 0;
 }
@@ -1136,6 +1823,201 @@ function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean
 function isToleranceName(value: string): boolean {
   return value.toLowerCase().includes("tolerance");
 }
+
+function isGeometryV1Kind(value: string): value is GeometryV1Kind {
+  return GEOMETRY_V1_SUPPORTED_KINDS.includes(value as GeometryV1Kind);
+}
+
+function isUnsupportedGeometryV1Kind(value: string): boolean {
+  return GEOMETRY_V1_UNSUPPORTED_KINDS.includes(value as (typeof GEOMETRY_V1_UNSUPPORTED_KINDS)[number]);
+}
+
+function firstUnsupportedGeometryField(value: Record<string, unknown>): string | null {
+  return GEOMETRY_V1_UNSUPPORTED_FIELDS.find((field) => field in value) ?? null;
+}
+
+function isCoordinateDimensions(value: unknown): value is CoordinateDimensions {
+  return value === 1 || value === 2;
+}
+
+function isCoordinateScale(value: unknown): value is CoordinateScale {
+  return value === "normalized" || value === "metric";
+}
+
+const COORDINATE_SYSTEM_CHECKS = [
+  isCoordinateSystemKind,
+  hasCoordinateSystemId,
+  hasNormaOrigin,
+  hasNormaXAxis,
+  hasNormaYAxis,
+  hasCoordinateSystemDimensions,
+  hasCoordinateSystemScale,
+] as const;
+
+function isCoordinateSystemRecord(value: unknown): value is CoordinateSystem {
+  return isRecord(value) && COORDINATE_SYSTEM_CHECKS.every((check) => check(value));
+}
+
+function isCoordinateSystemKind(value: Record<string, unknown>): boolean {
+  return value.kind === "coordinate-system";
+}
+
+function hasCoordinateSystemId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasNormaOrigin(value: Record<string, unknown>): boolean {
+  return value.origin === "bottom-left";
+}
+
+function hasNormaXAxis(value: Record<string, unknown>): boolean {
+  return value.xAxis === "right";
+}
+
+function hasNormaYAxis(value: Record<string, unknown>): boolean {
+  return value.yAxis === "up";
+}
+
+function hasCoordinateSystemDimensions(value: Record<string, unknown>): boolean {
+  return isCoordinateDimensions(value.dimensions);
+}
+
+function hasCoordinateSystemScale(value: Record<string, unknown>): boolean {
+  return isCoordinateScale(value.coordinateScale);
+}
+
+const METRIC_POLICY_CHECKS = [
+  isMetricPolicyKind,
+  hasMetricPolicyId,
+  hasMetricPolicyQuantity,
+  hasMetricPolicyUnit,
+] as const;
+
+function isMetricPolicyRecord(value: unknown): value is MetricPolicy {
+  return isRecord(value) && METRIC_POLICY_CHECKS.every((check) => check(value));
+}
+
+function isMetricPolicyKind(value: Record<string, unknown>): boolean {
+  return value.kind === "metric-policy";
+}
+
+function hasMetricPolicyId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasMetricPolicyQuantity(value: Record<string, unknown>): boolean {
+  return value.quantity === "length";
+}
+
+function hasMetricPolicyUnit(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "unit");
+}
+
+const TOLERANCE_POLICY_CHECKS = [
+  isTolerancePolicyKind,
+  hasTolerancePolicyId,
+  hasCoordinateTolerance,
+  hasOptionalMetricTolerance,
+] as const;
+
+function isTolerancePolicyRecord(value: unknown): value is TolerancePolicy {
+  return isRecord(value) && TOLERANCE_POLICY_CHECKS.every((check) => check(value));
+}
+
+function isTolerancePolicyKind(value: Record<string, unknown>): boolean {
+  return value.kind === "tolerance-policy";
+}
+
+function hasTolerancePolicyId(value: Record<string, unknown>): boolean {
+  return hasNonEmptyString(value, "id");
+}
+
+function hasCoordinateTolerance(value: Record<string, unknown>): boolean {
+  return isNonNegativeFiniteNumber(value.coordinateTolerance);
+}
+
+function hasOptionalMetricTolerance(value: Record<string, unknown>): boolean {
+  return hasOptionalNonNegativeFiniteNumber(value, "metricTolerance");
+}
+
+const RECT_CHECKS = [
+  isRectKind,
+  hasRectX,
+  hasRectY,
+  hasPositiveRectWidth,
+  hasPositiveRectHeight,
+] as const;
+
+function isRectRecord(value: unknown): value is Rect {
+  return isRecord(value) && RECT_CHECKS.every((check) => check(value));
+}
+
+function isRectKind(value: Record<string, unknown>): boolean {
+  return value.kind === "rect";
+}
+
+function hasRectX(value: Record<string, unknown>): boolean {
+  return isFiniteNumber(value.x);
+}
+
+function hasRectY(value: Record<string, unknown>): boolean {
+  return isFiniteNumber(value.y);
+}
+
+function hasPositiveRectWidth(value: Record<string, unknown>): boolean {
+  return isPositiveFiniteNumber(value.width);
+}
+
+function hasPositiveRectHeight(value: Record<string, unknown>): boolean {
+  return isPositiveFiniteNumber(value.height);
+}
+
+function isPointRecord(value: unknown): value is Point {
+  return isRecord(value) && value.kind === "point" && isFiniteNumber(value.x);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value > 0;
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0;
+}
+
+function isNormalizedValue(value: number): boolean {
+  return value >= 0 && value <= 1;
+}
+
+function isNormalizedPoint(point: Point, dimensions: CoordinateDimensions): boolean {
+  return isNormalizedValue(point.x) && (dimensions === 1 || (point.y !== undefined && isNormalizedValue(point.y)));
+}
+
+function isNormalizedRect(rect: Rect): boolean {
+  return [rect.x, rect.y, rect.width, rect.height, rect.x + rect.width, rect.y + rect.height].every(
+    isNormalizedValue,
+  );
+}
+
+function samePoint(firstPoint: Point, secondPoint: Point): boolean {
+  return firstPoint.x === secondPoint.x && (firstPoint.y ?? null) === (secondPoint.y ?? null);
+}
+
+function sameCoordinateSystem(firstSystem: CoordinateSystem, secondSystem: CoordinateSystem): boolean {
+  return COORDINATE_SYSTEM_COMPARISON_KEYS.every((key) => firstSystem[key] === secondSystem[key]);
+}
+
+const COORDINATE_SYSTEM_COMPARISON_KEYS = [
+  "id",
+  "origin",
+  "xAxis",
+  "yAxis",
+  "dimensions",
+  "coordinateScale",
+] as const;
 
 function isValidCoreInput(input: unknown): boolean {
   return input === undefined || isRecord(input);

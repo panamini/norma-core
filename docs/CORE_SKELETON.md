@@ -1,5 +1,6 @@
 # Norma Core Skeleton
 
+This document tracks the Norma Core skeleton boundary across PR1, PR2, and PR3.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -19,11 +20,26 @@ The operation call contract can carry explicit `operation`, `operationVersion`, 
 
 The operation result contract keeps `status`, `output`, `outputRefs`, `warnings`, `errors`, `provenance`, `runRef`, `packLockRef`, and `operationContextRef` visible. Derived output without provenance and results missing `output` or diagnostic arrays are invalid.
 
+## PR3 Geometry Model V1
+
+PR3 adds the minimal geometry model that later operations can validate against without starting construction or measurement work. Geometry V1 is intentionally small:
+
+- `SegmentSpace` is a bounded 1D space.
+- `SurfaceSpace` is a rectangular 2D axis-aligned space.
+- `Composition2D` is a rectangular `SurfaceSpace` plus rectangular `Element` values and optional `Anchor` values.
+- `CoordinateSystem` is mandatory for accepted geometry and uses the Norma canonical frame: bottom-left origin, `x` to the right, `y` upward.
+- `MetricPolicy` is separate from normalized coordinates; normalized coordinates may live in `[0,1]` but are not metric measurements.
+- `TolerancePolicy` is explicit when supplied.
+
+The PR3 validator returns structured `CoreResult` failures for missing coordinate systems, invalid geometry, missing metric policy for metric coordinate spaces, and unsupported V1 geometry.
+`validateGeometryV1` is a boundary validator only. It does not construct, transform, measure, normalize, score, or repair geometry.
+
 ## Does Not Contain
 
 - Geometry calculations.
 - Ratio packs or implicit ratios.
 - Construction, measurements, evaluation, artifacts, or scoring.
+- 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
 
