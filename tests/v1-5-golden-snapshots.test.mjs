@@ -54,7 +54,7 @@ const ARRAY_FIELD_CANONICALIZERS = Object.freeze({
   warnings: core.canonicalizeWarnings,
 });
 
-const DIAGNOSTIC_STRING_FIELDS = Object.freeze(["code", "severity", "msg"]);
+const DIAGNOSTIC_STRING_FIELDS = Object.freeze(["code", "severity", "message"]);
 
 function assertOk(result, label) {
   assert.equal(result.status, "ok", label);
@@ -274,8 +274,8 @@ function generatedNegativeCases({ demo }) {
       fixtureId: negativeCase.caseId,
       actualStatus: negativeCase.actualStatus,
       actualDiagnosticCodes: negativeCase.actualDiagnostics,
-      warnings: negativeCase.warnings,
-      errors: negativeCase.errors,
+      warnings: negativeCase.warnings.map(diagnosticSummary),
+      errors: negativeCase.errors.map(diagnosticSummary),
       notes: negativeCase.notes,
     })),
     staleArtifactCase(demo),
@@ -335,8 +335,8 @@ function operationContextMismatchCase(demo) {
     geometryModelVersion: "geometry-v1-mismatch",
     tolerancePolicy: {
       ...demo.operationContext.tolerancePolicy,
-      val: {
-        ...demo.operationContext.tolerancePolicy.val,
+      value: {
+        ...demo.operationContext.tolerancePolicy.value,
         id: "mvp-demo-tolerance-policy-mismatch",
       },
     },
@@ -362,9 +362,19 @@ function generatedCase(fixtureId, actualStatus, result) {
     fixtureId,
     actualStatus,
     actualDiagnosticCodes: diagnosticCodes(result),
-    warnings: result.warnings,
-    errors: result.errors,
+    warnings: result.warnings.map(diagnosticSummary),
+    errors: result.errors.map(diagnosticSummary),
     notes: null,
+  };
+}
+
+function diagnosticSummary(diagnostic) {
+  return {
+    code: diagnostic.code,
+    severity: diagnostic.severity,
+    blocking: diagnostic.blocking,
+    targetRef: diagnostic.targetRef,
+    source: diagnostic.source,
   };
 }
 
@@ -445,9 +455,9 @@ test("PR19 canonicalizes unordered refs, outputRefs, warnings, errors, and diagn
     { kind: "construction", ref: "construction:a" },
   ];
   const diagnostics = [
-    core.createCoreWarning({ code: "FeatureFlagsMismatch", msg: "Feature flags differ.", targetRef: "featureFlags" }),
-    core.createCoreError({ code: "MissingRun", msg: "Run missing.", targetRef: "run" }),
-    core.createCoreWarning({ code: "ArtifactStale", severity: "critical", msg: "Artifact stale.", targetRef: "artifact:z" }),
+    core.createCoreWarning({ code: "FeatureFlagsMismatch", message: "Feature flags differ.", targetRef: "featureFlags" }),
+    core.createCoreError({ code: "MissingRun", message: "Run missing.", targetRef: "run" }),
+    core.createCoreWarning({ code: "ArtifactStale", severity: "critical", message: "Artifact stale.", targetRef: "artifact:z" }),
   ];
 
   assert.equal(prettyCanonical({ outputRefs: first }), prettyCanonical({ outputRefs: second }));
@@ -455,6 +465,14 @@ test("PR19 canonicalizes unordered refs, outputRefs, warnings, errors, and diagn
     core.canonicalizeDiagnostics(diagnostics).map((diagnostic) => diagnostic.code),
     ["MissingRun", "ArtifactStale", "FeatureFlagsMismatch"],
   );
+});
+
+test("PR19 generated negative cases satisfy expected statuses and diagnostics", () => {
+  const truthPath = createTruthPath();
+  const snapshot = negativeCasesSnapshot(truthPath);
+  const failures = snapshot.cases.filter((negativeCase) => negativeCase.pass !== true);
+
+  assert.deepEqual(failures, []);
 });
 
 test("PR19 deterministic identity snapshots exclude timestamp-like metadata", () => {
