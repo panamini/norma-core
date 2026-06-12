@@ -68,7 +68,7 @@ function assertInvalidOperationResultShape(resultShape) {
 }
 
 test("core version reflects PR11 runtime readiness", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr11");
+  assert.equal(CORE_VERSION, "0.1.0-pr12");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {

@@ -152,7 +152,7 @@ function createRunEnvelope(overrides = {}) {
 }
 
 test("PR11 exports runtime vocabulary, diagnostics, helpers, and version", () => {
-  assert.equal(core.CORE_VERSION, "0.1.0-pr11");
+  assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.deepEqual(core.REPLAY_READINESS_STATUSES, [
     "ready",
     "ready_with_warnings",
@@ -201,7 +201,7 @@ test("PR11 creates a visible OperationContext with effective defaults and sorted
   const second = createOperationContext({ featureFlags: { alpha: true, zeta: false } });
 
   assert.equal(first.kind, "operation-context");
-  assert.equal(first.coreVersion, "0.1.0-pr11");
+  assert.equal(first.coreVersion, "0.1.0-pr12");
   assert.equal(first.geometryModelVersion, "geometry-v1");
   assert.equal(first.coordinatePolicy.value.id, metricCoordinateSystem2d.id);
   assert.equal(first.metricPolicy.value.id, metricPolicy.id);
