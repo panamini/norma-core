@@ -251,11 +251,59 @@ test("PR7 measures A/B compositions against construction guides without producin
   assert.equal(leftThirdArea.relativeArea, 1 / 3);
   assert.equal(leftThirdArea.unit, "px^2");
 
+  const bMeasurements = measurementSet.compositions.find((composition) => composition.label === "B").measurements;
+  const bOverlap = findMeasurement(bMeasurements, "overlap", (measurement) => (
+    hasInputRef(measurement, "element", "composition:B:element:wide-left")
+    && hasInputRef(measurement, "element", "composition:B:element:offset-right")
+  ));
+  assert.equal(bOverlap.overlaps, true);
+  assert.ok(measurementSet.directionalRelations.some((relation) => (
+    relation.relation === "overlaps"
+    && relation.sourceRef.ref === "composition:B:element:wide-left"
+    && relation.targetRef.ref === "composition:B:element:offset-right"
+  )));
+
   const diagonalAngle = findMeasurement(measurementSet.constructionMeasurements, "angle", (measurement) => (
     hasInputRef(measurement, "diagonal", "diagonal:surface:1200x800:bottom-left-to-top-right")
   ));
   assert.ok(Math.abs(diagonalAngle.angleDegrees - 33.690067525979785) < 1e-12);
   assert.equal(diagonalAngle.unit, "degrees");
+});
+
+test("PR7 applies overlap tolerance consistently across measurements and directional relations", () => {
+  const construction = generateMvpConstruction();
+  const tolerantComposition = {
+    ...compositionB,
+    tolerancePolicy: {
+      ...tolerancePolicy,
+      metricTolerance: 2,
+    },
+    elements: [
+      { kind: "element", id: "nearly-left", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 400 } },
+      { kind: "element", id: "nearly-right", geometry: { kind: "rect", x: 399, y: 399, width: 400, height: 400 } },
+    ],
+  };
+
+  const result = core.measureGeometry({
+    construction,
+    compositionA: tolerantComposition,
+    operationContextRef: { id: "context:measurement" },
+    requestedOutputs: ["measurements"],
+  });
+  assertOk(result);
+
+  const measurements = result.output.compositions[0].measurements;
+  const overlap = findMeasurement(measurements, "overlap", (measurement) => (
+    hasInputRef(measurement, "element", "composition:A:element:nearly-left")
+    && hasInputRef(measurement, "element", "composition:A:element:nearly-right")
+  ));
+  assert.equal(overlap.overlapArea, 1);
+  assert.equal(overlap.overlaps, false);
+  assert.equal(result.output.directionalRelations.some((relation) => (
+    relation.relation === "overlaps"
+    && relation.sourceRef.ref === "composition:A:element:nearly-left"
+    && relation.targetRef.ref === "composition:A:element:nearly-right"
+  )), false);
 });
 
 test("PR7 measures areas, containment, overlap, and coverage with structured warnings", () => {

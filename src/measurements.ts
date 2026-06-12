@@ -1197,7 +1197,7 @@ function relationsForPair(
   const firstCenter = rectCenter(firstElement.geometry);
   const secondCenter = rectCenter(secondElement.geometry);
   const relationTypes: DirectionalRelationType[] = [];
-  const tolerance = coordinateTolerance(context);
+  const tolerance = effectiveTolerance(context);
 
   if (Math.abs(firstCenter.x - secondCenter.x) <= tolerance) {
     relationTypes.push("same-center-x");
@@ -1211,7 +1211,9 @@ function relationsForPair(
     relationTypes.push(requiredY(firstCenter) < requiredY(secondCenter) ? "below" : "above");
   }
 
-  if (rectIntersection(firstElement.geometry, secondElement.geometry) !== null) {
+  const overlapRect = rectIntersection(firstElement.geometry, secondElement.geometry);
+  const overlapArea = overlapRect === null ? 0 : rectArea(overlapRect);
+  if (overlapArea > toleranceArea(context)) {
     relationTypes.push("overlaps");
   }
 
@@ -1684,12 +1686,12 @@ function areaUnit(context: MeasurementContext): string {
   return unit === "normalized" ? "normalized-area" : `${unit}^2`;
 }
 
-function coordinateTolerance(context: MeasurementContext): number {
+function effectiveTolerance(context: MeasurementContext): number {
   return context.tolerancePolicy.metricTolerance ?? context.tolerancePolicy.coordinateTolerance;
 }
 
 function toleranceArea(context: MeasurementContext): number {
-  const tolerance = coordinateTolerance(context);
+  const tolerance = effectiveTolerance(context);
   return tolerance * tolerance;
 }
 
