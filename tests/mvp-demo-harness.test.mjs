@@ -72,6 +72,11 @@ function assertNoForbiddenDecisionLanguage(value) {
   }
 }
 
+function assertUniqueRefs(refs) {
+  const uniqueRefs = new Set(refs.map((ref) => `${ref.kind}:${ref.ref}`));
+  assert.equal(uniqueRefs.size, refs.length);
+}
+
 test("PR12 exports the MVP demo harness without post-MVP runtime helpers", () => {
   assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.equal(typeof core.createMvpDemoInput, "function");
@@ -168,6 +173,8 @@ test("PR12 keeps output refs, statuses, report, and negative cases deterministic
   assertOk(first);
   assertOk(second);
   assert.deepEqual(first.outputRefs, second.outputRefs);
+  assertUniqueRefs(first.outputRefs);
+  assertUniqueRefs(first.output.runEnvelope.outputRefs.refs);
   assert.equal(first.output.runEnvelope.id, second.output.runEnvelope.id);
   assert.equal(first.output.comparisonResult.output.status, second.output.comparisonResult.output.status);
   assert.deepEqual(first.output.demoReport, second.output.demoReport);

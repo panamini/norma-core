@@ -67,7 +67,7 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR11 runtime readiness", () => {
+test("core version reflects PR12 runtime readiness", () => {
   assert.equal(CORE_VERSION, "0.1.0-pr12");
 });
 

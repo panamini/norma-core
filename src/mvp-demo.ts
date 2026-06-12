@@ -666,10 +666,10 @@ function createSuccessfulDemoResult(input: {
 function generateDemoArtifacts(input: {
   input: MvpDemoInput;
   runRef: RunRef;
-  constructionResult: CoreResult<Construction>;
-  evaluationAResult: CoreResult<Evaluation>;
-  evaluationBResult: CoreResult<Evaluation>;
-  comparisonResult: CoreResult<Comparison>;
+  constructionResult: SuccessfulCoreResult<Construction>;
+  evaluationAResult: SuccessfulCoreResult<Evaluation>;
+  evaluationBResult: SuccessfulCoreResult<Evaluation>;
+  comparisonResult: SuccessfulCoreResult<Comparison>;
 }): MvpDemoArtifactResults {
   const { input: demoInput, runRef, constructionResult, evaluationAResult, evaluationBResult, comparisonResult } = input;
   return {
@@ -725,8 +725,8 @@ function generateDemoArtifacts(input: {
       }),
     ],
     explanation: generateExplanationArtifact({
-      explanation: comparisonResult.output?.explanation ?? null,
-      sourceExplanationRef: comparisonResult.output === null ? null : { kind: "explanation", ref: `explanation:${comparisonResult.output.id}` },
+      explanation: comparisonResult.output.explanation,
+      sourceExplanationRef: { kind: "explanation", ref: `explanation:${comparisonResult.output.id}` },
       options: demoInput.artifactOptions.explanation,
       runRef,
       operationContextRef: demoInput.operationContextRef,

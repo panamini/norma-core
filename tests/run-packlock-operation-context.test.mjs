@@ -151,7 +151,7 @@ function createRunEnvelope(overrides = {}) {
   return result.output;
 }
 
-test("PR11 exports runtime vocabulary, diagnostics, helpers, and version", () => {
+test("PR12 exports runtime vocabulary, diagnostics, helpers, and version", () => {
   assert.equal(core.CORE_VERSION, "0.1.0-pr12");
   assert.deepEqual(core.REPLAY_READINESS_STATUSES, [
     "ready",
@@ -196,7 +196,7 @@ test("PR11 creates an effective PackLock from a validated ratio pack without inv
   assert.equal(result.output.id.includes("sha"), false);
 });
 
-test("PR11 creates a visible OperationContext with effective defaults and sorted feature flags", () => {
+test("PR12 creates a visible OperationContext with effective defaults and sorted feature flags", () => {
   const first = createOperationContext({ featureFlags: { zeta: false, alpha: true } });
   const second = createOperationContext({ featureFlags: { alpha: true, zeta: false } });
 
