@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, and PR7.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, and PR8.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -72,11 +72,21 @@ Every measurement declares input references, unit, normalization status, metric 
 
 PR7 rejects missing measurement input, missing source geometry, missing metric policy for metric measurements, missing tolerance policy, missing measurement provenance, and requested outputs that belong to evaluation, comparison, artifacts, decisions, recommendations, or scores.
 
+## PR8 Evaluation Profile And Minimal Scoring
+
+PR8 adds `EvaluationProfile`, `Evaluation`, `ComponentScore`, minimal `Score`, `Confidence`, and `evaluateCompositionBasic`. The MVP profile `basic-grid-alignment` reads PR7 measurement facts through six components: `guide_proximity`, `alignment`, `containment`, `overlap_penalty`, `coverage_match`, and `area_ratio_match`.
+
+Evaluation requires explicit PR7 measurements, profile, pack, PackLock or PR4 pre-lock, evaluation tolerances, and tolerance policy. It does not create ratios, rules, or measurements, and it does not use hidden tolerances or a hidden default profile.
+
+The PR8 score is only a minimal summary derived from sourced component scores inside an `Evaluation`. Confidence remains a separate object and is not mixed into the score. PR8 can evaluate A and B separately, but it does not compare them, rank them, decide between them, recommend an option, produce artifacts, infer intent, or produce beauty/aesthetic claims.
+
+PR8 rejects missing evaluation inputs, beauty score requests, and intention inference requests with structured diagnostics.
+
 ## Does Not Contain
 
 - Geometry calculations outside PR6 construction generation and PR7 measurement facts.
 - Implicit ratios or client-defined ratios outside validated packs.
-- Evaluation, artifacts, component scores, or scoring.
+- Comparison, decisions, recommendations, artifacts, or standalone scores.
 - Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.

@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr7";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr8";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -71,6 +71,14 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MeasurementOverlapWarning",
   "MeasurementOutOfTolerance",
   "MeasurementOutputRejected",
+  "MissingMeasurements",
+  "MissingEvaluationProfile",
+  "MissingPack",
+  "MissingPackLock",
+  "MissingTolerances",
+  "MissingTolerancePolicy",
+  "BeautyScoreRejected",
+  "IntentInferenceRejected",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -2072,3 +2080,4 @@ export * from "./ratio-pack.js";
 export * from "./rules.js";
 export * from "./construction.js";
 export * from "./measurements.js";
+export * from "./evaluation.js";
