@@ -67,8 +67,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR7 measurements", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr7");
+test("core version reflects PR8 evaluation", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr8");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -163,6 +163,14 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MeasurementOverlapWarning",
       "MeasurementOutOfTolerance",
       "MeasurementOutputRejected",
+      "MissingMeasurements",
+      "MissingEvaluationProfile",
+      "MissingPack",
+      "MissingPackLock",
+      "MissingTolerances",
+      "MissingTolerancePolicy",
+      "BeautyScoreRejected",
+      "IntentInferenceRejected",
     ]),
   );
 });
