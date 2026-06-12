@@ -84,8 +84,8 @@ function makeEvaluation(label, scoreValue, overrides = {}) {
       id: `component-score:${label}:alignment`,
       componentId: "alignment",
       status: scoreValue >= 0.75 ? "near_match" : "weak_match",
-      val: scoreValue,
-      measurementSourceRefs: [measurementRefs[0]],
+      value: scoreValue,
+      measurementSourceRefs: measurementRefs.slice(0, 1),
       warnings: [],
       provenance,
     },
@@ -94,8 +94,8 @@ function makeEvaluation(label, scoreValue, overrides = {}) {
       id: `component-score:${label}:coverage_match`,
       componentId: "coverage_match",
       status: scoreValue >= 0.75 ? "near_match" : "weak_match",
-      val: scoreValue,
-      measurementSourceRefs: [measurementRefs[1]],
+      value: scoreValue,
+      measurementSourceRefs: measurementRefs.slice(1, 2),
       warnings: [],
       provenance,
     },
@@ -113,7 +113,7 @@ function makeEvaluation(label, scoreValue, overrides = {}) {
     score: overrides.score ?? {
       kind: "minimal-score",
       id: `minimal-score:${id}`,
-      val: scoreValue,
+      value: scoreValue,
       derivedFromComponentRefs: componentScores.map((component) => component.id),
       measurementSourceRefs: measurementRefs,
       provenance,
@@ -121,7 +121,7 @@ function makeEvaluation(label, scoreValue, overrides = {}) {
     confidence: {
       kind: "confidence",
       id: `confidence:${id}`,
-      val: 1,
+      value: 1,
       factors: {
         componentCoverage: 1,
         measurementSourceCoverage: 1,
@@ -323,4 +323,3 @@ test("PR9 rejects missing inputs, invalid tie policy, beauty, and intent request
     "IntentInferenceRejected",
   );
 });
-
