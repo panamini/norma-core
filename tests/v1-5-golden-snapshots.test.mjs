@@ -400,13 +400,14 @@ function isPlainRecord(value) {
 }
 
 function isRefArray(value) {
-  return value.every((item) => isPlainRecord(item)
+  return value.length > 0
+    && value.every((item) => isPlainRecord(item)
     && typeof item.kind === "string"
     && typeof item.ref === "string");
 }
 
 function isDiagnosticArray(value) {
-  return value.every(isDiagnosticRecord);
+  return value.length > 0 && value.every(isDiagnosticRecord);
 }
 
 function isDiagnosticRecord(value) {
