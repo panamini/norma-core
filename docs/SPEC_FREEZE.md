@@ -4,7 +4,7 @@ Documentation only. No runtime implementation.
 
 ## Status
 
-Spec locked after Chapter 15.
+Spec locked after Chapter 15 of the normative MVP source material.
 
 PR0 verrouille les guardrails du moteur Norma Core MVP. Il ne construit ni interface, ni adapter, ni écosystème, ni logique métier.
 

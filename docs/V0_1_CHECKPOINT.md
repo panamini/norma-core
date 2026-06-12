@@ -170,6 +170,7 @@ Expected result:
 - `docs/V0_1_CHECKPOINT.md`
 - `README.md`
 - `package.json`
+- `package-lock.json`
 
 No `src/` files are changed.
 
