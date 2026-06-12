@@ -122,6 +122,21 @@ const SUPPORTED_VERIFY_RUN_OPERATIONS = new Set<string>([
   "core.mvp-demo.run",
 ]);
 
+const KNOWN_SOURCE_OBJECT_KINDS = new Set<string>([
+  "comparison",
+  "construction",
+  "coordinate-system",
+  "decision",
+  "evaluation",
+  "evaluation-profile",
+  "evaluation-tolerances",
+  "explanation",
+  "measurement",
+  "metric-policy",
+  "rule-set",
+  "tolerance-policy",
+]);
+
 export function verifyRun(input: VerifyRunInput | null | undefined): RunVerification {
   const inputRecord = isRecord(input) ? input : null;
   const mode = resolveMode(inputRecord?.mode);
@@ -152,6 +167,7 @@ export function verifyRun(input: VerifyRunInput | null | undefined): RunVerifica
     facts.mismatchDiagnostics.push(...facts.run.errors);
     validateRunCompleteness(facts);
     validateOperationSupport(facts);
+    validateRunInternalRefs(facts);
   }
 
   const packLockInspection = inspectOptionalPackLock(inputRecord);
@@ -294,6 +310,26 @@ function validateOperationSupport(facts: VerificationFacts): void {
   addError(facts, "unsupported", "UnsupportedOperation", "verifyRun supports the MVP demo run in PR21.", "operationName");
 }
 
+function validateRunInternalRefs(facts: VerificationFacts): void {
+  const run = facts.run;
+  if (run === null || run.input === null) {
+    return;
+  }
+
+  if (run.input.packLockRef.id !== run.packLockRef.id) {
+    addError(facts, "mismatch", "PackContentIdentityMismatch", "Run input PackLock ref does not match the run envelope PackLock ref.", "run.input.packLockRef");
+  }
+  if (run.input.operationContextRef.id !== run.operationContextRef.id) {
+    addWarning(facts, "mismatch", "OperationVersionMismatch", "Run input OperationContext ref does not match the run envelope OperationContext ref.", "run.input.operationContextRef");
+  }
+  if (!sameSourceRefs(run.inputRefs, run.input.inputRefs)) {
+    addError(facts, "mismatch", "MissingSource", "Run inputRefs do not match RunInput inputRefs.", "run.inputRefs");
+  }
+  if (!sameOutputRefs(run.outputRefs, run.input.requestedOutputRefs)) {
+    addError(facts, "mismatch", "MissingOutputRefs", "Run requested output refs do not match the run envelope output refs.", "run.input.requestedOutputRefs");
+  }
+}
+
 function inspectOptionalPackLock(input: Readonly<Record<string, unknown>>): {
   supplied: boolean;
   packLock: PackLock | null;
@@ -347,6 +383,9 @@ function validatePackLockConsistency(facts: VerificationFacts, supplied: boolean
   if (facts.packLock.ref.id !== run.packLockRef.id) {
     addError(facts, "mismatch", "PackContentIdentityMismatch", "Supplied PackLock ref does not match the recorded run PackLock ref.", "packLockRef");
   }
+  if (!run.packLockRef.id.includes(facts.packLock.contentIdentity)) {
+    addError(facts, "mismatch", "PackContentIdentityMismatch", "Supplied PackLock content identity does not match the recorded run PackLock ref identity.", "packLock.contentIdentity");
+  }
 }
 
 function validateOperationContextConsistency(facts: VerificationFacts, supplied: boolean): void {
@@ -372,6 +411,43 @@ function validateOperationContextConsistency(facts: VerificationFacts, supplied:
   }
   if (context.operationVersion !== run.operationVersion) {
     addWarning(facts, "mismatch", "OperationVersionMismatch", "Supplied OperationContext operation version does not match the recorded run.", "operationVersion");
+  }
+  validateOperationContextPolicyConsistency(facts, context, run);
+}
+
+function validateOperationContextPolicyConsistency(
+  facts: VerificationFacts,
+  context: OperationContext,
+  run: Run,
+): void {
+  if (run.input === null) {
+    return;
+  }
+
+  if (context.geometryModelVersion !== "geometry-v1") {
+    addWarning(facts, "mismatch", "GeometryModelVersionMismatch", "Supplied OperationContext geometry model version is outside the recorded MVP run boundary.", "geometryModelVersion");
+  }
+  compareRuntimePolicy(facts, context.coordinatePolicy, run.input.explicitPolicies.coordinatePolicy, "CoordinatePolicyMismatch", "coordinatePolicy");
+  compareRuntimePolicy(facts, context.metricPolicy, run.input.explicitPolicies.metricPolicy, "MetricPolicyMismatch", "metricPolicy");
+  compareRuntimePolicy(facts, context.tolerancePolicy, run.input.explicitPolicies.tolerancePolicy, "TolerancePolicyMismatch", "tolerancePolicy");
+  compareRuntimePolicy(facts, context.roundingPolicy, run.input.explicitPolicies.roundingPolicy, "OperationVersionMismatch", "roundingPolicy");
+  compareRuntimePolicy(facts, context.numericPolicy, run.input.explicitPolicies.numericPolicy, "OperationVersionMismatch", "numericPolicy");
+  compareRuntimePolicy(facts, context.orderingPolicy, run.input.explicitPolicies.orderingPolicy, "OperationVersionMismatch", "orderingPolicy");
+
+  if (!sameCanonicalValue(context.featureFlags, run.input.featureFlags)) {
+    addWarning(facts, "mismatch", "FeatureFlagsMismatch", "Supplied OperationContext feature flags do not match recorded run input feature flags.", "featureFlags");
+  }
+}
+
+function compareRuntimePolicy(
+  facts: VerificationFacts,
+  contextPolicy: unknown,
+  runPolicy: unknown,
+  code: DiagnosticCode,
+  targetRef: string,
+): void {
+  if (!sameCanonicalValue(runtimePolicyValue(contextPolicy), runtimePolicyValue(runPolicy))) {
+    addWarning(facts, "mismatch", code, `Supplied OperationContext ${targetRef} does not match recorded run input ${targetRef}.`, targetRef);
   }
 }
 
@@ -465,7 +541,6 @@ function validateArtifactFreshness(facts: VerificationFacts, input: Readonly<Rec
 
   for (const freshness of freshnessResults) {
     facts.warnings.push(...freshness.warnings);
-    facts.errors.push(...freshness.errors);
 
     if (freshness.status === "invalid") {
       for (const error of freshness.errors) {
@@ -495,7 +570,9 @@ function validateArtifactFreshness(facts: VerificationFacts, input: Readonly<Rec
     }
 
     if (freshness.status === "lossy" || freshness.status === "stale" || freshness.status === "non_replayable") {
-      if (freshness.warnings.length === 0 && freshness.errors.length === 0) {
+      if (freshness.status === "non_replayable") {
+        addWarning(facts, "warning", "ArtifactNonReplayable", "Artifact freshness is non-replayable but not required for this verification.", freshness.artifactRef?.ref ?? "artifact");
+      } else if (freshness.warnings.length === 0 && freshness.errors.length === 0) {
         addWarning(facts, "warning", "ArtifactStale", "Artifact freshness is not current.", freshness.artifactRef?.ref ?? "artifact");
       }
     }
@@ -751,17 +828,50 @@ function sameOutputRefs(first: readonly SourceReference[] | OutputRefs, second: 
     === serializeCanonicalJson(canonicalizeOutputRefs(second), DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
 }
 
+function sameSourceRefs(first: readonly SourceReference[], second: readonly SourceReference[]): boolean {
+  return serializeCanonicalJson(canonicalizeRefs(first), DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY)
+    === serializeCanonicalJson(canonicalizeRefs(second), DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
+}
+
+function sameCanonicalValue(first: unknown, second: unknown): boolean {
+  return serializeCanonicalJson(first, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY)
+    === serializeCanonicalJson(second, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
+}
+
 function refsForSourceObject(value: unknown): readonly SourceReference[] {
   if (!isRecord(value)) {
     return [];
   }
 
   if (isSourceReference(value.sourceRef)) {
-    return [value.sourceRef];
+    const sourceRef = value.sourceRef;
+    const payload = sourceObjectPayload(value);
+    return refsForStructuredSourceObject(payload).some((candidateRef) => refKey(candidateRef) === refKey(sourceRef))
+      ? [sourceRef]
+      : [];
   }
-  if (isSourceReference(value.ref)) {
-    return [value.ref];
+
+  return refsForStructuredSourceObject(value);
+}
+
+function sourceObjectPayload(value: Readonly<Record<string, unknown>>): unknown {
+  if ("sourceObject" in value) {
+    return value.sourceObject;
   }
+  if ("result" in value) {
+    return value.result;
+  }
+  if ("value" in value) {
+    return value.value;
+  }
+  return null;
+}
+
+function refsForStructuredSourceObject(value: unknown): readonly SourceReference[] {
+  if (!isRecord(value)) {
+    return [];
+  }
+
   if (isCoreResultObject(value)) {
     return value.outputRefs;
   }
@@ -771,11 +881,28 @@ function refsForSourceObject(value: unknown): readonly SourceReference[] {
   if (value.kind === "operation-context" && nonEmptyString(value.id)) {
     return [{ kind: "operation-context", ref: value.id }];
   }
-  if (nonEmptyString(value.kind) && nonEmptyString(value.id)) {
+  if (value.kind === "mvp-demo-input" && nonEmptyString(value.id)) {
+    return [{ kind: "mvp-demo-input", ref: value.id }];
+  }
+  if (value.kind === "surface-space" && nonEmptyString(value.id)) {
+    return [{ kind: "surface", ref: value.id }];
+  }
+  if (value.kind === "ratio-pack" && nonEmptyString(value.id) && nonEmptyString(value.version)) {
+    return [{ kind: "ratio-pack", ref: `${value.id}@${value.version}` }];
+  }
+  if (isKnownSourceObjectKind(value.kind) && nonEmptyString(value.id)) {
     return [{ kind: value.kind, ref: value.id }];
   }
 
   return [];
+}
+
+function runtimePolicyValue(value: unknown): unknown {
+  return isRecord(value) && "value" in value ? value.value : null;
+}
+
+function isKnownSourceObjectKind(value: unknown): value is string {
+  return typeof value === "string" && KNOWN_SOURCE_OBJECT_KINDS.has(value);
 }
 
 function isCoreResultObject(value: Readonly<Record<string, unknown>>): value is Readonly<Record<string, unknown>> & {
