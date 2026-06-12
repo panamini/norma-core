@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, and PR8.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, PR5, PR6, PR7, PR8, and PR9.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -82,11 +82,21 @@ The PR8 score is only a minimal summary derived from sourced component scores in
 
 PR8 rejects missing evaluation inputs, beauty score requests, and intention inference requests with structured diagnostics.
 
+## PR9 Comparison And Decision
+
+PR9 adds `compareCompositionsBasic`, `Comparison`, `Decision`, and a structured minimal `Explanation`. It compares two already-produced PR8 evaluations in a shared context and reports only which evaluation is closer to the declared system.
+
+The comparison validates the explicit context it can prove from PR8 evaluation fields and provenance: pack, effective PackLock or PR4 pre-lock, profile, evaluation tolerances, tolerance policy, surface, coordinate system, metric policy, and operation context. A mismatch produces `non_comparable`; missing required proof produces `ambiguous`.
+
+PR9 uses the existing minimal scores, component scores, measurement refs, and evaluation provenance. It does not recalculate PR7 measurements or PR8 evaluations. Tie handling is explicit through a tie policy or tie tolerance, and `tie`, `ambiguous`, and `non_comparable` are valid comparison statuses.
+
+The decision language is controlled: it may say `A is closer to the declared system`, `B is closer to the declared system`, `tie`, `ambiguous`, or `non comparable`. It does not produce recommendation, optimization, beauty, preference, intent inference, artifacts, reports, SVG, UI, or PR10 outputs.
+
 ## Does Not Contain
 
 - Geometry calculations outside PR6 construction generation and PR7 measurement facts.
 - Implicit ratios or client-defined ratios outside validated packs.
-- Comparison, decisions, recommendations, artifacts, or standalone scores.
+- Recommendations, artifacts, standalone scores, optimization, or aesthetic decisions.
 - Generic rule execution outside the supported PR6 construction rule types.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
