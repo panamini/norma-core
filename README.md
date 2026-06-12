@@ -1,34 +1,21 @@
 # Norma Core
 
-Norma Core is a deterministic proportional geometry engine.
+Norma Core is a deterministic proportional geometry engine. It applies explicit, versioned proportional systems to structured geometric inputs and returns traceable structured outputs.
 
-It applies explicit, versioned proportional systems to structured geometry inputs and produces traceable constructions, measurements, evaluations, comparisons, explanations, artifacts, and replay-ready run envelopes.
+The current MVP proves the core engine, not the product ecosystem around it.
 
 ## MVP status
 
-The current MVP checkpoint covers PR0–PR12 and is considered:
+Current audited engine checkpoint:
 
-```txt
-MVP_READY_WITH_MINOR_DOC_FOLLOW_UP
-```
+- MVP verdict: `MVP_READY_WITH_MINOR_DOC_FOLLOW_UP`
+- Audited merge SHA: `1de2ba5fd8df27fb36f6238c893bf69094277b2e`
+- Core version: `0.1.0-pr12`
+- Target release tag after this docs checkpoint: `v0.1.0`
 
-The audited core version is:
-
-```txt
-CORE_VERSION = 0.1.0-pr12
-```
-
-The next release tag to prepare is:
-
-```txt
-v0.1.0
-```
-
-Do not create the tag until the checkpoint PR is merged and verification commands have passed.
+PR0–PR12 implement the Norma Core MVP chain from structured input to replay-readiness. This documentation checkpoint prepares the repository for the `v0.1.0` tag. It does not start V1.5.
 
 ## MVP chain
-
-The MVP proves this core chain:
 
 ```txt
 structured input
@@ -43,26 +30,17 @@ structured input
 → run / replay-readiness
 ```
 
-The PR12 demo truth is:
+The MVP truth demo is:
 
 ```txt
 Surface proportionnelle évaluée
 ```
 
-It starts from explicit structured geometry and uses:
-
-- a `1200 x 800` rectangular surface;
-- the minimal pack `norma.basic-proportions@0.1.0`;
-- the rule set `surface-basic-third-grid`;
-- two simple 2D compositions A/B;
-- the profile `basic-grid-alignment`;
-- explicit tolerances and operation context;
-- structured artifacts and a derived simple visual artifact;
-- a visible `Run`, `PackLock`, and `OperationContext`.
+The demo starts from explicit structured data, uses `norma.basic-proportions@0.1.0`, resolves `surface-basic-third-grid`, evaluates two simple 2D rectangular compositions with `basic-grid-alignment`, compares them in the same context, explains the result, emits derived artifacts, and wraps the result in a replay-readiness envelope.
 
 ## Verification commands
 
-Run these before tagging `v0.1.0`:
+Run these commands before tagging `v0.1.0`:
 
 ```bash
 npm run build
@@ -70,50 +48,58 @@ npm test
 npm run check
 ```
 
-Available npm scripts are defined in `package.json`.
+Available scripts are defined in `package.json`.
 
 ## Source of truth
 
-Structured Norma source objects are the source of truth:
+Norma source truth is held by structured core objects:
 
 - structured input;
-- ratio pack and pack lock;
+- `RatioPack` and `PackLock`;
 - resolved rules;
 - construction;
 - measurements;
 - evaluation;
 - comparison and decision;
 - explanation;
-- run and operation context.
+- `Run` and `OperationContext`.
 
-Artifacts are derived projections. They must keep source refs, warnings, errors, provenance, and replay status visible. A visual artifact, SVG, export, or rendering never becomes the model.
+Artifacts are derived projections. They preserve source refs, warnings, errors and provenance, but they never become the core model.
 
-## What Norma Core is not
+## What Norma Core does not do in the MVP
 
-The MVP is not:
+The MVP does not include:
 
-- a UI;
-- a camera or image pipeline;
-- a plugin;
-- a CAD engine;
-- a cloud API;
-- a CLI, SDK, API, or MCP surface;
-- an agent system;
-- a marketplace;
-- a beauty scorer;
-- an intent inference system;
-- an automatic creative recommendation engine.
+- full UI;
+- interactive canvas;
+- drag-and-drop;
+- camera;
+- image or vision pipeline;
+- OpenCV;
+- tracking;
+- plugin;
+- native CAD;
+- cloud API;
+- marketplace;
+- CLI, SDK, API or MCP surface;
+- native file import/export;
+- full `replayRun`;
+- `verifyRun`;
+- `verifyArtifactFreshness`;
+- 3D;
+- complex polygons;
+- creative optimization;
+- intent inference;
+- beauty score.
 
-Norma Core evaluates closeness to a declared proportional system. It does not judge aesthetics or infer author intent.
+Norma Core evaluates closeness to a declared proportional system. It does not judge beauty and does not infer author intent.
 
-## Version notes
+## Package version and core version
 
-`CORE_VERSION` remains `0.1.0-pr12` in source because it records the final MVP implementation checkpoint after PR12. The release tag prepared by this documentation checkpoint is `v0.1.0`.
+`package.json` is aligned to `0.1.0` for the release checkpoint. The exported `CORE_VERSION` remains `0.1.0-pr12` because it identifies the implemented PR12 engine checkpoint used to prepare `v0.1.0`.
 
-`package.json` is currently private package metadata and is documented in `docs/V0_1_CHECKPOINT.md`. Aligning package metadata can be handled by the release maintainer before or during the tag process if desired.
+## Next phase
 
-## After v0.1.0
+After the docs checkpoint is merged and the verification commands pass, the next release step is to create the `v0.1.0` tag.
 
-V1.5 planning starts only after the MVP checkpoint is merged and `v0.1.0` is ready or tagged.
-
-V1.5 candidates may include minimal CLI, SDK, local API/process boundary, MCP minimal surface, replay commands, adapter prototypes, or stricter schemas. They are intentionally out of this MVP checkpoint PR.
+V1.5 planning can start only after the MVP is tagged. V1.5 may consider CLI, SDK, API, MCP, adapters or full replay work, but none of those are part of this MVP checkpoint.

@@ -1,7 +1,7 @@
 {
   "name": "@norma/core",
-  "version": "0.1.0-pr1.0",
-  "description": "Minimal TypeScript skeleton for the Norma Core engine boundary.",
+  "version": "0.1.0",
+  "description": "Deterministic proportional geometry core for the Norma MVP.",
   "type": "module",
   "private": true,
   "sideEffects": false,

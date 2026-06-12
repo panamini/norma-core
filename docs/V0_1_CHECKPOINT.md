@@ -1,6 +1,6 @@
 # Norma Core v0.1.0 MVP checkpoint
 
-Documentation-only checkpoint. No engine behavior is changed by this document.
+Documentation-only checkpoint for the Norma Core MVP before tagging `v0.1.0`.
 
 ## Verdict
 
@@ -8,33 +8,24 @@ Documentation-only checkpoint. No engine behavior is changed by this document.
 MVP_READY_WITH_MINOR_DOC_FOLLOW_UP
 ```
 
-Norma Core PR0–PR12 form a coherent MVP engine by inspection. The remaining work before the `v0.1.0` tag is documentation, release checkpointing, and successful verification commands on the checkpoint branch.
+The engine implementation inspected after PR12 is coherent for the MVP. This checkpoint documents the release boundary and restores the normative PR0 docs expected by reviewers before the `v0.1.0` tag.
 
 ## Audited state
 
 | Field | Value |
-| --- | --- |
+|---|---|
 | Repository | `panamini/norma-core` |
-| Branch audited | `main` |
-| PR12 merge SHA audited | `1de2ba5fd8df27fb36f6238c893bf69094277b2e` |
-| Expected core version | `0.1.0-pr12` |
-| Release tag being prepared | `v0.1.0` |
-| Checkpoint PR scope | documentation/checkpoint only |
+| Base | `main` |
+| Audited merge SHA | `1de2ba5fd8df27fb36f6238c893bf69094277b2e` |
+| Last known merged PR | PR #13 / roadmap PR12: MVP demo harness |
+| Expected `CORE_VERSION` | `0.1.0-pr12` |
+| Release tag prepared by this checkpoint | `v0.1.0` |
 
-`CORE_VERSION` remains `0.1.0-pr12` because it records the final MVP implementation checkpoint after PR12. The release tag prepared by this documentation checkpoint is `v0.1.0`.
+`CORE_VERSION` remains `0.1.0-pr12` to identify the completed PR12 engine checkpoint. `package.json` is aligned to `0.1.0` for the package/release checkpoint metadata.
 
-## package.json version clarification
+## MVP definition
 
-`package.json` is private package metadata in this repository. It currently does not define the Norma Core runtime contract; `CORE_VERSION` does.
-
-For the `v0.1.0` tag, reviewers have two acceptable choices:
-
-1. leave `package.json` unchanged and treat `CORE_VERSION = 0.1.0-pr12` plus the Git tag `v0.1.0` as the runtime/release identity; or
-2. align `package.json` to `0.1.0` before the tag if the maintainer wants package metadata to match the release tag.
-
-This checkpoint does not require a source-code change under `src/`.
-
-## MVP chain proven
+Norma Core v0.1.0 proves this deterministic chain:
 
 ```txt
 structured input
@@ -49,82 +40,113 @@ structured input
 → run / replay-readiness
 ```
 
-The PR12 demo truth is:
+The MVP truth demo is:
 
 ```txt
 Surface proportionnelle évaluée
 ```
 
-The MVP remains a deterministic proportional geometry engine, not an interface, not an adapter, and not an ecosystem layer.
+The MVP remains a deterministic proportional geometry core. It is not a UI, camera app, plugin, CAD engine, cloud API, SDK, MCP server, autonomous agent, image pipeline or beauty scorer.
 
 ## PR0–PR12 summary
 
-| PR roadmap | Result | Summary |
-| ---: | --- | --- |
-| PR0 | Complete | MVP guardrails, blocked capabilities, glossary, review checklist. |
-| PR1 | Complete | Core skeleton, structured result envelope, diagnostics, provenance, runtime placeholders. |
-| PR2 | Complete | Operation call/result contracts, canonical variables, hidden-default rejection. |
-| PR3 | Complete | Geometry V1: 1D segments, rectangular 2D surfaces, simple 2D compositions. |
-| PR4 | Complete | Minimal ratio pack model and `norma.basic-proportions@0.1.0`. |
-| PR5 | Complete | Rule declarations, core rule types, rule set resolution trace. |
-| PR6 | Complete | Construction generation: guides, zones, grid, diagonals, intersections, trace. |
-| PR7 | Complete | Measurements as calculated facts: distances, alignments, areas, containment, overlap, coverage. |
-| PR8 | Complete | Evaluation profile, component scores, minimal score, confidence separated from score. |
-| PR9 | Complete | A/B comparison, decision, explanation, `tie`, `ambiguous`, `non_comparable`. |
-| PR10 | Complete | Structured artifacts, summary/report/explanation artifacts, simple visual artifact as derived projection. |
-| PR11 | Complete | `Run`, `PackLock`, `OperationContext`, output refs, deterministic ordering, mismatch policy. |
-| PR12 | Complete | Deterministic MVP demo harness with happy path and controlled negative cases. |
+| Roadmap PR | Purpose | Checkpoint status |
+|---:|---|---|
+| PR0 | Spec freeze and MVP guardrails | Normative docs restored in this checkpoint. |
+| PR1 | Core skeleton | Result envelope, diagnostics, provenance and runtime placeholders. |
+| PR2 | Operation contracts | Structured call/result vocabulary and guardrails against implicit pack, hidden tolerance and prompt input. |
+| PR3 | Geometry model V1 | Segments, rectangular surfaces, simple 2D compositions and explicit coordinate/metric/tolerance policies. |
+| PR4 | Minimal ratio pack | `norma.basic-proportions@0.1.0`, `1/2`, `1/3`, `2/3`, `1:1:1`, pack identity and pre-lock. |
+| PR5 | Rule declarations and rule resolution | Pack-owned declarations, core-owned supported rule types and `resolvedRuleSet` trace. |
+| PR6 | Construction generation | Guides, zones, 3×3 grid, diagonals, intersections and construction trace. |
+| PR7 | Measurements | Distances, alignments, areas, containment, overlap, coverage and measurement provenance. |
+| PR8 | Evaluation | `basic-grid-alignment`, component scores, score summary and confidence separated. |
+| PR9 | Comparison and decision | A/B comparison in same context with `a_closer`, `b_closer`, `tie`, `ambiguous`, `non_comparable`. |
+| PR10 | Artifacts | Structured result, construction summary, evaluation report, explanation and simple visual artifacts. |
+| PR11 | Run / PackLock / OperationContext | Replay-readiness envelope, deterministic output refs and mismatch policy. |
+| PR12 | MVP demo harness | End-to-end deterministic truth demo with negative cases. |
 
 ## MVP gates validated by inspection
 
-| Gate | Status | Notes |
-| --- | --- | --- |
-| Core / inputs | Validated | Structured surface and composition inputs; V1 rejects image, CAD-native, plugin, 3D, polygons, UI state. |
-| Pack | Validated | Minimal pack, ratios `1/2`, `1/3`, `2/3`, sequence `1:1:1`, content identity, pack lock visibility. |
-| Rules / construction | Validated | Rule declarations live in pack; rule types/algorithms live in core; construction trace visible. |
-| Measurements | Validated | Measurements are facts, not judgments; provenance, metric policy and tolerance policy are visible. |
-| Evaluation / comparison | Validated | Evaluation requires measurements/profile/pack/tolerances; comparison requires same context. |
-| Explanation | Validated | Explanation is derived from measurements/evaluations/decision; no aesthetic or intent claim. |
-| Artifacts | Validated | Artifacts are derived only; source refs, warnings, errors, status and provenance remain visible. |
-| Run / replay-readiness | Validated | `Run`, `PackLock`, `OperationContext`, deterministic refs and mismatch diagnostics are visible. |
-| Demo truth | Validated | PR12 harness starts from structured inputs and covers the complete MVP chain. |
-| Anti-drift | Validated | No UI, image, camera, CAD-native, plugin, cloud, SDK/API/CLI/MCP, beauty scoring, implicit pack or hidden tolerance is added. |
+### Gate 1 — Core / inputs
 
-## Controlled cases covered by MVP tests/code
+- Structured surface input is supported.
+- Simple 2D rectangular compositions are supported.
+- V1 rejects image, CAD object, plugin object, native layer, polygon, rotation and presentation fields.
+- Coordinate system, metric policy and tolerance policy are visible.
 
-- missing pack lock;
-- missing evaluation profile;
-- different tolerances for comparison → `non_comparable`;
-- blocked aesthetic score request;
-- ratio absent from pack;
-- rule absent from pack;
-- implicit pack rejection;
-- operation context mismatch;
-- artifact-as-source rejection;
-- deterministic output refs and report;
-- full `replayRun`, `verifyRun`, and `verifyArtifactFreshness` intentionally not exposed in MVP.
+### Gate 2 — Pack
 
-## Known limits retained intentionally
+- Minimal pack: `norma.basic-proportions@0.1.0`.
+- Ratios: `1/2`, `1/3`, `2/3`.
+- Ratio sequence: `1:1:1`.
+- Pack identity, schema version and content identity are visible.
+- Missing ratio and implicit pack cases are rejected.
 
-These are not blockers for `v0.1.0`:
+### Gate 3 — Rules / construction
 
-- no CLI;
-- no SDK;
-- no API;
-- no MCP server;
-- no adapter;
-- no plugin;
-- no camera/image/vision pipeline;
-- no CAD-native integration;
-- no cloud or marketplace;
-- no rich replay engine;
-- no rich pack registry or signatures;
-- no 3D, complex polygons, native formats, or image imports;
-- no creative recommendation, optimization, aesthetic score, or intent inference.
+- Rule declarations live in the pack.
+- Supported rule types live in the core.
+- `surface-basic-third-grid` resolves before construction.
+- Construction produces guides, zones, grid cells, diagonals and intersections.
+- Derived construction objects carry provenance and are traceable through `constructionTrace`.
 
-## Verification required before tag
+### Gate 4 — Measurements
 
-Before creating `v0.1.0`, run these commands on the checkpoint branch:
+- Measurements remain calculated facts.
+- Distances, positions, alignments, areas, containment, overlap and coverage are represented.
+- Metric/tolerance policy and measurement provenance remain visible.
+- Evaluation outputs are rejected from the measurement phase.
+
+### Gate 5 — Evaluation / comparison
+
+- `basic-grid-alignment` evaluates measurements from an explicit pack/profile/tolerance context.
+- Component scores are visible.
+- Confidence is separate from score.
+- Comparisons require the same pack/profile/tolerances/surface/coordinate/metric/context.
+- Different tolerances produce `non_comparable`.
+- Beauty score and intent inference are rejected.
+
+### Gate 6 — Explanation
+
+- Explanation is derived from measurements, evaluations, component deltas, warnings and decision status.
+- It does not claim beauty, preference or author intent.
+
+### Gate 7 — Artifacts
+
+- `StructuredResultArtifact`, `ConstructionSummaryArtifact`, `EvaluationReportArtifact`, `ExplanationArtifact` and `SimpleVisualArtifact` exist as derived projections.
+- Artifact status includes `current`, `lossy`, `stale`, `non_replayable`.
+- Artifact-as-source is rejected with `ArtifactWouldBecomeSourceOfTruth`.
+
+### Gate 8 — Run / replay-readiness
+
+- `Run`, `RunInput`, `RunOutput`, `PackLock`, `OperationContext` and `OutputRefs` are visible.
+- Output refs are deterministic.
+- Mismatch policy covers pack version/content, operation version, geometry model, tolerance, coordinate, metric policy, feature flags, artifact stale and missing source.
+- Full `replayRun`, `verifyRun` and `verifyArtifactFreshness` are not exposed in the MVP.
+
+### Gate 9 — Demo truth
+
+- `src/mvp-demo.ts` implements the end-to-end truth path.
+- The demo uses surface `1200 × 800`, the minimal pack, `surface-basic-third-grid`, `basic-grid-alignment`, composition A closer and composition B less close.
+- The demo produces construction, measurements A/B, evaluations A/B, comparison, explanation, structured artifacts, simple visual artifact, run envelope and negative cases.
+
+### Gate 10 — Anti-drift
+
+- No UI, image, camera, CAD, plugin, cloud, marketplace, CLI, SDK, API, MCP, 3D, complex polygons, beauty score, intent inference, creative optimization, native formats or rich replay are introduced by this checkpoint.
+
+## Known limits before tag
+
+- This checkpoint does not add new engine behavior.
+- This checkpoint does not re-run the previous audit; it records its outcome.
+- `CORE_VERSION` remains `0.1.0-pr12`; the package metadata is `0.1.0` for release alignment.
+- Full replay execution remains out of MVP.
+- CLI, SDK, API, MCP, adapters, plugins, camera, CAD and cloud remain out of MVP.
+- Future public schemas and V1.5 interface contracts remain undecided.
+
+## Verification required before tagging
+
+Before creating tag `v0.1.0`, run:
 
 ```bash
 npm run build
@@ -132,27 +154,45 @@ npm test
 npm run check
 ```
 
-A tag should not be created if any of these commands fail.
+Expected result:
 
-Optional release hygiene before tag:
+- build passes;
+- test suite passes;
+- check passes;
+- no engine source files changed by this checkpoint.
 
-- decide whether to align `package.json` version to `0.1.0`;
-- confirm no `src/` file was modified by this checkpoint PR;
-- confirm no V1.5 capability was introduced;
-- confirm the PR contains documentation/checkpoint changes only.
+## Files intentionally changed in this checkpoint
 
-## Tag condition
+- `docs/SPEC_FREEZE.md`
+- `docs/MVP_GUARDRAILS.md`
+- `docs/PR_REVIEW_CHECKLIST.md`
+- `docs/GLOSSARY_CORE.md`
+- `docs/V0_1_CHECKPOINT.md`
+- `README.md`
+- `package.json`
 
-The repository is ready for `v0.1.0` after:
+No `src/` files are changed.
 
-1. this documentation/checkpoint PR is reviewed and merged;
+## Out of scope for this checkpoint
+
+- Tag creation.
+- GitHub release creation.
+- V1.5 planning implementation.
+- Engine refactor.
+- Any runtime behavior change.
+- CLI, SDK, API, MCP, adapter or plugin work.
+- Camera, image, vision, CAD, cloud, marketplace, native format or 3D work.
+
+## Condition before tag `v0.1.0`
+
+Tag `v0.1.0` only after:
+
+1. this documentation checkpoint PR is merged;
 2. `npm run build` passes;
 3. `npm test` passes;
 4. `npm run check` passes;
-5. the maintainer confirms whether `package.json` remains private metadata or is aligned to `0.1.0`.
+5. no engine code changes are included in the checkpoint PR.
 
 ## Recommended next step after tag
 
-After `v0.1.0` is tagged, start V1.5 planning only as a separate roadmap/design step.
-
-V1.5 candidates may include minimal CLI, SDK, local API/process boundary, MCP minimal surface, replay commands, stricter schemas, adapter prototypes, or additional release packaging. None of those capabilities belong in this checkpoint PR.
+After `v0.1.0` is tagged, begin V1.5 planning separately. V1.5 planning may discuss CLI, SDK, API, MCP, adapters, full replay verification or richer exports, but those topics must remain outside the v0.1.0 MVP tag.
