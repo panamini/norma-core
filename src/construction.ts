@@ -434,15 +434,16 @@ export function generateGuides(input: GenerateConstructionInput | ConstructionGe
     }
   }
 
+  const sortedGuides = sortGuides(guides);
   return createConstructionResult({
     status: "ok",
     provenance: createCoreProvenance(GENERATE_GUIDES_OPERATION, [
       sourceSurfaceRef(context.surface),
       { kind: "resolved-rule-set", ref: context.resolvedRuleSet.ruleSetRef },
     ]),
-    outputRefs: sortGuides(guides).map(objectRef),
+    outputRefs: sortedGuides.map(objectRef),
     packLockRef: { id: context.pack.preLock.ref },
-    output: sortGuides(guides),
+    output: sortedGuides,
   });
 }
 
@@ -485,7 +486,7 @@ export function generateSimpleGrid(input: GenerateConstructionInput | Constructi
   const boundaries = normalizedBoundaries(sequenceStep.value.sequence);
   const rows = sequenceStep.value.sequence.normalizedParts.length;
   const columns = sequenceStep.value.sequence.normalizedParts.length;
-  const gridId = "grid:thirdGrid";
+  const gridId = `grid:${surfaceIdSegment(context.surface)}:${rule.ref}:${sequenceStep.value.sequenceRef}`;
   const operationRefValue = operationRef(GENERATE_GRID_OPERATION);
   const gridProvenance = createObjectProvenance(context, rule.ref, GENERATE_GRID_OPERATION, [
     sourceSurfaceRef(context.surface),
@@ -655,8 +656,8 @@ function generateZonesFromGuides(
   }
 
   const zones = [
-    ...zonesForAxis(context, verticalRule, verticalSequenceStep.value.sequence, guides, "vertical"),
-    ...zonesForAxis(context, horizontalRule, horizontalSequenceStep.value.sequence, guides, "horizontal"),
+    ...zonesForAxis(context, verticalRule, verticalSequenceStep.value.sequenceRef, verticalSequenceStep.value.sequence, guides, "vertical"),
+    ...zonesForAxis(context, horizontalRule, horizontalSequenceStep.value.sequenceRef, horizontalSequenceStep.value.sequence, guides, "horizontal"),
   ];
 
   return createConstructionResult({
@@ -937,6 +938,7 @@ function createGuide(
 function zonesForAxis(
   context: ConstructionGenerationContext,
   rule: Rule,
+  sequenceRef: string,
   sequence: RatioSequence,
   guides: readonly Guide[],
   axis: ZoneAxis,
@@ -952,7 +954,7 @@ function zonesForAxis(
     }
 
     const sourceGuideRefs = guideRefsForZone(guides, axis, start, end);
-    const id = `zone:${axis}-third:${index}`;
+    const id = `zone:${surfaceIdSegment(context.surface)}:${axis}:${rule.ref}:${sequenceRef}:${index}`;
     const normalizedBounds = axis === "vertical"
       ? rectFromNormalizedValues(start, 0, end, 1)
       : rectFromNormalizedValues(0, start, 1, end);
@@ -972,6 +974,7 @@ function zonesForAxis(
       provenance: createObjectProvenance(context, rule.ref, GENERATE_ZONES_OPERATION, [
         sourceSurfaceRef(context.surface),
         { kind: "rule", ref: rule.ref },
+        { kind: "ratio-sequence", ref: sequenceRef },
         ...sourceGuideRefs.map((ref) => ({ kind: "guide", ref })),
       ]),
     });
@@ -1217,6 +1220,12 @@ function sequenceForRule(
   pack: RatioPack,
   rule: Rule,
 ): ConstructionStep<{ sequenceRef: string; sequence: RatioSequence }> {
+  if (rule.ratioSequenceRefs.length !== 1) {
+    return failedConstructionStep(
+      unsupportedConstructionRule(rule.ref, `Construction rule requires exactly one ratio sequence in PR6: ${rule.ref}.`),
+    );
+  }
+
   const sequenceRef = rule.ratioSequenceRefs[0];
   if (sequenceRef === undefined) {
     return failedConstructionStep(
