@@ -2214,6 +2214,7 @@ export * from "./comparison.js";
 export * from "./artifacts.js";
 export * from "./artifact-freshness.js";
 export * from "./run-verification.js";
+export * from "./run-replay.js";
 export * from "./runtime.js";
 export * from "./serialization.js";
 export * from "./mvp-demo.js";
