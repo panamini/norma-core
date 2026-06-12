@@ -81,7 +81,18 @@ const NON_REPLAYABLE_VALIDATION_CODES = new Set<DiagnosticCode>([
   "MissingArtifactOptions",
 ]);
 
-export function verifyArtifactFreshness(input: VerifyArtifactFreshnessInput): ArtifactFreshnessVerification {
+export function verifyArtifactFreshness(input: VerifyArtifactFreshnessInput | null | undefined): ArtifactFreshnessVerification {
+  if (!isRecord(input)) {
+    return createArtifactFreshnessVerification({
+      status: "invalid",
+      artifactRef: null,
+      sourceRefs: [],
+      outputRefs: [],
+      errors: [invalidArtifactInput("input", "Artifact freshness verification requires an input object.")],
+      provenance: null,
+    });
+  }
+
   const artifactInput = input.artifact;
   const visibleDiagnostics = visibleArtifactDiagnostics(artifactInput);
   const shapeErrors = artifactShapeErrors(artifactInput);
@@ -109,13 +120,15 @@ export function verifyArtifactFreshness(input: VerifyArtifactFreshnessInput): Ar
   }
 
   const artifact = validation.output;
-  const sourceCoverage = verifySourceCoverage(artifact.sourceRefs, input.sourceObjects ?? []);
+  const sourceObjectInputErrors = sourceObjectsInputErrors(input);
+  const sourceCoverage = verifySourceCoverage(artifact.sourceRefs, sourceObjectsFromInput(input));
   const staleWarnings: CoreWarning[] = [];
   const staleSourceRefs: SourceReference[] = [];
   const comparisonErrors = appendExpectedMismatches(input, artifact, staleWarnings, staleSourceRefs);
   const nonReplayableErrors = nonReplayableErrorsFor(artifact, sourceCoverage.missingSourceRefs);
   const errors = uniqueDiagnostics([
     ...artifact.errors,
+    ...sourceObjectInputErrors,
     ...sourceCoverage.errors,
     ...comparisonErrors,
     ...nonReplayableErrors,
@@ -129,6 +142,7 @@ export function verifyArtifactFreshness(input: VerifyArtifactFreshnessInput): Ar
   return createArtifactFreshnessVerification({
     status: statusForVerification(artifact, {
       hasInvalidDiagnostics: comparisonErrors.length > 0
+        || sourceObjectInputErrors.length > 0
         || sourceCoverage.errors.some((error) => error.code !== "MissingSource"),
       hasNonReplayableDiagnostics: nonReplayableErrors.length > 0 || sourceCoverage.missingSourceRefs.length > 0,
       hasStaleDiagnostics: staleWarnings.length > 0 || artifact.status === "stale",
@@ -235,6 +249,20 @@ function verifySourceCoverage(
   }
 
   return { missingSourceRefs, errors };
+}
+
+function sourceObjectsInputErrors(input: Readonly<Record<string, unknown>>): readonly CoreError[] {
+  if (!("sourceObjects" in input) || input.sourceObjects === undefined) {
+    return [];
+  }
+
+  return Array.isArray(input.sourceObjects)
+    ? []
+    : [invalidArtifactInput("sourceObjects", "Source objects must be an array of structured source objects.")];
+}
+
+function sourceObjectsFromInput(input: Readonly<Record<string, unknown>>): readonly unknown[] {
+  return Array.isArray(input.sourceObjects) ? input.sourceObjects : [];
 }
 
 function nonReplayableErrorsFor(artifact: Artifact, missingSourceRefs: readonly SourceReference[]): readonly CoreError[] {
@@ -418,24 +446,41 @@ function refsForSourceObject(value: unknown): readonly SourceReference[] {
     return [];
   }
 
-  if (isSourceReference(value.sourceRef)) {
-    return [value.sourceRef];
+  const wrappedSourceRefs = refsForWrappedSourceObject(value);
+  if (wrappedSourceRefs.length > 0) {
+    return wrappedSourceRefs;
   }
 
-  if (typeof value.kind !== "string") {
+  return refsForStructuredSourceObject(value);
+}
+
+function refsForWrappedSourceObject(value: Readonly<Record<string, unknown>>): readonly SourceReference[] {
+  if (!isSourceReference(value.sourceRef)) {
     return [];
   }
 
-  if (typeof value.id === "string") {
-    return [{ kind: value.kind, ref: value.id }];
+  const payload = value.result ?? value.sourceObject ?? value.value;
+  return refsForStructuredSourceObject(payload).length > 0 ? [value.sourceRef] : [];
+}
+
+function refsForStructuredSourceObject(value: unknown): readonly SourceReference[] {
+  if (!isRecord(value)) {
+    return [];
   }
 
-  if (typeof value.ref === "string") {
-    return [{ kind: value.kind, ref: value.ref }];
+  if (isCoreResultObject(value)) {
+    return value.outputRefs;
   }
 
-  if (isRef(value.ref)) {
-    return [{ kind: value.kind, ref: value.ref.id }];
+  if (isConstructionObject(value)) {
+    return canonicalizeRefs([
+      { kind: "construction", ref: value.id },
+      ...value.provenance.sourceRefs,
+    ]);
+  }
+
+  if (isOperationContextObject(value)) {
+    return [{ kind: "operation-context", ref: value.id }];
   }
 
   return [];
@@ -462,14 +507,17 @@ function artifactRefFromUnknown(value: unknown): SourceReference | null {
 }
 
 function operationContextMatches(artifact: Artifact, expectedContextRef: OperationContextRef | null): boolean {
+  const artifactRecord = artifact as unknown as Record<string, unknown>;
   if (expectedContextRef === null) {
-    return !artifact.sourceRefs.some((sourceRef) => sourceRef.kind === "operation-context");
+    return !artifact.sourceRefs.some((sourceRef) => sourceRef.kind === "operation-context")
+      && refIdFromUnknown(artifactRecord.operationContextRef) === null
+      && refIdFromUnknown(artifactRecord.resultOperationContextRef) === null;
   }
 
   const expectedRef = expectedContextRef.id;
   return artifact.sourceRefs.some((sourceRef) => sourceRef.kind === "operation-context" && sourceRef.ref === expectedRef)
-    || refIdFromUnknown((artifact as unknown as Record<string, unknown>).operationContextRef) === expectedRef
-    || refIdFromUnknown((artifact as unknown as Record<string, unknown>).resultOperationContextRef) === expectedRef;
+    || refIdFromUnknown(artifactRecord.operationContextRef) === expectedRef
+    || refIdFromUnknown(artifactRecord.resultOperationContextRef) === expectedRef;
 }
 
 function refIdFromUnknown(value: unknown): string | null {
@@ -605,6 +653,33 @@ function isArtifactOptions(value: unknown): boolean {
     && (value.expectedSourceRefs === undefined || isSourceReferenceArray(value.expectedSourceRefs))
     && (value.lossy === undefined || typeof value.lossy === "boolean")
     && (value.presentationHints === undefined || isRecord(value.presentationHints));
+}
+
+function isCoreResultObject(value: Readonly<Record<string, unknown>>): value is Readonly<Record<string, unknown>> & {
+  outputRefs: readonly SourceReference[];
+} {
+  return typeof value.status === "string"
+    && Array.isArray(value.warnings)
+    && Array.isArray(value.errors)
+    && isSourceReferenceArray(value.outputRefs)
+    && "output" in value
+    && "provenance" in value;
+}
+
+function isConstructionObject(value: Readonly<Record<string, unknown>>): value is Readonly<Record<string, unknown>> & {
+  id: string;
+  provenance: { sourceRefs: readonly SourceReference[] };
+} {
+  return value.kind === "construction"
+    && typeof value.id === "string"
+    && isRecord(value.provenance)
+    && isSourceReferenceArray(value.provenance.sourceRefs);
+}
+
+function isOperationContextObject(value: Readonly<Record<string, unknown>>): value is Readonly<Record<string, unknown>> & {
+  id: string;
+} {
+  return value.kind === "operation-context" && typeof value.id === "string";
 }
 
 function isCoreWarning(value: unknown): value is CoreWarning {
