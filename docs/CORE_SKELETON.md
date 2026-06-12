@@ -1,6 +1,6 @@
 # Norma Core Skeleton
 
-This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, and PR4.
+This document tracks the Norma Core skeleton boundary across PR1, PR2, PR3, PR4, and PR5.
 PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton only: it defines the result envelope, diagnostics, provenance, runtime placeholders, and operation stubs needed by later PRs.
 
 ## Contains
@@ -45,12 +45,21 @@ The ratio pack validator returns structured `CoreResult` failures for missing pa
 
 PR4 also introduces a pre-lock `RatioPackPreLock` shape that exposes pack id, pack version, schema version, and content identity without finalizing PR11 `PackLock` behavior.
 
+## PR5 Rule Declarations And Resolution
+
+PR5 stabilizes the boundary between pack-owned rule declarations and core-owned supported rule types. Packs declare ordered rule refs and required ratio refs; the core exposes the V1 rule type registry and resolves only supported rule types.
+
+The MVP rule set `surface-basic-third-grid` resolves to a `resolvedRuleSet` trace with `ruleSetRef`, `orderedRules`, `resolvedRatioRefs`, `unsupportedRules`, and `warnings`.
+This trace preserves pack/rule provenance for PR6 without producing construction.
+
+PR5 rejects missing rule sets, missing rule declarations, missing rule types, unsupported rule types, invalid rule declarations or rule sets, agent-created rules, and executable rule code in packs with structured diagnostics.
+
 ## Does Not Contain
 
 - Geometry calculations.
 - Implicit ratios or client-defined ratios outside validated packs.
 - Construction, measurements, evaluation, artifacts, or scoring.
-- Rule resolution or rule execution.
+- Rule execution.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

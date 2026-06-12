@@ -8,6 +8,10 @@ import type {
   Provenance,
   SourceReference,
 } from "./index.js";
+import type {
+  RuleDeclaration,
+  RuleSet,
+} from "./rules.js";
 
 export const RATIO_PACK_V1_SCHEMA_VERSION = "ratio-pack-v1" as const;
 export const BASIC_PROPORTIONS_PACK_ID = "norma.basic-proportions" as const;
@@ -55,24 +59,6 @@ export interface PartitionPattern {
   ratioRefs: readonly string[];
   sequenceRef?: string;
   axis: "horizontal" | "vertical" | "both";
-  declarationOnly: true;
-}
-
-export interface RuleDeclaration {
-  kind: "rule-declaration";
-  id: string;
-  type: "surface.partition-line";
-  target: "surface";
-  ratioRefs?: readonly string[];
-  sequenceRefs?: readonly string[];
-  partitionPatternRefs?: readonly string[];
-  declarationOnly: true;
-}
-
-export interface RuleSet {
-  kind: "rule-set";
-  id: string;
-  ruleRefs: readonly string[];
   declarationOnly: true;
 }
 
@@ -159,6 +145,17 @@ type RatioPackValidation<TValue> =
       result: CoreResult;
     };
 
+interface RuleDeclarationRefs {
+  ratioRefs: readonly string[];
+  sequenceRefs: readonly string[];
+  partitionPatternRefs: readonly string[];
+}
+
+type RuleDeclarationGuardrailCheck = (
+  declaration: Record<string, unknown>,
+  declarationId: string,
+) => CoreResult | null;
+
 const RATIO_PACK_MODEL_OPERATION_VERSION = "0.1.0";
 
 const RATIO_PACK_SOURCE_REFERENCE: SourceReference = Object.freeze({
@@ -204,6 +201,33 @@ const UNSUPPORTED_RATIO_PACK_FIELDS = [
   "ui",
 ] as const;
 
+const EXECUTABLE_RULE_DECLARATION_FIELDS = [
+  "algorithm",
+  "clientCode",
+  "code",
+  "execute",
+  "function",
+  "handler",
+  "implementation",
+  "sourceCode",
+] as const;
+
+const AGENT_CREATED_RULE_SOURCES = [
+  "adapter",
+  "agent",
+  "interface",
+  "prompt",
+] as const;
+
+const RULE_DECLARATION_GUARDRAIL_CHECKS = [
+  executableRuleDeclarationFailure,
+  agentCreatedRuleFailure,
+  missingRuleTypeFailure,
+  missingRequiredRatioFailure,
+  missingCoreSupportFailure,
+  invalidRuleRefFieldsFailure,
+] as const satisfies readonly RuleDeclarationGuardrailCheck[];
+
 export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
   kind: "ratio-pack",
   id: BASIC_PROPORTIONS_PACK_ID,
@@ -227,7 +251,7 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
   }),
   compatibility: Object.freeze({
     schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
-    coreVersionRange: "0.1.0-pr4",
+    coreVersionRange: "0.1.0-pr5",
   }),
   limits: Object.freeze({
     noBeautyClaims: true,
@@ -272,22 +296,66 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
   ruleDeclarations: Object.freeze([
     Object.freeze({
       kind: "rule-declaration",
-      id: "surface-thirds-vertical",
-      type: "surface.partition-line",
+      id: "verticalThirds",
+      type: "divideSurfaceVertical",
       target: "surface",
       ratioRefs: Object.freeze(["1/3", "2/3"]),
       sequenceRefs: Object.freeze(["1:1:1"]),
       partitionPatternRefs: Object.freeze(["thirds"]),
+      requiresCoreSupport: true,
       declarationOnly: true,
     }),
     Object.freeze({
       kind: "rule-declaration",
-      id: "surface-thirds-horizontal",
-      type: "surface.partition-line",
+      id: "horizontalThirds",
+      type: "divideSurfaceHorizontal",
       target: "surface",
       ratioRefs: Object.freeze(["1/3", "2/3"]),
       sequenceRefs: Object.freeze(["1:1:1"]),
       partitionPatternRefs: Object.freeze(["thirds"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "centerAxes",
+      type: "createGuidesFromCandidates",
+      target: "surface",
+      ratioRefs: Object.freeze(["1/2"]),
+      partitionPatternRefs: Object.freeze(["halves"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "thirdGrid",
+      type: "createSimpleGrid",
+      target: "surface",
+      ratioRefs: Object.freeze(["1/3", "2/3"]),
+      sequenceRefs: Object.freeze(["1:1:1"]),
+      partitionPatternRefs: Object.freeze(["thirds"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "surfaceDiagonals",
+      type: "createDiagonals",
+      target: "surface",
+      ratioRefs: Object.freeze(["1/2"]),
+      partitionPatternRefs: Object.freeze(["halves"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "deriveIntersections",
+      type: "deriveIntersections",
+      target: "surface",
+      ratioRefs: Object.freeze(["1/2", "1/3", "2/3"]),
+      sequenceRefs: Object.freeze(["1:1:1"]),
+      partitionPatternRefs: Object.freeze(["halves", "thirds"]),
+      requiresCoreSupport: true,
       declarationOnly: true,
     }),
   ]),
@@ -295,7 +363,14 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
     Object.freeze({
       kind: "rule-set",
       id: SURFACE_BASIC_THIRD_GRID_RULE_SET_ID,
-      ruleRefs: Object.freeze(["surface-thirds-vertical", "surface-thirds-horizontal"]),
+      ruleRefs: Object.freeze([
+        "verticalThirds",
+        "horizontalThirds",
+        "centerAxes",
+        "thirdGrid",
+        "surfaceDiagonals",
+        "deriveIntersections",
+      ]),
       declarationOnly: true,
     }),
   ]),
@@ -610,39 +685,189 @@ function validateRuleDeclarations(
 
   const declarations: RuleDeclaration[] = [];
   for (const declaration of value) {
-    if (!isRuleDeclarationRecord(declaration)) {
-      return failedRatioPack(invalidRatioPack("ruleDeclarations", "Rule declarations are invalid."));
+    const declarationValidation = validateRuleDeclaration(
+      declaration,
+      ratioIds,
+      sequenceIds,
+      partitionPatternIds,
+    );
+    if (!declarationValidation.ok) {
+      return declarationValidation;
     }
 
-    const ratioRefs = declaration.ratioRefs ?? [];
-    const missingRatioRef = firstMissingRef(ratioRefs, ratioIds);
-    if (missingRatioRef !== null) {
-      return failedRatioPack(missingRatioReference(`ruleDeclarations.${declaration.id}.ratioRefs`, `Rule declaration references an absent ratio: ${missingRatioRef}.`));
-    }
-
-    const sequenceRefs = declaration.sequenceRefs ?? [];
-    if (firstMissingRef(sequenceRefs, sequenceIds) !== null) {
-      return failedRatioPack(invalidRatioSequence(`ruleDeclarations.${declaration.id}.sequenceRefs`, "Rule declaration references an absent ratio sequence."));
-    }
-
-    const partitionPatternRefs = declaration.partitionPatternRefs ?? [];
-    if (firstMissingRef(partitionPatternRefs, partitionPatternIds) !== null) {
-      return failedRatioPack(invalidRatioPack(`ruleDeclarations.${declaration.id}.partitionPatternRefs`, "Rule declaration references an absent partition pattern."));
-    }
-
-    declarations.push({
-      kind: "rule-declaration",
-      id: declaration.id,
-      type: "surface.partition-line",
-      target: "surface",
-      ...(declaration.ratioRefs !== undefined ? { ratioRefs: declaration.ratioRefs } : {}),
-      ...(declaration.sequenceRefs !== undefined ? { sequenceRefs: declaration.sequenceRefs } : {}),
-      ...(declaration.partitionPatternRefs !== undefined ? { partitionPatternRefs: declaration.partitionPatternRefs } : {}),
-      declarationOnly: true,
-    });
+    declarations.push(declarationValidation.value);
   }
 
   return validRatioPack(declarations);
+}
+
+function validateRuleDeclaration(
+  value: unknown,
+  ratioIds: ReadonlySet<string>,
+  sequenceIds: ReadonlySet<string>,
+  partitionPatternIds: ReadonlySet<string>,
+): RatioPackValidation<RuleDeclaration> {
+  if (!isRuleDeclarationBaseRecord(value)) {
+    return failedRatioPack(invalidRuleDeclaration("ruleDeclarations", "Rule declarations require kind, id, surface target, and declarationOnly true."));
+  }
+
+  const declarationId = value.id as string;
+  const guardrailFailure = firstRuleDeclarationGuardrailFailure(value, declarationId);
+  if (guardrailFailure !== null) {
+    return failedRatioPack(guardrailFailure);
+  }
+
+  const refs = ruleDeclarationRefs(value);
+  const referenceFailure = firstRuleDeclarationReferenceFailure(
+    declarationId,
+    refs,
+    ratioIds,
+    sequenceIds,
+    partitionPatternIds,
+  );
+  if (referenceFailure !== null) {
+    return failedRatioPack(referenceFailure);
+  }
+
+  return validRatioPack(normalizeRuleDeclaration(value, declarationId, refs));
+}
+
+function firstRuleDeclarationGuardrailFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  for (const check of RULE_DECLARATION_GUARDRAIL_CHECKS) {
+    const failure = check(declaration, declarationId);
+    if (failure !== null) {
+      return failure;
+    }
+  }
+
+  return null;
+}
+
+function executableRuleDeclarationFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  const executableField = firstExecutableRuleDeclarationField(declaration);
+  if (executableField !== null) {
+    return executableRuleInPackRejected(declarationId, executableField);
+  }
+
+  return null;
+}
+
+function agentCreatedRuleFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  if (isAgentCreatedRuleDeclaration(declaration)) {
+    return agentCreatedRuleRejected(declarationId);
+  }
+
+  return null;
+}
+
+function missingRuleTypeFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  if (!hasNonEmptyString(declaration, "type")) {
+    return missingRuleType(declarationId);
+  }
+
+  return null;
+}
+
+function missingRequiredRatioFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  if (!isStringArray(declaration.ratioRefs) || declaration.ratioRefs.length === 0) {
+    return invalidRuleDeclaration(`ruleDeclarations.${declarationId}.ratioRefs`, "Rule declarations must declare at least one required ratio reference.");
+  }
+
+  return null;
+}
+
+function missingCoreSupportFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  if (declaration.requiresCoreSupport !== true) {
+    return invalidRuleDeclaration(`ruleDeclarations.${declarationId}.requiresCoreSupport`, "Rule declarations must require explicit core support.");
+  }
+
+  return null;
+}
+
+function invalidRuleRefFieldsFailure(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+): CoreResult | null {
+  if (!hasOptionalStringArray(declaration, "sequenceRefs") || !hasOptionalStringArray(declaration, "partitionPatternRefs")) {
+    return invalidRuleDeclaration(`ruleDeclarations.${declarationId}`, "Rule declaration refs must be string arrays.");
+  }
+
+  return null;
+}
+
+function firstRuleDeclarationReferenceFailure(
+  declarationId: string,
+  refs: RuleDeclarationRefs,
+  ratioIds: ReadonlySet<string>,
+  sequenceIds: ReadonlySet<string>,
+  partitionPatternIds: ReadonlySet<string>,
+): CoreResult | null {
+  const missingRatioRef = firstMissingRef(refs.ratioRefs, ratioIds);
+  if (missingRatioRef !== null) {
+    return missingRatioReference(`ruleDeclarations.${declarationId}.ratioRefs`, `Rule declaration references an absent ratio: ${missingRatioRef}.`);
+  }
+
+  if (firstMissingRef(refs.sequenceRefs, sequenceIds) !== null) {
+    return invalidRatioSequence(`ruleDeclarations.${declarationId}.sequenceRefs`, "Rule declaration references an absent ratio sequence.");
+  }
+
+  if (firstMissingRef(refs.partitionPatternRefs, partitionPatternIds) !== null) {
+    return invalidRuleDeclaration(`ruleDeclarations.${declarationId}.partitionPatternRefs`, "Rule declaration references an absent partition pattern.");
+  }
+
+  return null;
+}
+
+function ruleDeclarationRefs(declaration: Record<string, unknown>): RuleDeclarationRefs {
+  return {
+    ratioRefs: declaration.ratioRefs as readonly string[],
+    sequenceRefs: (declaration.sequenceRefs ?? []) as readonly string[],
+    partitionPatternRefs: (declaration.partitionPatternRefs ?? []) as readonly string[],
+  };
+}
+
+function isRuleDeclarationBaseRecord(value: unknown): value is Record<string, unknown> {
+  return isRecord(value)
+    && value.kind === "rule-declaration"
+    && hasNonEmptyString(value, "id")
+    && value.target === "surface"
+    && value.declarationOnly === true;
+}
+
+function normalizeRuleDeclaration(
+  declaration: Record<string, unknown>,
+  declarationId: string,
+  refs: RuleDeclarationRefs,
+): RuleDeclaration {
+  return {
+    kind: "rule-declaration",
+    id: declarationId,
+    type: declaration.type as string,
+    target: "surface",
+    ratioRefs: refs.ratioRefs,
+    ...(refs.sequenceRefs.length > 0 ? { sequenceRefs: refs.sequenceRefs } : {}),
+    ...(refs.partitionPatternRefs.length > 0 ? { partitionPatternRefs: refs.partitionPatternRefs } : {}),
+    requiresCoreSupport: true,
+    declarationOnly: true,
+  };
 }
 
 function validateRuleSets(value: unknown, ruleDeclarationIds: ReadonlySet<string>): RatioPackValidation<readonly RuleSet[]> {
@@ -652,13 +877,14 @@ function validateRuleSets(value: unknown, ruleDeclarationIds: ReadonlySet<string
 
   const ruleSets: RuleSet[] = [];
   for (const ruleSet of value) {
-    if (!isRecord(ruleSet) || ruleSet.kind !== "rule-set" || !hasNonEmptyString(ruleSet, "id") || !isStringArray(ruleSet.ruleRefs) || ruleSet.declarationOnly !== true) {
-      return failedRatioPack(invalidRatioPack("ruleSets", "Rule sets are invalid."));
+    if (!isRecord(ruleSet) || ruleSet.kind !== "rule-set" || !hasNonEmptyString(ruleSet, "id") || !isStringArray(ruleSet.ruleRefs) || ruleSet.ruleRefs.length === 0 || ruleSet.declarationOnly !== true) {
+      return failedRatioPack(invalidRuleSet("ruleSets", "Rule sets require kind, id, at least one ruleRef, and declarationOnly true."));
     }
 
     const ruleSetId = ruleSet.id as string;
-    if (firstMissingRef(ruleSet.ruleRefs, ruleDeclarationIds) !== null) {
-      return failedRatioPack(invalidRatioPack(`ruleSets.${ruleSetId}.ruleRefs`, "Rule set references an absent rule declaration."));
+    const missingRuleRef = firstMissingRef(ruleSet.ruleRefs, ruleDeclarationIds);
+    if (missingRuleRef !== null) {
+      return failedRatioPack(missingRuleDeclaration(missingRuleRef, ruleSetId));
     }
 
     ruleSets.push({
@@ -817,6 +1043,72 @@ function missingRatioReference(targetRef: string, message: string): CoreResult {
   });
 }
 
+function missingRuleType(ruleRef: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [
+      createRatioPackError({
+        code: "MissingRuleType",
+        message: `Rule declaration is missing an explicit rule type: ${ruleRef}.`,
+        targetRef: `ruleDeclarations.${ruleRef}.type`,
+      }),
+    ],
+  });
+}
+
+function missingRuleDeclaration(ruleRef: string, ruleSetRef: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [
+      createRatioPackError({
+        code: "MissingRuleDeclaration",
+        message: `Rule set references an absent rule declaration: ${ruleRef}.`,
+        targetRef: `ruleSets.${ruleSetRef}.ruleRefs`,
+      }),
+    ],
+  });
+}
+
+function invalidRuleDeclaration(targetRef: string, message: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [createRatioPackError({ code: "InvalidRuleDeclaration", message, targetRef })],
+  });
+}
+
+function invalidRuleSet(targetRef: string, message: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [createRatioPackError({ code: "InvalidRuleSet", message, targetRef })],
+  });
+}
+
+function agentCreatedRuleRejected(ruleRef: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [
+      createRatioPackError({
+        code: "AgentCreatedRuleRejected",
+        message: `Rule declaration cannot be created by an agent, interface, adapter, or prompt: ${ruleRef}.`,
+        targetRef: `ruleDeclarations.${ruleRef}`,
+      }),
+    ],
+  });
+}
+
+function executableRuleInPackRejected(ruleRef: string, field: string): CoreResult {
+  return createRatioPackResult({
+    status: "failed",
+    errors: [
+      createRatioPackError({
+        code: "ExecutableRuleInPackRejected",
+        message: `Rule declaration contains executable client code in pack field: ${field}.`,
+        targetRef: `ruleDeclarations.${ruleRef}.${field}`,
+      }),
+    ],
+  });
+}
+
 function unsupportedRatioPackClaim(claim: string): CoreResult {
   return createRatioPackResult({
     status: "failed",
@@ -942,16 +1234,27 @@ function isRatioPackPreLock(value: unknown, pack: Record<string, unknown>): valu
     && value.final === false;
 }
 
-function isRuleDeclarationRecord(value: unknown): value is RuleDeclaration {
-  return isRecord(value)
-    && value.kind === "rule-declaration"
-    && hasNonEmptyString(value, "id")
-    && value.type === "surface.partition-line"
-    && value.target === "surface"
-    && hasOptionalStringArray(value, "ratioRefs")
-    && hasOptionalStringArray(value, "sequenceRefs")
-    && hasOptionalStringArray(value, "partitionPatternRefs")
-    && value.declarationOnly === true;
+function firstExecutableRuleDeclarationField(value: Record<string, unknown>): string | null {
+  for (const field of EXECUTABLE_RULE_DECLARATION_FIELDS) {
+    if (field in value) {
+      return field;
+    }
+  }
+
+  return null;
+}
+
+function isAgentCreatedRuleDeclaration(value: Record<string, unknown>): boolean {
+  if (isAgentCreatedRuleSource(value.createdBy)) {
+    return true;
+  }
+
+  const source = value.source;
+  return isRecord(source) && isAgentCreatedRuleSource(source.kind);
+}
+
+function isAgentCreatedRuleSource(value: unknown): boolean {
+  return typeof value === "string" && AGENT_CREATED_RULE_SOURCES.includes(value as (typeof AGENT_CREATED_RULE_SOURCES)[number]);
 }
 
 function firstDuplicate(values: readonly unknown[]): string | null {
