@@ -50,7 +50,7 @@ function versionCommand(command, commandArgs) {
 
 function helpCommand(command, commandArgs) {
   const argumentError = noInputArgumentError(command, commandArgs, "Help");
-  return argumentError ?? okResult("help", 0, helpPayload());
+  return argumentError ?? okResult(command, 0, helpPayload());
 }
 
 function mvpDemoCommand(command, commandArgs) {

@@ -185,6 +185,20 @@ test("PR27 CLI verify-artifact-freshness returns structured JSON for invalid min
   });
 });
 
+test("PR27 CLI rejects missing command with JSON error", () => {
+  const result = runCli([]);
+  assert.equal(result.status, 1);
+  const json = parseCliJson(result);
+
+  assert.equal(json.kind, "norma-core-cli-error");
+  assert.equal(json.command, null);
+  assert.equal(json.status, "error");
+  assert.equal(json.coreVersion, core.CORE_VERSION);
+  assert.equal(json.exitCode, 1);
+  assert.equal(json.error.code, "InvalidCliInput");
+  assert.equal(json.error.message, "Command is required.");
+});
+
 test("PR27 CLI rejects unknown commands with JSON error", () => {
   const result = runCli(["unknown-command"]);
   assert.equal(result.status, 1);
