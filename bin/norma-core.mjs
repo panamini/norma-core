@@ -4,12 +4,19 @@ import * as core from "@norma/core";
 
 const RESULT_KIND = "norma-core-cli-result";
 const ERROR_KIND = "norma-core-cli-error";
-const INPUT_COMMANDS = new Set(["verify-run", "verify-artifact-freshness", "replay-run"]);
 const SUCCESS_STATUSES = Object.freeze({
   "mvp-demo": new Set(["ok"]),
   "verify-run": new Set(["verified", "verified_with_warnings"]),
   "verify-artifact-freshness": new Set(["current", "lossy"]),
   "replay-run": new Set(["replayed", "replayed_with_warnings"]),
+});
+const COMMAND_HANDLERS = Object.freeze({
+  version: versionCommand,
+  help: helpCommand,
+  "mvp-demo": mvpDemoCommand,
+  "verify-run": verifyRunCommand,
+  "verify-artifact-freshness": verifyArtifactFreshnessCommand,
+  "replay-run": replayRunCommand,
 });
 
 const args = process.argv.slice(2);
@@ -26,41 +33,58 @@ try {
 
 async function handleCommand(commandArgs) {
   const command = normalizeCommand(commandArgs[0]);
-
-  if (command === "help") {
-    return commandArgs.length === 1
-      ? okResult("help", 0, helpPayload())
-      : cliInputError("help", "Help does not accept input arguments.");
-  }
-
   if (command === null) {
     return cliInputError(null, "Command is required.");
   }
-
-  if (command === "version") {
-    return commandArgs.length === 1
-      ? okResult(command, 0)
-      : cliInputError(command, "Version does not accept input arguments.");
+  const handler = COMMAND_HANDLERS[command];
+  if (handler !== undefined) {
+    return handler(command, commandArgs);
   }
-
-  if (command === "mvp-demo") {
-    if (commandArgs.length !== 1) {
-      return cliInputError(command, "mvp-demo does not accept input arguments.");
-    }
-    const input = core.createMvpDemoInput();
-    const result = core.runMvpDemo(input);
-    return operationResult(command, result);
-  }
-
-  if (INPUT_COMMANDS.has(command)) {
-    const inputResult = await readCommandInput(command, commandArgs);
-    if (!inputResult.ok) {
-      return inputResult.failure;
-    }
-    return operationResult(command, runInputCommand(command, inputResult.input));
-  }
-
   return cliInputError(command, `Unknown command: ${command}.`);
+}
+
+function versionCommand(command, commandArgs) {
+  const argumentError = noInputArgumentError(command, commandArgs, "Version");
+  return argumentError ?? okResult(command, 0);
+}
+
+function helpCommand(command, commandArgs) {
+  const argumentError = noInputArgumentError(command, commandArgs, "Help");
+  return argumentError ?? okResult("help", 0, helpPayload());
+}
+
+function mvpDemoCommand(command, commandArgs) {
+  const argumentError = noInputArgumentError(command, commandArgs, "mvp-demo");
+  if (argumentError !== null) {
+    return argumentError;
+  }
+  const input = core.createMvpDemoInput();
+  return operationResult(command, core.runMvpDemo(input));
+}
+
+async function verifyRunCommand(command, commandArgs) {
+  return inputFileCommand(command, commandArgs, core.verifyRun);
+}
+
+async function verifyArtifactFreshnessCommand(command, commandArgs) {
+  return inputFileCommand(command, commandArgs, core.verifyArtifactFreshness);
+}
+
+async function replayRunCommand(command, commandArgs) {
+  return inputFileCommand(command, commandArgs, core.replayRun);
+}
+
+async function inputFileCommand(command, commandArgs, operation) {
+  const inputResult = await readCommandInput(command, commandArgs);
+  return inputResult.ok
+    ? operationResult(command, operation(inputResult.input))
+    : inputResult.failure;
+}
+
+function noInputArgumentError(command, commandArgs, label) {
+  return commandArgs.length === 1
+    ? null
+    : cliInputError(command, `${label} does not accept input arguments.`);
 }
 
 function normalizeCommand(command) {
@@ -87,16 +111,6 @@ async function readCommandInput(command, commandArgs) {
       failure: cliInputError(command, inputReadMessage(commandArgs[1], error)),
     };
   }
-}
-
-function runInputCommand(command, input) {
-  if (command === "verify-run") {
-    return core.verifyRun(input);
-  }
-  if (command === "verify-artifact-freshness") {
-    return core.verifyArtifactFreshness(input);
-  }
-  return core.replayRun(input);
 }
 
 function operationResult(command, result) {
