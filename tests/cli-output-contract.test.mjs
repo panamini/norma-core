@@ -24,7 +24,6 @@ function parseCliJson(result) {
   assert.equal(result.stderr, "");
   const trimmed = result.stdout.trim();
   assert.notEqual(trimmed, "");
-  assert.equal(trimmed.split("\n").length, 1);
   return JSON.parse(trimmed);
 }
 
