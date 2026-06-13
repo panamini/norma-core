@@ -8,6 +8,8 @@ It does not implement product features.
 
 It does not authorize scope by itself. Each phase below requires its own small PR with a narrow scope, explicit non-goals, acceptance criteria, and validation notes.
 
+This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a business and release-readiness roadmap, not as a single implementation plan under `docs/plans/`.
+
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
 ## Current State After PR25
@@ -321,7 +323,9 @@ The next concrete sequence after PR26 should be:
 2. PR28 CLI examples + smoke docs + JSON output contract.
 3. PR29 V1.5 release checkpoint / tag readiness.
 4. PR30 package/public npm readiness audit.
-5. PR33 MCP contract docs only.
+5. PR31 typed consumer examples and compatibility policy.
+6. PR32 public package publishing gate, still no publish unless approved.
+7. PR33 MCP contract docs only.
 
 MCP implementation must not start before MCP contract docs are reviewed.
 
