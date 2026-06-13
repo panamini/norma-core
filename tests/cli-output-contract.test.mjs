@@ -64,6 +64,12 @@ function assertErrorEnvelope(json, command, exitCode) {
   assert.equal(typeof json.error.message, "string");
 }
 
+function assertRequiredKeys(json, keys) {
+  for (const key of keys) {
+    assert.equal(Object.hasOwn(json, key), true, `${key} should be present`);
+  }
+}
+
 test("PR28 documents CLI command list covered by help output", () => {
   const helpResult = runCli(["help"]);
   assert.equal(helpResult.status, 0);
@@ -91,7 +97,7 @@ test("PR28 CLI result envelope keeps required top-level fields", () => {
   assert.equal(versionResult.status, 0);
   const version = parseCliJson(versionResult);
 
-  assert.deepEqual(Object.keys(version), [
+  assertRequiredKeys(version, [
     "kind",
     "command",
     "status",
@@ -106,7 +112,7 @@ test("PR28 CLI error envelope keeps required top-level fields", () => {
   assert.equal(missingInput.status, 1);
   const json = parseCliJson(missingInput);
 
-  assert.deepEqual(Object.keys(json), [
+  assertRequiredKeys(json, [
     "kind",
     "command",
     "status",

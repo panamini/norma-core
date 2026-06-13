@@ -59,9 +59,35 @@ Output envelope shape:
   "status": "ok",
   "coreVersion": "0.1.0-pr12",
   "exitCode": 0,
-  "commands": [],
-  "inputRequirements": {},
-  "notes": {}
+  "commands": [
+    "version",
+    "mvp-demo",
+    "verify-run <input.json>",
+    "verify-artifact-freshness <input.json>",
+    "replay-run <input.json>",
+    "help",
+    "--help"
+  ],
+  "inputRequirements": {
+    "version": "none",
+    "mvp-demo": "none",
+    "verify-run": "explicit JSON file",
+    "verify-artifact-freshness": "explicit JSON file",
+    "replay-run": "explicit JSON file",
+    "help": "none",
+    "--help": "none"
+  },
+  "notes": {
+    "localOnly": true,
+    "createsNormaTruth": false,
+    "hiddenDefaults": false,
+    "SDK": false,
+    "API": false,
+    "MCP": false,
+    "adapter": false,
+    "packagePublish": false,
+    "newNormaLogic": false
+  }
 }
 ```
 
