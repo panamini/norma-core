@@ -15,6 +15,7 @@ function runCli(args) {
   return spawnSync(process.execPath, ["bin/norma-core.mjs", ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
   });
 }
 
