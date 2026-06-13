@@ -37,6 +37,15 @@ import {
 
 The root export resolves to `./dist/src/index.js` with types at `./dist/src/index.d.ts`.
 
+## MVP Demo Helper Exports
+
+For local smoke tests and MVP truth-path examples, the package root also exposes:
+
+- `createMvpDemoInput`
+- `runMvpDemo`
+
+These helpers support local verification examples. They do not create a new SDK, CLI, API, MCP, adapter, or broader runtime surface.
+
 ## Approved Operations
 
 Approved V1.5 trust-layer operations:
