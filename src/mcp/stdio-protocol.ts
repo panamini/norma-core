@@ -4,7 +4,45 @@ export const MCP_SERVER_VERSION = "0.1.0-pr12";
 
 type JsonRpcId = string | number;
 
-type JsonRpcErrorCode = -32700 | -32600 | -32601;
+type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602;
+
+interface McpToolDefinition {
+  readonly name: string;
+  readonly title: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+}
+
+const PR35_DISCOVERY_TOOLS = [
+  {
+    name: "norma.getVersion",
+    title: "Get Norma Core version",
+    description:
+      "Return Norma Core version and capability metadata. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {},
+    },
+  },
+  {
+    name: "norma.serializeCanonicalJson",
+    title: "Serialize canonical JSON",
+    description:
+      "Return deterministic canonical JSON for an explicit structured value. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    inputSchema: {
+      type: "object",
+      required: ["value"],
+      additionalProperties: false,
+      properties: {
+        value: {},
+        policy: {
+          type: "string",
+        },
+      },
+    },
+  },
+] as const satisfies readonly McpToolDefinition[];
 
 interface JsonRpcErrorResponse {
   readonly jsonrpc: "2.0";
@@ -21,11 +59,23 @@ interface InitializeResponse {
   readonly id: JsonRpcId;
   readonly result: {
     readonly protocolVersion: typeof MCP_PROTOCOL_VERSION;
-    readonly capabilities: Record<string, never>;
+    readonly capabilities: {
+      readonly tools: {
+        readonly listChanged: false;
+      };
+    };
     readonly serverInfo: {
       readonly name: typeof MCP_SERVER_NAME;
       readonly version: typeof MCP_SERVER_VERSION;
     };
+  };
+}
+
+interface ToolsListResponse {
+  readonly jsonrpc: "2.0";
+  readonly id: JsonRpcId;
+  readonly result: {
+    readonly tools: typeof PR35_DISCOVERY_TOOLS;
   };
 }
 
@@ -42,7 +92,7 @@ export function handleMcpJsonRpcMessage(rawLine: string): string | null {
   return response === null ? null : JSON.stringify(response);
 }
 
-export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | JsonRpcErrorResponse | null {
+export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | ToolsListResponse | JsonRpcErrorResponse | null {
   if (!isRecord(message) || Array.isArray(message)) {
     return createJsonRpcError(null, -32600, "Invalid Request");
   }
@@ -68,6 +118,14 @@ export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | 
 
   if (message.method === "initialize") {
     return createInitializeResult(id);
+  }
+
+  if (message.method === "tools/list") {
+    if (!isValidToolsListParams(message.params, Object.hasOwn(message, "params"))) {
+      return createJsonRpcError(id, -32602, "Invalid params");
+    }
+
+    return createToolsListResult(id);
   }
 
   return createJsonRpcError(id, -32601, "Method not found");
@@ -104,13 +162,44 @@ export function createInitializeResult(id: JsonRpcId): InitializeResponse {
     id,
     result: {
       protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+      },
       serverInfo: {
         name: MCP_SERVER_NAME,
         version: MCP_SERVER_VERSION,
       },
     },
   };
+}
+
+function createToolsListResult(id: JsonRpcId): ToolsListResponse {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      tools: PR35_DISCOVERY_TOOLS,
+    },
+  };
+}
+
+function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
+  if (!hasParams) {
+    return true;
+  }
+
+  if (!isRecord(params) || Array.isArray(params)) {
+    return false;
+  }
+
+  const keys = Object.keys(params);
+  if (keys.length === 0) {
+    return true;
+  }
+
+  return keys.length === 1 && keys[0] === "cursor" && typeof params.cursor === "string";
 }
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {
