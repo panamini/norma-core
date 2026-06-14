@@ -56,7 +56,7 @@ const forbiddenTools = [
   "norma.createMcpServer",
 ];
 
-test("PR34 initialize returns the exact local STDIO skeleton response for string ids", () => {
+test("PR35 initialize returns the exact local STDIO skeleton response for string ids", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
     id: "init-1",
@@ -76,7 +76,11 @@ test("PR34 initialize returns the exact local STDIO skeleton response for string
     id: "init-1",
     result: {
       protocolVersion: "2025-06-18",
-      capabilities: {},
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+      },
       serverInfo: {
         name: "norma-core-mcp-stdio-skeleton",
         version: "0.1.0-pr12",
@@ -86,7 +90,7 @@ test("PR34 initialize returns the exact local STDIO skeleton response for string
   assert.equal(MCP_PROTOCOL_VERSION, "2025-06-18");
   assert.equal(MCP_SERVER_NAME, "norma-core-mcp-stdio-skeleton");
   assert.equal(MCP_SERVER_VERSION, "0.1.0-pr12");
-  assertNoCapabilityOrInstructionFields(response.result);
+  assertNoUnapprovedCapabilityOrInstructionFields(response.result);
   assertNoToolNames(JSON.stringify(response));
 });
 
@@ -99,7 +103,11 @@ test("PR34 initialize preserves number ids exactly", () => {
 
   assert.equal(response.id, 34);
   assert.equal(typeof response.id, "number");
-  assert.deepEqual(response.result.capabilities, {});
+  assert.deepEqual(response.result.capabilities, {
+    tools: {
+      listChanged: false,
+    },
+  });
 });
 
 test("PR34 notifications do not produce stdout responses", () => {
@@ -186,7 +194,6 @@ test("PR34 invalid request shapes return invalid request errors", () => {
 test("PR34 unsupported request methods return method-not-found", () => {
   for (const method of [
     "unknown/method",
-    "tools/list",
     "tools/call",
     "resources/list",
     "resources/read",
@@ -270,7 +277,6 @@ test("PR34 spawned STDIO wrapper writes only JSON-RPC response lines to stdout",
     const parsed = JSON.parse(line);
     assert.equal(parsed.jsonrpc, "2.0");
     assert.ok(Object.hasOwn(parsed, "id"));
-    assertNoToolNames(line);
   }
 });
 
@@ -363,9 +369,8 @@ function parseRawResponse(rawLine) {
   return JSON.parse(response);
 }
 
-function assertNoCapabilityOrInstructionFields(result) {
+function assertNoUnapprovedCapabilityOrInstructionFields(result) {
   for (const fieldName of [
-    "tools",
     "resources",
     "prompts",
     "logging",
@@ -386,7 +391,6 @@ function assertNoToolNames(text) {
   for (const toolName of [...approvedFutureTools, ...forbiddenTools]) {
     assert.doesNotMatch(text, new RegExp(escapeRegExp(toolName)));
   }
-  assert.doesNotMatch(text, /"tools"\s*:/);
 }
 
 function runStdioServer(messages) {

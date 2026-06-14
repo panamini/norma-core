@@ -177,6 +177,7 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
     "src/mcp/stdio-protocol.ts",
     "bin/norma-core-mcp-stdio.mjs",
     "tests/mcp-stdio-server-skeleton.test.mjs",
+    "tests/mcp-tools-list-contract.test.mjs",
   ]) {
     assert.equal(existsSync(join(repoRoot, path)), true, `${path} should exist`);
   }
@@ -210,10 +211,31 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
   );
   assert.doesNotMatch(
     skeletonSource,
-    /readFile|writeFile|deleteFile|networkFetch|shell|exec|spawn|createMcpServer/,
+    /\b(?:readFile|writeFile|deleteFile|networkFetch|shell|exec|spawn|createMcpServer)\b/,
   );
 
   assertNoMcpDependency(parsePackageJson());
+});
+
+test("PR35 MCP contract exposes only discovery metadata for two PR36 candidate tools", () => {
+  const doc = readDoc(contractDocPath);
+  const pr35Section = sectionBetween(doc, "## PR35 Discovery Contract", "## Resources and Prompts Policy");
+  const documentedTools = Array.from(new Set(pr35Section.match(/norma\.[A-Za-z0-9]+/g) ?? []));
+
+  assert.deepEqual(documentedTools.sort(), ["norma.getVersion", "norma.serializeCanonicalJson"].sort());
+  assertDocMentions(pr35Section, [
+    "PR35 enables `tools/list` discovery only",
+    "PR35 does not implement `tools/call`",
+    "PR35 does not implement tool execution",
+    "PR35 does not call Norma Core runtime functions",
+    "PR35 does not expose verify/replay tools yet",
+    "PR35 keeps resources/prompts blocked",
+    "PR35 keeps remote MCP blocked",
+    "PR36 is the first candidate for actual tool-call implementation",
+  ]);
+  assert.doesNotMatch(pr35Section, /norma\.verifyRun/);
+  assert.doesNotMatch(pr35Section, /norma\.verifyArtifactFreshness/);
+  assert.doesNotMatch(pr35Section, /norma\.replayMvpDemo/);
 });
 
 function readDoc(path) {

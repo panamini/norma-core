@@ -96,6 +96,10 @@ PR34 adds local STDIO transport skeleton only.
 
 PR34 does not add tools/list exposure, tools/call behavior, resources, prompts, sampling, elicitation, logging, package metadata, package exports, package bin metadata, dependencies, or MCP SDK usage.
 
+PR35 enables `tools/list` discovery only for the local STDIO skeleton.
+
+PR35 adds no `tools/call` behavior, tool execution, resources, prompts, remote transport, package metadata, dependencies, package exports, or package bin metadata.
+
 Remote HTTP, SSE, and Streamable HTTP are not approved yet.
 
 Remote MCP requires a separate threat model, auth, logging, allowlist, and data-retention policy.
@@ -325,6 +329,37 @@ Output shape sketch:
   "canonicalJson": "{}"
 }
 ```
+
+## PR35 Discovery Contract
+
+PR35 enables `tools/list` discovery only.
+
+PR35 exposes exactly:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+```
+
+PR35 does not implement `tools/call`.
+
+PR35 does not implement tool execution.
+
+PR35 does not call Norma Core runtime functions.
+
+PR35 does not expose verify/replay tools yet.
+
+PR35 keeps resources/prompts blocked.
+
+PR35 keeps remote MCP blocked.
+
+PR35 keeps package metadata/dependency drift blocked.
+
+PR35 keeps source-truth rules unchanged.
+
+PR35 accepts no `tools/list` params, empty params, or a string cursor param, but returns the same complete static tools list without `nextCursor`.
+
+PR36 is the first candidate for actual tool-call implementation, and only for the two PR35 discovery tools listed above.
 
 ## Resources and Prompts Policy
 
