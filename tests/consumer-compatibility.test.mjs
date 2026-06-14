@@ -111,20 +111,33 @@ test("PR31 compatibility docs preserve source-truth and publication boundaries",
 test("PR31 keeps package metadata unchanged", () => {
   const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
 
-  assert.equal(packageJson.name, "@norma/core");
-  assert.equal(packageJson.version, "0.1.0");
-  assert.equal(packageJson.type, "module");
-  assert.equal(packageJson.private, true);
-  assert.equal("publishConfig" in packageJson, false);
-  assert.equal("bin" in packageJson, false);
-  assert.equal("files" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("optionalDependencies" in packageJson, false);
-  assert.equal("peerDependencies" in packageJson, false);
-  assert.deepEqual(packageJson.exports?.["."], {
-    types: "./dist/src/index.d.ts",
-    default: "./dist/src/index.js",
+  assert.deepEqual({
+    name: packageJson.name,
+    version: packageJson.version,
+    type: packageJson.type,
+    private: packageJson.private,
+    rootExport: packageJson.exports?.["."],
+  }, {
+    name: "@norma/core",
+    version: "0.1.0",
+    type: "module",
+    private: true,
+    rootExport: {
+      types: "./dist/src/index.d.ts",
+      default: "./dist/src/index.js",
+    },
   });
+
+  for (const fieldName of [
+    "publishConfig",
+    "bin",
+    "files",
+    "dependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ]) {
+    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
+  }
 });
 
 function escapeRegExp(value) {
