@@ -12,6 +12,7 @@ const consumerTsconfigPath = join(repoRoot, "examples", "consumer", "tsconfig.js
 const compatibilityDocPath = join(repoRoot, "docs", "CONSUMER_COMPATIBILITY.md");
 const distIndexPath = join(repoRoot, "dist", "src", "index.js");
 const distTypesPath = join(repoRoot, "dist", "src", "index.d.ts");
+const consumerTypecheckTimeoutMs = 10_000;
 
 const approvedPackageRootExports = [
   "CORE_VERSION",
@@ -55,6 +56,7 @@ test("PR31 typed consumer example compiles against built package types", () => {
   const result = spawnSync(tscPath, ["-p", "examples/consumer/tsconfig.json", "--noEmit"], {
     cwd: repoRoot,
     encoding: "utf8",
+    timeout: consumerTypecheckTimeoutMs,
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -64,6 +66,8 @@ test("PR31 consumer tsconfig checks package declarations", () => {
   const consumerTsconfig = JSON.parse(readFileSync(consumerTsconfigPath, "utf8"));
 
   assert.equal(consumerTsconfig.compilerOptions?.skipLibCheck, false);
+  assert.equal(consumerTsconfig.compilerOptions?.noUncheckedIndexedAccess, true);
+  assert.equal(consumerTsconfig.compilerOptions?.exactOptionalPropertyTypes, true);
 });
 
 test("PR31 compatibility docs mention approved package-root exports", () => {
