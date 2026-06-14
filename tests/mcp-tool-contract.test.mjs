@@ -39,8 +39,11 @@ const forbiddenTools = [
   "norma.networkFetch",
   "norma.shell",
   "norma.exec",
+  "norma.publishPackage",
   "norma.npmPublish",
   "norma.gitTag",
+  "norma.createSdk",
+  "norma.createApi",
   "norma.createMcpServer",
 ];
 
@@ -74,7 +77,9 @@ test("PR33 MCP contract lists only approved future tools", () => {
 test("PR33 MCP contract lists forbidden tools", () => {
   const doc = readDoc(contractDocPath);
   const forbiddenSection = sectionBetween(doc, "## Forbidden MCP Tools", "## Tool Naming Rules");
+  const documentedTools = Array.from(new Set(forbiddenSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
 
+  assert.deepEqual(documentedTools.sort(), [...forbiddenTools].sort());
   assertDocMentions(forbiddenSection, forbiddenTools);
 });
 
@@ -205,8 +210,8 @@ function assertNoMcpDependency(packageJson) {
 
 function sectionBetween(doc, startHeading, endHeading) {
   const start = doc.indexOf(startHeading);
-  const end = doc.indexOf(endHeading);
   assert.notEqual(start, -1, `${startHeading} should exist`);
+  const end = doc.indexOf(endHeading, start + startHeading.length);
   assert.notEqual(end, -1, `${endHeading} should exist`);
   assert.ok(end > start, `${endHeading} should appear after ${startHeading}`);
   return doc.slice(start, end);
