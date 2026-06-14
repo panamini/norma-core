@@ -60,6 +60,12 @@ test("PR31 typed consumer example compiles against built package types", () => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("PR31 consumer tsconfig checks package declarations", () => {
+  const consumerTsconfig = JSON.parse(readFileSync(consumerTsconfigPath, "utf8"));
+
+  assert.equal(consumerTsconfig.compilerOptions?.skipLibCheck, false);
+});
+
 test("PR31 compatibility docs mention approved package-root exports", () => {
   const doc = readFileSync(compatibilityDocPath, "utf8");
 
