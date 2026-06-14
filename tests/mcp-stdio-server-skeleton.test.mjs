@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -274,6 +274,33 @@ test("PR34 spawned STDIO wrapper writes only JSON-RPC response lines to stdout",
   }
 });
 
+test("PR34 spawned STDIO wrapper responds before stdin closes", async () => {
+  const child = spawn(process.execPath, [wrapperPath], {
+    cwd: repoRoot,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  child.stdin.setDefaultEncoding("utf8");
+
+  let stdoutLine;
+
+  try {
+    stdoutLine = await readStdoutLineBeforeClosingStdin(child, {
+      jsonrpc: "2.0",
+      id: "streaming-init",
+      method: "initialize",
+    });
+  } finally {
+    child.stdin.end();
+    child.kill();
+  }
+
+  const response = JSON.parse(stdoutLine);
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.id, "streaming-init");
+  assert.equal(response.result.protocolVersion, "2025-06-18");
+});
+
 test("PR34 spawned STDIO wrapper emits empty stdout for notification-only input", () => {
   const result = runStdioServer([
     {
@@ -368,6 +395,48 @@ function runStdioServer(messages) {
     encoding: "utf8",
     input: `${messages.map((message) => JSON.stringify(message)).join("\n")}\n`,
     maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function readStdoutLineBeforeClosingStdin(child, message) {
+  let stdout = "";
+  let stderr = "";
+
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out waiting for stdout before stdin closed. stderr: ${stderr}`));
+    }, 1_000);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      const newlineIndex = stdout.indexOf("\n");
+
+      if (newlineIndex !== -1) {
+        clearTimeout(timeout);
+        resolve(stdout.slice(0, newlineIndex));
+      }
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    child.on("exit", (code, signal) => {
+      if (!stdout.includes("\n")) {
+        clearTimeout(timeout);
+        reject(new Error(`Child exited before stdout line. code=${code ?? ""} signal=${signal ?? ""}`));
+      }
+    });
+
+    child.stdin.write(`${JSON.stringify(message)}\n`);
   });
 }
 
