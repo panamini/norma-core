@@ -16,9 +16,23 @@ PR33 does not create API/SDK/UI/cloud behavior.
 
 PR33 defines the contract a later MCP implementation must follow.
 
+PR34 adds only a local STDIO skeleton.
+
+PR34 implementation decision: local_stdio_json_rpc_skeleton_only.
+
+PR34 does not implement tool calls.
+
+PR34 does not expose tools yet.
+
+PR34 does not add MCP SDK/dependencies.
+
+PR34 does not add package metadata, publication, exports, API, SDK, UI, cloud, camera, image, vision, CAD, plugin, or marketplace behavior.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
+
+PR34 decision: local_stdio_json_rpc_skeleton_only
 
 MCP work may proceed only as contract-first. Future implementation must start local-only unless a later threat model explicitly approves remote MCP.
 
@@ -40,7 +54,8 @@ Current readiness:
 - public package publishing gate exists from PR32;
 - package remains private;
 - no public npm publication exists;
-- no MCP implementation exists yet.
+- PR34 adds only a local STDIO JSON-RPC process skeleton if merged;
+- no MCP tool exposure or tool-call implementation exists yet.
 
 ## Official MCP Concepts Used
 
@@ -56,6 +71,8 @@ The MCP contract uses these official concepts:
 - Resources are contextual data, not actions.
 - Prompts are reusable templates.
 - STDIO is local process transport.
+- STDIO messages are JSON-RPC messages delimited by newlines.
+- STDIO stdout must contain only valid MCP/JSON-RPC messages.
 - Streamable HTTP is remote/server transport.
 - Remote MCP requires stronger auth, approval, logging, and threat modeling.
 
@@ -75,7 +92,9 @@ References:
 
 PR33 does not implement transport.
 
-First implementation candidate should be local STDIO only.
+PR34 adds local STDIO transport skeleton only.
+
+PR34 does not add tools/list exposure, tools/call behavior, resources, prompts, sampling, elicitation, logging, package metadata, package exports, package bin metadata, dependencies, or MCP SDK usage.
 
 Remote HTTP, SSE, and Streamable HTTP are not approved yet.
 
@@ -313,7 +332,13 @@ PR33 approves no MCP resources.
 
 PR33 approves no MCP prompts.
 
-The initial MCP implementation must be tools-only unless a later contract PR approves resources/prompts.
+PR34 exposes no MCP resources.
+
+PR34 exposes no MCP prompts.
+
+PR34 exposes no MCP tools.
+
+A future tool-exposure implementation must be tools-only unless a later contract PR approves resources/prompts.
 
 Resources must not expose source truth unless explicitly structured and approved.
 
@@ -429,6 +454,8 @@ No filesystem access in PR33.
 
 No network access in PR33.
 
+No filesystem access, network access, shell execution, package metadata mutation, or environment-driven behavior in PR34.
+
 Future remote MCP requires auth, logging, rate limits, data retention policy, and incident response.
 
 ## Compatibility and Versioning
@@ -449,11 +476,12 @@ Adding optional fields may be non-breaking but needs review.
 
 Adding a new tool requires a new contract PR.
 
-## Implementation Gate For Future PR
+## Implementation Gate For Future PRs
 
-Future MCP implementation PR must not start until:
+Future MCP tool implementation PR must not start until:
 
 - PR33 is merged;
+- PR34 local STDIO skeleton is merged if the tool implementation uses MCP;
 - package-root exports are stable;
 - local CLI contract remains green;
 - consumer compatibility tests remain green;
@@ -462,17 +490,30 @@ Future MCP implementation PR must not start until:
 - transport choice is approved;
 - no runtime source truth rule is violated.
 
-Future PR34 candidate:
+PR34 approved candidate:
 
 ```txt
-PR34 - local STDIO MCP server package skeleton
+PR34 - local STDIO MCP server skeleton
 ```
 
-PR34 must be separately approved. PR33 does not create it.
+PR34 creates only the local STDIO JSON-RPC skeleton. PR34 does not implement tool calls.
 
-## Testing Gate For Future MCP Implementation
+## Testing Gate For MCP Implementation
 
-Future implementation must include tests for:
+PR34 skeleton tests must cover:
+
+- initialize response shape;
+- notification handling with no stdout response;
+- invalid JSON and invalid request errors;
+- method-not-found for tools/resources/prompts/sampling/elicitation/logging requests;
+- stdout containing only JSON-RPC response lines;
+- no package metadata drift;
+- no dependency drift;
+- no MCP SDK dependency;
+- no filesystem/network/shell behavior;
+- no environment-driven behavior.
+
+Future tool implementation must include tests for:
 
 - `tools/list` exposes only approved tools;
 - tool schemas match PR33 contract;
@@ -487,11 +528,11 @@ Future implementation must include tests for:
 
 ## Strict Non-Goals
 
-- no MCP server implementation;
+- no MCP tool-call implementation in PR34;
 - no MCP dependency;
-- no transport implementation;
+- no transport implementation beyond the PR34 local STDIO skeleton;
 - no HTTP server;
-- no STDIO server;
+- no STDIO behavior beyond the PR34 JSON-RPC skeleton;
 - no SSE/Streamable HTTP server;
 - no OAuth/auth;
 - no API;
@@ -511,7 +552,7 @@ Future implementation must include tests for:
 Recommended sequence:
 
 ```txt
-PR34 - local STDIO MCP server skeleton, only after explicit approval
+PR34 - local STDIO MCP server skeleton
 PR35 - MCP inspector / tools-list contract tests
 PR36 - MCP tool-call implementation for getVersion and serializeCanonicalJson only
 PR37 - MCP verifyRun / verifyArtifactFreshness tools
@@ -522,6 +563,23 @@ PR39 - remote MCP/API threat model before any remote exposure
 This sequence is a recommendation, not authorization.
 
 ## Exit Criteria
+
+PR34 can merge when:
+
+- only expected skeleton doc/test/runtime wrapper files changed;
+- package metadata remains unchanged;
+- no dependencies are added;
+- no MCP SDK is added;
+- no remote transport is added;
+- no HTTP/SSE/Streamable HTTP/WebSocket behavior is added;
+- no resources/prompts are exposed;
+- no tools are exposed;
+- no tool calls are implemented;
+- stdout contains only JSON-RPC response lines;
+- allowed and forbidden future tool lists are unchanged;
+- source-truth rules are unchanged;
+- build/test/check pass;
+- guardrails pass.
 
 PR33 can merge when:
 

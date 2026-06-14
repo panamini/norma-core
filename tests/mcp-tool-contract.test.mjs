@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -57,6 +57,12 @@ test("PR33 MCP contract documents contract-only status", () => {
     "does not expose Norma tools to ChatGPT, Claude, or any agent",
     "future explicit publication PR/action",
     "not a current MCP permission",
+    "PR34 adds only a local STDIO skeleton",
+    "local_stdio_json_rpc_skeleton_only",
+    "PR34 does not implement tool calls",
+    "PR34 does not expose tools yet",
+    "PR34 does not add MCP SDK/dependencies",
+    "PR34 does not add package metadata",
     "local STDIO",
     "remote MCP is not approved",
   ]);
@@ -164,19 +170,48 @@ test("PR33 MCP contract keeps package metadata unchanged", () => {
   assertNoMcpDependency(packageJson);
 });
 
-test("PR33 MCP contract confirms no MCP implementation files exist", () => {
+test("PR34 MCP contract permits only the approved local STDIO skeleton files", () => {
+  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+
+  for (const path of [
+    "src/mcp/stdio-protocol.ts",
+    "bin/norma-core-mcp-stdio.mjs",
+    "tests/mcp-stdio-server-skeleton.test.mjs",
+  ]) {
+    assert.equal(existsSync(join(repoRoot, path)), true, `${path} should exist`);
+  }
+
   for (const path of [
     "src/mcp.ts",
     "src/mcp.js",
-    "src/mcp/",
     "mcp/",
     "server/",
     "src/server/",
     "src/mcp-server.ts",
     "src/mcp-server.js",
+    "src/mcp/http-server.ts",
+    "src/mcp/streamable-http.ts",
+    "src/mcp/sse.ts",
+    "src/mcp/websocket.ts",
+    "bin/norma-core-mcp-http.mjs",
+    "bin/norma-core-mcp-server.mjs",
   ]) {
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
   }
+
+  const skeletonSource = [
+    readFileSync(join(repoRoot, "src/mcp/stdio-protocol.ts"), "utf8"),
+    readFileSync(join(repoRoot, "bin/norma-core-mcp-stdio.mjs"), "utf8"),
+  ].join("\n");
+
+  assert.doesNotMatch(
+    skeletonSource,
+    /http|https|sse|streamable|websocket|express|fastify|oauth|auth|token|fetch\(|XMLHttpRequest|WebSocket/i,
+  );
+  assert.doesNotMatch(
+    skeletonSource,
+    /readFile|writeFile|deleteFile|networkFetch|shell|exec|spawn|createMcpServer/,
+  );
 
   assertNoMcpDependency(parsePackageJson());
 });
@@ -187,6 +222,28 @@ function readDoc(path) {
 
 function parsePackageJson() {
   return JSON.parse(readFileSync(packageJsonPath, "utf8"));
+}
+
+function filesUnder(path) {
+  const absolutePath = join(repoRoot, path);
+  if (!existsSync(absolutePath)) {
+    return [];
+  }
+
+  return relativeFiles(absolutePath, path).sort();
+}
+
+function relativeFiles(absolutePath, relativePath) {
+  const stat = statSync(absolutePath);
+  if (stat.isFile()) {
+    return [relativePath];
+  }
+
+  assert.equal(stat.isDirectory(), true, `${relativePath} should be a file or directory`);
+
+  return readdirSync(absolutePath).flatMap((entry) =>
+    relativeFiles(join(absolutePath, entry), `${relativePath}/${entry}`),
+  );
 }
 
 function assertDocMentions(doc, phrases) {
