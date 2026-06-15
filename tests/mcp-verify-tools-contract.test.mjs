@@ -19,10 +19,11 @@ const expectedTools = [
   "norma.serializeCanonicalJson",
   "norma.verifyRun",
   "norma.verifyArtifactFreshness",
+  "norma.replayMvpDemo",
 ];
 
 const forbiddenToolNames = [
-  "norma.replayMvpDemo",
+  "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
   "norma.createRatio",
@@ -52,7 +53,7 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR37 tools/list exposes exactly the PR36 tools plus the two verification tools", () => {
+test("PR38 tools/list exposes exactly the PR36 tools plus verification and fixed MVP replay tools", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list",
@@ -60,14 +61,15 @@ test("PR37 tools/list exposes exactly the PR36 tools plus the two verification t
   });
 
   assert.deepEqual(response.result.tools.map((tool) => tool.name), expectedTools);
-  assert.equal(response.result.tools.length, 4);
+  assert.equal(response.result.tools.length, 5);
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.getVersion"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.serializeCanonicalJson"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.verifyRun"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.verifyArtifactFreshness"));
+  assert.ok(response.result.tools.some((tool) => tool.name === "norma.replayMvpDemo"));
 });
 
-test("PR37 tools/list exposes no replay forbidden tools or rich content fields", () => {
+test("PR38 tools/list exposes no arbitrary replay forbidden tools or rich content fields", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-guardrails",
@@ -113,7 +115,7 @@ test("PR37 tools/call keeps PR36 getVersion and serializeCanonicalJson behavior"
   assert.equal(versionResponse.result.structuredContent.tool, "norma.getVersion");
   assert.equal(versionResponse.result.structuredContent.capabilities.verifyRun, true);
   assert.equal(versionResponse.result.structuredContent.capabilities.verifyArtifactFreshness, true);
-  assert.equal(versionResponse.result.structuredContent.capabilities.replayMvpDemo, false);
+  assert.equal(versionResponse.result.structuredContent.capabilities.replayMvpDemo, true);
 
   const serializeResponse = parseToolResultResponse({
     jsonrpc: "2.0",
@@ -282,7 +284,7 @@ test("PR37 norma.verifyArtifactFreshness rejects malformed MCP argument wrappers
   assertVerifyToolRejectsBadWrapper("norma.verifyArtifactFreshness");
 });
 
-test("PR37 tools/call rejects replay and forbidden tools as unknown tools", () => {
+test("PR38 tools/call rejects arbitrary replay and forbidden tools as unknown tools", () => {
   for (const toolName of forbiddenToolNames) {
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
@@ -364,7 +366,7 @@ test("PR37 notification-only input still produces no stdout response", () => {
   assert.equal(result.stdout, "");
 });
 
-test("PR37 spawned STDIO wrapper handles initialize list and all four tool calls", async () => {
+test("PR38 spawned STDIO wrapper handles initialize list and all five tool calls", async () => {
   const { input, demo } = createTruthPath();
   const artifact = demo.artifactResults.structuredResults[0].output;
   const child = spawn(process.execPath, [wrapperPath], {
@@ -436,13 +438,22 @@ test("PR37 spawned STDIO wrapper handles initialize list and all four tool calls
           },
         },
       },
+      {
+        jsonrpc: "2.0",
+        id: "spawn-replay-mvp-demo",
+        method: "tools/call",
+        params: {
+          name: "norma.replayMvpDemo",
+          arguments: {},
+        },
+      },
     ]);
   } finally {
     child.stdin.end();
     child.kill();
   }
 
-  assert.equal(stdoutLines.length, 6);
+  assert.equal(stdoutLines.length, 7);
   for (const line of stdoutLines) {
     assert.doesNotMatch(line, /Usage|help text|diagnostic prose/i);
     assert.equal(JSON.parse(line).jsonrpc, "2.0");
@@ -454,6 +465,8 @@ test("PR37 spawned STDIO wrapper handles initialize list and all four tool calls
   assert.equal(JSON.parse(stdoutLines[3]).result.structuredContent.canonicalJson, "{\"a\":1,\"b\":2}");
   assert.equal(JSON.parse(stdoutLines[4]).result.structuredContent.tool, "norma.verifyRun");
   assert.equal(JSON.parse(stdoutLines[5]).result.structuredContent.tool, "norma.verifyArtifactFreshness");
+  assert.equal(JSON.parse(stdoutLines[6]).result.structuredContent.tool, "norma.replayMvpDemo");
+  assert.equal(JSON.parse(stdoutLines[6]).result.structuredContent.result.status, "replayed");
 });
 
 test("PR37 package metadata remains unchanged and dependency-free", () => {

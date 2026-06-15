@@ -66,10 +66,20 @@ const discoveredTools = [
       },
     },
   },
+  {
+    name: "norma.replayMvpDemo",
+    title: "Replay Norma MVP demo",
+    description: "Replay the fixed Norma Core MVP demo using existing in-memory demo data and existing replay semantics.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {},
+    },
+  },
 ];
 
 const forbiddenToolNames = [
-  "norma.replayMvpDemo",
+  "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
   "norma.createRatio",
@@ -119,7 +129,7 @@ test("PR36 initialize declares only the static tools capability", () => {
   }
 });
 
-test("PR37 tools/list returns exactly the four callable tools", () => {
+test("PR38 tools/list returns exactly the five callable tools", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-1",
@@ -135,12 +145,18 @@ test("PR37 tools/list returns exactly the four callable tools", () => {
   });
   assert.deepEqual(
     response.result.tools.map((tool) => tool.name),
-    ["norma.getVersion", "norma.serializeCanonicalJson", "norma.verifyRun", "norma.verifyArtifactFreshness"],
+    [
+      "norma.getVersion",
+      "norma.serializeCanonicalJson",
+      "norma.verifyRun",
+      "norma.verifyArtifactFreshness",
+      "norma.replayMvpDemo",
+    ],
   );
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
 });
 
-test("PR37 tools/list schemas are exact", () => {
+test("PR38 tools/list schemas are exact", () => {
   const tools = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-schemas",
@@ -183,9 +199,16 @@ test("PR37 tools/list schemas are exact", () => {
       input: {},
     },
   });
+
+  assert.deepEqual(tools[4].inputSchema, {
+    type: "object",
+    additionalProperties: false,
+    properties: {},
+  });
+  assert.equal(Object.hasOwn(tools[4].inputSchema, "required"), false);
 });
 
-test("PR37 tools/list does not expose replay resources prompts or rich content fields", () => {
+test("PR38 tools/list does not expose arbitrary replay resources prompts or rich content fields", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-guardrails",
