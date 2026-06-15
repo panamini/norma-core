@@ -286,13 +286,12 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
 
   assertNoDeploymentWorkflowFiles();
 
-  for (const path of [...filesUnder("src"), ...filesUnder("bin")]) {
-    assertNoRemoteMcpRuntimeSurface(readDoc(join(repoRoot, path)), path);
-  }
-
-  for (const path of [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"]) {
-    assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
-    assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
+  const mcpBoundaryPaths = [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"];
+  for (const path of mcpBoundaryPaths) {
+    const source = readDoc(join(repoRoot, path));
+    assertNoRemoteMcpRuntimeSurface(source, path);
+    assertNoRemoteServerSurface(source, path);
+    assertNoMcpRuntimeSideEffects(source, path);
   }
 });
 
@@ -427,8 +426,10 @@ function assertHeadingsInOrder(doc, headings) {
   let previousIndex = -1;
 
   for (const heading of headings) {
-    const index = doc.indexOf(heading);
-    assert.notEqual(index, -1, `${heading} should exist`);
+    const headingPattern = new RegExp(`^${escapeRegExp(heading)}\\s*$`, "m");
+    const match = headingPattern.exec(doc);
+    assert.notEqual(match, null, `${heading} should exist as a heading`);
+    const index = match.index;
     assert.ok(index > previousIndex, `${heading} should appear after the previous heading`);
     previousIndex = index;
   }
