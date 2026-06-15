@@ -21,6 +21,8 @@ const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 const packageJsonPath = join(repoRoot, "package.json");
 const packageLockPath = join(repoRoot, "package-lock.json");
 
+let handleMcpJsonRpcMessagePromise;
+
 const approvedCallableTools = [
   "norma.getVersion",
   "norma.serializeCanonicalJson",
@@ -232,10 +234,60 @@ test("PR43 keeps runtime files local STDIO only and remote surfaces absent", () 
   }
 });
 
-test("PR43 keeps the current local STDIO tool allowlist documented as the only approved exposure", () => {
+test("PR43 keeps the current local STDIO tool allowlist as the only approved exposure", async () => {
   const matrixDoc = readDoc(pr43MatrixDocPath);
+  const toolsListResponse = await parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "pr43-tools-list",
+    method: "tools/list",
+  });
 
   assertDocMentions(matrixDoc, approvedCallableTools);
+  assert.deepEqual(
+    toolsListResponse.result.tools.map((tool) => tool.name),
+    approvedCallableTools,
+  );
+
+  const replayRunResponse = await parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "pr43-replay-run-blocked",
+    method: "tools/call",
+    params: {
+      name: "norma.replayRun",
+      arguments: {},
+    },
+  });
+
+  assert.deepEqual(replayRunResponse, {
+    jsonrpc: "2.0",
+    id: "pr43-replay-run-blocked",
+    error: {
+      code: -32602,
+      message: "Unknown tool: norma.replayRun",
+    },
+  });
+
+  const arbitraryReplayResponse = await parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "pr43-arbitrary-replay-blocked",
+    method: "tools/call",
+    params: {
+      name: "norma.replayMvpDemo",
+      arguments: {
+        run: {},
+      },
+    },
+  });
+
+  assert.deepEqual(arbitraryReplayResponse, {
+    jsonrpc: "2.0",
+    id: "pr43-arbitrary-replay-blocked",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+
   assertDocMentions(matrixDoc, [
     "Current MCP tool exposure remains exactly the local STDIO allowlist",
     "`norma.replayRun` and arbitrary replay remain blocked as MCP exposure",
@@ -249,6 +301,33 @@ function readDoc(path) {
 
 function parseJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+async function loadHandleMcpJsonRpcMessage() {
+  handleMcpJsonRpcMessagePromise ??= import("../dist/src/mcp/stdio-protocol.js")
+    .then((module) => {
+      assert.equal(
+        typeof module.handleMcpJsonRpcMessage,
+        "function",
+        "dist/src/mcp/stdio-protocol.js should export handleMcpJsonRpcMessage",
+      );
+      return module.handleMcpJsonRpcMessage;
+    })
+    .catch((error) => {
+      assert.fail(
+        `Build output is required before PR43 MCP runtime contract validation: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+  return handleMcpJsonRpcMessagePromise;
+}
+
+async function parseRequiredResponse(message) {
+  const handleMcpJsonRpcMessage = await loadHandleMcpJsonRpcMessage();
+  const response = handleMcpJsonRpcMessage(JSON.stringify(message));
+  assert.notEqual(response, null, "MCP handler should return a JSON-RPC response, not null");
+  assert.notEqual(response, undefined, "MCP handler should return a JSON-RPC response, not undefined");
+  return JSON.parse(response);
 }
 
 function filesUnder(path) {
@@ -293,7 +372,7 @@ function assertDocMentions(doc, snippets) {
 function assertNoRemoteServerSurface(source, path) {
   assert.doesNotMatch(
     source,
-    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*|sse|streamable|websocket|express|fastify|cors|oauth|auth|authorization|authentication|token|accessToken|idToken|bearerToken|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
+    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*|sse|streamable|websocket|express|fastify|cors|oauth|authorization|authentication|auth[A-Za-z0-9_]*|[A-Za-z0-9_]*token[A-Za-z0-9_]*|jwt[A-Za-z0-9_]*|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
     `${path} must not contain remote MCP server, package, auth, token, or network behavior`,
   );
 }
