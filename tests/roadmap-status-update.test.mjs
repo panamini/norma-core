@@ -9,8 +9,13 @@ const repoRoot = dirname(testDir);
 
 let handleMcpJsonRpcMessagePromise;
 
-const roadmapStatusDocPath = join(repoRoot, "docs", "decisions", "2026-06-15-roadmap-status-update.md");
-const businessRoadmapPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
+const roadmapStatusDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-15-roadmap-status-update.md",
+);
+const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
 const packageLockPath = join(repoRoot, "package-lock.json");
@@ -23,6 +28,21 @@ const existingMcpRemoteDocs = [
   "docs/MCP_REMOTE_PACKAGE_DEPENDENCY_DECISION.md",
   "docs/MCP_REMOTE_SECURITY_TEST_MATRIX.md",
   "docs/MCP_REMOTE_DEPLOYMENT_POLICY_DECISION.md",
+];
+
+const requiredRoadmapSections = [
+  "# Roadmap Status Update",
+  "## Status",
+  "## Decision",
+  "## Source Documents",
+  "## What Remains True From The Original Roadmap",
+  "## Historical PR Number Boundary",
+  "## Current Position After PR47",
+  "## Phase 4 Remote MCP Governance Extension",
+  "## Next PR Sequence",
+  "## Non-Approval Boundary",
+  "## Validation Policy",
+  "## Final Decision",
 ];
 
 const approvedCallableTools = [
@@ -59,95 +79,109 @@ const blockedRuntimeAndDeploymentPaths = [
   "caddyfile",
 ];
 
-const requiredRoadmapStatusSections = [
-  "# Roadmap Status Update",
-  "## Status",
-  "## Decision",
-  "## Source Documents",
-  "## What Remains True From The Original Roadmap",
-  "## Historical PR Number Boundary",
-  "## Current Position After PR47",
-  "## Phase 4 Remote MCP Governance Extension",
-  "## Next PR Sequence",
-  "## Non-Approval Boundary",
-  "## Validation Policy",
-  "## Final Decision",
-];
-
-const plannedPrLabels = [
-  "PR48 — roadmap status update",
-  "PR49 — remote MCP/API readiness checkpoint, still no runtime",
-  "PR50 — API contract decision, docs/contract-tests only",
-  "PR51 — auth, audit-log, and rate-limit policy for API and future remote MCP, docs/contract-tests only",
-  "PR52 — minimal API server approval decision, no implementation unless explicitly approved",
-  "PR53 — minimal API server skeleton, conditional on PR50 through PR52 approval",
-  "PR54 — API contract tests and golden envelopes, conditional on PR53",
-  "PR55 — product requirements for read-only result viewer",
-  "PR56 — read-only result viewer plan, no UI implementation",
-  "PR57 — structured JSON input viewer prototype, conditional on PR55 and PR56",
-  "PR58 — verification/replay result UI prototype, no source-truth inference",
-  "PR59 — onboarding and examples",
-  "PR60 — beta pilot readiness checklist",
-  "PR61 — privacy, security, and support policy",
-  "PR62 — pricing, packaging, and public npm decision",
-  "PR63 — business launch checklist",
-];
-
-test("PR48 roadmap status update exists and references the primary roadmap", () => {
+test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
   assert.equal(existsSync(roadmapStatusDocPath), true);
-  assert.equal(existsSync(businessRoadmapPath), true);
+  assert.equal(basename(roadmapStatusDocPath), "2026-06-15-roadmap-status-update.md");
 
   const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
-  const businessRoadmap = readDoc(businessRoadmapPath);
-
-  assertHeadingsInOrder(roadmapStatusDoc, requiredRoadmapStatusSections);
+  assertHeadingsInOrder(roadmapStatusDoc, requiredRoadmapSections);
   assertDocMentions(roadmapStatusDoc, [
     "PR48 is docs/contract-tests only",
-    "docs/BUSINESS_READINESS_ROADMAP.md remains the primary business readiness roadmap reference",
-    "The original roadmap PR numbers are historical",
-    "PR39 through GitHub PR47 / PR46-label are now documented as a cautious Phase 4 remote MCP/API readiness extension",
-    "Remote MCP remains blocked after PR48",
-    "Local STDIO remains the only approved MCP runtime",
+    "PR48 updates roadmap status after PR47 / PR46-label",
+    "Current official documentation state in PR48: Unknown",
+    "PR48 does not re-check current official docs because it makes no transport, auth, package, runtime, deployment, API, UI, provider-compatibility, or tool-exposure decision",
   ]);
-  assertDocMentions(businessRoadmap, [
+});
+
+test("PR48 documents the original roadmap as planning context with historical PR numbers", () => {
+  assert.equal(existsSync(businessRoadmapDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
+
+  assertDocMentions(businessRoadmapDoc, [
     "This is a planning document",
     "It does not authorize scope by itself",
-    "This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md`",
+    "## Phase 4",
+    "## Phase 6",
+  ]);
+  assertDocMentions(roadmapStatusDoc, [
+    "The original Business Readiness Roadmap remains a planning document",
+    "The roadmap does not authorize scope by itself",
+    "The original PR numbers in the roadmap are historical",
+    "Historical PR numbers in `docs/BUSINESS_READINESS_ROADMAP.md` must not be treated as current PR numbers",
+    "current repository history wins",
   ]);
 });
 
-test("PR48 keeps the original roadmap true while treating its PR numbers as historical", () => {
+test("PR48 documents PR39 through PR47 / PR46-label as a cautious Phase 4 extension", () => {
   const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
 
   assertDocMentions(roadmapStatusDoc, [
-    "The original roadmap remains valid as a phase strategy and engineering-discipline document",
-    "The original roadmap PR numbers were written before the current PR39 through GitHub PR47 / PR46-label remote MCP governance sequence",
-    "Those numbers are historical and must not be read as the current live PR numbering",
-    "The current live PR numbers must be taken from GitHub and current repository state",
-    "Any future roadmap reference must distinguish between historical roadmap PR labels and actual GitHub PR numbers",
+    "Current PR39-PR47 / PR46-label sequence is a cautious Phase 4 extension of remote MCP/API readiness",
+    "PR39-PR47 / PR46-label are a cautious Phase 4 extension",
+    "This extension was intentionally conservative and docs/contract-tests only after local STDIO MCP",
+    "The extension does not contradict the roadmap",
+    "remote MCP/API readiness phase",
   ]);
+
+  for (const prNumber of ["PR39", "PR40", "PR41", "PR42", "PR43", "PR44", "PR45", "PR47"]) {
+    assertDocMentions(roadmapStatusDoc, [prNumber]);
+  }
 });
 
-test("PR48 documents the current Phase 4 extension and next PR sequence", () => {
+test("PR48 keeps remote MCP local STDIO package API and UI boundaries blocked", () => {
   const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
 
   assertDocMentions(roadmapStatusDoc, [
-    "After GitHub PR47 / PR46-label, Norma Core is in Phase 4 remote MCP/API readiness governance",
-    "This does not mean remote MCP is implemented or approved",
-    "Current runtime remains local STDIO only",
-    "The following sequence is the current planning path after PR48",
+    "Remote MCP remains blocked",
+    "Local STDIO remains the only approved MCP runtime",
+    "No remote runtime, API, UI, deployment, package publishing, or remote MCP tool exposure was approved by PR39-PR47 / PR46-label",
+    "API implementation is gated behind API contract/auth/rate-limit policy",
+    "UI implementation is gated behind product requirements and viewer plan",
+    "Package publishing remains blocked until explicit publishing decision",
+    "Remote MCP runtime remains blocked unless future explicit approval satisfies gates",
   ]);
 
-  assertDocMentions(roadmapStatusDoc, plannedPrLabels);
-  assertDocMentions(roadmapStatusDoc, [
-    "API implementation must not happen before API contract, auth, audit-log, and rate-limit gates are accepted",
-    "UI implementation must not happen before product requirements and read-only viewer plan are accepted",
-    "Public npm publishing must remain blocked until an explicit publishing decision PR approves it",
-    "Remote MCP runtime remains blocked unless a future explicit approval PR satisfies the PR39 through PR47 / PR46-label gates",
+  assert.doesNotMatch(roadmapStatusDoc, /^remote MCP is approved$/im);
+  assert.doesNotMatch(roadmapStatusDoc, /^API implementation is approved$/im);
+  assert.doesNotMatch(roadmapStatusDoc, /^UI implementation is approved$/im);
+  assert.doesNotMatch(roadmapStatusDoc, /^package publishing is approved$/im);
+});
+
+test("PR48 next PR sequence includes PR48 through PR63 labels", () => {
+  const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
+  const nextSequenceSection = sectionBetween(
+    roadmapStatusDoc,
+    "## Next PR Sequence",
+    "## Non-Approval Boundary",
+  );
+
+  for (const prNumber of Array.from({ length: 16 }, (_, index) => `PR${48 + index}`)) {
+    assert.match(nextSequenceSection, new RegExp(`\\b${prNumber}\\b`), `${prNumber} should be listed`);
+  }
+
+  assertDocMentions(nextSequenceSection, [
+    "PR48 - roadmap status update",
+    "PR49 - remote MCP/API readiness checkpoint, still no runtime",
+    "PR50 - API contract decision, docs/tests only",
+    "PR51 - auth/audit/rate-limit policy for API and future remote MCP, docs/tests only",
+    "PR52 - minimal API server approval decision, no implementation unless explicitly approved",
+    "PR53 - minimal API server skeleton, conditional on PR50-PR52 gates approving it",
+    "PR54 - API contract tests and golden envelopes, conditional on an approved API contract",
+    "PR55 - product requirements for read-only result viewer",
+    "PR56 - read-only result viewer plan, no UI implementation",
+    "PR57 - structured JSON input viewer prototype, conditional on PR55-PR56 approval",
+    "PR58 - verification/replay result UI prototype, no source-truth inference",
+    "PR59 - onboarding and examples",
+    "PR60 - beta pilot readiness checklist",
+    "PR61 - privacy/security/support policy",
+    "PR62 - pricing/package/public npm decision",
+    "PR63 - business launch checklist",
   ]);
 });
 
-test("PR48 preserves MCP remote doc location and package boundaries", () => {
+test("PR48 adds no root-level MCP_REMOTE docs beyond the PR39 through PR44 legacy exception set", () => {
   const actualRootMcpRemoteDocs = readdirSync(docsDir)
     .filter((entry) => /^MCP_REMOTE_.*\.md$/.test(entry))
     .sort();
@@ -158,11 +192,14 @@ test("PR48 preserves MCP remote doc location and package boundaries", () => {
   for (const docPath of existingMcpRemoteDocs) {
     assert.equal(existsSync(join(repoRoot, docPath)), true, `${docPath} must remain at its current path`);
   }
+});
 
+test("PR48 keeps package metadata dependencies lockfile and MCP SDK unchanged", () => {
   const packageJson = parseJson(packageJsonPath);
   const packageLock = parseJson(packageLockPath);
 
   assert.equal(packageJson.name, "@norma/core");
+  assert.equal(packageJson.version, "0.1.0");
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.private, true);
   assert.equal(packageJson.sideEffects, false);
@@ -170,6 +207,9 @@ test("PR48 preserves MCP remote doc location and package boundaries", () => {
     types: "./dist/src/index.d.ts",
     default: "./dist/src/index.js",
   });
+  assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
+  assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
+  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
 
   for (const fieldName of [
     "publishConfig",
@@ -180,29 +220,18 @@ test("PR48 preserves MCP remote doc location and package boundaries", () => {
     "peerDependencies",
   ]) {
     assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(Object.hasOwn(packageLock.packages[""], fieldName), false, `${fieldName} should stay absent in lock root`);
+    assert.equal(
+      Object.hasOwn(packageLock.packages[""], fieldName),
+      false,
+      `${fieldName} should stay absent in lock root`,
+    );
   }
 
-  assert.equal(packageJson.devDependencies?.typescript, "^5.8.0");
-  assert.equal(packageLock.packages[""].devDependencies?.typescript, "^5.8.0");
   assertNoMcpDependency(packageJson);
   assertNoMcpDependency(packageLock.packages[""]);
 });
 
-test("PR48 keeps runtime deployment API UI and MCP tool exposure blocked", () => {
-  const roadmapStatusDoc = readDoc(roadmapStatusDocPath);
-
-  assertDocMentions(roadmapStatusDoc, [
-    "PR48 does not approve",
-    "remote MCP runtime implementation",
-    "API server implementation",
-    "UI implementation",
-    "public npm publishing",
-    "new MCP tools",
-    "arbitrary replay",
-    "`norma.replayRun` MCP exposure",
-  ]);
-
+test("PR48 keeps runtime and deployment surfaces absent in the MCP boundary", () => {
   assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
   assert.equal(existsSync(wrapperPath), true);
 
@@ -217,7 +246,7 @@ test("PR48 keeps runtime deployment API UI and MCP tool exposure blocked", () =>
   }
 });
 
-test("PR48 keeps current local STDIO tool allowlist and replay rejection unchanged", async () => {
+test("PR48 keeps current MCP tools exactly and replayRun blocked", async () => {
   const toolsListResponse = await parseRequiredResponse({
     jsonrpc: "2.0",
     id: "pr48-tools-list",
@@ -344,6 +373,15 @@ function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
     assert.match(doc, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
   }
+}
+
+function sectionBetween(doc, startHeading, endHeading) {
+  const start = doc.indexOf(startHeading);
+  assert.notEqual(start, -1, `${startHeading} should exist`);
+  const end = doc.indexOf(endHeading, start + startHeading.length);
+  assert.notEqual(end, -1, `${endHeading} should exist`);
+  assert.ok(end > start, `${endHeading} should appear after ${startHeading}`);
+  return doc.slice(start, end);
 }
 
 function assertNoRemoteMcpRuntimeSurface(source, path) {

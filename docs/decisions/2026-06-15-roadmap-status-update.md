@@ -4,78 +4,93 @@
 
 PR48 is docs/contract-tests only.
 
-PR48 updates roadmap status after the GitHub PR47 / PR46-label remote MCP tool exposure policy merge.
+PR48 updates roadmap status after PR47 / PR46-label.
 
-PR48 does not implement product features.
+The original Business Readiness Roadmap remains a planning document.
 
-PR48 does not authorize runtime, package, dependency, deployment, API, UI, remote MCP, auth, logging, telemetry, resource, prompt, sampling, elicitation, or tool exposure changes.
+The roadmap does not authorize scope by itself.
 
-Remote MCP remains blocked after PR48.
+The original PR numbers in the roadmap are historical.
 
-Local STDIO remains the only approved MCP runtime.
+Current official documentation state in PR48: Unknown.
+
+PR48 does not re-check current official docs because it makes no transport, auth, package, runtime, deployment, API, UI, provider-compatibility, or tool-exposure decision.
 
 ## Decision
 
-`docs/BUSINESS_READINESS_ROADMAP.md` remains the primary business readiness roadmap reference.
+PR48 records the current roadmap boundary and the next advisory PR sequence through business readiness.
 
-The original roadmap remains valid as a phase strategy and engineering-discipline document.
+Current PR39-PR47 / PR46-label sequence is a cautious Phase 4 extension of remote MCP/API readiness.
 
-The original roadmap PR numbers are historical.
+This extension was intentionally conservative and docs/contract-tests only after local STDIO MCP.
 
-The current PR39 through GitHub PR47 / PR46-label sequence is a cautious Phase 4 remote MCP/API readiness extension, not a contradiction of the roadmap.
+Remote MCP remains blocked.
 
-Future work should follow the updated PR sequence in this document unless a later roadmap update explicitly changes it.
+Local STDIO remains the only approved MCP runtime.
+
+No remote runtime, API, UI, deployment, package publishing, or remote MCP tool exposure was approved by PR39-PR47 / PR46-label.
 
 ## Source Documents
 
-- Primary roadmap reference: `docs/BUSINESS_READINESS_ROADMAP.md`.
-- PR39 threat model: `docs/MCP_REMOTE_THREAT_MODEL.md`.
-- PR40 approval decision: `docs/MCP_REMOTE_APPROVAL_DECISION.md`.
-- PR41 transport/auth/package decision: `docs/MCP_REMOTE_TRANSPORT_AUTH_PACKAGE_DECISION.md`.
-- PR42 package dependency decision: `docs/MCP_REMOTE_PACKAGE_DEPENDENCY_DECISION.md`.
-- PR43 security test matrix: `docs/MCP_REMOTE_SECURITY_TEST_MATRIX.md`.
-- PR44 deployment policy decision: `docs/MCP_REMOTE_DEPLOYMENT_POLICY_DECISION.md`.
-- PR45 decision doc location policy: `docs/decisions/2026-06-15-mcp-decision-doc-location-policy.md`.
-- GitHub PR47 / PR46-label tool exposure policy: `docs/decisions/2026-06-15-remote-mcp-tool-exposure-policy.md`.
-- MCP tool contract: `docs/MCP_TOOL_CONTRACT.md`.
+- `docs/BUSINESS_READINESS_ROADMAP.md`.
+- `docs/MCP_TOOL_CONTRACT.md`.
+- `docs/MCP_REMOTE_THREAT_MODEL.md`.
+- `docs/MCP_REMOTE_APPROVAL_DECISION.md`.
+- `docs/MCP_REMOTE_TRANSPORT_AUTH_PACKAGE_DECISION.md`.
+- `docs/MCP_REMOTE_PACKAGE_DEPENDENCY_DECISION.md`.
+- `docs/MCP_REMOTE_SECURITY_TEST_MATRIX.md`.
+- `docs/MCP_REMOTE_DEPLOYMENT_POLICY_DECISION.md`.
+- `docs/decisions/2026-06-15-mcp-decision-doc-location-policy.md`.
+- `docs/decisions/2026-06-15-remote-mcp-tool-exposure-policy.md`.
+- `src/mcp/stdio-protocol.ts`.
+- `bin/norma-core-mcp-stdio.mjs`.
+- `package.json`.
+- `package-lock.json`.
 
 ## What Remains True From The Original Roadmap
 
-The original roadmap remains the strategic reference for business readiness.
+The original roadmap still defines useful readiness phases:
 
-It remains true that each phase requires small PRs with narrow scope, explicit non-goals, acceptance criteria, and validation notes.
+- developer-tool readiness before broader delivery surfaces;
+- package and release readiness before public package publication;
+- MCP contract and local MCP before any remote MCP;
+- remote MCP/API readiness before API implementation;
+- product requirements before UI implementation;
+- business launch readiness after onboarding, beta, policy, pricing, and launch gates.
 
-It remains true that Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes.
+API implementation is gated behind API contract/auth/rate-limit policy.
 
-It remains true that external surfaces may call the core, but must not define Norma logic.
+UI implementation is gated behind product requirements and viewer plan.
 
-It remains true that remote MCP and API work require threat models and approval gates before runtime implementation.
+Package publishing remains blocked until explicit publishing decision.
 
-It remains true that API implementation must not happen before API contract approval.
-
-It remains true that UI implementation must not happen before product requirements.
-
-It remains true that public npm publishing remains blocked until an explicit package-readiness or publishing decision approves it.
-
-It remains true that camera/image/vision, CAD/plugin/marketplace, cloud/hosted service, beauty score, creative recommendation, prompt-as-source, artifact-as-source, arbitrary replay, and adapter-owned Norma logic remain blocked unless a later explicit PR approves them.
+Remote MCP runtime remains blocked unless future explicit approval satisfies gates.
 
 ## Historical PR Number Boundary
 
-The original roadmap PR numbers were written before the current PR39 through GitHub PR47 / PR46-label remote MCP governance sequence.
+The original roadmap PR numbers are historical.
 
-Those numbers are historical and must not be read as the current live PR numbering.
+The roadmap was written before the current PR39-PR47 / PR46-label remote MCP governance sequence.
 
-The original phase order remains useful.
+Historical PR numbers in `docs/BUSINESS_READINESS_ROADMAP.md` must not be treated as current PR numbers.
 
-The current live PR numbers must be taken from GitHub and current repository state.
-
-Any future roadmap reference must distinguish between historical roadmap PR labels and actual GitHub PR numbers.
+If the roadmap's historical PR numbering conflicts with current repository history, current repository history wins.
 
 ## Current Position After PR47
 
-After GitHub PR47 / PR46-label, Norma Core is in Phase 4 remote MCP/API readiness governance.
+Current position after PR47:
 
-Phase 3 local MCP readiness has a reviewed local STDIO MCP boundary with the current approved five-tool allowlist:
+- local STDIO MCP exists as the only approved MCP runtime;
+- local STDIO `tools/list` and `tools/call` expose only the approved five-tool allowlist;
+- remote MCP remains blocked;
+- remote MCP tool exposure remains blocked;
+- API implementation remains blocked;
+- UI implementation remains blocked;
+- package publishing remains blocked;
+- deployment remains blocked;
+- current business readiness is still incomplete.
+
+Current local STDIO MCP tool exposure remains exactly:
 
 ```txt
 norma.getVersion
@@ -85,126 +100,116 @@ norma.verifyArtifactFreshness
 norma.replayMvpDemo
 ```
 
-The PR39 through GitHub PR47 / PR46-label sequence established cautious remote MCP governance gates:
+`norma.replayRun` and arbitrary replay remain blocked as MCP exposure.
 
-- threat model;
-- approval decision;
-- transport/auth/package candidate boundary;
-- package/dependency decision;
-- security test matrix;
-- deployment policy;
-- decision doc location policy;
-- remote tool exposure policy.
-
-This does not mean remote MCP is implemented or approved.
-
-Current runtime remains local STDIO only.
+`norma.replayMvpDemo` remains fixed-demo-only and must reject caller-supplied replay inputs.
 
 ## Phase 4 Remote MCP Governance Extension
 
-The current PR39 through GitHub PR47 / PR46-label sequence is a conservative extension of Phase 4.
+PR39-PR47 / PR46-label are a cautious Phase 4 extension.
 
-It was intentionally docs/contract-tests focused.
+This extension converts the original roadmap's remote MCP/API readiness phase into explicit governance gates.
 
-It happened before any remote runtime implementation.
+The extension is intentionally conservative:
 
-It preserves the original roadmap rule that remote/API exposure requires threat modeling and explicit approval gates.
+- PR39 defined the remote MCP threat model and approval gate;
+- PR40 recorded that remote MCP remains blocked;
+- PR41 selected future transport/auth candidates only, without runtime approval;
+- PR42 rejected package/dependency approval for remote MCP;
+- PR43 defined the future remote MCP security test matrix;
+- PR44 defined deployment policy gates without deployment approval;
+- PR45 fixed future MCP decision document location policy;
+- PR47 / PR46-label defined remote MCP tool exposure policy without remote tool exposure.
 
-The extension is accepted as current strategy because it reduces risk before any API, remote MCP, deployment, auth, or public product surface is implemented.
+The extension does not contradict the roadmap. It narrows the roadmap into reviewed, testable gates before any remote/API implementation.
 
 ## Next PR Sequence
 
-The following sequence is the current planning path after PR48.
+The fastest safe current path through business readiness is:
 
-Each PR remains independently scoped. This sequence is planning guidance, not automatic authorization.
+- PR48 - roadmap status update.
+- PR49 - remote MCP/API readiness checkpoint, still no runtime.
+- PR50 - API contract decision, docs/tests only.
+- PR51 - auth/audit/rate-limit policy for API and future remote MCP, docs/tests only.
+- PR52 - minimal API server approval decision, no implementation unless explicitly approved.
+- PR53 - minimal API server skeleton, conditional on PR50-PR52 gates approving it.
+- PR54 - API contract tests and golden envelopes, conditional on an approved API contract.
+- PR55 - product requirements for read-only result viewer.
+- PR56 - read-only result viewer plan, no UI implementation.
+- PR57 - structured JSON input viewer prototype, conditional on PR55-PR56 approval.
+- PR58 - verification/replay result UI prototype, no source-truth inference.
+- PR59 - onboarding and examples.
+- PR60 - beta pilot readiness checklist.
+- PR61 - privacy/security/support policy.
+- PR62 - pricing/package/public npm decision.
+- PR63 - business launch checklist.
 
-- PR48 — roadmap status update.
-- PR49 — remote MCP/API readiness checkpoint, still no runtime.
-- PR50 — API contract decision, docs/contract-tests only.
-- PR51 — auth, audit-log, and rate-limit policy for API and future remote MCP, docs/contract-tests only.
-- PR52 — minimal API server approval decision, no implementation unless explicitly approved.
-- PR53 — minimal API server skeleton, conditional on PR50 through PR52 approval.
-- PR54 — API contract tests and golden envelopes, conditional on PR53.
-- PR55 — product requirements for read-only result viewer.
-- PR56 — read-only result viewer plan, no UI implementation.
-- PR57 — structured JSON input viewer prototype, conditional on PR55 and PR56.
-- PR58 — verification/replay result UI prototype, no source-truth inference.
-- PR59 — onboarding and examples.
-- PR60 — beta pilot readiness checklist.
-- PR61 — privacy, security, and support policy.
-- PR62 — pricing, packaging, and public npm decision.
-- PR63 — business launch checklist.
+Conditional PRs must stay blocked until their named gates pass.
 
-API implementation must not happen before API contract, auth, audit-log, and rate-limit gates are accepted.
+API implementation must not happen before API contract/auth/rate-limit gates.
 
-UI implementation must not happen before product requirements and read-only viewer plan are accepted.
+UI implementation must not happen before product requirements and viewer plan.
 
-Public npm publishing must remain blocked until an explicit publishing decision PR approves it.
+Public npm/package publishing must remain blocked until an explicit publishing decision PR.
 
-Remote MCP runtime remains blocked unless a future explicit approval PR satisfies the PR39 through PR47 / PR46-label gates and keeps every unapproved surface blocked.
+Remote MCP runtime must remain blocked unless a later explicit approval PR satisfies all PR39-PR47 gates.
 
 ## Non-Approval Boundary
 
 PR48 does not approve:
 
-- remote MCP runtime implementation;
-- HTTP runtime;
-- SSE runtime;
-- Streamable HTTP runtime;
-- WebSocket runtime;
-- API server implementation;
-- OAuth, auth, token, or environment-driven behavior;
+- runtime implementation;
+- remote MCP runtime;
+- remote MCP tool exposure;
+- API implementation;
+- UI implementation;
+- package publishing;
 - package metadata changes;
 - dependency changes;
-- package `bin` changes;
-- package export changes;
 - lockfile changes;
-- deployment files;
-- remote server files;
-- UI implementation;
-- public npm publishing;
+- deployment;
+- auth runtime;
+- logging runtime;
 - resources;
 - prompts;
 - sampling;
 - elicitation;
-- logging;
-- telemetry;
-- retention;
-- filesystem behavior;
-- network behavior;
-- shell behavior;
 - new MCP tools;
 - arbitrary replay;
 - `norma.replayRun` MCP exposure.
 
+No future PR may treat PR48 as approval for runtime, remote MCP, API, UI, package publishing, deployment, auth, logging, or tool exposure.
+
 ## Validation Policy
 
-Every future PR must keep the per-PR discipline from `docs/BUSINESS_READINESS_ROADMAP.md`.
+PR48 validation must prove:
 
-Runtime-bearing PRs must run build, focused tests, full tests where relevant, check, diff check, guardrail greps, and advisory review when available.
-
-Docs/contract-test PRs must still verify forbidden paths did not change.
-
-Warnings from advisory tools may be accepted only when documented with a reason.
-
-P0 and P1 findings remain blocking.
-
-P2 findings require a fix unless there is a clear documented reason not to fix.
-
-P3 findings are optional cleanup unless they reveal scope drift.
+- this decision document exists under `docs/decisions/` with a date-prefixed filename;
+- required headings exist in order;
+- the original roadmap is documented as a planning document;
+- the original roadmap PR numbers are documented as historical;
+- PR39-PR47 / PR46-label are documented as a cautious Phase 4 extension;
+- remote MCP remains blocked;
+- local STDIO remains the only approved MCP runtime;
+- the next PR sequence covers PR48 through PR63;
+- API, UI, package publishing, and remote MCP runtime remain gated;
+- no new root-level `docs/MCP_REMOTE_*.md` document is added beyond the PR39-PR44 legacy exception set;
+- package, runtime, deployment, and MCP tool exposure boundaries remain unchanged.
 
 ## Final Decision
 
-`docs/BUSINESS_READINESS_ROADMAP.md` is the primary roadmap reference.
+PR48 updates roadmap status only.
+
+The original Business Readiness Roadmap remains a planning document and does not authorize scope by itself.
 
 The original roadmap PR numbers are historical.
 
-PR39 through GitHub PR47 / PR46-label are now documented as a cautious Phase 4 remote MCP/API readiness extension.
+PR39-PR47 / PR46-label are a cautious Phase 4 extension of remote MCP/API readiness.
 
-The next current sequence is PR48 through PR63 as listed in this document.
-
-Remote MCP remains blocked after PR48.
+Remote MCP remains blocked.
 
 Local STDIO remains the only approved MCP runtime.
 
-PR48 does not approve runtime, package, dependency, deployment, API, UI, auth, logging, resource, prompt, sampling, elicitation, public npm, or tool exposure changes.
+PR48 does not approve runtime, remote MCP, API, UI, package publishing, deployment, auth, logging, or tool exposure changes.
+
+The next PR sequence through PR63 is advisory and still requires separate scoped PRs.
