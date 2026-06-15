@@ -1,4 +1,6 @@
 import { CORE_VERSION } from "../core-constants.js";
+import { verifyArtifactFreshness } from "../artifact-freshness.js";
+import { verifyRun } from "../run-verification.js";
 import { serializeCanonicalJson, STABLE_SERIALIZATION_VERSION } from "../serialization.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -16,7 +18,7 @@ interface McpToolDefinition {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-const PR36_MCP_TOOLS = [
+const PR37_MCP_TOOLS = [
   {
     name: "norma.getVersion",
     title: "Get Norma Core version",
@@ -40,6 +42,32 @@ const PR36_MCP_TOOLS = [
         policy: {
           type: "string",
         },
+      },
+    },
+  },
+  {
+    name: "norma.verifyRun",
+    title: "Verify Norma run",
+    description: "Verify an explicit Norma run envelope using existing Norma Core verification semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
+      },
+    },
+  },
+  {
+    name: "norma.verifyArtifactFreshness",
+    title: "Verify artifact freshness",
+    description: "Verify explicit artifact freshness using existing Norma Core artifact freshness semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
       },
     },
   },
@@ -78,7 +106,7 @@ interface ToolsListResponse {
   readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly result: {
-    readonly tools: typeof PR36_MCP_TOOLS;
+    readonly tools: typeof PR37_MCP_TOOLS;
   };
 }
 
@@ -204,7 +232,7 @@ function createToolsListResult(id: JsonRpcId): ToolsListResponse {
     jsonrpc: "2.0",
     id,
     result: {
-      tools: PR36_MCP_TOOLS,
+      tools: PR37_MCP_TOOLS,
     },
   };
 }
@@ -221,6 +249,14 @@ function handleToolsCall(id: JsonRpcId, params: unknown): ToolsCallResponse | Js
 
   if (call.name === "norma.serializeCanonicalJson") {
     return callSerializeCanonicalJson(id, call.arguments);
+  }
+
+  if (call.name === "norma.verifyRun") {
+    return callVerifyRun(id, call.arguments);
+  }
+
+  if (call.name === "norma.verifyArtifactFreshness") {
+    return callVerifyArtifactFreshness(id, call.arguments);
   }
 
   return createJsonRpcError(id, -32602, `Unknown tool: ${call.name}`);
@@ -246,8 +282,8 @@ function callGetVersion(
       toolsList: true,
       getVersion: true,
       serializeCanonicalJson: true,
-      verifyRun: false,
-      verifyArtifactFreshness: false,
+      verifyRun: true,
+      verifyArtifactFreshness: true,
       replayMvpDemo: false,
       resources: false,
       prompts: false,
@@ -296,6 +332,50 @@ function callSerializeCanonicalJson(
   }
 }
 
+function callVerifyRun(
+  id: JsonRpcId,
+  toolArguments: Readonly<Record<string, unknown>> | undefined,
+): ToolsCallResponse | JsonRpcErrorResponse {
+  const input = parseVerifyToolInput(toolArguments);
+  if (input === invalidVerifyToolInput) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  try {
+    const result = verifyRun(input as Parameters<typeof verifyRun>[0]);
+    return createToolResult(id, {
+      kind: "norma-mcp-tool-result",
+      tool: "norma.verifyRun",
+      status: result.status,
+      result,
+    });
+  } catch {
+    return createJsonRpcError(id, -32603, "Internal error");
+  }
+}
+
+function callVerifyArtifactFreshness(
+  id: JsonRpcId,
+  toolArguments: Readonly<Record<string, unknown>> | undefined,
+): ToolsCallResponse | JsonRpcErrorResponse {
+  const input = parseVerifyToolInput(toolArguments);
+  if (input === invalidVerifyToolInput) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  try {
+    const result = verifyArtifactFreshness(input as Parameters<typeof verifyArtifactFreshness>[0]);
+    return createToolResult(id, {
+      kind: "norma-mcp-tool-result",
+      tool: "norma.verifyArtifactFreshness",
+      status: result.status,
+      result,
+    });
+  } catch {
+    return createJsonRpcError(id, -32603, "Internal error");
+  }
+}
+
 function createToolResult(id: JsonRpcId, structuredContent: McpStructuredContent): ToolsCallResponse {
   return {
     jsonrpc: "2.0",
@@ -311,6 +391,21 @@ function createToolResult(id: JsonRpcId, structuredContent: McpStructuredContent
       isError: false,
     },
   };
+}
+
+const invalidVerifyToolInput = Symbol("invalidVerifyToolInput");
+
+function parseVerifyToolInput(toolArguments: Readonly<Record<string, unknown>> | undefined): unknown {
+  if (toolArguments === undefined) {
+    return invalidVerifyToolInput;
+  }
+
+  const argumentKeys = Object.keys(toolArguments);
+  if (argumentKeys.length !== 1 || !Object.hasOwn(toolArguments, "input")) {
+    return invalidVerifyToolInput;
+  }
+
+  return isJsonCompatibleValue(toolArguments.input) ? toolArguments.input : invalidVerifyToolInput;
 }
 
 function parseToolsCallParams(

@@ -36,6 +36,12 @@ PR36 does not expose or implement verify/replay tools.
 
 PR36 does not add MCP dependencies, package metadata, resources/prompts, remote MCP, filesystem access, network access, shell execution, or environment-driven behavior.
 
+PR37 implements local STDIO `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` beyond PR36.
+
+PR37 keeps `tools/list` limited to exactly four tools.
+
+PR37 does not expose or implement `norma.replayMvpDemo`, arbitrary replay, resources/prompts, remote MCP, package metadata drift, dependencies, filesystem access, network access, shell execution, or environment-driven behavior.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
@@ -65,6 +71,7 @@ Current readiness:
 - PR34 adds only a local STDIO JSON-RPC process skeleton;
 - PR35 exposes exactly two local STDIO MCP tools through `tools/list`;
 - PR36 implements `tools/call` for `norma.getVersion` and `norma.serializeCanonicalJson` only.
+- PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` only beyond PR36 and keeps replay blocked.
 
 ## Official MCP Concepts Used
 
@@ -89,7 +96,7 @@ References:
 
 - https://modelcontextprotocol.io/docs/learn/architecture
 - https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
-- https://modelcontextprotocol.io/specification/draft/server/tools
+- https://modelcontextprotocol.io/specification/2025-06-18/server/tools
 - https://modelcontextprotocol.io/specification/2025-06-18/server/resources
 - https://modelcontextprotocol.io/specification/2025-06-18/server/prompts
 - https://developers.openai.com/api/docs/guides/tools-connectors-mcp
@@ -118,6 +125,16 @@ PR36 does not expose or implement verify/replay tools.
 PR36 does not add resources, prompts, remote MCP, package metadata, dependencies, package exports, or package bin metadata.
 
 PR36 does not read files, fetch network URLs, run shell commands, or read environment variables.
+
+PR37 implements local STDIO `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` beyond PR36.
+
+PR37 keeps `tools/list` at exactly four tools.
+
+PR37 does not expose or implement `norma.replayMvpDemo`.
+
+PR37 does not implement arbitrary replay, resources, prompts, remote MCP, package metadata, dependencies, package exports, or package bin metadata.
+
+PR37 does not read files, fetch network URLs, run shell commands, or read environment variables.
 
 Remote HTTP, SSE, and Streamable HTTP are not approved yet.
 
@@ -254,8 +271,8 @@ Output shape sketch:
     "toolsList": true,
     "getVersion": true,
     "serializeCanonicalJson": true,
-    "verifyRun": false,
-    "verifyArtifactFreshness": false,
+    "verifyRun": true,
+    "verifyArtifactFreshness": true,
     "replayMvpDemo": false,
     "resources": false,
     "prompts": false,
@@ -441,6 +458,60 @@ npx @modelcontextprotocol/inspector node bin/norma-core-mcp-stdio.mjs
 ```
 
 Inspector must not be added to `package.json`, CI, dependencies, package bin metadata, or package docs as a required workflow.
+
+## PR37 Tool Call Contract
+
+PR37 implements `tools/call` only for:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+```
+
+PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` beyond PR36.
+
+PR37 keeps `tools/list` at exactly four tools:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+```
+
+PR37 returns structured MCP tool results with exactly one text content item plus `structuredContent`.
+
+The text content item is JSON and parses to the same value as `structuredContent`.
+
+PR37 validates `tools/call` params and tool arguments strictly.
+
+Unknown tool names return JSON-RPC `-32602`.
+
+Malformed params return JSON-RPC `-32602`.
+
+Unexpected internal failures return JSON-RPC `-32603` with message `Internal error` and no stack trace.
+
+PR37 does not use MCP tool-result `isError: true` for input validation errors.
+
+PR37 preserves core verification outputs and does not reduce to `valid`.
+
+PR37 keeps source-truth rules unchanged.
+
+PR37 does not expose or implement `norma.replayMvpDemo`.
+
+PR37 does not implement arbitrary replay.
+
+PR37 does not implement remote MCP.
+
+PR37 does not implement resources, prompts, sampling, elicitation, logging, remote MCP, HTTP, SSE, Streamable HTTP, WebSocket, API, SDK, UI, cloud, camera, image, vision, CAD, plugin, or marketplace behavior.
+
+PR37 does not add dependencies, package exports, package `bin`, package version changes, or package publication metadata.
+
+PR37 does not add filesystem access, network access, shell execution, package metadata reads, or environment reads.
+
+PR38 remains the future candidate for `norma.replayMvpDemo` only.
 
 ## Resources and Prompts Policy
 
