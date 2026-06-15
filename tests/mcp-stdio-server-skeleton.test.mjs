@@ -191,10 +191,9 @@ test("PR34 invalid request shapes return invalid request errors", () => {
   });
 });
 
-test("PR34 unsupported request methods return method-not-found", () => {
+test("PR34 non-tool-call unsupported request methods return method-not-found", () => {
   for (const method of [
     "unknown/method",
-    "tools/call",
     "resources/list",
     "resources/read",
     "prompts/list",

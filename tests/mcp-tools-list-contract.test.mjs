@@ -17,8 +17,7 @@ const discoveredTools = [
   {
     name: "norma.getVersion",
     title: "Get Norma Core version",
-    description:
-      "Return Norma Core version and capability metadata. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    description: "Return Norma Core version and MCP capability metadata.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -28,8 +27,7 @@ const discoveredTools = [
   {
     name: "norma.serializeCanonicalJson",
     title: "Serialize canonical JSON",
-    description:
-      "Return deterministic canonical JSON for an explicit structured value. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    description: "Return deterministic canonical JSON for an explicit structured value.",
     inputSchema: {
       type: "object",
       required: ["value"],
@@ -77,7 +75,7 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR35 initialize declares only the static tools capability", () => {
+test("PR36 initialize declares only the static tools capability", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
     id: "init-tools-capability",
@@ -97,7 +95,7 @@ test("PR35 initialize declares only the static tools capability", () => {
   }
 });
 
-test("PR35 tools/list returns exactly the two discovery-only PR36 candidate tools", () => {
+test("PR36 tools/list returns exactly the two callable tools", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-1",
@@ -118,7 +116,7 @@ test("PR35 tools/list returns exactly the two discovery-only PR36 candidate tool
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
 });
 
-test("PR35 tools/list schemas are exact", () => {
+test("PR36 tools/list schemas are exact", () => {
   const tools = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-schemas",
@@ -145,7 +143,7 @@ test("PR35 tools/list schemas are exact", () => {
   });
 });
 
-test("PR35 tools/list does not expose verify replay resources prompts or rich content fields", () => {
+test("PR36 tools/list does not expose verify replay resources prompts or rich content fields", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-guardrails",
@@ -168,7 +166,7 @@ test("PR35 tools/list does not expose verify replay resources prompts or rich co
   ]);
 });
 
-test("PR35 tools/list accepts missing empty and string cursor params without pagination", () => {
+test("PR36 tools/list accepts missing empty and string cursor params without pagination", () => {
   const requestVariants = [
     {
       jsonrpc: "2.0",
@@ -199,7 +197,7 @@ test("PR35 tools/list accepts missing empty and string cursor params without pag
   }
 });
 
-test("PR35 tools/list rejects malformed params with invalid params", () => {
+test("PR36 tools/list rejects malformed params with invalid params", () => {
   for (const params of ["cursor-1", 1, true, null, [], { cursor: 1 }, { cursor: null }, { extra: true }]) {
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
@@ -219,28 +217,7 @@ test("PR35 tools/list rejects malformed params with invalid params", () => {
   }
 });
 
-test("PR35 tools/call remains unimplemented", () => {
-  const response = parseRequiredResponse({
-    jsonrpc: "2.0",
-    id: "tools-call-still-unsupported",
-    method: "tools/call",
-    params: {
-      name: "norma.getVersion",
-      arguments: {},
-    },
-  });
-
-  assert.deepEqual(response, {
-    jsonrpc: "2.0",
-    id: "tools-call-still-unsupported",
-    error: {
-      code: -32601,
-      message: "Method not found",
-    },
-  });
-});
-
-test("PR35 resources prompts sampling elicitation and logging remain unimplemented", () => {
+test("PR36 resources prompts sampling elicitation and logging remain unimplemented", () => {
   for (const method of [
     "resources/list",
     "prompts/list",
@@ -265,7 +242,7 @@ test("PR35 resources prompts sampling elicitation and logging remain unimplement
   }
 });
 
-test("PR35 notifications tools list changed produces no response", () => {
+test("PR36 notifications tools list changed produces no response", () => {
   assert.equal(
     handleMcpJsonRpcMessage(
       JSON.stringify({
@@ -277,7 +254,7 @@ test("PR35 notifications tools list changed produces no response", () => {
   );
 });
 
-test("PR35 spawned STDIO wrapper returns initialize and tools/list before stdin closes", async () => {
+test("PR36 spawned STDIO wrapper returns initialize and tools/list before stdin closes", async () => {
   const child = spawn(process.execPath, [wrapperPath], {
     cwd: repoRoot,
     stdio: ["pipe", "pipe", "pipe"],
@@ -323,7 +300,7 @@ test("PR35 spawned STDIO wrapper returns initialize and tools/list before stdin 
   assert.deepEqual(toolsListResponse.result.tools, discoveredTools);
 });
 
-test("PR35 spawned STDIO wrapper emits empty stdout for notification-only input", () => {
+test("PR36 spawned STDIO wrapper emits empty stdout for notification-only input", () => {
   const result = spawnSync(process.execPath, [wrapperPath], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -338,7 +315,7 @@ test("PR35 spawned STDIO wrapper emits empty stdout for notification-only input"
   assert.equal(result.stdout, "");
 });
 
-test("PR35 package metadata remains private and dependency-free", () => {
+test("PR36 package metadata remains private and dependency-free", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 
   assert.equal(packageJson.name, "@norma/core");
@@ -354,7 +331,7 @@ test("PR35 package metadata remains private and dependency-free", () => {
   }
 });
 
-test("PR35 runtime skeleton reads no environment variables", () => {
+test("PR36 runtime skeleton reads no environment variables", () => {
   const runtimeSource = [
     readFileSync(wrapperPath, "utf8"),
     readFileSync(protocolSourcePath, "utf8"),

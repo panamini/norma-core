@@ -28,6 +28,14 @@ PR34 does not add MCP SDK/dependencies.
 
 PR34 does not add package metadata, publication, exports, API, SDK, UI, cloud, camera, image, vision, CAD, plugin, or marketplace behavior.
 
+PR35 enables local `tools/list` discovery only for two tools.
+
+PR36 implements local STDIO `tools/call` only for `norma.getVersion` and `norma.serializeCanonicalJson`.
+
+PR36 does not expose or implement verify/replay tools.
+
+PR36 does not add MCP dependencies, package metadata, resources/prompts, remote MCP, filesystem access, network access, shell execution, or environment-driven behavior.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
@@ -54,8 +62,9 @@ Current readiness:
 - public package publishing gate exists from PR32;
 - package remains private;
 - no public npm publication exists;
-- PR34 adds only a local STDIO JSON-RPC process skeleton if merged;
-- no MCP tool exposure or tool-call implementation exists yet.
+- PR34 adds only a local STDIO JSON-RPC process skeleton;
+- PR35 exposes exactly two local STDIO MCP tools through `tools/list`;
+- PR36 implements `tools/call` for `norma.getVersion` and `norma.serializeCanonicalJson` only.
 
 ## Official MCP Concepts Used
 
@@ -99,6 +108,16 @@ PR34 does not add tools/list exposure, tools/call behavior, resources, prompts, 
 PR35 enables `tools/list` discovery only for the local STDIO skeleton.
 
 PR35 adds no `tools/call` behavior, tool execution, resources, prompts, remote transport, package metadata, dependencies, package exports, or package bin metadata.
+
+PR36 implements local STDIO `tools/call` only for `norma.getVersion` and `norma.serializeCanonicalJson`.
+
+PR36 keeps `tools/list` at exactly two tools.
+
+PR36 does not expose or implement verify/replay tools.
+
+PR36 does not add resources, prompts, remote MCP, package metadata, dependencies, package exports, or package bin metadata.
+
+PR36 does not read files, fetch network URLs, run shell commands, or read environment variables.
 
 Remote HTTP, SSE, and Streamable HTTP are not approved yet.
 
@@ -228,12 +247,19 @@ Output shape sketch:
   "tool": "norma.getVersion",
   "status": "ok",
   "coreVersion": "0.1.0-pr12",
-  "serializationVersion": "stable-serialization-v1",
+  "protocolVersion": "2025-06-18",
+  "serverName": "norma-core-mcp-stdio-skeleton",
+  "serverVersion": "0.1.0-pr12",
   "capabilities": {
-    "verifyRun": true,
-    "verifyArtifactFreshness": true,
-    "replayMvpDemo": true,
-    "serializeCanonicalJson": true
+    "toolsList": true,
+    "getVersion": true,
+    "serializeCanonicalJson": true,
+    "verifyRun": false,
+    "verifyArtifactFreshness": false,
+    "replayMvpDemo": false,
+    "resources": false,
+    "prompts": false,
+    "remoteMcp": false
   }
 }
 ```
@@ -326,6 +352,7 @@ Output shape sketch:
   "kind": "norma-mcp-tool-result",
   "tool": "norma.serializeCanonicalJson",
   "status": "ok",
+  "serializationVersion": "stable-serialization-v1",
   "canonicalJson": "{}"
 }
 ```
@@ -360,6 +387,60 @@ PR35 keeps source-truth rules unchanged.
 PR35 accepts no `tools/list` params, empty params, or a string cursor param, but returns the same complete static tools list without `nextCursor`.
 
 PR36 is the first candidate for actual tool-call implementation, and only for the two PR35 discovery tools listed above.
+
+## PR36 Tool Call Contract
+
+PR36 implements `tools/call` only for:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+```
+
+PR36 keeps `tools/list` at exactly two tools.
+
+PR36 returns structured MCP tool results with exactly one text content item plus `structuredContent`.
+
+The text content item is JSON and parses to the same value as `structuredContent`.
+
+PR36 validates `tools/call` params and tool arguments strictly.
+
+Unknown tool names return JSON-RPC `-32602`.
+
+Malformed params return JSON-RPC `-32602`.
+
+Unexpected internal failures return JSON-RPC `-32603` with message `Internal error` and no stack trace.
+
+PR36 does not use MCP tool-result `isError: true` for input validation errors.
+
+PR36 does not expose or implement:
+
+```txt
+norma.verifyRun
+norma.verifyArtifactFreshness
+norma.replayMvpDemo
+```
+
+PR36 does not implement arbitrary dispatch, generic run/execute/call/eval/apply/mutate behavior, source-truth creation, filesystem access, network access, shell execution, package metadata reads, or environment reads.
+
+PR36 does not implement resources, prompts, sampling, elicitation, logging, remote MCP, HTTP, SSE, Streamable HTTP, WebSocket, API, SDK, UI, cloud, camera, image, vision, CAD, plugin, or marketplace behavior.
+
+PR36 does not add dependencies, package exports, package `bin`, package version changes, or package publication metadata.
+
+PR36 keeps source-truth rules unchanged.
+
+PR37 is the first candidate for `norma.verifyRun` and `norma.verifyArtifactFreshness`.
+
+PR38 remains the future candidate for `norma.replayMvpDemo` only.
+
+Manual MCP Inspector use remains optional and manual only:
+
+```sh
+npm run build
+npx @modelcontextprotocol/inspector node bin/norma-core-mcp-stdio.mjs
+```
+
+Inspector must not be added to `package.json`, CI, dependencies, package bin metadata, or package docs as a required workflow.
 
 ## Resources and Prompts Policy
 
