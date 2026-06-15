@@ -18,6 +18,14 @@ const approvedCallableTools = [
   "norma.serializeCanonicalJson",
   "norma.verifyRun",
   "norma.verifyArtifactFreshness",
+  "norma.replayMvpDemo",
+];
+
+const approvedPr37CallableTools = [
+  "norma.getVersion",
+  "norma.serializeCanonicalJson",
+  "norma.verifyRun",
+  "norma.verifyArtifactFreshness",
 ];
 
 const approvedFutureTools = [
@@ -289,7 +297,7 @@ test("PR36 MCP contract documents two-tool call implementation and blocked bound
 
 test("PR37 MCP contract documents verification tool-call implementation and blocked boundaries", () => {
   const doc = readDoc(contractDocPath);
-  const pr37Section = sectionBetween(doc, "## PR37 Tool Call Contract", "## Resources and Prompts Policy");
+  const pr37Section = sectionBetween(doc, "## PR37 Tool Call Contract", "## PR38 Tool Call Contract");
   const callableSection = sectionBetween(
     pr37Section,
     "PR37 implements `tools/call` only for:",
@@ -297,7 +305,7 @@ test("PR37 MCP contract documents verification tool-call implementation and bloc
   );
   const documentedCallableTools = Array.from(new Set(callableSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
 
-  assert.deepEqual(documentedCallableTools.sort(), [...approvedCallableTools].sort());
+  assert.deepEqual(documentedCallableTools.sort(), [...approvedPr37CallableTools].sort());
   assertDocMentions(pr37Section, [
     "PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` beyond PR36",
     "PR37 keeps `tools/list` at exactly four tools",
@@ -320,7 +328,46 @@ test("PR37 MCP contract documents verification tool-call implementation and bloc
   ]);
 });
 
-test("PR37 runtime implements tools/call only for approved callable tools", () => {
+test("PR38 MCP contract documents fixed MVP replay tool-call implementation and blocked boundaries", () => {
+  const doc = readDoc(contractDocPath);
+  const pr38Section = sectionBetween(doc, "## PR38 Tool Call Contract", "## Resources and Prompts Policy");
+  const callableSection = sectionBetween(
+    pr38Section,
+    "PR38 implements `tools/call` only for:",
+    "PR38 keeps `tools/list`",
+  );
+  const documentedCallableTools = Array.from(new Set(callableSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
+
+  assert.deepEqual(documentedCallableTools.sort(), [...approvedCallableTools].sort());
+  assertDocMentions(pr38Section, [
+    "PR38 implements `tools/call` for `norma.replayMvpDemo` beyond PR37",
+    "PR38 keeps `tools/list` at exactly five tools",
+    "PR38 does not expose or implement `norma.replayRun`",
+    "PR38 does not implement arbitrary replay",
+    "PR38 does not accept caller-supplied replay inputs",
+    "run",
+    "mvpDemoInput",
+    "sourceObjects",
+    "packLock",
+    "operationContext",
+    "PR38 uses fixed in-memory MVP demo data",
+    "PR38 does not implement resources",
+    "PR38 does not implement remote MCP",
+    "PR38 does not add dependencies",
+    "package exports",
+    "package `bin`",
+    "filesystem access",
+    "network access",
+    "shell execution",
+    "environment reads",
+    "PR38 returns structured MCP tool results with exactly one text content item plus `structuredContent`",
+    "PR38 preserves the full replay result",
+    "does not reduce to `valid`",
+    "PR39 remains the future candidate for remote MCP/API threat modeling",
+  ]);
+});
+
+test("PR38 runtime implements tools/call only for approved callable tools", () => {
   for (const toolName of approvedCallableTools) {
     const argumentsValue = argumentsForTool(toolName);
     const response = parseRequiredResponse({
@@ -337,7 +384,7 @@ test("PR37 runtime implements tools/call only for approved callable tools", () =
     assert.equal(response.result.isError, false);
   }
 
-  for (const toolName of ["norma.replayMvpDemo"]) {
+  for (const toolName of ["norma.replayRun"]) {
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
       id: `${toolName}-not-callable`,
@@ -371,6 +418,10 @@ function argumentsForTool(toolName) {
         a: 1,
       },
     };
+  }
+
+  if (toolName === "norma.replayMvpDemo") {
+    return {};
   }
 
   return {

@@ -1,5 +1,7 @@
 import { CORE_VERSION } from "../core-constants.js";
 import { verifyArtifactFreshness } from "../artifact-freshness.js";
+import { createMvpDemoInput, runMvpDemo } from "../mvp-demo.js";
+import { replayRun } from "../run-replay.js";
 import { verifyRun } from "../run-verification.js";
 import { serializeCanonicalJson, STABLE_SERIALIZATION_VERSION } from "../serialization.js";
 
@@ -18,7 +20,7 @@ interface McpToolDefinition {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-const PR37_MCP_TOOLS = [
+const PR38_MCP_TOOLS = [
   {
     name: "norma.getVersion",
     title: "Get Norma Core version",
@@ -71,6 +73,16 @@ const PR37_MCP_TOOLS = [
       },
     },
   },
+  {
+    name: "norma.replayMvpDemo",
+    title: "Replay Norma MVP demo",
+    description: "Replay the fixed Norma Core MVP demo using existing in-memory demo data and existing replay semantics.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {},
+    },
+  },
 ] as const satisfies readonly McpToolDefinition[];
 
 type McpStructuredContent = Readonly<Record<string, unknown>>;
@@ -106,7 +118,7 @@ interface ToolsListResponse {
   readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly result: {
-    readonly tools: typeof PR37_MCP_TOOLS;
+    readonly tools: typeof PR38_MCP_TOOLS;
   };
 }
 
@@ -232,7 +244,7 @@ function createToolsListResult(id: JsonRpcId): ToolsListResponse {
     jsonrpc: "2.0",
     id,
     result: {
-      tools: PR37_MCP_TOOLS,
+      tools: PR38_MCP_TOOLS,
     },
   };
 }
@@ -257,6 +269,10 @@ function handleToolsCall(id: JsonRpcId, params: unknown): ToolsCallResponse | Js
 
   if (call.name === "norma.verifyArtifactFreshness") {
     return callVerifyArtifactFreshness(id, call.arguments);
+  }
+
+  if (call.name === "norma.replayMvpDemo") {
+    return callReplayMvpDemo(id, call.arguments);
   }
 
   return createJsonRpcError(id, -32602, `Unknown tool: ${call.name}`);
@@ -284,7 +300,7 @@ function callGetVersion(
       serializeCanonicalJson: true,
       verifyRun: true,
       verifyArtifactFreshness: true,
-      replayMvpDemo: false,
+      replayMvpDemo: true,
       resources: false,
       prompts: false,
       remoteMcp: false,
@@ -368,6 +384,40 @@ function callVerifyArtifactFreshness(
     return createToolResult(id, {
       kind: "norma-mcp-tool-result",
       tool: "norma.verifyArtifactFreshness",
+      status: result.status,
+      result,
+    });
+  } catch {
+    return createJsonRpcError(id, -32603, "Internal error");
+  }
+}
+
+function callReplayMvpDemo(
+  id: JsonRpcId,
+  toolArguments: Readonly<Record<string, unknown>> | undefined,
+): ToolsCallResponse | JsonRpcErrorResponse {
+  if (toolArguments !== undefined && Object.keys(toolArguments).length !== 0) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  try {
+    const mvpDemoInput = createMvpDemoInput();
+    const demoResult = runMvpDemo(mvpDemoInput);
+    if (demoResult.status !== "ok" || demoResult.output === null) {
+      return createJsonRpcError(id, -32603, "Internal error");
+    }
+
+    const result = replayRun({
+      run: demoResult.output.runEnvelope,
+      mvpDemoInput,
+      recordedMvpResult: demoResult.output,
+      packLock: demoResult.output.packLock,
+      operationContext: demoResult.output.operationContext,
+    });
+
+    return createToolResult(id, {
+      kind: "norma-mcp-tool-result",
+      tool: "norma.replayMvpDemo",
       status: result.status,
       result,
     });

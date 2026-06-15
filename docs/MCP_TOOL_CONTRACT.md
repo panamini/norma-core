@@ -42,6 +42,12 @@ PR37 keeps `tools/list` limited to exactly four tools.
 
 PR37 does not expose or implement `norma.replayMvpDemo`, arbitrary replay, resources/prompts, remote MCP, package metadata drift, dependencies, filesystem access, network access, shell execution, or environment-driven behavior.
 
+PR38 implements local STDIO `tools/call` for `norma.replayMvpDemo` beyond PR37.
+
+PR38 keeps `tools/list` limited to exactly five tools.
+
+PR38 does not expose or implement `norma.replayRun`, arbitrary replay, resources/prompts, remote MCP, package metadata drift, dependencies, filesystem access, network access, shell execution, or environment-driven behavior.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
@@ -72,6 +78,7 @@ Current readiness:
 - PR35 exposes exactly two local STDIO MCP tools through `tools/list`;
 - PR36 implements `tools/call` for `norma.getVersion` and `norma.serializeCanonicalJson` only.
 - PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` only beyond PR36 and keeps replay blocked.
+- PR38 implements `tools/call` for `norma.replayMvpDemo` only beyond PR37 and keeps arbitrary replay blocked.
 
 ## Official MCP Concepts Used
 
@@ -135,6 +142,16 @@ PR37 does not expose or implement `norma.replayMvpDemo`.
 PR37 does not implement arbitrary replay, resources, prompts, remote MCP, package metadata, dependencies, package exports, or package bin metadata.
 
 PR37 does not read files, fetch network URLs, run shell commands, or read environment variables.
+
+PR38 implements local STDIO `tools/call` for `norma.replayMvpDemo` beyond PR37.
+
+PR38 keeps `tools/list` at exactly five tools.
+
+PR38 exposes only the fixed in-memory MVP demo replay. It does not expose `norma.replayRun`.
+
+PR38 does not implement arbitrary replay, resources, prompts, remote MCP, package metadata, dependencies, package exports, or package bin metadata.
+
+PR38 does not read files, fetch network URLs, run shell commands, or read environment variables.
 
 Remote HTTP, SSE, and Streamable HTTP are not approved yet.
 
@@ -273,7 +290,7 @@ Output shape sketch:
     "serializeCanonicalJson": true,
     "verifyRun": true,
     "verifyArtifactFreshness": true,
-    "replayMvpDemo": false,
+    "replayMvpDemo": true,
     "resources": false,
     "prompts": false,
     "remoteMcp": false
@@ -318,16 +335,28 @@ Output: equivalent to existing `ArtifactFreshnessVerification`.
 
 Purpose: expose MVP-only replay, not arbitrary replay.
 
-Input: equivalent to the safe MVP-only subset currently accepted by `replayRun`.
+Input: empty object only. Missing arguments are accepted as empty arguments.
+
+Input schema sketch:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}
+```
 
 Rules:
 
 - supported operation remains `core.mvp-demo.run`;
-- require explicit `mvpDemoInput`;
-- require explicit run envelope;
-- require explicit pack lock and operation context;
-- optional recorded MVP result may be used for stronger deterministic comparison;
+- use fixed in-memory MVP demo data created by existing core helpers;
+- internally create the MVP demo input with `createMvpDemoInput`;
+- internally create the recorded run, pack lock, operation context, and recorded MVP result from `runMvpDemo`;
+- call existing `replayRun` with the generated in-memory `run`, `mvpDemoInput`, `recordedMvpResult`, `packLock`, and `operationContext`;
+- reject caller-supplied replay inputs including `run`, `mvpDemoInput`, `recordedMvpResult`, `sourceObjects`, `packLock`, `operationContext`, `expectedOutputRefs`, `artifactFreshnessInputs`, and `requireFreshArtifacts`;
 - no arbitrary operation replay;
+- no generic `norma.replayRun` tool;
 - no adapter data;
 - no prompt-as-source;
 - preserve mismatches.
@@ -512,6 +541,68 @@ PR37 does not add dependencies, package exports, package `bin`, package version 
 PR37 does not add filesystem access, network access, shell execution, package metadata reads, or environment reads.
 
 PR38 remains the future candidate for `norma.replayMvpDemo` only.
+
+## PR38 Tool Call Contract
+
+PR38 implements `tools/call` only for:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+norma.replayMvpDemo
+```
+
+PR38 implements `tools/call` for `norma.replayMvpDemo` beyond PR37.
+
+PR38 keeps `tools/list` at exactly five tools:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+norma.replayMvpDemo
+```
+
+PR38 returns structured MCP tool results with exactly one text content item plus `structuredContent`.
+
+The text content item is JSON and parses to the same value as `structuredContent`.
+
+PR38 validates `tools/call` params and tool arguments strictly.
+
+Unknown tool names return JSON-RPC `-32602`.
+
+Malformed params return JSON-RPC `-32602`.
+
+Unexpected internal failures return JSON-RPC `-32603` with message `Internal error` and no stack trace.
+
+PR38 does not use MCP tool-result `isError: true` for input validation errors.
+
+PR38 preserves the full replay result and does not reduce to `valid`.
+
+PR38 keeps source-truth rules unchanged.
+
+PR38 uses fixed in-memory MVP demo data and existing core replay semantics.
+
+PR38 does not accept caller-supplied replay inputs including `run`, `mvpDemoInput`, `recordedMvpResult`, `sourceObjects`, `packLock`, `operationContext`, `expectedOutputRefs`, `artifactFreshnessInputs`, or `requireFreshArtifacts`.
+
+PR38 does not expose or implement `norma.replayRun`.
+
+PR38 does not implement arbitrary replay.
+
+PR38 does not implement remote MCP.
+
+PR38 does not implement resources, prompts, sampling, elicitation, logging, remote MCP, HTTP, SSE, Streamable HTTP, WebSocket, API, SDK, UI, cloud, camera, image, vision, CAD, plugin, or marketplace behavior.
+
+PR38 does not add dependencies, package exports, package `bin`, package version changes, or package publication metadata.
+
+PR38 does not add filesystem access, network access, shell execution, package metadata reads, or environment reads.
+
+PR39 remains the future candidate for remote MCP/API threat modeling before any remote exposure.
+
+PR39 remains remote MCP threat model only, not remote implementation.
 
 ## Resources and Prompts Policy
 
