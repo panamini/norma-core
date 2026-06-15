@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,7 @@ const policyDocPath = join(
   "2026-06-15-mcp-decision-doc-location-policy.md",
 );
 const agentsDocPath = join(repoRoot, "AGENTS.md");
+const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
 const packageLockPath = join(repoRoot, "package-lock.json");
 
@@ -91,6 +92,16 @@ test("PR45 policy references AGENTS documentation rules and PR39 through PR44 MC
     assert.equal(existsSync(join(repoRoot, docPath)), true, `${docPath} must remain at its current path`);
     assertDocMentions(policyDoc, [docPath]);
   }
+});
+
+test("PR45 preserves PR39 through PR44 root-level MCP remote docs as the only legacy exception", () => {
+  const actualRootMcpRemoteDocs = readdirSync(docsDir)
+    .filter((entry) => /^MCP_REMOTE_.*\.md$/.test(entry))
+    .sort();
+
+  const expectedRootMcpRemoteDocs = existingMcpRemoteDocs.map((path) => basename(path)).sort();
+
+  assert.deepEqual(actualRootMcpRemoteDocs, expectedRootMcpRemoteDocs);
 });
 
 test("PR45 does not authorize migrating existing MCP remote docs inside PR45", () => {
