@@ -226,10 +226,11 @@ test("PR43 keeps runtime files local STDIO only and remote surfaces absent", () 
   }
 
   for (const path of [...filesUnder("src"), ...filesUnder("bin")]) {
-    assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
+    assertNoRemoteMcpRuntimeSurface(readDoc(join(repoRoot, path)), path);
   }
 
   for (const path of [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"]) {
+    assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
     assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
   }
 });
@@ -367,6 +368,14 @@ function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
     assert.match(doc, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
   }
+}
+
+function assertNoRemoteMcpRuntimeSurface(source, path) {
+  assert.doesNotMatch(
+    source,
+    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*Server|sse|streamable|websocket|networkFetch|XMLHttpRequest|WebSocket)\b|fetch\(/i,
+    `${path} must not contain remote MCP runtime markers`,
+  );
 }
 
 function assertNoRemoteServerSurface(source, path) {
