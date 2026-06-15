@@ -48,6 +48,18 @@ PR38 keeps `tools/list` limited to exactly five tools.
 
 PR38 does not expose or implement `norma.replayRun`, arbitrary replay, resources/prompts, remote MCP, package metadata drift, dependencies, filesystem access, network access, shell execution, or environment-driven behavior.
 
+PR39 adds the remote MCP threat model only.
+
+PR39 does not implement remote MCP.
+
+Remote MCP remains blocked.
+
+Current MCP runtime remains local STDIO only.
+
+Any future remote MCP requires a separate approval PR.
+
+Reference: `docs/MCP_REMOTE_THREAT_MODEL.md`.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
@@ -79,6 +91,7 @@ Current readiness:
 - PR36 implements `tools/call` for `norma.getVersion` and `norma.serializeCanonicalJson` only.
 - PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` only beyond PR36 and keeps replay blocked.
 - PR38 implements `tools/call` for `norma.replayMvpDemo` only beyond PR37 and keeps arbitrary replay blocked.
+- PR39 adds `docs/MCP_REMOTE_THREAT_MODEL.md` only as remote MCP threat model and approval gate documentation.
 
 ## Official MCP Concepts Used
 
