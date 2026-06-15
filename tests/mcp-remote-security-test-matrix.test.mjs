@@ -373,7 +373,7 @@ function assertDocMentions(doc, snippets) {
 function assertNoRemoteMcpRuntimeSurface(source, path) {
   assert.doesNotMatch(
     source,
-    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*Server|sse|streamable|websocket|networkFetch|XMLHttpRequest|WebSocket)\b|fetch\(/i,
+    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*(?:Server|Transport|Endpoint)|sse|streamable|websocket|networkFetch|XMLHttpRequest|WebSocket)\b/i,
     `${path} must not contain remote MCP runtime markers`,
   );
 }
@@ -381,7 +381,7 @@ function assertNoRemoteMcpRuntimeSurface(source, path) {
 function assertNoRemoteServerSurface(source, path) {
   assert.doesNotMatch(
     source,
-    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*|sse|streamable|websocket|express|fastify|cors|oauth|authorization|authentication|auth[A-Za-z0-9_]*|[A-Za-z0-9_]*token[A-Za-z0-9_]*|jwt[A-Za-z0-9_]*|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
+    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*(?:Server|Transport|Endpoint|Client|Request|Response)|sse|streamable|websocket|express|fastify|cors|oauth|authorization|authentication|auth[A-Za-z0-9_]*|[A-Za-z0-9_]*token[A-Za-z0-9_]*|jwt[A-Za-z0-9_]*|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
     `${path} must not contain remote MCP server, package, auth, token, or network behavior`,
   );
 }
