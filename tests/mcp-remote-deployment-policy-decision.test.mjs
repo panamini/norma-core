@@ -37,6 +37,9 @@ const blockedDeploymentPaths = [
   ".dockerignore",
   "docker-compose.yml",
   "docker-compose.yaml",
+  "compose.yml",
+  ".env",
+  ".env.example",
   "fly.toml",
   "railway.json",
   "render.yaml",
@@ -48,6 +51,9 @@ const blockedDeploymentPaths = [
   "Procfile",
   "app.yaml",
   "cloudbuild.yaml",
+  "nginx.conf",
+  "Caddyfile",
+  "caddyfile",
   "k8s",
   "kubernetes",
   "helm",
@@ -55,6 +61,8 @@ const blockedDeploymentPaths = [
   "infra",
   ".github/workflows/deploy.yml",
   ".github/workflows/deploy.yaml",
+  ".github/workflows/deploy-prod.yml",
+  ".github/workflows/production-deploy.yml",
   ".github/workflows/remote-mcp.yml",
   ".github/workflows/remote-mcp.yaml",
   "src/mcp/http-server.ts",
@@ -276,6 +284,8 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
   }
 
+  assertNoDeploymentWorkflowFiles();
+
   for (const path of [...filesUnder("src"), ...filesUnder("bin")]) {
     assertNoRemoteMcpRuntimeSurface(readDoc(join(repoRoot, path)), path);
   }
@@ -402,6 +412,15 @@ function relativeFiles(absolutePath, relativePath) {
   return readdirSync(absolutePath).flatMap((entry) =>
     relativeFiles(join(absolutePath, entry), `${relativePath}/${entry}`),
   );
+}
+
+function assertNoDeploymentWorkflowFiles() {
+  const workflowPaths = filesUnder(".github/workflows");
+  const blockedWorkflowPattern = /(?:deploy|deployment|remote-mcp|server|publish)/i;
+
+  for (const path of workflowPaths) {
+    assert.doesNotMatch(path, blockedWorkflowPattern, `${path} must not be a deployment workflow`);
+  }
 }
 
 function assertHeadingsInOrder(doc, headings) {
