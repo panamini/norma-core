@@ -143,10 +143,10 @@ test("PR48 keeps remote MCP local STDIO package API and UI boundaries blocked", 
     "Remote MCP runtime remains blocked unless future explicit approval satisfies gates",
   ]);
 
-  assert.doesNotMatch(roadmapStatusDoc, /^remote MCP is approved$/im);
-  assert.doesNotMatch(roadmapStatusDoc, /^API implementation is approved$/im);
-  assert.doesNotMatch(roadmapStatusDoc, /^UI implementation is approved$/im);
-  assert.doesNotMatch(roadmapStatusDoc, /^package publishing is approved$/im);
+  assert.doesNotMatch(roadmapStatusDoc, /\bremote MCP\s+is\s+approved\b/i);
+  assert.doesNotMatch(roadmapStatusDoc, /\bAPI implementation\s+is\s+approved\b/i);
+  assert.doesNotMatch(roadmapStatusDoc, /\bUI implementation\s+is\s+approved\b/i);
+  assert.doesNotMatch(roadmapStatusDoc, /\bpackage publishing\s+is\s+approved\b/i);
 });
 
 test("PR48 next PR sequence includes PR48 through PR63 labels", () => {
@@ -395,7 +395,7 @@ function assertNoRemoteMcpRuntimeSurface(source, path) {
 function assertNoMcpRuntimeSideEffects(source, path) {
   assert.doesNotMatch(
     source,
-    /\b(?:readFile|writeFile|deleteFile|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
+    /\b(?:readFile(?:Sync)?|writeFile(?:Sync)?|deleteFile(?:Sync)?|rm(?:Sync)?|unlink(?:Sync)?|readdir(?:Sync)?|stat(?:Sync)?|open(?:Sync)?|createReadStream|createWriteStream|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
     `${path} must not contain MCP runtime filesystem, shell, or environment behavior`,
   );
 }
