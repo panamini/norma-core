@@ -44,6 +44,7 @@ const requiredDecisionSections = [
   "## Decision",
   "## Source Documents",
   "## Official References Checked",
+  "## Recorded NPM Metadata Snapshot",
   "## Current Package State",
   "## Candidate Review",
   "## Package / Dependency Decision",
@@ -94,6 +95,19 @@ test("PR42 records official package metadata checks without approving a candidat
     "No remote MCP package/dependency candidate is approved by PR42",
     "No package-only install PR is authorized by PR42",
     "No MCP SDK dependency is approved by PR42",
+    "\"@modelcontextprotocol/sdk\":",
+    "\"version\": \"1.29.0\"",
+    "\"node\": \">=18\"",
+    "\"cors\"",
+    "\"cross-spawn\"",
+    "\"express-rate-limit\"",
+    "\"jose\"",
+    "\"@modelcontextprotocol/server\":",
+    "\"version\": \"2.0.0-alpha.2\"",
+    "\"node\": \">=20\"",
+    "\"@modelcontextprotocol/node\":",
+    "\"@modelcontextprotocol/express\":",
+    "\"@modelcontextprotocol/hono\":",
   ]);
 
   assert.doesNotMatch(decisionDoc, /^dependencies are approved now$/im);
@@ -196,8 +210,6 @@ test("PR42 keeps package metadata lockfile dependencies and MCP SDK unchanged", 
 });
 
 test("PR42 keeps runtime files local STDIO only with no remote package-driven behavior", () => {
-  const runtimeSource = [readDoc(protocolSourcePath), readDoc(wrapperPath)].join("\n");
-
   assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
   assert.equal(existsSync(wrapperPath), true);
 
@@ -214,22 +226,13 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
   }
 
-  assert.doesNotMatch(
-    runtimeSource,
-    /createServer|listen\(|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate/,
-  );
-  assert.doesNotMatch(
-    runtimeSource,
-    /\b(?:sse|streamable|websocket|express|fastify|cors|oauth)\b|https?|auth|token|fetch\(|XMLHttpRequest|WebSocket/i,
-  );
-  assert.doesNotMatch(
-    runtimeSource,
-    /\b(?:readFile|writeFile|deleteFile|networkFetch|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
-  );
-  assert.doesNotMatch(
-    runtimeSource,
-    /@modelcontextprotocol|modelcontextprotocol|FastMCP|McpServer|StdioServerTransport/,
-  );
+  for (const path of [...filesUnder("src"), ...filesUnder("bin")]) {
+    assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
+  }
+
+  for (const path of [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"]) {
+    assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
+  }
 });
 
 test("PR42 keeps current local STDIO tools unchanged and arbitrary replay blocked", async () => {
@@ -262,6 +265,27 @@ test("PR42 keeps current local STDIO tools unchanged and arbitrary replay blocke
     error: {
       code: -32602,
       message: "Unknown tool: norma.replayRun",
+    },
+  });
+
+  const arbitraryReplayResponse = await parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "pr42-arbitrary-replay-blocked",
+    method: "tools/call",
+    params: {
+      name: "norma.replayMvpDemo",
+      arguments: {
+        run: {},
+      },
+    },
+  });
+
+  assert.deepEqual(arbitraryReplayResponse, {
+    jsonrpc: "2.0",
+    id: "pr42-arbitrary-replay-blocked",
+    error: {
+      code: -32602,
+      message: "Invalid params",
     },
   });
 
@@ -304,6 +328,7 @@ async function parseRequiredResponse(message) {
   const handleMcpJsonRpcMessage = await loadHandleMcpJsonRpcMessage();
   const response = handleMcpJsonRpcMessage(JSON.stringify(message));
   assert.notEqual(response, null);
+  assert.equal(typeof response, "string", "MCP response should be a JSON-RPC response string");
   return JSON.parse(response);
 }
 
@@ -344,6 +369,22 @@ function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
     assert.match(doc, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
   }
+}
+
+function assertNoRemoteServerSurface(source, path) {
+  assert.doesNotMatch(
+    source,
+    /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*|sse|streamable|websocket|express|fastify|cors|oauth|auth|authorization|authentication|token|accessToken|idToken|bearerToken|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
+    `${path} must not contain remote MCP server, package, auth, token, or network behavior`,
+  );
+}
+
+function assertNoMcpRuntimeSideEffects(source, path) {
+  assert.doesNotMatch(
+    source,
+    /\b(?:readFile|writeFile|deleteFile|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
+    `${path} must not contain MCP runtime filesystem, shell, or environment behavior`,
+  );
 }
 
 function assertNoMcpDependency(packageJson) {

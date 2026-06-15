@@ -48,6 +48,110 @@ Access date: 2026-06-15.
 | `npm view @modelcontextprotocol/express version dist-tags dependencies peerDependencies engines --json` | Check current Express middleware package metadata. | `@modelcontextprotocol/express@2.0.0-alpha.2` is not approved because framework binding is not approved and the package is alpha. |
 | `npm view @modelcontextprotocol/hono version dist-tags dependencies peerDependencies engines --json` | Check current Hono middleware package metadata. | `@modelcontextprotocol/hono@2.0.0-alpha.2` is not approved because framework binding is not approved and the package is alpha. |
 
+## Recorded NPM Metadata Snapshot
+
+The following snapshot was recorded on 2026-06-15 from the `npm view` commands listed above.
+
+```json
+{
+  "@modelcontextprotocol/sdk": {
+    "version": "1.29.0",
+    "distTags": {
+      "latest": "1.29.0"
+    },
+    "engines": {
+      "node": ">=18"
+    },
+    "dependencies": [
+      "@hono/node-server",
+      "ajv",
+      "ajv-formats",
+      "content-type",
+      "cors",
+      "cross-spawn",
+      "eventsource",
+      "eventsource-parser",
+      "express",
+      "express-rate-limit",
+      "hono",
+      "jose",
+      "json-schema-typed",
+      "pkce-challenge",
+      "raw-body",
+      "zod",
+      "zod-to-json-schema"
+    ],
+    "peerDependencies": [
+      "@cfworker/json-schema",
+      "zod"
+    ]
+  },
+  "@modelcontextprotocol/server": {
+    "version": "2.0.0-alpha.2",
+    "distTags": {
+      "latest": "2.0.0-alpha.2",
+      "alpha": "2.0.0-alpha.2"
+    },
+    "engines": {
+      "node": ">=20"
+    },
+    "dependencies": [
+      "zod"
+    ],
+    "peerDependencies": [
+      "@cfworker/json-schema"
+    ]
+  },
+  "@modelcontextprotocol/node": {
+    "version": "2.0.0-alpha.2",
+    "distTags": {
+      "latest": "2.0.0-alpha.2",
+      "alpha": "2.0.0-alpha.2"
+    },
+    "engines": {
+      "node": ">=20"
+    },
+    "dependencies": [
+      "@hono/node-server"
+    ],
+    "peerDependencies": [
+      "@modelcontextprotocol/server",
+      "hono"
+    ]
+  },
+  "@modelcontextprotocol/express": {
+    "version": "2.0.0-alpha.2",
+    "distTags": {
+      "latest": "2.0.0-alpha.2",
+      "alpha": "2.0.0-alpha.2"
+    },
+    "engines": {
+      "node": ">=20"
+    },
+    "dependencies": [],
+    "peerDependencies": [
+      "@modelcontextprotocol/server",
+      "express"
+    ]
+  },
+  "@modelcontextprotocol/hono": {
+    "version": "2.0.0-alpha.2",
+    "distTags": {
+      "latest": "2.0.0-alpha.2",
+      "alpha": "2.0.0-alpha.2"
+    },
+    "engines": {
+      "node": ">=20"
+    },
+    "dependencies": [],
+    "peerDependencies": [
+      "@modelcontextprotocol/server",
+      "hono"
+    ]
+  }
+}
+```
+
 ## Current Package State
 
 Current package state remains:
