@@ -213,7 +213,7 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
   );
   assert.doesNotMatch(
     runtimeSource,
-    /\b(?:https?|sse|streamable|websocket|express|fastify|cors|oauth|auth|token)\b|fetch\(|XMLHttpRequest|WebSocket/i,
+    /\b(?:sse|streamable|websocket|express|fastify|cors|oauth)\b|https?|auth|token|fetch\(|XMLHttpRequest|WebSocket/i,
   );
   assert.doesNotMatch(
     runtimeSource,
