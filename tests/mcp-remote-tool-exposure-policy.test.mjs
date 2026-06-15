@@ -100,7 +100,10 @@ const requiredPolicySections = [
 test("PR46 policy doc exists under docs/decisions with required headings", () => {
   assert.equal(existsSync(policyDocPath), true);
   assert.equal(basename(policyDocPath), "2026-06-15-remote-mcp-tool-exposure-policy.md");
-  assert.match(policyDocPath, /docs\/decisions\/\d{4}-\d{2}-\d{2}-remote-mcp-tool-exposure-policy\.md$/);
+  assert.equal(
+    policyDocPath.endsWith(join("docs", "decisions", "2026-06-15-remote-mcp-tool-exposure-policy.md")),
+    true,
+  );
 
   const policyDoc = readDoc(policyDocPath);
   assertHeadingsInOrder(policyDoc, requiredPolicySections);
