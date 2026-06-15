@@ -16,15 +16,11 @@ PR41 does not implement remote MCP.
 
 Remote MCP remains blocked.
 
-PR41 approves Streamable HTTP as a future transport candidate only.
+Streamable HTTP is approved as a future transport candidate only.
 
-PR41 approves the MCP HTTP authorization model as a future auth candidate only.
+The MCP HTTP authorization model is approved as a future auth candidate only.
 
-PR41 approves no package/dependency candidate.
-
-PR41 approves no package metadata, dependency, package `bin`, or package export change.
-
-No package/dependency change is approved by PR41.
+No package/dependency candidate or change is approved by PR41.
 
 No runtime implementation is approved by PR41.
 
@@ -37,8 +33,8 @@ No runtime implementation is approved by PR41.
 - `bin/norma-core-mcp-stdio.mjs`.
 - `package.json`.
 - `package-lock.json`.
-- `/Volumes/video/git/norma-core-wiki/raw/Norma Core Business Readiness Roadmap.md`.
-- `/Volumes/video/git/norma-core-wiki/raw/pr agent.md`.
+- Internal wiki reference configured by `NORMA_CORE_WIKI_PATH`: `raw/Norma Core Business Readiness Roadmap.md`.
+- Internal wiki reference configured by `NORMA_CORE_WIKI_PATH`: `raw/pr agent.md`.
 
 ## Official References Checked
 
@@ -87,17 +83,7 @@ No token storage, token parsing, OAuth flow, bearer-token handling, environment-
 
 ## Package / Dependency Decision
 
-PR41 approves no package metadata change.
-
-PR41 approves no dependency change.
-
-PR41 approves no package `bin` change.
-
-PR41 approves no package export change.
-
-PR41 approves no MCP SDK dependency.
-
-PR41 approves no exact future package/dependency candidate.
+PR41 approves no package metadata change, dependency change, package `bin` change, package export change, MCP SDK dependency, or exact future package/dependency candidate.
 
 Any future package/dependency approval PR must compare dependency-free implementation, official SDK use, package metadata changes, lockfile changes, publication impact, supply-chain risk, update policy, and removal/rollback path before any package-only install PR.
 
@@ -217,9 +203,7 @@ Streamable HTTP is approved as a future candidate only.
 
 MCP HTTP authorization is approved as a future candidate only.
 
-No package/dependency candidate is approved by PR41.
-
-No package/dependency change is approved by PR41.
+No package/dependency candidate or change is approved by PR41.
 
 No runtime implementation is approved by PR41.
 

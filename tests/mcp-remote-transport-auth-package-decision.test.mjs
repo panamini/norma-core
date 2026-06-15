@@ -4,10 +4,9 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
-
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
+let handleMcpJsonRpcMessagePromise;
 
 const pr41DecisionDocPath = join(
   repoRoot,
@@ -80,7 +79,7 @@ test("PR41 checks current official transport auth package references without app
     "https://platform.claude.com/docs/en/agents-and-tools/mcp-connector",
     "Streamable HTTP is approved as a future candidate only",
     "MCP HTTP authorization is approved as a future candidate only",
-    "No package/dependency change is approved by PR41",
+    "No package/dependency candidate or change is approved by PR41",
     "No runtime implementation is approved by PR41",
   ]);
 
@@ -99,11 +98,7 @@ test("PR41 keeps remote MCP runtime package resources prompts and logging blocke
     "Local STDIO remains the only approved MCP runtime",
     "PR41 does not approve HTTP, SSE, Streamable HTTP, or WebSocket runtime",
     "PR41 does not approve OAuth, auth, or token runtime",
-    "PR41 approves no package metadata change",
-    "PR41 approves no dependency change",
-    "PR41 approves no package `bin` change",
-    "PR41 approves no package export change",
-    "PR41 approves no MCP SDK dependency",
+    "PR41 approves no package metadata change, dependency change, package `bin` change, package export change, MCP SDK dependency, or exact future package/dependency candidate",
     "Resources remain blocked",
     "Prompts remain blocked",
     "Sampling remains blocked",
@@ -137,9 +132,9 @@ test("PR41 documents exact future PR gates and required security tests", () => {
   ]);
 });
 
-test("PR41 keeps local STDIO tools unchanged and arbitrary replay blocked", () => {
+test("PR41 keeps local STDIO tools unchanged and arbitrary replay blocked", async () => {
   const decisionDoc = readDoc(pr41DecisionDocPath);
-  const toolsListResponse = parseRequiredResponse({
+  const toolsListResponse = await parseRequiredResponse({
     jsonrpc: "2.0",
     id: "pr41-tools-list",
     method: "tools/list",
@@ -151,7 +146,7 @@ test("PR41 keeps local STDIO tools unchanged and arbitrary replay blocked", () =
     approvedCallableTools,
   );
 
-  const replayRunResponse = parseRequiredResponse({
+  const replayRunResponse = await parseRequiredResponse({
     jsonrpc: "2.0",
     id: "pr41-replay-run-blocked",
     method: "tools/call",
@@ -170,7 +165,7 @@ test("PR41 keeps local STDIO tools unchanged and arbitrary replay blocked", () =
     },
   });
 
-  const arbitraryReplayResponse = parseRequiredResponse({
+  const arbitraryReplayResponse = await parseRequiredResponse({
     jsonrpc: "2.0",
     id: "pr41-arbitrary-replay-blocked",
     method: "tools/call",
@@ -218,7 +213,7 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
   );
   assert.doesNotMatch(
     runtimeSource,
-    /http|https|sse|streamable|websocket|express|fastify|cors|oauth|auth|token|fetch\(|XMLHttpRequest|WebSocket/i,
+    /\b(?:https?|sse|streamable|websocket|express|fastify|cors|oauth|auth|token)\b|fetch\(|XMLHttpRequest|WebSocket/i,
   );
   assert.doesNotMatch(
     runtimeSource,
@@ -266,7 +261,27 @@ function parseJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function parseRequiredResponse(message) {
+async function loadHandleMcpJsonRpcMessage() {
+  handleMcpJsonRpcMessagePromise ??= import("../dist/src/mcp/stdio-protocol.js")
+    .then((module) => {
+      assert.equal(
+        typeof module.handleMcpJsonRpcMessage,
+        "function",
+        "dist/src/mcp/stdio-protocol.js should export handleMcpJsonRpcMessage",
+      );
+      return module.handleMcpJsonRpcMessage;
+    })
+    .catch((error) => {
+      assert.fail(
+        `Build output is required before PR41 MCP runtime contract validation: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+
+  return handleMcpJsonRpcMessagePromise;
+}
+
+async function parseRequiredResponse(message) {
+  const handleMcpJsonRpcMessage = await loadHandleMcpJsonRpcMessage();
   const response = handleMcpJsonRpcMessage(JSON.stringify(message));
   assert.notEqual(response, null);
   return JSON.parse(response);
