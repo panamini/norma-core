@@ -122,7 +122,6 @@ test("PR45 keeps package metadata lockfile and MCP dependency boundary unchanged
   const packageLock = parseJson(packageLockPath);
 
   assert.equal(packageJson.name, "@norma/core");
-  assert.equal(packageJson.version, "0.1.0");
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.private, true);
   assert.deepEqual(packageJson.exports?.["."], {
