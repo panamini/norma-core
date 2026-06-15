@@ -9,6 +9,7 @@ import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const contractDocPath = join(repoRoot, "docs", "MCP_TOOL_CONTRACT.md");
+const threatModelDocPath = join(repoRoot, "docs", "MCP_REMOTE_THREAT_MODEL.md");
 const packageJsonPath = join(repoRoot, "package.json");
 const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
@@ -365,6 +366,39 @@ test("PR38 MCP contract documents fixed MVP replay tool-call implementation and 
     "does not reduce to `valid`",
     "PR39 remains the future candidate for remote MCP/API threat modeling",
   ]);
+});
+
+test("PR39 MCP contract references the remote threat model and keeps remote MCP blocked", () => {
+  const doc = readDoc(contractDocPath);
+  const threatModelDoc = readDoc(threatModelDocPath);
+  const packageJson = parsePackageJson();
+  const toolsListResponse = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "pr39-tools-list",
+    method: "tools/list",
+  });
+
+  assert.equal(existsSync(threatModelDocPath), true);
+  assertDocMentions(doc, [
+    "PR39 adds the remote MCP threat model only",
+    "PR39 does not implement remote MCP",
+    "Remote MCP remains blocked",
+    "Current MCP runtime remains local STDIO only",
+    "Any future remote MCP requires a separate approval PR",
+    "docs/MCP_REMOTE_THREAT_MODEL.md",
+  ]);
+  assertDocMentions(threatModelDoc, [
+    "Remote MCP implementation is not approved",
+    "Local STDIO remains the only approved MCP runtime",
+    "resources: blocked",
+    "prompts: blocked",
+  ]);
+
+  assert.deepEqual(toolsListResponse.result.tools.map((tool) => tool.name), approvedCallableTools);
+  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.equal(Object.hasOwn(packageJson, "bin"), false);
+  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
+  assertNoMcpDependency(packageJson);
 });
 
 test("PR38 runtime implements tools/call only for approved callable tools", () => {
