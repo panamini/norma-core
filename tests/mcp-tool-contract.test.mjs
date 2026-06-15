@@ -13,7 +13,12 @@ const packageJsonPath = join(repoRoot, "package.json");
 const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 
-const approvedCallableTools = ["norma.getVersion", "norma.serializeCanonicalJson"];
+const approvedCallableTools = [
+  "norma.getVersion",
+  "norma.serializeCanonicalJson",
+  "norma.verifyRun",
+  "norma.verifyArtifactFreshness",
+];
 
 const approvedFutureTools = [
   "norma.getVersion",
@@ -247,7 +252,7 @@ test("PR35 MCP contract exposes only discovery metadata for two PR36 candidate t
 
 test("PR36 MCP contract documents two-tool call implementation and blocked boundaries", () => {
   const doc = readDoc(contractDocPath);
-  const pr36Section = sectionBetween(doc, "## PR36 Tool Call Contract", "## Resources and Prompts Policy");
+  const pr36Section = sectionBetween(doc, "## PR36 Tool Call Contract", "## PR37 Tool Call Contract");
   const callableSection = sectionBetween(
     pr36Section,
     "PR36 implements `tools/call` only for:",
@@ -255,7 +260,7 @@ test("PR36 MCP contract documents two-tool call implementation and blocked bound
   );
   const documentedCallableTools = Array.from(new Set(callableSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
 
-  assert.deepEqual(documentedCallableTools.sort(), [...approvedCallableTools].sort());
+  assert.deepEqual(documentedCallableTools.sort(), ["norma.getVersion", "norma.serializeCanonicalJson"].sort());
   assertDocMentions(pr36Section, [
     "PR36 returns structured MCP tool results with exactly one text content item plus `structuredContent`",
     "The text content item is JSON and parses to the same value as `structuredContent`",
@@ -282,17 +287,42 @@ test("PR36 MCP contract documents two-tool call implementation and blocked bound
   ]);
 });
 
-test("PR36 runtime implements tools/call only for approved callable tools", () => {
+test("PR37 MCP contract documents verification tool-call implementation and blocked boundaries", () => {
+  const doc = readDoc(contractDocPath);
+  const pr37Section = sectionBetween(doc, "## PR37 Tool Call Contract", "## Resources and Prompts Policy");
+  const callableSection = sectionBetween(
+    pr37Section,
+    "PR37 implements `tools/call` only for:",
+    "PR37 keeps `tools/list`",
+  );
+  const documentedCallableTools = Array.from(new Set(callableSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
+
+  assert.deepEqual(documentedCallableTools.sort(), [...approvedCallableTools].sort());
+  assertDocMentions(pr37Section, [
+    "PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` beyond PR36",
+    "PR37 keeps `tools/list` at exactly four tools",
+    "PR37 does not expose or implement `norma.replayMvpDemo`",
+    "PR37 does not implement arbitrary replay",
+    "PR37 does not implement resources",
+    "PR37 does not implement remote MCP",
+    "PR37 does not add dependencies",
+    "package exports",
+    "package `bin`",
+    "filesystem access",
+    "network access",
+    "shell execution",
+    "environment reads",
+    "PR37 returns structured MCP tool results with exactly one text content item plus `structuredContent`",
+    "PR37 preserves core verification outputs",
+    "does not reduce to `valid`",
+    "PR37 keeps source-truth rules unchanged",
+    "PR38 remains the future candidate for `norma.replayMvpDemo` only",
+  ]);
+});
+
+test("PR37 runtime implements tools/call only for approved callable tools", () => {
   for (const toolName of approvedCallableTools) {
-    const argumentsValue =
-      toolName === "norma.getVersion"
-        ? {}
-        : {
-            value: {
-              b: 2,
-              a: 1,
-            },
-          };
+    const argumentsValue = argumentsForTool(toolName);
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
       id: `${toolName}-callable`,
@@ -307,7 +337,7 @@ test("PR36 runtime implements tools/call only for approved callable tools", () =
     assert.equal(response.result.isError, false);
   }
 
-  for (const toolName of ["norma.verifyRun", "norma.verifyArtifactFreshness", "norma.replayMvpDemo"]) {
+  for (const toolName of ["norma.replayMvpDemo"]) {
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
       id: `${toolName}-not-callable`,
@@ -328,6 +358,25 @@ test("PR36 runtime implements tools/call only for approved callable tools", () =
     });
   }
 });
+
+function argumentsForTool(toolName) {
+  if (toolName === "norma.getVersion") {
+    return {};
+  }
+
+  if (toolName === "norma.serializeCanonicalJson") {
+    return {
+      value: {
+        b: 2,
+        a: 1,
+      },
+    };
+  }
+
+  return {
+    input: null,
+  };
+}
 
 function readDoc(path) {
   return readFileSync(path, "utf8");

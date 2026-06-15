@@ -40,11 +40,35 @@ const discoveredTools = [
       },
     },
   },
+  {
+    name: "norma.verifyRun",
+    title: "Verify Norma run",
+    description: "Verify an explicit Norma run envelope using existing Norma Core verification semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
+      },
+    },
+  },
+  {
+    name: "norma.verifyArtifactFreshness",
+    title: "Verify artifact freshness",
+    description: "Verify explicit artifact freshness using existing Norma Core artifact freshness semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
+      },
+    },
+  },
 ];
 
 const forbiddenToolNames = [
-  "norma.verifyRun",
-  "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
   "norma.createRule",
   "norma.createPack",
@@ -95,7 +119,7 @@ test("PR36 initialize declares only the static tools capability", () => {
   }
 });
 
-test("PR36 tools/list returns exactly the two callable tools", () => {
+test("PR37 tools/list returns exactly the four callable tools", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-1",
@@ -111,12 +135,12 @@ test("PR36 tools/list returns exactly the two callable tools", () => {
   });
   assert.deepEqual(
     response.result.tools.map((tool) => tool.name),
-    ["norma.getVersion", "norma.serializeCanonicalJson"],
+    ["norma.getVersion", "norma.serializeCanonicalJson", "norma.verifyRun", "norma.verifyArtifactFreshness"],
   );
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
 });
 
-test("PR36 tools/list schemas are exact", () => {
+test("PR37 tools/list schemas are exact", () => {
   const tools = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-schemas",
@@ -141,9 +165,27 @@ test("PR36 tools/list schemas are exact", () => {
       },
     },
   });
+
+  assert.deepEqual(tools[2].inputSchema, {
+    type: "object",
+    required: ["input"],
+    additionalProperties: false,
+    properties: {
+      input: {},
+    },
+  });
+
+  assert.deepEqual(tools[3].inputSchema, {
+    type: "object",
+    required: ["input"],
+    additionalProperties: false,
+    properties: {
+      input: {},
+    },
+  });
 });
 
-test("PR36 tools/list does not expose verify replay resources prompts or rich content fields", () => {
+test("PR37 tools/list does not expose replay resources prompts or rich content fields", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-guardrails",

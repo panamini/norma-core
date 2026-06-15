@@ -50,11 +50,35 @@ const expectedTools = [
       },
     },
   },
+  {
+    name: "norma.verifyRun",
+    title: "Verify Norma run",
+    description: "Verify an explicit Norma run envelope using existing Norma Core verification semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
+      },
+    },
+  },
+  {
+    name: "norma.verifyArtifactFreshness",
+    title: "Verify artifact freshness",
+    description: "Verify explicit artifact freshness using existing Norma Core artifact freshness semantics.",
+    inputSchema: {
+      type: "object",
+      required: ["input"],
+      additionalProperties: false,
+      properties: {
+        input: {},
+      },
+    },
+  },
 ];
 
 const forbiddenToolNames = [
-  "norma.verifyRun",
-  "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
   "norma.createRule",
   "norma.createPack",
@@ -85,7 +109,7 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR36 tools/list still exposes exactly the two callable tools", () => {
+test("PR37 tools/list still exposes PR36 tools plus the two verification tools", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list",
@@ -95,7 +119,7 @@ test("PR36 tools/list still exposes exactly the two callable tools", () => {
   assert.deepEqual(response.result.tools, expectedTools);
   assert.deepEqual(
     response.result.tools.map((tool) => tool.name),
-    ["norma.getVersion", "norma.serializeCanonicalJson"],
+    ["norma.getVersion", "norma.serializeCanonicalJson", "norma.verifyRun", "norma.verifyArtifactFreshness"],
   );
 });
 
@@ -113,7 +137,7 @@ test("PR36 tools/list descriptions are no longer PR35 discovery-only text", () =
   }
 });
 
-test("PR36 tools/list does not expose verify replay forbidden tools or rich content fields", () => {
+test("PR37 tools/list does not expose replay forbidden tools or rich content fields", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-guardrails",
@@ -181,8 +205,8 @@ test("PR36 getVersion structuredContent has exact version and capability fields"
       toolsList: true,
       getVersion: true,
       serializeCanonicalJson: true,
-      verifyRun: false,
-      verifyArtifactFreshness: false,
+      verifyRun: true,
+      verifyArtifactFreshness: true,
       replayMvpDemo: false,
       resources: false,
       prompts: false,
@@ -378,27 +402,25 @@ test("PR36 tools/call validates params and unknown tools with JSON-RPC invalid p
   });
 });
 
-test("PR36 tools/call rejects verify and replay tools as unknown tools", () => {
-  for (const toolName of ["norma.verifyRun", "norma.verifyArtifactFreshness", "norma.replayMvpDemo"]) {
-    const response = parseRequiredResponse({
-      jsonrpc: "2.0",
-      id: `${toolName}-unknown`,
-      method: "tools/call",
-      params: {
-        name: toolName,
-        arguments: {},
-      },
-    });
+test("PR37 tools/call still rejects replay as an unknown tool", () => {
+  const response = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "norma.replayMvpDemo-unknown",
+    method: "tools/call",
+    params: {
+      name: "norma.replayMvpDemo",
+      arguments: {},
+    },
+  });
 
-    assert.deepEqual(response, {
-      jsonrpc: "2.0",
-      id: `${toolName}-unknown`,
-      error: {
-        code: -32602,
-        message: `Unknown tool: ${toolName}`,
-      },
-    });
-  }
+  assert.deepEqual(response, {
+    jsonrpc: "2.0",
+    id: "norma.replayMvpDemo-unknown",
+    error: {
+      code: -32602,
+      message: "Unknown tool: norma.replayMvpDemo",
+    },
+  });
 });
 
 test("PR36 non-tool MCP features remain unimplemented", () => {
