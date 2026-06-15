@@ -1,10 +1,13 @@
+import { CORE_VERSION } from "../core-constants.js";
+import { serializeCanonicalJson, STABLE_SERIALIZATION_VERSION } from "../serialization.js";
+
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_NAME = "norma-core-mcp-stdio-skeleton";
 export const MCP_SERVER_VERSION = "0.1.0-pr12";
 
 type JsonRpcId = string | number;
 
-type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602;
+type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603;
 
 interface McpToolDefinition {
   readonly name: string;
@@ -13,12 +16,11 @@ interface McpToolDefinition {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-const PR35_DISCOVERY_TOOLS = [
+const PR36_MCP_TOOLS = [
   {
     name: "norma.getVersion",
     title: "Get Norma Core version",
-    description:
-      "Return Norma Core version and capability metadata. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    description: "Return Norma Core version and MCP capability metadata.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -28,8 +30,7 @@ const PR35_DISCOVERY_TOOLS = [
   {
     name: "norma.serializeCanonicalJson",
     title: "Serialize canonical JSON",
-    description:
-      "Return deterministic canonical JSON for an explicit structured value. PR35 exposes discovery only; tool calls are implemented in a later PR.",
+    description: "Return deterministic canonical JSON for an explicit structured value.",
     inputSchema: {
       type: "object",
       required: ["value"],
@@ -43,6 +44,8 @@ const PR35_DISCOVERY_TOOLS = [
     },
   },
 ] as const satisfies readonly McpToolDefinition[];
+
+type McpStructuredContent = Readonly<Record<string, unknown>>;
 
 interface JsonRpcErrorResponse {
   readonly jsonrpc: "2.0";
@@ -75,7 +78,22 @@ interface ToolsListResponse {
   readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly result: {
-    readonly tools: typeof PR35_DISCOVERY_TOOLS;
+    readonly tools: typeof PR36_MCP_TOOLS;
+  };
+}
+
+interface ToolsCallResponse {
+  readonly jsonrpc: "2.0";
+  readonly id: JsonRpcId;
+  readonly result: {
+    readonly content: readonly [
+      {
+        readonly type: "text";
+        readonly text: string;
+      },
+    ];
+    readonly structuredContent: McpStructuredContent;
+    readonly isError: false;
   };
 }
 
@@ -92,7 +110,9 @@ export function handleMcpJsonRpcMessage(rawLine: string): string | null {
   return response === null ? null : JSON.stringify(response);
 }
 
-export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | ToolsListResponse | JsonRpcErrorResponse | null {
+export function handleMcpJsonRpcRequest(
+  message: unknown,
+): InitializeResponse | ToolsListResponse | ToolsCallResponse | JsonRpcErrorResponse | null {
   if (!isRecord(message) || Array.isArray(message)) {
     return createJsonRpcError(null, -32600, "Invalid Request");
   }
@@ -126,6 +146,10 @@ export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | 
     }
 
     return createToolsListResult(id);
+  }
+
+  if (message.method === "tools/call") {
+    return handleToolsCall(id, message.params);
   }
 
   return createJsonRpcError(id, -32601, "Method not found");
@@ -180,8 +204,144 @@ function createToolsListResult(id: JsonRpcId): ToolsListResponse {
     jsonrpc: "2.0",
     id,
     result: {
-      tools: PR35_DISCOVERY_TOOLS,
+      tools: PR36_MCP_TOOLS,
     },
+  };
+}
+
+function handleToolsCall(id: JsonRpcId, params: unknown): ToolsCallResponse | JsonRpcErrorResponse {
+  const call = parseToolsCallParams(params);
+  if (call === null) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  if (call.name === "norma.getVersion") {
+    return callGetVersion(id, call.arguments);
+  }
+
+  if (call.name === "norma.serializeCanonicalJson") {
+    return callSerializeCanonicalJson(id, call.arguments);
+  }
+
+  return createJsonRpcError(id, -32602, `Unknown tool: ${call.name}`);
+}
+
+function callGetVersion(
+  id: JsonRpcId,
+  toolArguments: Readonly<Record<string, unknown>> | undefined,
+): ToolsCallResponse | JsonRpcErrorResponse {
+  if (toolArguments !== undefined && Object.keys(toolArguments).length !== 0) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  return createToolResult(id, {
+    kind: "norma-mcp-tool-result",
+    tool: "norma.getVersion",
+    status: "ok",
+    coreVersion: CORE_VERSION,
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    serverName: MCP_SERVER_NAME,
+    serverVersion: MCP_SERVER_VERSION,
+    capabilities: {
+      toolsList: true,
+      getVersion: true,
+      serializeCanonicalJson: true,
+      verifyRun: false,
+      verifyArtifactFreshness: false,
+      replayMvpDemo: false,
+      resources: false,
+      prompts: false,
+      remoteMcp: false,
+    },
+  });
+}
+
+function callSerializeCanonicalJson(
+  id: JsonRpcId,
+  toolArguments: Readonly<Record<string, unknown>> | undefined,
+): ToolsCallResponse | JsonRpcErrorResponse {
+  if (toolArguments === undefined) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  const argumentKeys = Object.keys(toolArguments);
+  if (
+    !Object.hasOwn(toolArguments, "value") ||
+    argumentKeys.some((key) => key !== "value" && key !== "policy")
+  ) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  if (
+    Object.hasOwn(toolArguments, "policy") &&
+    (typeof toolArguments.policy !== "string" || toolArguments.policy !== STABLE_SERIALIZATION_VERSION)
+  ) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  if (!isJsonCompatibleValue(toolArguments.value)) {
+    return createJsonRpcError(id, -32602, "Invalid params");
+  }
+
+  try {
+    return createToolResult(id, {
+      kind: "norma-mcp-tool-result",
+      tool: "norma.serializeCanonicalJson",
+      status: "ok",
+      serializationVersion: STABLE_SERIALIZATION_VERSION,
+      canonicalJson: serializeCanonicalJson(toolArguments.value),
+    });
+  } catch {
+    return createJsonRpcError(id, -32603, "Internal error");
+  }
+}
+
+function createToolResult(id: JsonRpcId, structuredContent: McpStructuredContent): ToolsCallResponse {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [
+        {
+          type: "text",
+          text: serializeCanonicalJson(structuredContent),
+        },
+      ],
+      structuredContent,
+      isError: false,
+    },
+  };
+}
+
+function parseToolsCallParams(
+  params: unknown,
+): { readonly name: string; readonly arguments?: Readonly<Record<string, unknown>> } | null {
+  if (!isRecord(params) || Array.isArray(params)) {
+    return null;
+  }
+
+  const keys = Object.keys(params);
+  if (keys.some((key) => key !== "name" && key !== "arguments")) {
+    return null;
+  }
+
+  if (typeof params.name !== "string") {
+    return null;
+  }
+
+  if (!Object.hasOwn(params, "arguments")) {
+    return {
+      name: params.name,
+    };
+  }
+
+  if (!isRecord(params.arguments) || Array.isArray(params.arguments)) {
+    return null;
+  }
+
+  return {
+    name: params.name,
+    arguments: params.arguments,
   };
 }
 
@@ -204,6 +364,48 @@ function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {
   return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
+}
+
+function isJsonCompatibleValue(value: unknown, seen: WeakSet<object> = new WeakSet()): boolean {
+  if (value === null) {
+    return true;
+  }
+
+  if (typeof value === "string" || typeof value === "boolean") {
+    return true;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+
+  if (typeof value !== "object") {
+    return false;
+  }
+
+  if (seen.has(value)) {
+    return false;
+  }
+
+  seen.add(value);
+
+  const result = Array.isArray(value) ? isJsonCompatibleArray(value, seen) : isJsonCompatibleRecord(value, seen);
+
+  seen.delete(value);
+  return result;
+}
+
+function isJsonCompatibleArray(value: readonly unknown[], seen: WeakSet<object>): boolean {
+  return value.every((item) => isJsonCompatibleValue(item, seen));
+}
+
+function isJsonCompatibleRecord(value: object, seen: WeakSet<object>): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return false;
+  }
+
+  return Object.values(value).every((item) => isJsonCompatibleValue(item, seen));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

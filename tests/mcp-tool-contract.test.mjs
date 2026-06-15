@@ -4,10 +4,16 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const contractDocPath = join(repoRoot, "docs", "MCP_TOOL_CONTRACT.md");
 const packageJsonPath = join(repoRoot, "package.json");
+const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
+const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
+
+const approvedCallableTools = ["norma.getVersion", "norma.serializeCanonicalJson"];
 
 const approvedFutureTools = [
   "norma.getVersion",
@@ -178,6 +184,7 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
     "bin/norma-core-mcp-stdio.mjs",
     "tests/mcp-stdio-server-skeleton.test.mjs",
     "tests/mcp-tools-list-contract.test.mjs",
+    "tests/mcp-tools-call-contract.test.mjs",
   ]) {
     assert.equal(existsSync(join(repoRoot, path)), true, `${path} should exist`);
   }
@@ -201,8 +208,8 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
   }
 
   const skeletonSource = [
-    readFileSync(join(repoRoot, "src/mcp/stdio-protocol.ts"), "utf8"),
-    readFileSync(join(repoRoot, "bin/norma-core-mcp-stdio.mjs"), "utf8"),
+    readFileSync(protocolSourcePath, "utf8"),
+    readFileSync(wrapperPath, "utf8"),
   ].join("\n");
 
   assert.doesNotMatch(
@@ -219,7 +226,7 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
 
 test("PR35 MCP contract exposes only discovery metadata for two PR36 candidate tools", () => {
   const doc = readDoc(contractDocPath);
-  const pr35Section = sectionBetween(doc, "## PR35 Discovery Contract", "## Resources and Prompts Policy");
+  const pr35Section = sectionBetween(doc, "## PR35 Discovery Contract", "## PR36 Tool Call Contract");
   const documentedTools = Array.from(new Set(pr35Section.match(/norma\.[A-Za-z0-9]+/g) ?? []));
 
   assert.deepEqual(documentedTools.sort(), ["norma.getVersion", "norma.serializeCanonicalJson"].sort());
@@ -238,8 +245,98 @@ test("PR35 MCP contract exposes only discovery metadata for two PR36 candidate t
   assert.doesNotMatch(pr35Section, /norma\.replayMvpDemo/);
 });
 
+test("PR36 MCP contract documents two-tool call implementation and blocked boundaries", () => {
+  const doc = readDoc(contractDocPath);
+  const pr36Section = sectionBetween(doc, "## PR36 Tool Call Contract", "## Resources and Prompts Policy");
+  const callableSection = sectionBetween(
+    pr36Section,
+    "PR36 implements `tools/call` only for:",
+    "PR36 keeps `tools/list`",
+  );
+  const documentedCallableTools = Array.from(new Set(callableSection.match(/norma\.[A-Za-z0-9]+/g) ?? []));
+
+  assert.deepEqual(documentedCallableTools.sort(), [...approvedCallableTools].sort());
+  assertDocMentions(pr36Section, [
+    "PR36 returns structured MCP tool results with exactly one text content item plus `structuredContent`",
+    "The text content item is JSON and parses to the same value as `structuredContent`",
+    "Unknown tool names return JSON-RPC `-32602`",
+    "Malformed params return JSON-RPC `-32602`",
+    "Unexpected internal failures return JSON-RPC `-32603`",
+    "PR36 does not use MCP tool-result `isError: true` for input validation errors",
+    "PR36 does not expose or implement",
+    "norma.verifyRun",
+    "norma.verifyArtifactFreshness",
+    "norma.replayMvpDemo",
+    "filesystem access",
+    "network access",
+    "shell execution",
+    "environment reads",
+    "PR36 does not implement resources",
+    "remote MCP",
+    "PR36 does not add dependencies",
+    "package exports",
+    "package `bin`",
+    "PR36 keeps source-truth rules unchanged",
+    "PR37 is the first candidate for `norma.verifyRun` and `norma.verifyArtifactFreshness`",
+    "PR38 remains the future candidate for `norma.replayMvpDemo` only",
+  ]);
+});
+
+test("PR36 runtime implements tools/call only for approved callable tools", () => {
+  for (const toolName of approvedCallableTools) {
+    const argumentsValue =
+      toolName === "norma.getVersion"
+        ? {}
+        : {
+            value: {
+              b: 2,
+              a: 1,
+            },
+          };
+    const response = parseRequiredResponse({
+      jsonrpc: "2.0",
+      id: `${toolName}-callable`,
+      method: "tools/call",
+      params: {
+        name: toolName,
+        arguments: argumentsValue,
+      },
+    });
+
+    assert.equal(response.result.structuredContent.tool, toolName);
+    assert.equal(response.result.isError, false);
+  }
+
+  for (const toolName of ["norma.verifyRun", "norma.verifyArtifactFreshness", "norma.replayMvpDemo"]) {
+    const response = parseRequiredResponse({
+      jsonrpc: "2.0",
+      id: `${toolName}-not-callable`,
+      method: "tools/call",
+      params: {
+        name: toolName,
+        arguments: {},
+      },
+    });
+
+    assert.deepEqual(response, {
+      jsonrpc: "2.0",
+      id: `${toolName}-not-callable`,
+      error: {
+        code: -32602,
+        message: `Unknown tool: ${toolName}`,
+      },
+    });
+  }
+});
+
 function readDoc(path) {
   return readFileSync(path, "utf8");
+}
+
+function parseRequiredResponse(message) {
+  const response = handleMcpJsonRpcMessage(JSON.stringify(message));
+  assert.notEqual(response, null);
+  return JSON.parse(response);
 }
 
 function parsePackageJson() {
