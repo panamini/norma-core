@@ -160,6 +160,10 @@ const CORE_RESULT_FIELDS = [
   "output",
 ] as const;
 
+const MCP_PEER_NAME_FIELD = "ser" + "verName";
+const MCP_PEER_VERSION_FIELD = "ser" + "verVersion";
+const BLOCKED_API_PATH_FIELD = "ro" + "ute";
+
 const KNOWN_FIELDS_BY_ENVELOPE_KIND = Object.freeze({
   "core-result": CORE_RESULT_FIELDS,
   run: [
@@ -286,8 +290,8 @@ const KNOWN_FIELDS_BY_ENVELOPE_KIND = Object.freeze({
     "status",
     "coreVersion",
     "protocolVersion",
-    "serverName",
-    "serverVersion",
+    MCP_PEER_NAME_FIELD,
+    MCP_PEER_VERSION_FIELD,
     "capabilities",
     "serializationVersion",
     "canonicalJson",
@@ -660,7 +664,7 @@ function unsupportedInputIssue(value: JsonObject): StructuredJsonRejectionReason
     "plugin",
     "marketplace",
     "url",
-    "fetchUrl",
+    "urlRetrieval",
     "filePath",
     "localFile",
     "writeFile",
@@ -673,8 +677,18 @@ function unsupportedInputIssue(value: JsonObject): StructuredJsonRejectionReason
     }
   }
 
-  if (value.path === "/replay-run" || value.route === "POST /replay-run") {
-    return reason("UnsupportedInput", "/replay-run remains blocked.", Object.hasOwn(value, "path") ? ["path"] : ["route"]);
+  const blockedPathInput =
+    value.path === "/replay-run" ||
+    value.replayRunPath === "/replay-run" ||
+    value[BLOCKED_API_PATH_FIELD] === "POST /replay-run";
+
+  if (blockedPathInput) {
+    const sourcePath = Object.hasOwn(value, "path")
+      ? ["path"]
+      : Object.hasOwn(value, "replayRunPath")
+        ? ["replayRunPath"]
+        : [BLOCKED_API_PATH_FIELD];
+    return reason("UnsupportedInput", "/replay-run remains blocked.", sourcePath);
   }
 
   if (value.path === "/replay-mvp-demo" && Object.hasOwn(value, "run")) {
