@@ -309,15 +309,23 @@ function json(value) {
 
 function gitChangedFiles() {
   try {
-    return execFileSync("git", ["diff", "--name-only", "main...HEAD"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    })
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    return [
+      ...gitChangedFilesFor(["diff", "--name-only", "main...HEAD"]),
+      ...gitChangedFilesFor(["diff", "--name-only"]),
+      ...gitChangedFilesFor(["diff", "--cached", "--name-only"]),
+      ...gitChangedFilesFor(["ls-files", "--others", "--exclude-standard"]),
+    ].filter((file, index, files) => files.indexOf(file) === index).sort();
   } catch {
     return [];
   }
+}
+
+function gitChangedFilesFor(args) {
+  return execFileSync("git", args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
 }
