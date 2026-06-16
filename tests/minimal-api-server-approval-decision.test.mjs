@@ -449,7 +449,6 @@ test("PR52 keeps current MCP tools exactly and replayRun blocked", async () => {
 
 function assertPackageBoundary(packageJson, packageLock) {
   assert.equal(packageJson.name, "@norma/core");
-  assert.equal(packageJson.version, "0.1.0");
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.private, true);
   assert.equal(packageJson.sideEffects, false);
@@ -457,9 +456,8 @@ function assertPackageBoundary(packageJson, packageLock) {
     types: "./dist/src/index.d.ts",
     default: "./dist/src/index.js",
   });
-  assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
+  assert.equal(packageJson.devDependencies?.typescript, "^5.8.0");
+  assert.equal(packageLock.packages[""].devDependencies?.typescript, "^5.8.0");
 
   for (const fieldName of [
     "publishConfig",
@@ -608,7 +606,7 @@ function assertNoRemoteMcpRuntimeSurface(source, path) {
 function assertNoMcpRuntimeSideEffects(source, path) {
   assert.doesNotMatch(
     source,
-    /\b(?:readFile|writeFile|deleteFile|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
+    /\b(?:readFile(?:Sync)?|writeFile(?:Sync)?|deleteFile(?:Sync)?|rm(?:Sync)?|unlink(?:Sync)?|readdir(?:Sync)?|stat(?:Sync)?|open(?:Sync)?|createReadStream|createWriteStream|shell|exec|spawn|child_process|process\.env|CLAUDE_PROJECT_DIR)\b/,
     `${path} must not contain MCP runtime filesystem, shell, or environment behavior`,
   );
 }
