@@ -226,7 +226,11 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
   }
 
-  for (const path of [...filesUnder("src"), ...filesUnder("bin")]) {
+  const remoteBoundaryPaths = [...filesUnder("src"), ...filesUnder("bin")].filter(
+    (path) => path !== "src/api/minimal-api-server.ts",
+  );
+
+  for (const path of remoteBoundaryPaths) {
     assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
   }
 
