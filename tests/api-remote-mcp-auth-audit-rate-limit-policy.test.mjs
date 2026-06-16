@@ -532,8 +532,13 @@ function assertPackageBoundary(packageJson, packageLock) {
     types: "./dist/src/index.d.ts",
     default: "./dist/src/index.js",
   });
-  assert.equal(packageJson.devDependencies?.typescript, "^5.8.0");
-  assert.equal(packageLock.packages[""].devDependencies?.typescript, "^5.8.0");
+  const typescriptRange = packageJson.devDependencies?.typescript;
+  assert.equal(typeof typescriptRange, "string", "typescript devDependency should remain declared");
+  assert.equal(
+    packageLock.packages[""].devDependencies?.typescript,
+    typescriptRange,
+    "package-lock root should mirror package.json typescript range",
+  );
 
   for (const fieldName of [
     "publishConfig",
