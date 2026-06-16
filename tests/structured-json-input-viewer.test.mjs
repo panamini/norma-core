@@ -211,6 +211,7 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
     assert.deepEqual(changedFiles, [
       "src/structured-json-input-viewer.ts",
+      "tests/structured-json-input-viewer-prototype-approval.test.mjs",
       "tests/structured-json-input-viewer.test.mjs",
     ]);
   }
