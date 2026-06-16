@@ -340,6 +340,24 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
   );
   assert.equal(mcpError(replayRun).code, -32602);
   assert.equal(mcpError(replayRun).message, "Unknown tool: norma.replayRun");
+
+  const arbitraryMcpReplay = parseMcpResponse(
+    mcp.handleMcpJsonRpcMessage(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: "pr53-mcp-arbitrary-replay-blocked",
+        method: "tools/call",
+        params: {
+          name: "norma.replayMvpDemo",
+          arguments: {
+            run: {},
+          },
+        },
+      }),
+    ),
+  );
+  assert.equal(mcpError(arbitraryMcpReplay).code, -32602);
+  assert.equal(mcpError(arbitraryMcpReplay).message, "Invalid params");
 });
 
 async function loadApiModule() {
