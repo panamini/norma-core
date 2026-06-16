@@ -104,7 +104,6 @@ const blockedRoutes = [
 ];
 
 const blockedRuntimeDeploymentApiUiPaths = [
-  "src/api",
   "src/server",
   "src/routes",
   "src/http",
@@ -399,6 +398,7 @@ test("PR52 keeps package runtime deployment API and UI surfaces absent or unchan
   const packageLock = parseJson(packageLockPath);
 
   assertPackageBoundary(packageJson, packageLock);
+  assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
   assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
   assert.equal(existsSync(wrapperPath), true);
   assertPathsAbsent(blockedRuntimeDeploymentApiUiPaths);

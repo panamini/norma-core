@@ -65,7 +65,6 @@ const blockedRuntimeDeploymentApiUiPaths = [
   "src/mcp/websocket.ts",
   "src/mcp/auth.ts",
   "src/mcp/deployment.ts",
-  "src/api",
   "src/server",
   "src/ui",
   "src/viewer",
@@ -297,6 +296,7 @@ test("PR49 keeps package metadata dependencies lockfile API UI runtime and deplo
   assertNoMcpDependency(packageJson);
   assertNoMcpDependency(packageLock.packages[""]);
 
+  assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
   assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
   assert.equal(existsSync(wrapperPath), true);
 
