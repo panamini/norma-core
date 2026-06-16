@@ -1,0 +1,20 @@
+{
+  "statusCode": 403,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-error",
+    "status": "rejected",
+    "request": {
+      "method": "POST",
+      "path": "/replay-run",
+      "route": "POST /replay-run",
+      "localOnly": true
+    },
+    "error": {
+      "code": "RouteBlocked",
+      "message": "Route is blocked."
+    }
+  }
+}

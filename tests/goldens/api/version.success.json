@@ -1,0 +1,51 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-response",
+    "status": "ok",
+    "request": {
+      "method": "GET",
+      "path": "/version",
+      "route": "GET /version",
+      "localOnly": true
+    },
+    "coreVersion": "0.1.0-pr12",
+    "serializationVersion": "stable-serialization-v1",
+    "capabilities": {
+      "localOnly": true,
+      "remoteMcp": false,
+      "deployment": false,
+      "providerCompatibility": false,
+      "approvedRoutes": [
+        "GET /version",
+        "POST /canonical-json",
+        "POST /verify-run",
+        "POST /verify-artifact-freshness",
+        "POST /replay-mvp-demo"
+      ],
+      "blockedRoutes": [
+        "POST /replay-run",
+        "POST /create-pack",
+        "POST /create-rule",
+        "POST /create-ratio",
+        "POST /create-geometry",
+        "POST /infer-intent",
+        "POST /recommend",
+        "POST /rank-beauty",
+        "POST /read-file",
+        "POST /write-file",
+        "POST /fetch-url",
+        "POST /run-shell"
+      ],
+      "limits": {
+        "maxBodyBytes": 65536,
+        "maxJsonDepth": 32,
+        "maxArrayLength": 1024,
+        "maxStringLength": 16384
+      }
+    }
+  }
+}

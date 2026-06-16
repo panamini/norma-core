@@ -1,0 +1,18 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-response",
+    "status": "ok",
+    "request": {
+      "method": "POST",
+      "path": "/canonical-json",
+      "route": "POST /canonical-json",
+      "localOnly": true
+    },
+    "serializationVersion": "stable-serialization-v1",
+    "canonicalJson": "{\"a\":1,\"b\":2}"
+  }
+}

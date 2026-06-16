@@ -1,0 +1,45 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-response",
+    "status": "ok",
+    "request": {
+      "method": "POST",
+      "path": "/verify-artifact-freshness",
+      "route": "POST /verify-artifact-freshness",
+      "localOnly": true
+    },
+    "result": {
+      "kind": "artifact-freshness-verification",
+      "status": "invalid",
+      "artifactRef": null,
+      "sourceRefs": [],
+      "missingSourceRefs": [],
+      "staleSourceRefs": [],
+      "outputRefs": [],
+      "warnings": [],
+      "errors": [
+        {
+          "blocking": true,
+          "code": "InvalidArtifactInput",
+          "message": "Artifact freshness verification requires an input object.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "artifact",
+            "ref": "input"
+          },
+          "targetRef": "input"
+        }
+      ],
+      "provenance": null,
+      "serializationSummary": {
+        "serializationVersion": "stable-serialization-v1",
+        "canonicalOrdering": true
+      }
+    }
+  }
+}
