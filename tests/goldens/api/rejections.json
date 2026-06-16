@@ -1,0 +1,232 @@
+[
+  {
+    "name": "canonical-json.extra-hidden-field",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "InvalidPayload",
+          "message": "Request payload is not supported."
+        }
+      }
+    }
+  },
+  {
+    "name": "canonical-json.unsupported-policy",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "InvalidPayload",
+          "message": "Request payload is not supported."
+        }
+      }
+    }
+  },
+  {
+    "name": "verify-run.extra-hidden-field",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/verify-run",
+          "route": "POST /verify-run",
+          "localOnly": true
+        },
+        "error": {
+          "code": "InvalidPayload",
+          "message": "Request payload is not supported."
+        }
+      }
+    }
+  },
+  {
+    "name": "verify-artifact-freshness.extra-hidden-field",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/verify-artifact-freshness",
+          "route": "POST /verify-artifact-freshness",
+          "localOnly": true
+        },
+        "error": {
+          "code": "InvalidPayload",
+          "message": "Request payload is not supported."
+        }
+      }
+    }
+  },
+  {
+    "name": "unsupported-route",
+    "response": {
+      "statusCode": 404,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "GET",
+          "path": "/unknown",
+          "route": "GET /unknown",
+          "localOnly": true
+        },
+        "error": {
+          "code": "RouteNotFound",
+          "message": "Route is not supported."
+        }
+      }
+    }
+  },
+  {
+    "name": "unsupported-method",
+    "response": {
+      "statusCode": 405,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "GET",
+          "path": "/canonical-json",
+          "route": "GET /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "MethodNotAllowed",
+          "message": "Method is not allowed for this route."
+        }
+      }
+    }
+  },
+  {
+    "name": "body-too-large",
+    "response": {
+      "statusCode": 413,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "BodyTooLarge",
+          "message": "Request body is too large."
+        }
+      }
+    }
+  },
+  {
+    "name": "json-depth-limit",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "JsonDepthLimitExceeded",
+          "message": "JSON depth limit exceeded."
+        }
+      }
+    }
+  },
+  {
+    "name": "array-length-limit",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "JsonArrayLimitExceeded",
+          "message": "JSON array length limit exceeded."
+        }
+      }
+    }
+  },
+  {
+    "name": "string-length-limit",
+    "response": {
+      "statusCode": 400,
+      "headers": {
+        "content-type": "application/json; charset=utf-8"
+      },
+      "body": {
+        "kind": "norma-api-error",
+        "status": "rejected",
+        "request": {
+          "method": "POST",
+          "path": "/canonical-json",
+          "route": "POST /canonical-json",
+          "localOnly": true
+        },
+        "error": {
+          "code": "JsonStringLimitExceeded",
+          "message": "JSON string length limit exceeded."
+        }
+      }
+    }
+  }
+]

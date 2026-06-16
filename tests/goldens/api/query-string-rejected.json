@@ -1,0 +1,20 @@
+{
+  "statusCode": 400,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-error",
+    "status": "rejected",
+    "request": {
+      "method": "GET",
+      "path": "/version",
+      "route": "GET /version",
+      "localOnly": true
+    },
+    "error": {
+      "code": "QueryStringUnsupported",
+      "message": "Query strings are not supported."
+    }
+  }
+}

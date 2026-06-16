@@ -1,0 +1,20 @@
+{
+  "statusCode": 400,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-error",
+    "status": "rejected",
+    "request": {
+      "method": "POST",
+      "path": "/canonical-json",
+      "route": "POST /canonical-json",
+      "localOnly": true
+    },
+    "error": {
+      "code": "InvalidPayload",
+      "message": "Request payload is not supported."
+    }
+  }
+}

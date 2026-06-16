@@ -1,0 +1,61 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": {
+    "kind": "norma-api-response",
+    "status": "ok",
+    "request": {
+      "method": "POST",
+      "path": "/verify-run",
+      "route": "POST /verify-run",
+      "localOnly": true
+    },
+    "result": {
+      "kind": "run-verification",
+      "status": "invalid",
+      "mode": "audit_only",
+      "runRef": null,
+      "operationName": null,
+      "operationVersion": null,
+      "packLockRef": null,
+      "operationContextRef": null,
+      "sourceRefs": [],
+      "missingSourceRefs": [],
+      "outputRefs": [],
+      "mismatchCodes": [],
+      "warnings": [],
+      "errors": [
+        {
+          "blocking": true,
+          "code": "InvalidInputShape",
+          "message": "Run verification requires an input object.",
+          "provenance": null,
+          "severity": "error",
+          "source": {
+            "kind": "core",
+            "ref": "norma-core/run-verification-v1"
+          },
+          "targetRef": "input"
+        }
+      ],
+      "provenance": null,
+      "replaySummary": {
+        "replayAttempted": false,
+        "replayRequired": false,
+        "replayEligible": "unknown",
+        "replayStatus": null,
+        "replayDiagnostics": [],
+        "replayMismatches": [],
+        "replayOutputRefs": [],
+        "recordedOutputRefs": [],
+        "sourceRefsUsed": []
+      },
+      "serializationSummary": {
+        "serializationVersion": "stable-serialization-v1",
+        "canonicalOrdering": true
+      }
+    }
+  }
+}
