@@ -265,13 +265,17 @@ function branchChangedFiles() {
 }
 
 function gitFiles(args) {
-  return execFileSync("git", args, {
-    cwd: root,
-    encoding: "utf8",
-  })
-    .split("\n")
-    .filter(Boolean)
-    .sort();
+  try {
+    return execFileSync("git", args, {
+      cwd: root,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return [];
+  }
 }
 
 /**

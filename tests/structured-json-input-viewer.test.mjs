@@ -88,9 +88,12 @@ test("PR58 accepts current verified Norma result and wrapper envelopes", () => {
     { statusCode: 400, body: { kind: "norma-api-error", status: "rejected", error: { code: "Bad" } } },
     "api-error",
   );
-  assertAccepted({ kind: "norma-core-cli-result", command: "version", status: "ok" }, "cli-result");
-  assertAccepted({ kind: "norma-core-cli-error", command: "verify-run", status: "error" }, "cli-error");
-  assertAccepted(mcpToolResult("norma.getVersion"), "mcp-tool-result");
+  assertAccepted({ kind: "norma-core-cli-result", command: "version", status: "ok", result: { ok: true } }, "cli-result");
+  assertAccepted(
+    { kind: "norma-core-cli-error", command: "verify-run", status: "error", error: { code: "Bad" } },
+    "cli-error",
+  );
+  assertAccepted({ ...mcpToolResult("norma.getVersion"), result: { version: "0.0.0-test" } }, "mcp-tool-result");
   assertAccepted(
     {
       jsonrpc: "2.0",
@@ -140,6 +143,9 @@ test("PR58 rejects unsupported source-truth and execution-shaped inputs", () => 
     { replay: { arbitrary: true } },
     { path: "/replay-run" },
     { replayRunPath: "/replay-run" },
+    { kind: "run", tool: "norma.replayRun" },
+    { kind: "run-verification", replay: { arbitrary: true } },
+    { kind: "mvp-demo-result", urlRetrieval: "example.invalid/result.json" },
     { tool: "norma.replayRun" },
     { path: "/replay-mvp-demo", run: {} },
     { camera: true },

@@ -347,6 +347,11 @@ function detectEnvelope(value: JsonObject): EnvelopeDetection {
     return approvedMcpToolEnvelope(value, []);
   }
 
+  const unsupported = unsupportedInputIssue(value);
+  if (unsupported !== null) {
+    return { ok: false, reason: unsupported };
+  }
+
   if (isApiEnvelope(value, "norma-api-response")) {
     return detected("api-response", value.body, ["body"]);
   }
@@ -387,8 +392,7 @@ function detectEnvelope(value: JsonObject): EnvelopeDetection {
     return detected("core-result", value, []);
   }
 
-  const unsupported = unsupportedInputIssue(value);
-  return { ok: false, reason: unsupported };
+  return { ok: false, reason: null };
 }
 
 function detectJsonRpcEnvelope(value: JsonObject): EnvelopeDetection | null {
@@ -736,9 +740,7 @@ function isJsonRpcShaped(value: JsonObject): boolean {
   return (
     value.jsonrpc === "2.0" ||
     Object.hasOwn(value, "method") ||
-    Object.hasOwn(value, "params") ||
-    Object.hasOwn(value, "result") ||
-    Object.hasOwn(value, "error")
+    Object.hasOwn(value, "params")
   );
 }
 
