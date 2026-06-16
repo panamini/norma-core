@@ -261,7 +261,7 @@ function branchChangedFiles() {
     ...gitFiles(["diff", "--name-only"]),
     ...gitFiles(["diff", "--cached", "--name-only"]),
     ...gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ].filter((file, index, files) => files.indexOf(file) === index);
+  ].filter((file, index, files) => files.indexOf(file) === index).sort();
 }
 
 function gitFiles(args) {
