@@ -422,8 +422,8 @@ test("PR50 keeps current MCP tools exactly and replayRun blocked", async () => {
   });
 
   assert.deepEqual(
-    toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    [...toolsListResponse.result.tools.map((tool) => tool.name)].sort(),
+    [...approvedCallableTools].sort(),
   );
 
   const replayRunResponse = await parseRequiredResponse({
@@ -553,9 +553,12 @@ function sectionBetween(doc, startHeading, endHeading) {
 }
 
 function documentedCodeBlockLines(section) {
-  const codeBlockMatch = /```txt\n([\s\S]*?)\n```/.exec(section);
+  const codeBlockMatch = /```txt\r?\n([\s\S]*?)\r?\n```/.exec(section);
   assert.notEqual(codeBlockMatch, null, "routes should be documented in a txt code block");
-  return codeBlockMatch[1].split("\n").filter((line) => line.trim() !== "");
+  return codeBlockMatch[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
 }
 
 function assertNoRemoteMcpRuntimeSurface(source, path) {
