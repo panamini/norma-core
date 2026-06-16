@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
@@ -149,9 +150,17 @@ test("PR57 keeps forbidden inputs and runtime surfaces blocked", () => {
   ]);
 });
 
-const forbiddenSurfacePaths = [
+const approvedFutureImplementationPaths = [
   "src/structured-json-input-viewer.ts",
   "tests/structured-json-input-viewer.test.mjs",
+];
+
+const approvedPr58ChangedPaths = [
+  ...approvedFutureImplementationPaths,
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+];
+
+const forbiddenSurfacePaths = [
   "src/ui",
   "src/viewer",
   "src/app",
@@ -177,10 +186,25 @@ const requiredMcpRemoteDocs = [
 
 test("PR57 keeps package metadata scripts dependencies and exports unchanged", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
+
   assert.equal(Object.hasOwn(pkg, "dependencies"), false);
   assert.equal(Object.hasOwn(pkg, "bin"), false);
   assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ["."]);
   assert.deepEqual(Object.keys(pkg.scripts ?? {}).sort(), ["build", "check", "pretest", "test"]);
+  assert.equal(indexSource.includes("structured-json-input-viewer"), false);
+  assert.equal(indexSource.includes("parseStructuredJsonInput"), false);
+});
+
+test("PR57 allows only the approved PR58 prototype files after implementation", () => {
+  assert.deepEqual(
+    approvedFutureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
+    approvedFutureImplementationPaths,
+  );
+  assert.deepEqual(
+    branchChangedFiles().filter((relativePath) => !approvedPr58ChangedPaths.includes(relativePath)),
+    [],
+  );
 });
 
 test("PR57 keeps implementation UI server route and deployment files absent", () => {
@@ -228,6 +252,48 @@ function assertInOrder(value, snippets) {
 function assertMentions(value, snippets) {
   for (const snippet of snippets) {
     assert.match(value, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
+  }
+}
+
+function branchChangedFiles() {
+  const baselineProbes = [
+    gitFiles(["diff", "--name-only", "main...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    gitFiles(["diff", "--name-only", "master...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/master...HEAD"]),
+  ];
+  const successfulBaseline = baselineProbes.filter((files) => files !== null);
+  assert.notEqual(
+    successfulBaseline.length,
+    0,
+    "Unable to inspect branch changed files with git",
+  );
+  const probes = [
+    ...successfulBaseline,
+    gitFiles(["diff", "--name-only"]),
+    gitFiles(["diff", "--cached", "--name-only"]),
+    gitFiles(["ls-files", "--others", "--exclude-standard"]),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
+}
+
+function gitFiles(args) {
+  try {
+    return execFileSync("git", args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return null;
   }
 }
 
