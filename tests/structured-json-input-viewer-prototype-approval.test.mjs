@@ -256,8 +256,20 @@ function assertMentions(value, snippets) {
 }
 
 function branchChangedFiles() {
-  const probes = [
+  const baselineProbes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    gitFiles(["diff", "--name-only", "master...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/master...HEAD"]),
+  ];
+  const successfulBaseline = baselineProbes.filter((files) => files !== null);
+  assert.notEqual(
+    successfulBaseline.length,
+    0,
+    "Unable to inspect branch changed files with git",
+  );
+  const probes = [
+    ...successfulBaseline,
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),
@@ -275,6 +287,7 @@ function gitFiles(args) {
     return execFileSync("git", args, {
       cwd: root,
       encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
     })
       .split("\n")
       .filter(Boolean)

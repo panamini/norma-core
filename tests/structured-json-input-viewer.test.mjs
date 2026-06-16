@@ -317,8 +317,20 @@ function json(value) {
 }
 
 function gitChangedFiles() {
-  const probes = [
+  const baselineProbes = [
     gitChangedFilesFor(["diff", "--name-only", "main...HEAD"]),
+    gitChangedFilesFor(["diff", "--name-only", "origin/main...HEAD"]),
+    gitChangedFilesFor(["diff", "--name-only", "master...HEAD"]),
+    gitChangedFilesFor(["diff", "--name-only", "origin/master...HEAD"]),
+  ];
+  const successfulBaseline = baselineProbes.filter((files) => files !== null);
+  assert.notEqual(
+    successfulBaseline.length,
+    0,
+    "Unable to inspect branch changed files with git",
+  );
+  const probes = [
+    ...successfulBaseline,
     gitChangedFilesFor(["diff", "--name-only"]),
     gitChangedFilesFor(["diff", "--cached", "--name-only"]),
     gitChangedFilesFor(["ls-files", "--others", "--exclude-standard"]),
@@ -336,6 +348,7 @@ function gitChangedFilesFor(args) {
     return execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
     })
       .trim()
       .split("\n")
