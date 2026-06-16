@@ -317,12 +317,18 @@ function json(value) {
 }
 
 function gitChangedFiles() {
-  return [
-    ...gitChangedFilesFor(["diff", "--name-only", "main...HEAD"]),
-    ...gitChangedFilesFor(["diff", "--name-only"]),
-    ...gitChangedFilesFor(["diff", "--cached", "--name-only"]),
-    ...gitChangedFilesFor(["ls-files", "--others", "--exclude-standard"]),
-  ].filter((file, index, files) => files.indexOf(file) === index).sort();
+  const probes = [
+    gitChangedFilesFor(["diff", "--name-only", "main...HEAD"]),
+    gitChangedFilesFor(["diff", "--name-only"]),
+    gitChangedFilesFor(["diff", "--cached", "--name-only"]),
+    gitChangedFilesFor(["ls-files", "--others", "--exclude-standard"]),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
 }
 
 function gitChangedFilesFor(args) {
@@ -335,6 +341,6 @@ function gitChangedFilesFor(args) {
       .split("\n")
       .filter(Boolean);
   } catch {
-    return [];
+    return null;
   }
 }

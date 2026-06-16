@@ -256,12 +256,18 @@ function assertMentions(value, snippets) {
 }
 
 function branchChangedFiles() {
-  return [
-    ...gitFiles(["diff", "--name-only", "main...HEAD"]),
-    ...gitFiles(["diff", "--name-only"]),
-    ...gitFiles(["diff", "--cached", "--name-only"]),
-    ...gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ].filter((file, index, files) => files.indexOf(file) === index).sort();
+  const probes = [
+    gitFiles(["diff", "--name-only", "main...HEAD"]),
+    gitFiles(["diff", "--name-only"]),
+    gitFiles(["diff", "--cached", "--name-only"]),
+    gitFiles(["ls-files", "--others", "--exclude-standard"]),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
 }
 
 function gitFiles(args) {
@@ -274,7 +280,7 @@ function gitFiles(args) {
       .filter(Boolean)
       .sort();
   } catch {
-    return [];
+    return null;
   }
 }
 
