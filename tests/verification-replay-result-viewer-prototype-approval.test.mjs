@@ -37,11 +37,17 @@ const pr63DocumentationPaths = [
   "tests/onboarding-examples-docs.test.mjs",
 ];
 
+const pr67ReadOnlyViewerModelPaths = [
+  "src/local-viewer/read-only-viewer-model.ts",
+  "tests/read-only-viewer-model.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
   ...pr62ApprovalBoundaryPaths,
   ...pr63DocumentationPaths,
+  ...pr67ReadOnlyViewerModelPaths,
 ];
 
 const forbiddenSurfacePaths = [

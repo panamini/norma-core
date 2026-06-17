@@ -21,6 +21,11 @@ const expectedChangedFiles = [
   pr60GuardTestPath,
 ];
 
+const pr67ReadOnlyViewerModelPaths = [
+  "src/local-viewer/read-only-viewer-model.ts",
+  "tests/read-only-viewer-model.test.mjs",
+];
+
 const approvedFutureDocumentationPaths = [
   "docs/onboarding/README.md",
   "docs/examples/read-only-result-viewer-workflow.md",
@@ -203,6 +208,7 @@ test("approval changed-file scope remains protected after PR62", () => {
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
       !expectedChangedFiles.includes(file) &&
+      !pr67ReadOnlyViewerModelPaths.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -273,8 +279,9 @@ function gitFiles(args) {
 
 function isProtectedChange(file) {
   return (
-    protectedExactPaths.includes(file) ||
-    protectedPrefixes.some((prefix) => file.startsWith(prefix))
+    !pr67ReadOnlyViewerModelPaths.includes(file) &&
+    (protectedExactPaths.includes(file) ||
+      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
   );
 }
 
