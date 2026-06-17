@@ -67,6 +67,8 @@ test("PR61 accepts existing accepted structured JSON display models", () => {
 
 test("PR61 rejects malformed accepted structured JSON display models", () => {
   const acceptedModel = parseStructuredJsonInput(json(runReplay()));
+  const warningsSection = acceptedModel.visibleSections.find((visibleSection) => visibleSection.key === "warnings");
+  assert.notEqual(warningsSection, undefined);
 
   assertRejected({
     ...acceptedModel,
@@ -84,7 +86,7 @@ test("PR61 rejects malformed accepted structured JSON display models", () => {
 
   assertRejected({
     ...acceptedModel,
-    visibleSections: [...acceptedModel.visibleSections, acceptedModel.visibleSections[0]],
+    visibleSections: [...acceptedModel.visibleSections, warningsSection],
   }, "MalformedDisplayModel");
 
   assertRejected({
@@ -96,6 +98,11 @@ test("PR61 rejects malformed accepted structured JSON display models", () => {
     ...acceptedModel,
     inspectableUnknowns: [{ sourcePath: "extraReplayField", value: true }],
   }, "MalformedDisplayModel");
+
+  assertRejected({
+    ...acceptedModel,
+    inspectableUnknowns: [{ sourcePath: ["extraReplayField"] }],
+  }, "MalformedDisplayModel");
 });
 
 test("PR61 keeps hidden structured JSON sections inert", () => {
@@ -103,7 +110,7 @@ test("PR61 keeps hidden structured JSON sections inert", () => {
   const acceptedModel = parseStructuredJsonInput(json(runReplay({ warnings: [warning] })));
   const hiddenWarnings = acceptedModel.visibleSections.map((visibleSection) => (
     visibleSection.key === "warnings"
-      ? { ...visibleSection, present: false }
+      ? { ...visibleSection, present: false, value: ["hidden"], sourcePath: ["warnings"] }
       : visibleSection
   ));
 
@@ -119,7 +126,6 @@ test("PR61 keeps hidden structured JSON sections inert", () => {
 
 test("PR61 accepts approved wrappers only when they carry displayable results", () => {
   assertDisplayable(apiResponse(runReplay()), "run-replay");
-  assert.equal(assertDisplayable(apiResponseBody(runReplay()), "run-replay").sourceEnvelopeKind, "api-response");
   assertDisplayable(cliResult(artifactFreshnessVerification()), "artifact-freshness-verification");
   assertDisplayable({ kind: "norma-mcp-tool-result", status: "ok", tool: "norma.verifyRun", result: runVerification() }, "run-verification");
 
@@ -141,7 +147,6 @@ test("PR61 rejects malformed result and wrapper envelopes", () => {
   assertRejected({ kind: "mvp-demo-result", warnings: [], errors: [] }, "MalformedResultEnvelope");
 
   assertRejected({ body: { kind: "norma-api-response", status: "ok", result: runReplay() } }, "MalformedWrapperEnvelope");
-  assertRejected({ kind: "norma-api-response", status: "ok", result: runReplay() }, "MalformedWrapperEnvelope");
   assertRejected({ kind: "norma-core-cli-result", status: "ok", result: runReplay() }, "MalformedWrapperEnvelope");
   assertRejected({ kind: "norma-mcp-tool-result", status: "ok", result: runReplay() }, "MalformedWrapperEnvelope");
 });
@@ -319,10 +324,6 @@ function apiResponse(result, overrides = {}) {
       ...overrides,
     },
   };
-}
-
-function apiResponseBody(result, overrides = {}) {
-  return apiResponse(result, overrides).body;
 }
 
 function cliResult(result, overrides = {}) {

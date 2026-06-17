@@ -355,13 +355,11 @@ function resolveStructuredModel(model: StructuredJsonInputDisplayModelLike): Res
 
 function wrappedResult(input: JsonObject): ResolvedInput | null {
   const body = isJsonObject(input.body) ? input.body : null;
-  const apiEnvelope = input.kind === "norma-api-response" ? input : body?.kind === "norma-api-response" ? body : null;
-  if (apiEnvelope !== null) {
-    const apiEnvelopePath = apiEnvelope === input ? [] : ["body"];
-    if (!isApiResponseEnvelope(apiEnvelope)) {
-      return rejectedResolution(reason("MalformedWrapperEnvelope", "API wrapper is missing required inert result fields.", apiEnvelopePath));
+  if (body?.kind === "norma-api-response") {
+    if (!isApiResponseEnvelope(body)) {
+      return rejectedResolution(reason("MalformedWrapperEnvelope", "API wrapper is missing required inert result fields.", ["body"]));
     }
-    return wrappedResultFromValue(apiEnvelope.result, "api-response", [...apiEnvelopePath, "result"]);
+    return wrappedResultFromValue(body.result, "api-response", ["body", "result"]);
   }
 
   if (input.kind === "norma-core-cli-result") {
