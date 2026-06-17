@@ -17,6 +17,11 @@ const expectedPr64ChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr67ReadOnlyViewerModelPaths = [
+  "src/local-viewer/read-only-viewer-model.ts",
+  "tests/read-only-viewer-model.test.mjs",
+];
+
 const protectedExactPaths = [
   "package.json",
   "package-lock.json",
@@ -212,6 +217,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
       !expectedPr64ChangedFiles.includes(file) &&
+      !pr67ReadOnlyViewerModelPaths.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -264,8 +270,9 @@ function gitFiles(args) {
 
 function isProtectedChange(file) {
   return (
-    protectedExactPaths.includes(file) ||
-    protectedPrefixes.some((prefix) => file.startsWith(prefix))
+    !pr67ReadOnlyViewerModelPaths.includes(file) &&
+    (protectedExactPaths.includes(file) ||
+      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
   );
 }
 

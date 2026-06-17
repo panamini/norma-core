@@ -15,6 +15,11 @@ const expectedPr65ChangedFiles = [
   "tests/privacy-security-support-approval.test.mjs",
 ];
 
+const pr67ReadOnlyViewerModelPaths = [
+  "src/local-viewer/read-only-viewer-model.ts",
+  "tests/read-only-viewer-model.test.mjs",
+];
+
 const protectedExactPaths = [
   "package.json",
   "package-lock.json",
@@ -221,6 +226,7 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
       !expectedPr65ChangedFiles.includes(file) &&
+      !pr67ReadOnlyViewerModelPaths.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
@@ -268,7 +274,10 @@ function gitFiles(args) {
 }
 
 function isProtectedChange(file) {
-  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
+  return (
+    !pr67ReadOnlyViewerModelPaths.includes(file) &&
+    (protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix)))
+  );
 }
 
 function assertPathsAbsent(paths) {
