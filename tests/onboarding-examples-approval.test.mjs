@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -12,8 +12,12 @@ const pr62DocPath = join("docs", "decisions", "2026-06-17-onboarding-examples-ap
 const pr60GuardTestPath = join("tests", "verification-replay-result-viewer-prototype-approval.test.mjs");
 
 const expectedChangedFiles = [
-  pr62DocPath,
+  "docs/examples/read-only-result-viewer-workflow.md",
+  "docs/examples/structured-json-input-viewer.md",
+  "docs/examples/verification-replay-result-viewer.md",
+  "docs/onboarding/README.md",
   "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
   pr60GuardTestPath,
 ];
 
@@ -35,8 +39,6 @@ const protectedExactPaths = [
 const protectedPrefixes = [
   "src/",
   "bin/",
-  "docs/onboarding/",
-  "docs/examples/",
   "examples/",
   "dist/",
 ];
@@ -88,9 +90,13 @@ test("PR62 approval document exists and is approval-only", () => {
   ]);
 });
 
-test("PR62 does not create onboarding or example documentation paths", () => {
-  assert.equal(existsSync(join(repoRoot, "docs", "onboarding")), false);
-  assert.equal(existsSync(join(repoRoot, "docs", "examples")), false);
+test("PR62-approved onboarding and example documentation paths are exact", () => {
+  assert.deepEqual(markdownFiles("docs/onboarding"), ["docs/onboarding/README.md"]);
+  assert.deepEqual(markdownFiles("docs/examples"), [
+    "docs/examples/read-only-result-viewer-workflow.md",
+    "docs/examples/structured-json-input-viewer.md",
+    "docs/examples/verification-replay-result-viewer.md",
+  ]);
 });
 
 test("PR62 approves exactly the future inert documentation paths", () => {
@@ -299,6 +305,13 @@ function sectionBetween(doc, startHeading, endHeading) {
 
 function codePaths(section) {
   return [...section.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+}
+
+function markdownFiles(relativeDir) {
+  return readdirSync(join(repoRoot, relativeDir))
+    .filter((entry) => entry.endsWith(".md"))
+    .map((entry) => `${relativeDir}/${entry}`)
+    .sort();
 }
 
 function escapeRegExp(value) {
