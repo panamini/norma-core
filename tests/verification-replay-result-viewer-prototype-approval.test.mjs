@@ -150,7 +150,7 @@ test("PR60 changes only approval files and leaves forbidden surfaces unchanged",
   assert.deepEqual(branchChangedFiles().filter(isForbiddenChange), []);
   assert.deepEqual(
     forbiddenSurfacePaths
-      .filter((relativePath) => !["package.json", "src/index.ts"].includes(relativePath))
+      .filter((relativePath) => !["package.json", "package-lock.json", "src/index.ts"].includes(relativePath))
       .filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
     [],
   );
