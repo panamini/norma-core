@@ -1,0 +1,231 @@
+import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { test } from "node:test";
+import { fileURLToPath as pathFromFileUrl } from "node:url";
+
+const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
+const docPath = path.join(
+  root,
+  "docs",
+  "decisions",
+  "2026-06-17-verification-replay-result-viewer-prototype-approval.md",
+);
+const doc = fs.readFileSync(docPath, "utf8");
+
+const approvedPr60ChangedPaths = [
+  "docs/decisions/2026-06-17-verification-replay-result-viewer-prototype-approval.md",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
+const futureImplementationPaths = [
+  "src/verification-replay-result-viewer.ts",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
+const forbiddenSurfacePaths = [
+  "package.json",
+  "package-lock.json",
+  "src/index.ts",
+  "src/ui",
+  "src/viewer",
+  "src/app",
+  "src/server",
+  "src/routes",
+  "src/http",
+  "bin/norma-core-api.mjs",
+  "bin/norma-core-server.mjs",
+  "Dockerfile",
+  "docker-compose.yml",
+  "vercel.json",
+  "wrangler.toml",
+];
+
+test("PR60 approval document exists and is approval-only", () => {
+  assert.equal(path.basename(docPath), "2026-06-17-verification-replay-result-viewer-prototype-approval.md");
+  assertInOrder(doc, [
+    "# Verification Replay Result Viewer Prototype Approval",
+    "## Status",
+    "## Decision",
+    "## Source Documents",
+    "## Current Verified State",
+    "## Approved Future Prototype Boundary",
+    "## Approved Future Inputs",
+    "## Rejected Future Inputs And Behaviors",
+    "## Required Future Visibility",
+    "## Runtime Package Deployment Boundary",
+    "## Rollback Policy",
+    "## Validation Policy",
+    "## Final Decision",
+  ]);
+  assertMentions(doc, [
+    "PR60 is docs/contract-tests only.",
+    "PR60 is approval-only.",
+    "PR60 does not implement the verification/replay result viewer prototype.",
+    "A future verification/replay result viewer prototype remains blocked until this approval lands.",
+    "PR60 approves only a future package-private, dependency-free, inert display-model helper.",
+    "UI paths remain unapproved.",
+    "Browser/DOM UI remains unapproved.",
+    "Package exports remain unapproved.",
+    "Runtime/API/MCP/deployment changes remain unapproved.",
+  ]);
+});
+
+test("PR60 approves exact future package-private helper file scope only", () => {
+  assertMentions(section("## Approved Future Prototype Boundary", "## Approved Future Inputs"), [
+    "`src/verification-replay-result-viewer.ts`",
+    "`tests/verification-replay-result-viewer.test.mjs`",
+    "package-private",
+    "dependency-free",
+    "no package export",
+    "no package script",
+    "no package metadata change",
+    "no runtime route",
+    "no HTTP/server/listener behavior",
+    "no DOM/browser APIs",
+    "no file reads/writes",
+    "no network behavior",
+    "no shell/env access",
+    "no remote MCP behavior",
+    "no Norma operation execution",
+    "no source-truth creation",
+    "inert display-model code only",
+  ]);
+  assert.deepEqual(
+    futureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
+    [],
+  );
+});
+
+test("PR60 records accepted and rejected future inputs", () => {
+  assertMentions(section("## Approved Future Inputs", "## Rejected Future Inputs And Behaviors"), [
+    "existing inert structured JSON display models",
+    "run-verification",
+    "run-replay",
+    "artifact-freshness-verification",
+    "mvp-demo-result",
+    "approved MCP/API/CLI envelopes carrying those results",
+  ]);
+  assertMentions(section("## Rejected Future Inputs And Behaviors", "## Required Future Visibility"), [
+    "prompt-as-source",
+    "artifact-as-source",
+    "source-truth inference",
+    "arbitrary replay",
+    "`norma.replayRun`",
+    "`/replay-run`",
+    "caller-supplied replay inputs for `/replay-mvp-demo`",
+    "camera/image/vision/CAD/plugin/marketplace",
+    "URL fetch",
+    "arbitrary local file reads",
+    "runtime execution requests",
+  ]);
+});
+
+test("PR60 preserves mandatory future result visibility", () => {
+  assertMentions(section("## Required Future Visibility", "## Runtime Package Deployment Boundary"), [
+    "status",
+    "diagnostics",
+    "warnings",
+    "errors",
+    "mismatches",
+    "provenance",
+    "source refs",
+    "output refs",
+    "artifact freshness",
+    "operation context",
+    "pack locks",
+    "tolerance policy",
+    "serialization version",
+    "operation version",
+    "result identity",
+    "unknown fields",
+    "must not be hidden",
+    "must not be collapsed to a generic boolean",
+  ]);
+});
+
+test("PR60 changes only approval files and leaves forbidden surfaces unchanged", () => {
+  assert.deepEqual(branchChangedFiles().filter((relativePath) => !approvedPr60ChangedPaths.includes(relativePath)), []);
+  assert.deepEqual(branchChangedFiles().filter(isForbiddenChange), []);
+  assert.deepEqual(
+    forbiddenSurfacePaths
+      .filter((relativePath) => !["package.json", "src/index.ts"].includes(relativePath))
+      .filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
+    [],
+  );
+});
+
+test("PR60 keeps package root export and MCP remote docs unchanged", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
+  const mcpRemoteChanges = branchChangedFiles().filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
+
+  assert.equal(Object.hasOwn(pkg, "dependencies"), false);
+  assert.equal(Object.hasOwn(pkg, "bin"), false);
+  assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ["."]);
+  assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
+  assert.deepEqual(mcpRemoteChanges, []);
+});
+
+function section(start, end) {
+  const startIndex = doc.indexOf(start);
+  const endIndex = doc.indexOf(end, startIndex + start.length);
+  assert.notEqual(startIndex, -1, `${start} should exist`);
+  assert.notEqual(endIndex, -1, `${end} should exist`);
+  return doc.slice(startIndex, endIndex);
+}
+
+function assertInOrder(value, snippets) {
+  let previousIndex = -1;
+  for (const snippet of snippets) {
+    const index = value.indexOf(snippet);
+    assert.ok(index > previousIndex, `${snippet} should appear after the previous snippet`);
+    previousIndex = index;
+  }
+}
+
+function assertMentions(value, snippets) {
+  for (const snippet of snippets) {
+    assert.match(value, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
+  }
+}
+
+function branchChangedFiles() {
+  const probes = [
+    gitFiles(["diff", "--name-only", "main...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    gitFiles(["diff", "--name-only"]),
+    gitFiles(["diff", "--cached", "--name-only"]),
+    gitFiles(["ls-files", "--others", "--exclude-standard"]),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
+}
+
+function gitFiles(args) {
+  try {
+    return execFileSync("git", args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return null;
+  }
+}
+
+function isForbiddenChange(file) {
+  return forbiddenSurfacePaths.some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
