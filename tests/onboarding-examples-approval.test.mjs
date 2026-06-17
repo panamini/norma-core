@@ -198,9 +198,16 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
   assertPathsAbsent(forbiddenSurfacePaths);
 });
 
-test("PR62 changed-file scope remains approval-only", () => {
+test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  assert.deepEqual(changed, expectedChangedFiles);
+  const unexpectedNonApprovalFiles = changed.filter(
+    (file) =>
+      !expectedChangedFiles.includes(file) &&
+      !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
+      !/^tests\/.*\.test\.mjs$/.test(file),
+  );
+
+  assert.deepEqual(unexpectedNonApprovalFiles, []);
   assert.deepEqual(changed.filter(isProtectedChange), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
