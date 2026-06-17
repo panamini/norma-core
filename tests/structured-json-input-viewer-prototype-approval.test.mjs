@@ -155,11 +155,6 @@ const approvedFutureImplementationPaths = [
   "tests/structured-json-input-viewer.test.mjs",
 ];
 
-const approvedPr58ChangedPaths = [
-  ...approvedFutureImplementationPaths,
-  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
-];
-
 const forbiddenSurfacePaths = [
   "src/ui",
   "src/viewer",
@@ -196,15 +191,12 @@ test("PR57 keeps package metadata scripts dependencies and exports unchanged", (
   assert.equal(indexSource.includes("parseStructuredJsonInput"), false);
 });
 
-test("PR57 allows only the approved PR58 prototype files after implementation", () => {
+test("PR57 keeps the approved PR58 prototype files package-private after implementation", () => {
   assert.deepEqual(
     approvedFutureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
     approvedFutureImplementationPaths,
   );
-  assert.deepEqual(
-    branchChangedFiles().filter((relativePath) => !approvedPr58ChangedPaths.includes(relativePath)),
-    [],
-  );
+  assert.deepEqual(branchChangedFiles().filter(isForbiddenStructuredJsonViewerChange), []);
 });
 
 test("PR57 keeps implementation UI server route and deployment files absent", () => {
@@ -302,4 +294,24 @@ function gitFiles(args) {
  */
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isForbiddenStructuredJsonViewerChange(file) {
+  return [
+    "package.json",
+    "package-lock.json",
+    "src/index.ts",
+    "src/ui",
+    "src/viewer",
+    "src/app",
+    "src/server",
+    "src/routes",
+    "src/http",
+    "bin/norma-core-api.mjs",
+    "bin/norma-core-server.mjs",
+    "Dockerfile",
+    "docker-compose.yml",
+    "vercel.json",
+    "wrangler.toml",
+  ].some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
 }

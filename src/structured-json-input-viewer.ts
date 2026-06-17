@@ -353,38 +353,38 @@ function detectEnvelope(value: JsonObject): EnvelopeDetection {
   }
 
   if (isApiEnvelope(value, "norma-api-response")) {
-    return detected("api-response", value.body, ["body"]);
+    return isApiResponseEnvelope(value.body) ? detected("api-response", value.body, ["body"]) : { ok: false, reason: null };
   }
 
   if (isApiEnvelope(value, "norma-api-error")) {
-    return detected("api-error", value.body, ["body"]);
+    return isApiErrorEnvelope(value.body) ? detected("api-error", value.body, ["body"]) : { ok: false, reason: null };
   }
 
   if (value.kind === "norma-core-cli-result") {
-    return detected("cli-result", value, []);
+    return isCliResultEnvelope(value) ? detected("cli-result", value, []) : { ok: false, reason: null };
   }
 
   if (value.kind === "norma-core-cli-error") {
-    return detected("cli-error", value, []);
+    return isCliErrorEnvelope(value) ? detected("cli-error", value, []) : { ok: false, reason: null };
   }
 
-  if (value.kind === "run") {
+  if (isRunEnvelope(value)) {
     return detected("run", value, []);
   }
 
-  if (value.kind === "run-verification") {
+  if (isRunVerificationEnvelope(value)) {
     return detected("run-verification", value, []);
   }
 
-  if (value.kind === "artifact-freshness-verification") {
+  if (isArtifactFreshnessVerificationEnvelope(value)) {
     return detected("artifact-freshness-verification", value, []);
   }
 
-  if (value.kind === "run-replay") {
+  if (isRunReplayEnvelope(value)) {
     return detected("run-replay", value, []);
   }
 
-  if (value.kind === "mvp-demo-result") {
+  if (isMvpDemoResultEnvelope(value)) {
     return detected("mvp-demo-result", value, []);
   }
 
@@ -460,7 +460,9 @@ function approvedMcpToolEnvelope(value: JsonObject, sourcePath: readonly string[
     };
   }
 
-  return detected("mcp-tool-result", value, sourcePath);
+  return isMcpToolResultEnvelope(value)
+    ? detected("mcp-tool-result", value, sourcePath)
+    : { ok: false, reason: null };
 }
 
 function accepted(
@@ -710,6 +712,167 @@ function unsupportedInputIssue(value: JsonObject): StructuredJsonRejectionReason
   return null;
 }
 
+function isRunEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "run" &&
+    typeof value.id === "string" &&
+    isJsonObject(value.runRef) &&
+    typeof value.coreVersion === "string" &&
+    typeof value.operationName === "string" &&
+    typeof value.operationVersion === "string" &&
+    (value.input === null || isJsonObject(value.input)) &&
+    Array.isArray(value.inputRefs) &&
+    isJsonObject(value.packLockRef) &&
+    isJsonObject(value.operationContextRef) &&
+    isJsonObject(value.outputRefs) &&
+    typeof value.replayReadinessStatus === "string" &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    (value.provenance === null || isJsonObject(value.provenance))
+  );
+}
+
+function isRunVerificationEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "run-verification" &&
+    typeof value.status === "string" &&
+    typeof value.mode === "string" &&
+    isNullableRef(value.runRef) &&
+    isStringOrNull(value.operationName) &&
+    isStringOrNull(value.operationVersion) &&
+    isNullableRef(value.packLockRef) &&
+    isNullableRef(value.operationContextRef) &&
+    Array.isArray(value.sourceRefs) &&
+    Array.isArray(value.missingSourceRefs) &&
+    Array.isArray(value.outputRefs) &&
+    Array.isArray(value.mismatchCodes) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    (value.provenance === null || isJsonObject(value.provenance)) &&
+    isJsonObject(value.replaySummary)
+  );
+}
+
+function isArtifactFreshnessVerificationEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "artifact-freshness-verification" &&
+    typeof value.status === "string" &&
+    isNullableRef(value.artifactRef) &&
+    Array.isArray(value.sourceRefs) &&
+    Array.isArray(value.missingSourceRefs) &&
+    Array.isArray(value.staleSourceRefs) &&
+    Array.isArray(value.outputRefs) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    (value.provenance === null || isJsonObject(value.provenance))
+  );
+}
+
+function isRunReplayEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "run-replay" &&
+    typeof value.status === "string" &&
+    typeof value.replayAttempted === "boolean" &&
+    value.replayRequired === true &&
+    isStringOrNull(value.operationName) &&
+    isStringOrNull(value.operationVersion) &&
+    isNullableRef(value.recordedRunRef) &&
+    isNullableRef(value.replayedRunRef) &&
+    isNullableRef(value.packLockRef) &&
+    isNullableRef(value.operationContextRef) &&
+    Array.isArray(value.recordedOutputRefs) &&
+    Array.isArray(value.replayedOutputRefs) &&
+    Array.isArray(value.sourceRefsUsed) &&
+    Array.isArray(value.mismatches) &&
+    isJsonObject(value.verification) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    (value.provenance === null || isJsonObject(value.provenance))
+  );
+}
+
+function isMvpDemoResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "mvp-demo-result" &&
+    isJsonObject(value.inputSummary) &&
+    isJsonObject(value.constructionResult) &&
+    isJsonObject(value.measurementAResult) &&
+    isJsonObject(value.measurementBResult) &&
+    isJsonObject(value.evaluationAResult) &&
+    isJsonObject(value.evaluationBResult) &&
+    isJsonObject(value.comparisonResult) &&
+    isJsonObject(value.explanationResult) &&
+    isJsonObject(value.artifactResults) &&
+    isJsonObject(value.visualArtifactResult) &&
+    isJsonObject(value.runEnvelope) &&
+    isJsonObject(value.demoReport) &&
+    Array.isArray(value.negativeCaseResults) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    Array.isArray(value.outputRefs) &&
+    isJsonObject(value.packLock) &&
+    isJsonObject(value.packLockRef) &&
+    isJsonObject(value.operationContext) &&
+    isJsonObject(value.operationContextRef)
+  );
+}
+
+function isApiResponseEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-api-response" &&
+    typeof value.status === "string" &&
+    isJsonObject(value.request) &&
+    (Object.hasOwn(value, "result") ||
+      Object.hasOwn(value, "coreVersion") ||
+      Object.hasOwn(value, "serializationVersion") ||
+      Object.hasOwn(value, "capabilities"))
+  );
+}
+
+function isApiErrorEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-api-error" &&
+    typeof value.status === "string" &&
+    isJsonObject(value.request) &&
+    isJsonObject(value.error)
+  );
+}
+
+function isCliResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-core-cli-result" &&
+    typeof value.command === "string" &&
+    value.status === "ok" &&
+    typeof value.coreVersion === "string" &&
+    typeof value.exitCode === "number" &&
+    Object.hasOwn(value, "result")
+  );
+}
+
+function isCliErrorEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-core-cli-error" &&
+    typeof value.command === "string" &&
+    value.status === "error" &&
+    typeof value.coreVersion === "string" &&
+    typeof value.exitCode === "number" &&
+    isJsonObject(value.error)
+  );
+}
+
+function isMcpToolResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-mcp-tool-result" &&
+    typeof value.tool === "string" &&
+    typeof value.status === "string" &&
+    (Object.hasOwn(value, "result") ||
+      Object.hasOwn(value, "coreVersion") ||
+      Object.hasOwn(value, "capabilities") ||
+      Object.hasOwn(value, "serializationVersion") ||
+      Object.hasOwn(value, "canonicalJson"))
+  );
+}
+
 function isCoreResult(value: JsonObject): boolean {
   return (
     CORE_RESULT_FIELDS.every((field) => Object.hasOwn(value, field)) &&
@@ -732,6 +895,10 @@ function isNullableRef(value: unknown): boolean {
   return value === null || isJsonObject(value);
 }
 
+function isStringOrNull(value: unknown): boolean {
+  return value === null || typeof value === "string";
+}
+
 function isApiEnvelope(value: JsonObject, bodyKind: "norma-api-response" | "norma-api-error"): value is JsonObject & { body: JsonObject } {
   return isJsonObject(value.body) && value.body.kind === bodyKind;
 }
@@ -745,11 +912,21 @@ function isJsonRpcShaped(value: JsonObject): boolean {
 }
 
 function structuredMcpContent(value: JsonObject): JsonObject | null {
-  if (!isJsonObject(value.result) || !isJsonObject(value.result.structuredContent)) {
+  if (
+    !isJsonRpcId(value.id) ||
+    !isJsonObject(value.result) ||
+    !Array.isArray(value.result.content) ||
+    value.result.isError !== false ||
+    !isJsonObject(value.result.structuredContent)
+  ) {
     return null;
   }
 
   return value.result.structuredContent.kind === "norma-mcp-tool-result" ? value.result.structuredContent : null;
+}
+
+function isJsonRpcId(value: unknown): boolean {
+  return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
 }
 
 function detected(
