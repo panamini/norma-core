@@ -29,10 +29,19 @@ const pr62ApprovalBoundaryPaths = [
   "tests/onboarding-examples-approval.test.mjs",
 ];
 
+const pr63DocumentationPaths = [
+  "docs/onboarding/README.md",
+  "docs/examples/read-only-result-viewer-workflow.md",
+  "docs/examples/structured-json-input-viewer.md",
+  "docs/examples/verification-replay-result-viewer.md",
+  "tests/onboarding-examples-docs.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
   ...pr62ApprovalBoundaryPaths,
+  ...pr63DocumentationPaths,
 ];
 
 const forbiddenSurfacePaths = [
