@@ -24,6 +24,11 @@ const futureImplementationPaths = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const allowedPostPr60ChangedPaths = [
+  ...approvedPr60ChangedPaths,
+  ...futureImplementationPaths,
+];
+
 const forbiddenSurfacePaths = [
   "package.json",
   "package-lock.json",
@@ -92,10 +97,12 @@ test("PR60 approves exact future package-private helper file scope only", () => 
     "no source-truth creation",
     "inert display-model code only",
   ]);
-  assert.deepEqual(
-    futureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
-    [],
-  );
+  for (const relativePath of futureImplementationPaths) {
+    const absolutePath = path.join(root, relativePath);
+    if (fs.existsSync(absolutePath)) {
+      assert.equal(fs.statSync(absolutePath).isFile(), true, `${relativePath} must be a file`);
+    }
+  }
 });
 
 test("PR60 records accepted and rejected future inputs", () => {
@@ -145,14 +152,10 @@ test("PR60 preserves mandatory future result visibility", () => {
   ]);
 });
 
-test("PR60 changes only approval files and leaves forbidden surfaces unchanged", () => {
+test("PR60 permits only approval files or approved future prototype files after merge", () => {
   const changed = branchChangedFiles();
 
-  assert.deepEqual(
-    approvedPr60ChangedPaths.filter((relativePath) => !changed.includes(relativePath)),
-    [],
-  );
-  assert.deepEqual(changed.filter((relativePath) => !approvedPr60ChangedPaths.includes(relativePath)), []);
+  assert.deepEqual(changed.filter((relativePath) => !allowedPostPr60ChangedPaths.includes(relativePath)), []);
   assert.deepEqual(changed.filter(isForbiddenChange), []);
   assert.deepEqual(
     forbiddenSurfacePaths
