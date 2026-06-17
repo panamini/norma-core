@@ -342,16 +342,26 @@ function resolveStructuredModel(model: StructuredJsonInputDisplayModelLike): Res
     return rejectedResolution(reason("UnsupportedResultKind", "Structured JSON display model is not a verification or replay result.", ["detectedEnvelopeKind"]));
   }
 
+  if (!isStringArray(model.unknownFields)) {
+    return rejectedResolution(reason("MalformedDisplayModel", "Structured JSON display model has malformed unknown fields.", ["unknownFields"]));
+  }
+
+  if (!Array.isArray(model.inspectableUnknowns) || !model.inspectableUnknowns.every(isInspectableUnknown)) {
+    return rejectedResolution(reason("MalformedDisplayModel", "Structured JSON display model has malformed inspectable unknowns.", ["inspectableUnknowns"]));
+  }
+
   return { ok: true, input: { model, resultKind: detectedKind } };
 }
 
 function wrappedResult(input: JsonObject): ResolvedInput | null {
   const body = isJsonObject(input.body) ? input.body : null;
-  if (body?.kind === "norma-api-response") {
-    if (!isApiResponseEnvelope(body)) {
-      return rejectedResolution(reason("MalformedWrapperEnvelope", "API wrapper is missing required inert result fields.", ["body"]));
+  const apiEnvelope = input.kind === "norma-api-response" ? input : body?.kind === "norma-api-response" ? body : null;
+  if (apiEnvelope !== null) {
+    const apiEnvelopePath = apiEnvelope === input ? [] : ["body"];
+    if (!isApiResponseEnvelope(apiEnvelope)) {
+      return rejectedResolution(reason("MalformedWrapperEnvelope", "API wrapper is missing required inert result fields.", apiEnvelopePath));
     }
-    return wrappedResultFromValue(body.result, "api-response", ["body", "result"]);
+    return wrappedResultFromValue(apiEnvelope.result, "api-response", [...apiEnvelopePath, "result"]);
   }
 
   if (input.kind === "norma-core-cli-result") {
@@ -612,17 +622,16 @@ function visibleSectionsFromStructuredModel(
   unknownFields: readonly string[],
 ): readonly VerificationReplayResultSection[] {
   return VERIFICATION_REPLAY_RESULT_VIEWER_SECTION_KEYS.map((key) => {
-    if (key === "unknownFields") {
-      return section(key, unknownFields.length > 0, unknownFields.length > 0 ? unknownFields : null, []);
+    const sourceSection = structuredVisibleSection(model.visibleSections, key);
+    if (sourceSection?.present !== true) {
+      return section(key, false, null, []);
     }
 
-    const sourceSection = structuredVisibleSection(model.visibleSections, key);
-    return section(
-      key,
-      sourceSection?.present === true,
-      sourceSection?.value ?? null,
-      stringArray(sourceSection?.sourcePath),
-    );
+    if (key === "unknownFields") {
+      return section(key, unknownFields.length > 0, unknownFields.length > 0 ? unknownFields : null, unknownFields.length > 0 ? stringArray(sourceSection.sourcePath) : []);
+    }
+
+    return section(key, true, sourceSection.value, stringArray(sourceSection.sourcePath));
   });
 }
 
@@ -642,10 +651,13 @@ function hasCompleteStructuredVisibleSections(visibleSectionsValue: readonly unk
     if (!isStructuredVisibleSection(visibleSection)) {
       return false;
     }
+    if (seenKeys.has(visibleSection.key as string)) {
+      return false;
+    }
     seenKeys.add(visibleSection.key as string);
   }
 
-  return STRUCTURED_JSON_VISIBLE_SECTION_KEYS.every((key) => seenKeys.has(key));
+  return seenKeys.size === STRUCTURED_JSON_VISIBLE_SECTION_KEYS.length && STRUCTURED_JSON_VISIBLE_SECTION_KEYS.every((key) => seenKeys.has(key));
 }
 
 function isStructuredVisibleSection(value: unknown): value is JsonObject {
@@ -860,7 +872,11 @@ function rejectedResolution(reasonValue: VerificationReplayResultRejectionReason
 }
 
 function stringArray(value: unknown): readonly string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+  return isStringArray(value) ? value : [];
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isStringOrNull(value: unknown): boolean {
