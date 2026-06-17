@@ -62,6 +62,20 @@ test("PR67 displays verification-like structured results without executing opera
   assertProvenance(model);
 });
 
+test("PR67 displays pasted MCP verification result wrappers consistently with structured input", () => {
+  const wrapper = mcpToolResult(runVerification());
+  const structuredModel = createReadOnlyViewerModel({ kind: "structured", value: wrapper });
+  const jsonTextModel = createReadOnlyViewerModel({ kind: "jsonText", value: json(wrapper) });
+
+  assert.equal(structuredModel.status, "displayable");
+  assert.equal(jsonTextModel.status, "displayable");
+  assert.equal(jsonTextModel.classification, "verification-like-result");
+  assert.equal(jsonTextModel.sourceMode, "explicit-json-text");
+  assert.equal(section(jsonTextModel, "status")?.rows.some((row) => row.label === "value" && row.value === "verified"), true);
+  assert.deepEqual(jsonTextModel.errors, []);
+  assertProvenance(jsonTextModel);
+});
+
 test("PR67 displays replay-like structured results without calling replayRun", () => {
   const model = createReadOnlyViewerModel({ kind: "structured", value: runReplay() });
 
@@ -284,6 +298,16 @@ function artifactFreshnessVerification(overrides = {}) {
       serializationVersion: "stable-json-v1",
       canonicalOrdering: true,
     },
+    ...overrides,
+  };
+}
+
+function mcpToolResult(result, overrides = {}) {
+  return {
+    kind: "norma-mcp-tool-result",
+    status: "ok",
+    tool: "norma.verifyRun",
+    result,
     ...overrides,
   };
 }
