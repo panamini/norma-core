@@ -65,6 +65,24 @@ test("PR61 accepts existing accepted structured JSON display models", () => {
   assert.deepEqual(section(model, "errors").value, []);
 });
 
+test("PR61 rejects malformed accepted structured JSON display models", () => {
+  const acceptedModel = parseStructuredJsonInput(json(runReplay()));
+
+  assertRejected({
+    ...acceptedModel,
+    visibleSections: [],
+  }, "MalformedDisplayModel");
+
+  assertRejected({
+    ...acceptedModel,
+    visibleSections: acceptedModel.visibleSections.map((visibleSection) => (
+      visibleSection.key === "warnings"
+        ? { ...visibleSection, sourcePath: "warnings" }
+        : visibleSection
+    )),
+  }, "MalformedDisplayModel");
+});
+
 test("PR61 accepts approved wrappers only when they carry displayable results", () => {
   assertDisplayable(apiResponse(runReplay()), "run-replay");
   assertDisplayable(cliResult(artifactFreshnessVerification()), "artifact-freshness-verification");
@@ -72,6 +90,13 @@ test("PR61 accepts approved wrappers only when they carry displayable results", 
 
   assertRejected(apiResponse({ ok: true }), "UnsupportedResultKind");
   assertRejected(cliResult({ kind: "run" }), "UnsupportedResultKind");
+});
+
+test("PR61 rejects wrappers with unsupported tools or non-ok producer statuses", () => {
+  assertRejected(apiResponse(runReplay(), { status: "error" }), "MalformedWrapperEnvelope");
+  assertRejected(cliResult(runReplay(), { status: "error" }), "MalformedWrapperEnvelope");
+  assertRejected(mcpToolResult(runVerification(), { tool: "norma.unknown" }), "MalformedWrapperEnvelope");
+  assertRejected(mcpToolResult(runVerification(), { status: "error" }), "MalformedWrapperEnvelope");
 });
 
 test("PR61 rejects malformed result and wrapper envelopes", () => {
@@ -247,7 +272,7 @@ function section(model, key) {
   return visibleSection;
 }
 
-function apiResponse(result) {
+function apiResponse(result, overrides = {}) {
   return {
     statusCode: 200,
     body: {
@@ -255,11 +280,12 @@ function apiResponse(result) {
       status: "ok",
       request: { method: "POST", path: "/verify-run" },
       result,
+      ...overrides,
     },
   };
 }
 
-function cliResult(result) {
+function cliResult(result, overrides = {}) {
   return {
     kind: "norma-core-cli-result",
     command: "norma verify-run",
@@ -267,6 +293,17 @@ function cliResult(result) {
     coreVersion: "0.1.0-test",
     exitCode: 0,
     result,
+    ...overrides,
+  };
+}
+
+function mcpToolResult(result, overrides = {}) {
+  return {
+    kind: "norma-mcp-tool-result",
+    status: "ok",
+    tool: "norma.verifyRun",
+    result,
+    ...overrides,
   };
 }
 
