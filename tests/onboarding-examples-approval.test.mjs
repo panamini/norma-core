@@ -1,0 +1,306 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const testDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = dirname(testDir);
+
+const pr62DocPath = join("docs", "decisions", "2026-06-17-onboarding-examples-approval.md");
+const pr60GuardTestPath = join("tests", "verification-replay-result-viewer-prototype-approval.test.mjs");
+
+const expectedChangedFiles = [
+  pr62DocPath,
+  "tests/onboarding-examples-approval.test.mjs",
+  pr60GuardTestPath,
+];
+
+const approvedFutureDocumentationPaths = [
+  "docs/onboarding/README.md",
+  "docs/examples/read-only-result-viewer-workflow.md",
+  "docs/examples/structured-json-input-viewer.md",
+  "docs/examples/verification-replay-result-viewer.md",
+];
+
+const protectedExactPaths = [
+  "package.json",
+  "package-lock.json",
+  "src/index.ts",
+  "tsconfig.json",
+  "README.md",
+];
+
+const protectedPrefixes = [
+  "src/",
+  "bin/",
+  "docs/onboarding/",
+  "docs/examples/",
+  "examples/",
+  "dist/",
+];
+
+const forbiddenSurfacePaths = [
+  "src/ui",
+  "src/viewer",
+  "src/app",
+  "src/server",
+  "src/routes",
+  "src/http",
+  "bin/norma-core-api.mjs",
+  "bin/norma-core-server.mjs",
+  "Dockerfile",
+  "docker-compose.yml",
+  "vercel.json",
+  "wrangler.toml",
+];
+
+const requiredSections = [
+  "# Onboarding And Examples Approval",
+  "## Status",
+  "## Decision",
+  "## Source Documents",
+  "## Current Verified State",
+  "## Approved Future Documentation Paths",
+  "## Approved Future Documentation Content",
+  "## Rejected Future Examples And Claims",
+  "## Runtime Package Deployment Boundary",
+  "## Rollback Policy",
+  "## Validation Policy",
+  "## Final Decision",
+];
+
+test("PR62 approval document exists and is approval-only", () => {
+  assert.equal(existsSync(join(repoRoot, pr62DocPath)), true);
+  assert.equal(basename(pr62DocPath), "2026-06-17-onboarding-examples-approval.md");
+
+  const doc = readDoc(pr62DocPath);
+  assertHeadingsInOrder(doc, requiredSections);
+  assertDocMentions(doc, [
+    "PR62 is docs/contract-tests only.",
+    "PR62 is approval-only.",
+    "PR62 does not implement onboarding docs.",
+    "PR62 does not implement examples.",
+    "PR62 approves only future inert documentation paths.",
+    "Current roadmap mentions onboarding/examples, but roadmap scope does not authorize implementation by itself.",
+    "PR55-PR61 approve requirements, plans, and package-private inert helpers only.",
+  ]);
+});
+
+test("PR62 does not create onboarding or example documentation paths", () => {
+  assert.equal(existsSync(join(repoRoot, "docs", "onboarding")), false);
+  assert.equal(existsSync(join(repoRoot, "docs", "examples")), false);
+});
+
+test("PR62 approves exactly the future inert documentation paths", () => {
+  const doc = readDoc(pr62DocPath);
+  const pathsSection = sectionBetween(
+    doc,
+    "## Approved Future Documentation Paths",
+    "## Approved Future Documentation Content",
+  );
+
+  assert.deepEqual(codePaths(pathsSection), approvedFutureDocumentationPaths);
+});
+
+test("PR62 future examples are inert and non-executable", () => {
+  const doc = readDoc(pr62DocPath);
+  const content = sectionBetween(
+    doc,
+    "## Approved Future Documentation Content",
+    "## Rejected Future Examples And Claims",
+  );
+  const rejected = sectionBetween(
+    doc,
+    "## Rejected Future Examples And Claims",
+    "## Runtime Package Deployment Boundary",
+  );
+
+  assertDocMentions(content, [
+    "high-level current workflow description",
+    "inert structured JSON snippets only",
+    "displayability is not source-truth validation",
+    "package-private helper warning",
+    "PR55-PR61 constraints",
+    "status",
+    "diagnostics",
+    "warnings",
+    "errors",
+    "mismatches",
+    "provenance",
+    "source refs",
+    "output refs",
+    "artifact freshness",
+    "operation context",
+    "pack locks",
+    "tolerance policy",
+    "serialization version",
+    "operation version",
+    "result identity",
+    "unknown fields",
+  ]);
+  assertDocMentions(rejected, [
+    "executable examples",
+    "file reads",
+    "URL fetches",
+    "shell/env usage",
+    "prompt-as-source",
+    "artifact-as-source",
+    "source-truth inference",
+    "arbitrary replay",
+    "`norma.replayRun`",
+    "`/replay-run`",
+    "`/replay-mvp-demo` behavior changes",
+    "UI implementation",
+    "runtime routes",
+    "API/MCP behavior",
+    "package exports",
+    "dependencies",
+    "deployment",
+    "remote MCP",
+    "public npm/publish claims",
+    "camera/image/vision/CAD/plugin/marketplace",
+    "beauty score",
+    "creative recommendation",
+    "intent inference",
+  ]);
+});
+
+test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", () => {
+  const doc = readDoc(pr62DocPath);
+  const boundary = sectionBetween(
+    doc,
+    "## Runtime Package Deployment Boundary",
+    "## Rollback Policy",
+  );
+
+  assertDocMentions(boundary, [
+    "No `src/**` changes are approved.",
+    "No `src/index.ts` change is approved.",
+    "No package metadata, lockfile, export, dependency, or script change is approved.",
+    "No UI/app/viewer/server/http/route path is approved.",
+    "No API/MCP runtime behavior is approved.",
+    "No deployment configuration is approved.",
+    "No remote MCP behavior is approved.",
+    "No `docs/MCP_REMOTE_*.md` change is approved.",
+    "`norma.replayRun` remains blocked.",
+    "`/replay-run` remains blocked.",
+    "`/replay-mvp-demo` behavior remains unchanged.",
+  ]);
+
+  assertPathsAbsent(forbiddenSurfacePaths);
+});
+
+test("PR62 changed-file scope remains approval-only", () => {
+  const changed = branchChangedFiles();
+  assert.deepEqual(changed, expectedChangedFiles);
+  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
+});
+
+test("PR62 updates the PR60 changed-file guard without weakening forbidden protections", () => {
+  const guardSource = readDoc(pr60GuardTestPath);
+
+  assertDocMentions(guardSource, [
+    "docs/decisions/2026-06-17-onboarding-examples-approval.md",
+    "tests/onboarding-examples-approval.test.mjs",
+    "package.json",
+    "package-lock.json",
+    "src/index.ts",
+    "src/ui",
+    "src/viewer",
+    "src/app",
+    "src/server",
+    "src/routes",
+    "src/http",
+    "Dockerfile",
+    "docker-compose.yml",
+    "vercel.json",
+    "wrangler.toml",
+    "changed.filter(isForbiddenChange)",
+    "indexSource.includes(\"verification-replay-result-viewer\")",
+  ]);
+});
+
+function readDoc(path) {
+  return readFileSync(join(repoRoot, path), "utf8");
+}
+
+function branchChangedFiles() {
+  const probes = [
+    gitFiles(["diff", "--name-only", "main...HEAD"]),
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    gitFiles(["diff", "--name-only"]),
+    gitFiles(["diff", "--cached", "--name-only"]),
+    gitFiles(["ls-files", "--others", "--exclude-standard"]),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
+}
+
+function gitFiles(args) {
+  try {
+    return execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return null;
+  }
+}
+
+function isProtectedChange(file) {
+  return (
+    protectedExactPaths.includes(file) ||
+    protectedPrefixes.some((prefix) => file.startsWith(prefix))
+  );
+}
+
+function assertPathsAbsent(paths) {
+  for (const path of paths) {
+    assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
+  }
+}
+
+function assertHeadingsInOrder(doc, headings) {
+  let previousIndex = -1;
+  for (const heading of headings) {
+    const headingPattern = new RegExp(`^${escapeRegExp(heading)}\\s*$`, "m");
+    const match = headingPattern.exec(doc);
+    assert.notEqual(match, null, `${heading} should exist as a heading`);
+    assert.ok(match.index > previousIndex, `${heading} should appear after the previous heading`);
+    previousIndex = match.index;
+  }
+}
+
+function assertDocMentions(doc, snippets) {
+  for (const snippet of snippets) {
+    assert.match(doc, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
+  }
+}
+
+function sectionBetween(doc, startHeading, endHeading) {
+  const start = doc.indexOf(startHeading);
+  assert.notEqual(start, -1, `${startHeading} should exist`);
+  const end = doc.indexOf(endHeading, start + startHeading.length);
+  assert.notEqual(end, -1, `${endHeading} should exist`);
+  assert.ok(end > start, `${endHeading} should appear after ${startHeading}`);
+  return doc.slice(start, end);
+}
+
+function codePaths(section) {
+  return [...section.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
