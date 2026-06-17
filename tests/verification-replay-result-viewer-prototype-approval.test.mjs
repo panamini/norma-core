@@ -146,8 +146,14 @@ test("PR60 preserves mandatory future result visibility", () => {
 });
 
 test("PR60 changes only approval files and leaves forbidden surfaces unchanged", () => {
-  assert.deepEqual(branchChangedFiles().filter((relativePath) => !approvedPr60ChangedPaths.includes(relativePath)), []);
-  assert.deepEqual(branchChangedFiles().filter(isForbiddenChange), []);
+  const changed = branchChangedFiles();
+
+  assert.deepEqual(
+    approvedPr60ChangedPaths.filter((relativePath) => !changed.includes(relativePath)),
+    [],
+  );
+  assert.deepEqual(changed.filter((relativePath) => !approvedPr60ChangedPaths.includes(relativePath)), []);
+  assert.deepEqual(changed.filter(isForbiddenChange), []);
   assert.deepEqual(
     forbiddenSurfacePaths
       .filter((relativePath) => !["package.json", "package-lock.json", "src/index.ts"].includes(relativePath))
@@ -157,13 +163,13 @@ test("PR60 changes only approval files and leaves forbidden surfaces unchanged",
 });
 
 test("PR60 keeps package root export and MCP remote docs unchanged", () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
-  const mcpRemoteChanges = branchChangedFiles().filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
+  const changed = branchChangedFiles();
+  const mcpRemoteChanges = changed.filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
 
-  assert.equal(Object.hasOwn(pkg, "dependencies"), false);
-  assert.equal(Object.hasOwn(pkg, "bin"), false);
-  assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ["."]);
+  assert.equal(changed.includes("package.json"), false);
+  assert.equal(changed.includes("package-lock.json"), false);
+  assert.equal(changed.includes("src/index.ts"), false);
   assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
   assert.deepEqual(mcpRemoteChanges, []);
 });
