@@ -216,11 +216,13 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
   assertPathsAbsent(forbiddenSurfacePaths);
 });
 
-test("PR65 changed-file scope remains approval-only when branch changes exist", () => {
+test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
   const changed = branchChangedFiles();
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
       !expectedPr65ChangedFiles.includes(file) &&
+      // Future approval-only PRs may add date-prefixed decision docs and approval tests,
+      // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
