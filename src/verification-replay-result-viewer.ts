@@ -46,6 +46,8 @@ export interface VerificationReplayResultSection {
 
 export type VerificationReplayResultRejectionCode =
   | "MalformedDisplayModel"
+  | "MalformedResultEnvelope"
+  | "MalformedWrapperEnvelope"
   | "RejectedStructuredJsonInput"
   | "UnsupportedResultKind"
   | "GenericJsonRpcInputRejected"
@@ -279,6 +281,9 @@ function resolveInput(input: unknown): ResolvedInput {
 
   const directKind = resultKind(input.kind);
   if (directKind !== "unknown") {
+    if (!isResultEnvelope(input, directKind)) {
+      return rejectedResolution(reason("MalformedResultEnvelope", "Result envelope is missing required display fields.", []));
+    }
     return acceptedDirect(input, directKind, directKind, []);
   }
 
@@ -310,14 +315,23 @@ function resolveStructuredModel(model: StructuredJsonInputDisplayModelLike): Res
 function wrappedResult(input: JsonObject): ResolvedInput | null {
   const body = isJsonObject(input.body) ? input.body : null;
   if (body?.kind === "norma-api-response") {
+    if (!isApiResponseEnvelope(body)) {
+      return rejectedResolution(reason("MalformedWrapperEnvelope", "API wrapper is missing required inert result fields.", ["body"]));
+    }
     return wrappedResultFromValue(body.result, "api-response", ["body", "result"]);
   }
 
   if (input.kind === "norma-core-cli-result") {
+    if (!isCliResultEnvelope(input)) {
+      return rejectedResolution(reason("MalformedWrapperEnvelope", "CLI wrapper is missing required inert result fields.", []));
+    }
     return wrappedResultFromValue(input.result, "cli-result", ["result"]);
   }
 
   if (input.kind === "norma-mcp-tool-result") {
+    if (!isMcpToolResultEnvelope(input)) {
+      return rejectedResolution(reason("MalformedWrapperEnvelope", "MCP wrapper is missing required inert result fields.", []));
+    }
     return wrappedResultFromValue(input.result, "mcp-tool-result", ["result"]);
   }
 
@@ -334,9 +348,15 @@ function wrappedResultFromValue(
   }
 
   const kind = resultKind(value.kind);
-  return kind === "unknown"
-    ? rejectedResolution(reason("UnsupportedResultKind", "Wrapper result kind is not approved for this display model.", [...sourcePath, "kind"]))
-    : acceptedDirect(value, kind, sourceEnvelopeKind, sourcePath);
+  if (kind === "unknown") {
+    return rejectedResolution(reason("UnsupportedResultKind", "Wrapper result kind is not approved for this display model.", [...sourcePath, "kind"]));
+  }
+
+  if (!isResultEnvelope(value, kind)) {
+    return rejectedResolution(reason("MalformedResultEnvelope", "Wrapper result envelope is missing required display fields.", sourcePath));
+  }
+
+  return acceptedDirect(value, kind, sourceEnvelopeKind, sourcePath);
 }
 
 function acceptedDirect(
@@ -354,6 +374,136 @@ function acceptedDirect(
       sourcePath,
     },
   };
+}
+
+function isResultEnvelope(value: JsonObject, resultKindValue: Exclude<VerificationReplayResultKind, "unknown">): boolean {
+  if (resultKindValue === "run-verification") {
+    return isRunVerificationEnvelope(value);
+  }
+
+  if (resultKindValue === "run-replay") {
+    return isRunReplayEnvelope(value);
+  }
+
+  if (resultKindValue === "artifact-freshness-verification") {
+    return isArtifactFreshnessVerificationEnvelope(value);
+  }
+
+  return isMvpDemoResultEnvelope(value);
+}
+
+function isRunVerificationEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "run-verification" &&
+    typeof value.status === "string" &&
+    typeof value.mode === "string" &&
+    isNullableRef(value.runRef) &&
+    isStringOrNull(value.operationName) &&
+    isStringOrNull(value.operationVersion) &&
+    isNullableRef(value.packLockRef) &&
+    isNullableRef(value.operationContextRef) &&
+    Array.isArray(value.sourceRefs) &&
+    Array.isArray(value.missingSourceRefs) &&
+    Array.isArray(value.outputRefs) &&
+    Array.isArray(value.mismatchCodes) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    isObjectOrNull(value.provenance) &&
+    isJsonObject(value.replaySummary)
+  );
+}
+
+function isRunReplayEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "run-replay" &&
+    typeof value.status === "string" &&
+    typeof value.replayAttempted === "boolean" &&
+    value.replayRequired === true &&
+    isStringOrNull(value.operationName) &&
+    isStringOrNull(value.operationVersion) &&
+    isNullableRef(value.recordedRunRef) &&
+    isNullableRef(value.replayedRunRef) &&
+    isNullableRef(value.packLockRef) &&
+    isNullableRef(value.operationContextRef) &&
+    Array.isArray(value.recordedOutputRefs) &&
+    Array.isArray(value.replayedOutputRefs) &&
+    Array.isArray(value.sourceRefsUsed) &&
+    Array.isArray(value.mismatches) &&
+    isJsonObject(value.verification) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    isObjectOrNull(value.provenance)
+  );
+}
+
+function isArtifactFreshnessVerificationEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "artifact-freshness-verification" &&
+    typeof value.status === "string" &&
+    isNullableRef(value.artifactRef) &&
+    Array.isArray(value.sourceRefs) &&
+    Array.isArray(value.missingSourceRefs) &&
+    Array.isArray(value.staleSourceRefs) &&
+    Array.isArray(value.outputRefs) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    isObjectOrNull(value.provenance)
+  );
+}
+
+function isMvpDemoResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "mvp-demo-result" &&
+    isJsonObject(value.inputSummary) &&
+    isJsonObject(value.constructionResult) &&
+    isJsonObject(value.measurementAResult) &&
+    isJsonObject(value.measurementBResult) &&
+    isJsonObject(value.evaluationAResult) &&
+    isJsonObject(value.evaluationBResult) &&
+    isJsonObject(value.comparisonResult) &&
+    isJsonObject(value.explanationResult) &&
+    isJsonObject(value.artifactResults) &&
+    isJsonObject(value.visualArtifactResult) &&
+    isJsonObject(value.runEnvelope) &&
+    isJsonObject(value.demoReport) &&
+    Array.isArray(value.negativeCaseResults) &&
+    Array.isArray(value.warnings) &&
+    Array.isArray(value.errors) &&
+    Array.isArray(value.outputRefs) &&
+    isJsonObject(value.packLock) &&
+    isJsonObject(value.packLockRef) &&
+    isJsonObject(value.operationContext) &&
+    isJsonObject(value.operationContextRef)
+  );
+}
+
+function isApiResponseEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-api-response" &&
+    typeof value.status === "string" &&
+    isJsonObject(value.request) &&
+    Object.hasOwn(value, "result")
+  );
+}
+
+function isCliResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-core-cli-result" &&
+    typeof value.command === "string" &&
+    value.status === "ok" &&
+    typeof value.coreVersion === "string" &&
+    typeof value.exitCode === "number" &&
+    Object.hasOwn(value, "result")
+  );
+}
+
+function isMcpToolResultEnvelope(value: JsonObject): boolean {
+  return (
+    value.kind === "norma-mcp-tool-result" &&
+    typeof value.tool === "string" &&
+    typeof value.status === "string" &&
+    Object.hasOwn(value, "result")
+  );
 }
 
 function displayableDirectInput(input: DirectDisplayInput): VerificationReplayResultDisplayModel {
@@ -418,7 +568,7 @@ function visibleSections(
       return section(key, true, payload, sourcePath);
     }
 
-    const found = payload === null ? null : findFirstByPaths(payload, SECTION_PATHS[key] ?? [], sourcePath);
+    const found = payload === null ? null : sectionValueByPaths(key, payload, SECTION_PATHS[key] ?? [], sourcePath);
     return section(key, found !== null, found?.value ?? null, found?.sourcePath ?? []);
   });
 }
@@ -454,22 +604,41 @@ function structuredVisibleSection(visibleSectionsValue: unknown, key: Verificati
 
 function diagnosticsForPayload(payload: JsonObject): unknown {
   const directDiagnostics = findFirstByPaths(payload, [["diagnostics"], ["replaySummary", "replayDiagnostics"]], []);
-  if (directDiagnostics !== null) {
-    return directDiagnostics.value;
-  }
+  return directDiagnostics?.value ?? null;
+}
 
-  const warnings = findFirstByPaths(payload, [["warnings"]], []);
-  const errors = findFirstByPaths(payload, [["errors"]], []);
-  const mismatches = findFirstByPaths(payload, SECTION_PATHS.mismatches ?? [], []);
-  if (warnings === null && errors === null && mismatches === null) {
+function sectionValueByPaths(
+  key: VerificationReplayResultSectionKey,
+  value: unknown,
+  paths: readonly (readonly string[])[],
+  sourcePath: readonly string[],
+): FoundValue | null {
+  const foundValues = findValuesByPaths(value, paths, sourcePath);
+  if (foundValues.length === 0) {
     return null;
   }
 
+  if (!usesCompositeSectionValue(key) || foundValues.length === 1) {
+    return foundValues[0] ?? null;
+  }
+
   return {
-    warnings: warnings?.value ?? [],
-    errors: errors?.value ?? [],
-    mismatches: mismatches?.value ?? [],
+    value: compositeSectionValue(foundValues),
+    sourcePath,
   };
+}
+
+function usesCompositeSectionValue(key: VerificationReplayResultSectionKey): boolean {
+  return key === "sourceRefs" || key === "outputRefs" || key === "resultIdentity";
+}
+
+function compositeSectionValue(foundValues: readonly FoundValue[]): JsonObject {
+  const composite: JsonObject = {};
+  for (const found of foundValues) {
+    const fieldKey = found.sourcePath.at(-1) ?? "value";
+    composite[Object.hasOwn(composite, fieldKey) ? found.sourcePath.join(".") : fieldKey] = found.value;
+  }
+  return composite;
 }
 
 function findFirstByPaths(
@@ -485,6 +654,16 @@ function findFirstByPaths(
   }
 
   return null;
+}
+
+function findValuesByPaths(
+  value: unknown,
+  paths: readonly (readonly string[])[],
+  sourcePath: readonly string[],
+): readonly FoundValue[] {
+  return paths
+    .map((candidatePath) => valueAtPath(value, candidatePath, sourcePath))
+    .filter((found): found is FoundValue => found !== null);
 }
 
 function valueAtPath(value: unknown, candidatePath: readonly string[], sourcePath: readonly string[]): FoundValue | null {
@@ -624,6 +803,18 @@ function rejectedResolution(reasonValue: VerificationReplayResultRejectionReason
 
 function stringArray(value: unknown): readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+function isStringOrNull(value: unknown): boolean {
+  return typeof value === "string" || value === null;
+}
+
+function isObjectOrNull(value: unknown): boolean {
+  return isJsonObject(value) || value === null;
+}
+
+function isNullableRef(value: unknown): boolean {
+  return isJsonObject(value) || value === null;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {
