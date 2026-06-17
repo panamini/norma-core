@@ -24,9 +24,15 @@ const futureImplementationPaths = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr62ApprovalBoundaryPaths = [
+  "docs/decisions/2026-06-17-onboarding-examples-approval.md",
+  "tests/onboarding-examples-approval.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
+  ...pr62ApprovalBoundaryPaths,
 ];
 
 const forbiddenSurfacePaths = [
