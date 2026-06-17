@@ -110,7 +110,21 @@ function modelFromJsonText(inputText: string): ReadOnlyViewerModel {
     return modelFromStructuredJsonRejection(inputText, structuredModel.rejectionReasons);
   }
 
+  const directModel = modelFromParsedJsonText(inputText, "explicit-json-text");
+  if (directModel?.status === "displayable") {
+    return directModel;
+  }
+
   return modelFromAcceptedStructuredJsonModel(structuredModel, "explicit-json-text");
+}
+
+function modelFromParsedJsonText(inputText: string, sourceMode: ReadOnlyViewerSourceMode): ReadOnlyViewerModel | null {
+  const parsedValue = parseKnownJson(inputText);
+  if (parsedValue === null) {
+    return null;
+  }
+
+  return modelFromStructuredValue(parsedValue, sourceMode);
 }
 
 function modelFromAcceptedStructuredJsonModel(
