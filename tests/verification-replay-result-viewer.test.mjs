@@ -66,12 +66,23 @@ test("PR61 accepts existing accepted structured JSON display models", () => {
 });
 
 test("PR61 accepts approved wrappers only when they carry displayable results", () => {
-  assertDisplayable({ body: { kind: "norma-api-response", status: "ok", result: runReplay() } }, "run-replay");
-  assertDisplayable({ kind: "norma-core-cli-result", status: "ok", result: artifactFreshnessVerification() }, "artifact-freshness-verification");
+  assertDisplayable(apiResponse(runReplay()), "run-replay");
+  assertDisplayable(cliResult(artifactFreshnessVerification()), "artifact-freshness-verification");
   assertDisplayable({ kind: "norma-mcp-tool-result", status: "ok", tool: "norma.verifyRun", result: runVerification() }, "run-verification");
 
-  assertRejected({ body: { kind: "norma-api-response", status: "ok", result: { ok: true } } }, "UnsupportedResultKind");
-  assertRejected({ kind: "norma-core-cli-result", status: "ok", result: { kind: "run" } }, "UnsupportedResultKind");
+  assertRejected(apiResponse({ ok: true }), "UnsupportedResultKind");
+  assertRejected(cliResult({ kind: "run" }), "UnsupportedResultKind");
+});
+
+test("PR61 rejects malformed result and wrapper envelopes", () => {
+  assertRejected({ kind: "run-verification" }, "MalformedResultEnvelope");
+  assertRejected({ kind: "run-replay", status: "replayed" }, "MalformedResultEnvelope");
+  assertRejected({ kind: "artifact-freshness-verification", status: "current" }, "MalformedResultEnvelope");
+  assertRejected({ kind: "mvp-demo-result", warnings: [], errors: [] }, "MalformedResultEnvelope");
+
+  assertRejected({ body: { kind: "norma-api-response", status: "ok", result: runReplay() } }, "MalformedWrapperEnvelope");
+  assertRejected({ kind: "norma-core-cli-result", status: "ok", result: runReplay() }, "MalformedWrapperEnvelope");
+  assertRejected({ kind: "norma-mcp-tool-result", status: "ok", result: runReplay() }, "MalformedWrapperEnvelope");
 });
 
 test("PR61 keeps verification replay visibility explicit", () => {
@@ -98,6 +109,34 @@ test("PR61 keeps verification replay visibility explicit", () => {
   assert.deepEqual(section(model, "tolerancePolicy").value, { kind: "tolerance-policy", id: "visible-tolerance-policy" });
   assert.equal(model.unknownFields.includes("extraReplayField"), true);
   assert.deepEqual(section(model, "unknownFields").value, ["extraReplayField"]);
+});
+
+test("PR61 preserves both recorded and replayed refs", () => {
+  const input = runReplay();
+  const model = assertDisplayable(input, "run-replay");
+
+  assert.deepEqual(section(model, "outputRefs").value, {
+    recordedOutputRefs: input.recordedOutputRefs,
+    replayedOutputRefs: input.replayedOutputRefs,
+  });
+  assert.deepEqual(section(model, "resultIdentity").value, {
+    recordedRunRef: input.recordedRunRef,
+    replayedRunRef: input.replayedRunRef,
+  });
+});
+
+test("PR61 does not synthesize diagnostics when diagnostics are absent", () => {
+  const input = runReplay({
+    warnings: [diagnostic("VisibleWarning", "warning")],
+    errors: [diagnostic("VisibleError", "error")],
+    mismatches: [{ code: "VisibleMismatch", message: "Mismatch remains visible." }],
+  });
+  const model = assertDisplayable(input, "run-replay");
+
+  assert.equal(section(model, "diagnostics").present, false);
+  assert.equal(section(model, "warnings").present, true);
+  assert.equal(section(model, "errors").present, true);
+  assert.equal(section(model, "mismatches").present, true);
 });
 
 test("PR61 rejects unsupported display models source truth and execution shaped inputs", () => {
@@ -206,6 +245,29 @@ function section(model, key) {
   const visibleSection = model.sections.find((item) => item.key === key);
   assert.notEqual(visibleSection, undefined, `${key} section should exist`);
   return visibleSection;
+}
+
+function apiResponse(result) {
+  return {
+    statusCode: 200,
+    body: {
+      kind: "norma-api-response",
+      status: "ok",
+      request: { method: "POST", path: "/verify-run" },
+      result,
+    },
+  };
+}
+
+function cliResult(result) {
+  return {
+    kind: "norma-core-cli-result",
+    command: "norma verify-run",
+    status: "ok",
+    coreVersion: "0.1.0-test",
+    exitCode: 0,
+    result,
+  };
 }
 
 function coreResult(overrides = {}) {
