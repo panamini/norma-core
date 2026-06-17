@@ -116,6 +116,35 @@ const RESULT_KIND_SET = new Set<Exclude<VerificationReplayResultKind, "unknown">
   "mvp-demo-result",
 ]);
 
+const APPROVED_MCP_TOOLS = new Set([
+  "norma.getVersion",
+  "norma.serializeCanonicalJson",
+  "norma.verifyRun",
+  "norma.verifyArtifactFreshness",
+  "norma.replayMvpDemo",
+]);
+
+const STRUCTURED_JSON_VISIBLE_SECTION_KEYS = [
+  "status",
+  "diagnostics",
+  "warnings",
+  "errors",
+  "mismatchDetails",
+  "provenance",
+  "sourceRefs",
+  "outputRefs",
+  "artifactFreshness",
+  "operationContext",
+  "packLocks",
+  "tolerancePolicy",
+  "serializationVersion",
+  "operationVersion",
+  "resultIdentity",
+  "unknownFields",
+] as const;
+
+const STRUCTURED_JSON_VISIBLE_SECTION_KEY_SET = new Set<string>(STRUCTURED_JSON_VISIBLE_SECTION_KEYS);
+
 const KNOWN_FIELDS_BY_RESULT_KIND = Object.freeze({
   "run-verification": [
     "kind",
@@ -304,6 +333,10 @@ function resolveStructuredModel(model: StructuredJsonInputDisplayModelLike): Res
     return rejectedResolution(reason("MalformedDisplayModel", "Structured JSON display model is missing visible sections.", ["visibleSections"]));
   }
 
+  if (!hasCompleteStructuredVisibleSections(model.visibleSections)) {
+    return rejectedResolution(reason("MalformedDisplayModel", "Structured JSON display model visible sections are incomplete or malformed.", ["visibleSections"]));
+  }
+
   const detectedKind = resultKind(model.detectedEnvelopeKind);
   if (detectedKind === "unknown") {
     return rejectedResolution(reason("UnsupportedResultKind", "Structured JSON display model is not a verification or replay result.", ["detectedEnvelopeKind"]));
@@ -480,7 +513,7 @@ function isMvpDemoResultEnvelope(value: JsonObject): boolean {
 function isApiResponseEnvelope(value: JsonObject): boolean {
   return (
     value.kind === "norma-api-response" &&
-    typeof value.status === "string" &&
+    value.status === "ok" &&
     isJsonObject(value.request) &&
     Object.hasOwn(value, "result")
   );
@@ -501,7 +534,8 @@ function isMcpToolResultEnvelope(value: JsonObject): boolean {
   return (
     value.kind === "norma-mcp-tool-result" &&
     typeof value.tool === "string" &&
-    typeof value.status === "string" &&
+    APPROVED_MCP_TOOLS.has(value.tool) &&
+    value.status === "ok" &&
     Object.hasOwn(value, "result")
   );
 }
@@ -600,6 +634,30 @@ function structuredVisibleSection(visibleSectionsValue: unknown, key: Verificati
   const sourceKey = key === "mismatches" ? "mismatchDetails" : key;
   const visibleSection = visibleSectionsValue.find((item) => isJsonObject(item) && item.key === sourceKey);
   return isJsonObject(visibleSection) ? visibleSection : null;
+}
+
+function hasCompleteStructuredVisibleSections(visibleSectionsValue: readonly unknown[]): boolean {
+  const seenKeys = new Set<string>();
+  for (const visibleSection of visibleSectionsValue) {
+    if (!isStructuredVisibleSection(visibleSection)) {
+      return false;
+    }
+    seenKeys.add(visibleSection.key as string);
+  }
+
+  return STRUCTURED_JSON_VISIBLE_SECTION_KEYS.every((key) => seenKeys.has(key));
+}
+
+function isStructuredVisibleSection(value: unknown): value is JsonObject {
+  return (
+    isJsonObject(value) &&
+    typeof value.key === "string" &&
+    STRUCTURED_JSON_VISIBLE_SECTION_KEY_SET.has(value.key) &&
+    typeof value.present === "boolean" &&
+    Object.hasOwn(value, "value") &&
+    Array.isArray(value.sourcePath) &&
+    value.sourcePath.every((part) => typeof part === "string")
+  );
 }
 
 function diagnosticsForPayload(payload: JsonObject): unknown {
