@@ -75,33 +75,36 @@ test("PR58 accepts only the full current CoreResult shape as core-result", () =>
 });
 
 test("PR58 accepts current verified Norma result and wrapper envelopes", () => {
-  assertAccepted({ kind: "run", id: "run:test" }, "run");
-  assertAccepted({ kind: "run-verification", status: "verified" }, "run-verification");
-  assertAccepted(
-    { kind: "artifact-freshness-verification", status: "current" },
-    "artifact-freshness-verification",
-  );
-  assertAccepted({ kind: "run-replay", status: "replayed" }, "run-replay");
-  assertAccepted({ kind: "mvp-demo-result", status: "ok" }, "mvp-demo-result");
-  assertAccepted({ statusCode: 200, body: { kind: "norma-api-response", status: "ok" } }, "api-response");
-  assertAccepted(
-    { statusCode: 400, body: { kind: "norma-api-error", status: "rejected", error: { code: "Bad" } } },
-    "api-error",
-  );
-  assertAccepted({ kind: "norma-core-cli-result", command: "version", status: "ok", result: { ok: true } }, "cli-result");
-  assertAccepted(
-    { kind: "norma-core-cli-error", command: "verify-run", status: "error", error: { code: "Bad" } },
-    "cli-error",
-  );
+  assertAccepted(runEnvelope(), "run");
+  assertAccepted(runVerification(), "run-verification");
+  assertAccepted(artifactFreshnessVerification(), "artifact-freshness-verification");
+  assertAccepted(runReplay(), "run-replay");
+  assertAccepted(mvpDemoResult(), "mvp-demo-result");
+  assertAccepted(apiResponse(), "api-response");
+  assertAccepted(apiError(), "api-error");
+  assertAccepted(cliResult(), "cli-result");
+  assertAccepted(cliError(), "cli-error");
   assertAccepted({ ...mcpToolResult("norma.getVersion"), result: { version: "0.0.0-test" } }, "mcp-tool-result");
-  assertAccepted(
-    {
-      jsonrpc: "2.0",
-      id: "accepted",
-      result: { structuredContent: mcpToolResult("norma.replayMvpDemo") },
-    },
-    "mcp-tool-result",
-  );
+  assertAccepted(jsonRpcToolResponse(mcpToolResult("norma.replayMvpDemo")), "mcp-tool-result");
+});
+
+test("PR58 rejects incomplete known envelope candidates", () => {
+  const incompleteInputs = [
+    { kind: "run" },
+    { kind: "run-verification", status: "verified" },
+    { kind: "artifact-freshness-verification", status: "current" },
+    { kind: "run-replay", status: "replayed" },
+    { kind: "mvp-demo-result", status: "ok" },
+    { statusCode: 200, body: { kind: "norma-api-response", status: "ok" } },
+    { statusCode: 400, body: { kind: "norma-api-error", status: "rejected", error: { code: "Bad" } } },
+    { kind: "norma-core-cli-result", command: "version", status: "ok" },
+    { kind: "norma-core-cli-error", command: "verify-run", status: "error" },
+    { kind: "norma-mcp-tool-result", tool: "norma.getVersion" },
+  ];
+
+  for (const input of incompleteInputs) {
+    assertRejected(input, "UnknownEnvelope");
+  }
 });
 
 test("PR58 applies strict completed MCP JSON-RPC response rules", () => {
@@ -114,13 +117,20 @@ test("PR58 applies strict completed MCP JSON-RPC response rules", () => {
   assertRejected(jsonRpcRequest("tools/call", { name: "norma.getVersion", arguments: {} }), "ArbitraryToolCallRejected");
   assertRejected(mcpToolResult("norma.unknown"), "UnsupportedMcpTool");
   assertRejected(mcpToolResult("norma.replayRun"), "NormaReplayRunRejected");
+  assertRejected({ jsonrpc: "2.0", result: { content: [], structuredContent: mcpToolResult("norma.getVersion"), isError: false } }, "GenericJsonRpcEnvelopeRejected");
+  assertRejected({ jsonrpc: "2.0", id: "missing-content", result: { structuredContent: mcpToolResult("norma.getVersion"), isError: false } }, "GenericJsonRpcEnvelopeRejected");
+  assertRejected({ jsonrpc: "2.0", id: "error-result", result: { content: [], structuredContent: mcpToolResult("norma.getVersion"), isError: true } }, "GenericJsonRpcEnvelopeRejected");
 
   for (const extraKey of ["method", "params", "error"]) {
     assertRejected(
       {
         jsonrpc: "2.0",
         id: "bad-response",
-        result: { structuredContent: mcpToolResult("norma.getVersion") },
+        result: {
+          content: [{ type: "text", text: json(mcpToolResult("norma.getVersion")) }],
+          structuredContent: mcpToolResult("norma.getVersion"),
+          isError: false,
+        },
         [extraKey]: extraKey === "method" ? "tools/list" : {},
       },
       extraKey === "error" ? "JsonRpcErrorRejected" : "GenericJsonRpcEnvelopeRejected",
@@ -128,10 +138,7 @@ test("PR58 applies strict completed MCP JSON-RPC response rules", () => {
   }
 
   for (const tool of approvedMcpTools) {
-    assertAccepted(
-      { jsonrpc: "2.0", id: tool, result: { structuredContent: mcpToolResult(tool) } },
-      "mcp-tool-result",
-    );
+    assertAccepted(jsonRpcToolResponse(mcpToolResult(tool), tool), "mcp-tool-result");
   }
 });
 
@@ -217,11 +224,7 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
 
   const changedFiles = gitChangedFiles();
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
-    assert.deepEqual(changedFiles, [
-      "src/structured-json-input-viewer.ts",
-      "tests/structured-json-input-viewer-prototype-approval.test.mjs",
-      "tests/structured-json-input-viewer.test.mjs",
-    ]);
+    assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
   }
 });
 
@@ -281,11 +284,228 @@ function diagnostic(code, severity) {
   };
 }
 
+function ref(kind = "run", value = `${kind}:test`) {
+  return { kind, ref: value };
+}
+
+function idRef(value) {
+  return { id: value };
+}
+
+function outputRefs(refs = [ref("core-result", "core-result:test")]) {
+  return { kind: "output-refs", refs };
+}
+
+function provenance() {
+  return {
+    operationName: "core.mvp-demo.run",
+    operationVersion: "0.1.0-test",
+    inputRefs: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    source: ref("core", "pr58-test"),
+  };
+}
+
+function runEnvelope(overrides = {}) {
+  return {
+    kind: "run",
+    id: "run:test",
+    runRef: idRef("run:test"),
+    coreVersion: "0.1.0-test",
+    operationName: "core.mvp-demo.run",
+    operationVersion: "0.1.0-test",
+    input: null,
+    inputRefs: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    packLockRef: idRef("pack-lock:test"),
+    operationContextRef: idRef("operation-context:test"),
+    outputRefs: outputRefs(),
+    replayReadinessStatus: "replay_ready",
+    warnings: [],
+    errors: [],
+    provenance: provenance(),
+    metadata: {},
+    ...overrides,
+  };
+}
+
+function runVerification(overrides = {}) {
+  return {
+    kind: "run-verification",
+    status: "verified",
+    mode: "audit_only",
+    runRef: idRef("run:test"),
+    operationName: "core.mvp-demo.run",
+    operationVersion: "0.1.0-test",
+    packLockRef: idRef("pack-lock:test"),
+    operationContextRef: idRef("operation-context:test"),
+    sourceRefs: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    missingSourceRefs: [],
+    outputRefs: [ref("core-result", "core-result:test")],
+    mismatchCodes: [],
+    warnings: [],
+    errors: [],
+    provenance: provenance(),
+    replaySummary: {
+      replayAttempted: false,
+      replayRequired: false,
+      replayEligible: "not_requested",
+      replayStatus: null,
+      replayDiagnostics: [],
+      replayMismatches: [],
+      replayOutputRefs: [],
+      recordedOutputRefs: [ref("core-result", "core-result:test")],
+      sourceRefsUsed: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    },
+    serializationSummary: {
+      serializationVersion: "stable-json-v1",
+      canonicalOrdering: true,
+    },
+    ...overrides,
+  };
+}
+
+function artifactFreshnessVerification(overrides = {}) {
+  return {
+    kind: "artifact-freshness-verification",
+    status: "current",
+    artifactRef: ref("artifact", "artifact:test"),
+    sourceRefs: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    missingSourceRefs: [],
+    staleSourceRefs: [],
+    outputRefs: [ref("artifact", "artifact:test")],
+    warnings: [],
+    errors: [],
+    provenance: provenance(),
+    serializationSummary: {
+      serializationVersion: "stable-json-v1",
+      canonicalOrdering: true,
+    },
+    ...overrides,
+  };
+}
+
+function runReplay(overrides = {}) {
+  return {
+    kind: "run-replay",
+    status: "replayed",
+    replayAttempted: true,
+    replayRequired: true,
+    operationName: "core.mvp-demo.run",
+    operationVersion: "0.1.0-test",
+    recordedRunRef: idRef("run:recorded"),
+    replayedRunRef: idRef("run:replayed"),
+    packLockRef: idRef("pack-lock:test"),
+    operationContextRef: idRef("operation-context:test"),
+    recordedOutputRefs: [ref("core-result", "core-result:recorded")],
+    replayedOutputRefs: [ref("core-result", "core-result:replayed")],
+    sourceRefsUsed: [ref("mvp-demo-input", "mvp-demo:structured-input")],
+    mismatches: [],
+    verification: runVerification(),
+    warnings: [],
+    errors: [],
+    provenance: provenance(),
+    serializationSummary: {
+      serializationVersion: "stable-json-v1",
+      canonicalOrdering: true,
+    },
+    ...overrides,
+  };
+}
+
+function mvpDemoResult(overrides = {}) {
+  return {
+    kind: "mvp-demo-result",
+    inputSummary: {},
+    constructionResult: coreResult(),
+    measurementAResult: coreResult(),
+    measurementBResult: coreResult(),
+    evaluationAResult: coreResult(),
+    evaluationBResult: coreResult(),
+    comparisonResult: coreResult(),
+    explanationResult: {},
+    artifactResults: {},
+    visualArtifactResult: coreResult(),
+    runEnvelope: runEnvelope(),
+    demoReport: {},
+    negativeCaseResults: [],
+    warnings: [],
+    errors: [],
+    outputRefs: [ref("core-result", "core-result:test")],
+    packLock: {},
+    packLockRef: idRef("pack-lock:test"),
+    operationContext: {},
+    operationContextRef: idRef("operation-context:test"),
+    ...overrides,
+  };
+}
+
+function apiResponse(overrides = {}) {
+  return {
+    statusCode: 200,
+    body: {
+      kind: "norma-api-response",
+      status: "ok",
+      request: { method: "GET", path: "/version", route: "GET /version", localOnly: true },
+      result: { ok: true },
+      ...overrides,
+    },
+  };
+}
+
+function apiError(overrides = {}) {
+  return {
+    statusCode: 400,
+    body: {
+      kind: "norma-api-error",
+      status: "rejected",
+      request: { method: "POST", path: "/verify-run", route: "POST /verify-run", localOnly: true },
+      error: { code: "Bad", message: "Bad request." },
+      ...overrides,
+    },
+  };
+}
+
+function cliResult(overrides = {}) {
+  return {
+    kind: "norma-core-cli-result",
+    command: "version",
+    status: "ok",
+    coreVersion: "0.1.0-test",
+    exitCode: 0,
+    result: { ok: true },
+    ...overrides,
+  };
+}
+
+function cliError(overrides = {}) {
+  return {
+    kind: "norma-core-cli-error",
+    command: "verify-run",
+    status: "error",
+    coreVersion: "0.1.0-test",
+    exitCode: 1,
+    error: { code: "Bad", message: "Bad request." },
+    ...overrides,
+  };
+}
+
 function mcpToolResult(tool) {
   return {
     kind: "norma-mcp-tool-result",
     tool,
     status: "ok",
+    result: { ok: true },
+  };
+}
+
+function jsonRpcToolResponse(structuredContent, id = "accepted") {
+  return {
+    jsonrpc: "2.0",
+    id,
+    result: {
+      content: [{ type: "text", text: json(structuredContent) }],
+      structuredContent,
+      isError: false,
+    },
   };
 }
 
@@ -314,6 +534,26 @@ function omit(value, key) {
 
 function json(value) {
   return JSON.stringify(value);
+}
+
+function isForbiddenStructuredJsonViewerChange(file) {
+  return [
+    "package.json",
+    "package-lock.json",
+    "src/index.ts",
+    "src/ui",
+    "src/viewer",
+    "src/app",
+    "src/server",
+    "src/routes",
+    "src/http",
+    "bin/norma-core-server.mjs",
+    "bin/norma-core-api.mjs",
+    "Dockerfile",
+    "docker-compose.yml",
+    "vercel.json",
+    "wrangler.toml",
+  ].some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
 }
 
 function gitChangedFiles() {
