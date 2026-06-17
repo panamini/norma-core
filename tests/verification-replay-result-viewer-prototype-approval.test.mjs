@@ -173,7 +173,7 @@ test("PR60 permits only approval files or approved future prototype files after 
     (relativePath) =>
       !allowedPostPr60ChangedPaths.includes(relativePath) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) &&
-      !/^tests\/.*\.test\.mjs$/.test(relativePath),
+      !/^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);

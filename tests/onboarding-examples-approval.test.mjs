@@ -204,7 +204,7 @@ test("approval changed-file scope remains protected after PR62", () => {
     (file) =>
       !expectedChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
-      !/^tests\/.*\.test\.mjs$/.test(file),
+      !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);

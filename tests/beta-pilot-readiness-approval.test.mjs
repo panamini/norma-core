@@ -213,7 +213,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
     (file) =>
       !expectedPr64ChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
-      !/^tests\/.*\.test\.mjs$/.test(file),
+      !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
 
   if (changed.includes(pr64DocPath)) {
