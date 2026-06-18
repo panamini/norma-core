@@ -12,6 +12,7 @@ const htmlPath = join(repoRoot, "viewer", "read-only-result-viewer.html");
 const jsPath = join(repoRoot, "viewer", "read-only-result-viewer.js");
 const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
+const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
@@ -38,16 +39,29 @@ test("PR68 HTML provides paste-only JSON input and output regions", () => {
 
 test("PR68 HTML keeps file upload media network and remote surfaces absent", () => {
   const html = readFileSync(htmlPath, "utf8");
+  const scriptTags = [...html.matchAll(/<script\b[^>]*>/gi)].map((match) => match[0]);
+  const disallowedScripts = scriptTags.filter(
+    (tag) =>
+      !/<script\b[^>]*type=["']importmap["'][^>]*>/i.test(tag) &&
+      !/<script\b[^>]*type=["']module["'][^>]*src=["']\.\/read-only-result-viewer\.js["'][^>]*>/i.test(tag),
+  );
 
   assert.doesNotMatch(html, /<input\b[^>]*type=["']?file\b/i);
   assert.doesNotMatch(html, /<canvas\b/i);
   assert.doesNotMatch(html, /\b(?:drag|drop|draggable|DataTransfer)\b/i);
   assert.doesNotMatch(html, /<\s*(?:video|audio|img|picture|source|track|iframe|object|embed)\b/i);
-  assert.doesNotMatch(html, /<script\b(?![^>]*type=["']module["'][^>]*src=["']\.\/read-only-result-viewer\.js["'])/i);
+  assert.deepEqual(disallowedScripts, []);
   assert.doesNotMatch(html, /<link\b[^>]*href=["'](?!\.\/read-only-result-viewer\.css["'])/i);
   assert.doesNotMatch(html, /<form\b/i);
   assert.doesNotMatch(html, /\baction\s*=/i);
   assertNoRemoteUrl(html);
+});
+
+test("PR68 HTML maps the documented local model path to the current build output", () => {
+  const html = readFileSync(htmlPath, "utf8");
+
+  assert.match(html, /<script\b[^>]*type=["']importmap["'][^>]*>/i);
+  assert.equal(html.includes(`"${localModelPath}": "${currentBuildModelPath}"`), true);
 });
 
 test("PR68 JS exports pure static helper functions", async () => {
