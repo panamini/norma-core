@@ -168,6 +168,7 @@ function assertPipeline(fixture, expected) {
   assert.equal(result.jsonTextTree.classification, expected.classification);
   assert.equal(result.structuredTree.classification, expected.classification);
   assert.deepEqual(result.jsonTextTree.provenance, result.structuredTree.provenance);
+  assertSemanticTreeEquivalence(result.jsonTextTree, result.structuredTree);
 
   return result;
 }
