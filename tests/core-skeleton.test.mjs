@@ -101,9 +101,7 @@ test("structured result arrays are not shared across calls", () => {
 });
 
 test("required and additional PR1 diagnostics are exported", () => {
-  assert.deepEqual(
-    new Set(CORE_DIAGNOSTIC_CODES),
-    new Set([
+  const expectedDiagnosticCodes = [
       "MissingOperation",
       "UnsupportedOperation",
       "NotImplemented",
@@ -125,6 +123,7 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingCoordinateSystem",
       "UnsupportedGeometryV1",
       "InvalidGeometryV1",
+      // fallow-ignore-next-line code-duplication
       "MissingMetricPolicy",
       "MissingRatioPack",
       "MissingRatioPackVersion",
@@ -207,7 +206,12 @@ test("required and additional PR1 diagnostics are exported", () => {
       "FeatureFlagsMismatch",
       "ArtifactStale",
       "ReplayRunNotImplemented",
-    ]),
+    ];
+  expectedDiagnosticCodes.splice(expectedDiagnosticCodes.indexOf("InvalidGeometryV1") + 1, 0, "DuplicateGeometrySourceId");
+
+  assert.deepEqual(
+    new Set(CORE_DIAGNOSTIC_CODES),
+    new Set(expectedDiagnosticCodes),
   );
 });
 
@@ -881,6 +885,64 @@ test("PR3 composition requires rectangular element geometry", () => {
   });
 
   assertGeometryFailed(invalidElement, "InvalidGeometryV1");
+});
+
+test("PR71 rejects duplicate sibling Composition2D element source ids", () => {
+  const result = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:duplicate-elements",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:metric",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [
+      { kind: "element", id: "dup", geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 } },
+      { kind: "element", id: "dup", geometry: { kind: "rect", x: 600, y: 0, width: 600, height: 800 } },
+    ],
+  });
+
+  assertGeometryFailed(result, "DuplicateGeometrySourceId");
+  assert.equal(result.errors[0].targetRef, "elements.1.id");
+  assert.equal(result.errors[0].source.ref, "elements.1.id");
+  assert.equal(result.errors[0].message, "Duplicate Geometry V1 element id \"dup\" at elements.1.id; first occurrence at elements.0.id.");
+});
+
+test("PR71 duplicate element source id rejection is deterministic and reports the later occurrence", () => {
+  const geometry = {
+    kind: "composition-2d",
+    id: "composition:duplicate-later-element",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:metric",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [
+      { kind: "element", id: "first", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 800 } },
+      { kind: "element", id: "middle", geometry: { kind: "rect", x: 400, y: 0, width: 400, height: 800 } },
+      { kind: "element", id: "first", geometry: { kind: "rect", x: 800, y: 0, width: 400, height: 800 } },
+    ],
+  };
+
+  const first = core.validateGeometryV1(geometry);
+  const second = core.validateGeometryV1(geometry);
+
+  assertGeometryFailed(first, "DuplicateGeometrySourceId");
+  assert.deepEqual(first.errors, second.errors);
+  assert.equal(first.errors[0].targetRef, "elements.2.id");
+  assert.equal(first.errors[0].message, "Duplicate Geometry V1 element id \"first\" at elements.2.id; first occurrence at elements.0.id.");
 });
 
 test("PR3 rejects geometry without an explicit coordinate system", () => {

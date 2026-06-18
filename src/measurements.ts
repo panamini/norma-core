@@ -629,8 +629,17 @@ function validateMeasurementCompositionGeometry(geometry: unknown): MeasurementV
     return failedMeasurementValidation(invalidMeasurementInput("composition.surface.coordinateSystem", "Composition2D and SurfaceSpace coordinate systems must match."));
   }
 
-  if (!Array.isArray(geometry.elements) || !geometry.elements.every(isMeasurementElementRecord)) {
+  const measurementElements = Array.isArray(geometry.elements) ? Array.from(geometry.elements) : null;
+  if (measurementElements === null || !measurementElements.every(isMeasurementElementRecord)) {
     return failedMeasurementValidation(invalidMeasurementInput("composition.elements", "Composition2D measurement source elements must be rectangular."));
+  }
+
+  const duplicateElementIdFailure = duplicateMeasurementGeometrySourceIdFailure(
+    measurementElements,
+    "composition.elements",
+  );
+  if (duplicateElementIdFailure !== null) {
+    return failedMeasurementValidation(duplicateElementIdFailure);
   }
 
   return validMeasurementValidation(geometry as unknown as Composition2D);
@@ -1539,6 +1548,42 @@ function invalidMeasurementInput(targetRef: string, message: string): CoreResult
     errors: [
       measurementError({
         code: "InvalidMeasurementInput",
+        message,
+        targetRef,
+        sourceRef: { kind: "measurement-input", ref: targetRef },
+      }),
+    ],
+  });
+}
+
+function duplicateMeasurementGeometrySourceIdFailure(
+  elements: readonly Element[],
+  targetPrefix: string,
+): CoreResult | null {
+  const elementIdRefs = new Map<string, string>();
+
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index] as Element;
+    const currentRef = `${targetPrefix}.${index}.id`;
+    const firstRef = elementIdRefs.get(element.id);
+    if (firstRef !== undefined) {
+      return duplicateMeasurementGeometrySourceId(currentRef, element.id, firstRef);
+    }
+
+    elementIdRefs.set(element.id, currentRef);
+  }
+
+  return null;
+}
+
+function duplicateMeasurementGeometrySourceId(targetRef: string, duplicateId: string, firstRef: string): CoreResult {
+  const message = `Duplicate Geometry V1 element id "${duplicateId}" at ${targetRef}; first occurrence at ${firstRef}.`;
+
+  return createMeasurementResult({
+    status: "failed",
+    errors: [
+      measurementError({
+        code: "DuplicateGeometrySourceId",
         message,
         targetRef,
         sourceRef: { kind: "measurement-input", ref: targetRef },

@@ -36,6 +36,7 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MissingCoordinateSystem",
   "UnsupportedGeometryV1",
   "InvalidGeometryV1",
+  "DuplicateGeometrySourceId",
   "MissingMetricPolicy",
   "MissingRatioPack",
   "MissingRatioPackVersion",
@@ -1244,6 +1245,23 @@ function validateElements(
     return failedGeometryValue(invalidGeometryV1("elements", "Composition2D requires an elements array."));
   }
 
+  const invalidElementValidation = firstInvalidElementValidation(value, coordinateSystem);
+  if (invalidElementValidation !== null) {
+    return invalidElementValidation;
+  }
+
+  const duplicateIdFailure = duplicateGeometryElementSourceIdFailure(value as readonly Element[], "elements");
+  if (duplicateIdFailure !== null) {
+    return failedGeometryValue(duplicateIdFailure);
+  }
+
+  return validGeometryValue(value as readonly Element[]);
+}
+
+function firstInvalidElementValidation(
+  value: readonly unknown[],
+  coordinateSystem: CoordinateSystem,
+): GeometryValueValidation<readonly Element[]> | null {
   for (const [index, element] of value.entries()) {
     const elementValidation = validateElement(element, coordinateSystem, `elements.${index}`);
     if (!elementValidation.ok) {
@@ -1251,7 +1269,26 @@ function validateElements(
     }
   }
 
-  return validGeometryValue(value as readonly Element[]);
+  return null;
+}
+
+function duplicateGeometryElementSourceIdFailure(
+  elements: readonly Element[],
+  targetPrefix: string,
+): CoreResult | null {
+  const elementIdRefs = new Map<string, string>();
+
+  for (const [index, element] of elements.entries()) {
+    const currentRef = `${targetPrefix}.${index}.id`;
+    const firstRef = elementIdRefs.get(element.id);
+    if (firstRef !== undefined) {
+      return duplicateGeometrySourceId(currentRef, element.id, firstRef);
+    }
+
+    elementIdRefs.set(element.id, `${targetPrefix}.${index}.id`);
+  }
+
+  return null;
 }
 
 function validateElement(
@@ -1368,6 +1405,20 @@ function invalidGeometryV1(targetRef: string, message: string): CoreResult {
       createCoreError({
         code: "InvalidGeometryV1",
         message,
+        targetRef,
+        sourceRef: { kind: "geometry-v1", ref: targetRef },
+      }),
+    ],
+  });
+}
+
+function duplicateGeometrySourceId(targetRef: string, duplicateId: string, firstRef: string): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "DuplicateGeometrySourceId",
+        message: `Duplicate Geometry V1 element id "${duplicateId}" at ${targetRef}; first occurrence at ${firstRef}.`,
         targetRef,
         sourceRef: { kind: "geometry-v1", ref: targetRef },
       }),
