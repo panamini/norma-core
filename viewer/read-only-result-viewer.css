@@ -1,0 +1,136 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f6f7f9;
+  color: #1f2933;
+}
+
+body {
+  margin: 0;
+}
+
+.viewer-shell {
+  box-sizing: border-box;
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1120px;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.viewer-header,
+.viewer-panel {
+  background: #ffffff;
+  border: 1px solid #d9e0e8;
+  border-radius: 8px;
+  box-sizing: border-box;
+  padding: 20px;
+}
+
+.viewer-header h1,
+.viewer-panel h2,
+.viewer-result h3,
+.viewer-result h4 {
+  margin: 0 0 8px;
+}
+
+.viewer-header p,
+.viewer-panel p,
+.viewer-panel ul,
+.viewer-result p,
+.viewer-result dl {
+  margin: 0;
+}
+
+.viewer-kicker {
+  color: #50606f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.viewer-label {
+  display: block;
+  font-weight: 700;
+  margin: 12px 0 8px;
+}
+
+textarea {
+  border: 1px solid #b9c4cf;
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: #15202b;
+  display: block;
+  font: 0.92rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  min-height: 280px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+button {
+  background: #1f2933;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-top: 12px;
+  padding: 10px 14px;
+}
+
+button:focus,
+textarea:focus {
+  outline: 3px solid #8db7e8;
+  outline-offset: 2px;
+}
+
+.viewer-output {
+  min-height: 96px;
+}
+
+.viewer-result {
+  display: grid;
+  gap: 16px;
+}
+
+.viewer-meta,
+.viewer-notice,
+.viewer-section {
+  border-top: 1px solid #e2e8ef;
+  padding-top: 12px;
+}
+
+.viewer-row {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(120px, 220px) 1fr;
+  padding: 6px 0;
+}
+
+.viewer-row-label {
+  color: #50606f;
+  font-weight: 700;
+}
+
+.viewer-row-value {
+  overflow-wrap: anywhere;
+}
+
+.viewer-provenance li,
+.viewer-notice li {
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .viewer-shell {
+    padding: 12px;
+  }
+
+  .viewer-row {
+    grid-template-columns: 1fr;
+  }
+}

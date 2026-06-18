@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Static Read-Only Result Viewer</title>
+    <link rel="stylesheet" href="./read-only-result-viewer.css">
+    <script type="module" src="./read-only-result-viewer.js"></script>
+  </head>
+  <body>
+    <main class="viewer-shell">
+      <header class="viewer-header">
+        <p class="viewer-kicker">Local only</p>
+        <h1>Local Static Read-Only Result Viewer</h1>
+        <p>Paste explicit structured JSON and render derived display data locally.</p>
+      </header>
+
+      <section class="viewer-panel" aria-labelledby="input-heading">
+        <h2 id="input-heading">Structured JSON Input</h2>
+        <label class="viewer-label" for="structured-json-input">Paste JSON text</label>
+        <textarea
+          id="structured-json-input"
+          data-viewer-input
+          spellcheck="false"
+          autocomplete="off"
+          rows="18"
+        ></textarea>
+        <button type="button" data-viewer-render>Render local view</button>
+      </section>
+
+      <section class="viewer-panel" aria-labelledby="output-heading">
+        <h2 id="output-heading">Read-Only Output</h2>
+        <div id="read-only-viewer-output" class="viewer-output" data-viewer-output role="status" aria-live="polite">
+          Build the local model, paste structured JSON, then render.
+        </div>
+      </section>
+
+      <aside class="viewer-panel viewer-provenance" data-viewer-provenance aria-labelledby="truth-heading">
+        <h2 id="truth-heading">Truth Boundary</h2>
+        <ul>
+          <li>Artifacts are derived display data only.</li>
+          <li>Prompt text is not source truth.</li>
+          <li>Displayability is not source-truth validation.</li>
+        </ul>
+      </aside>
+    </main>
+  </body>
+</html>
