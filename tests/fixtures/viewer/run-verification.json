@@ -1,0 +1,98 @@
+{
+  "kind": "run-verification",
+  "status": "verified",
+  "mode": "audit_only",
+  "runRef": {
+    "id": "run:pr69-verification"
+  },
+  "operationName": "core.mvp-demo.run",
+  "operationVersion": "0.1.0-pr69",
+  "packLockRef": {
+    "id": "pack-lock:pr69"
+  },
+  "operationContextRef": {
+    "id": "operation-context:pr69"
+  },
+  "sourceRefs": [
+    {
+      "kind": "mvp-demo-input",
+      "ref": "mvp-demo:pr69-structured-input"
+    }
+  ],
+  "missingSourceRefs": [],
+  "outputRefs": [
+    {
+      "kind": "core-result",
+      "ref": "core-result:pr69-verification"
+    }
+  ],
+  "mismatchCodes": [],
+  "diagnostics": [
+    {
+      "code": "SyntheticVerificationNotice",
+      "severity": "warning",
+      "message": "Synthetic verification warning remains visible.",
+      "targetRef": "run:pr69-verification",
+      "source": {
+        "kind": "fixture",
+        "ref": "fixture:pr69-run-verification"
+      },
+      "blocking": false,
+      "provenance": null
+    }
+  ],
+  "warnings": [
+    {
+      "code": "SyntheticVerificationWarning",
+      "severity": "warning",
+      "message": "Synthetic warning remains visible.",
+      "targetRef": "run:pr69-verification",
+      "source": {
+        "kind": "fixture",
+        "ref": "fixture:pr69-run-verification"
+      },
+      "blocking": false,
+      "provenance": null
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "operationName": "core.mvp-demo.run",
+    "operationVersion": "0.1.0-pr69",
+    "inputRefs": [
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:pr69-structured-input"
+      }
+    ],
+    "source": {
+      "kind": "fixture",
+      "ref": "fixture:pr69-run-verification"
+    }
+  },
+  "replaySummary": {
+    "replayAttempted": false,
+    "replayRequired": false,
+    "replayEligible": "not_requested",
+    "replayStatus": null,
+    "replayDiagnostics": [],
+    "replayMismatches": [],
+    "replayOutputRefs": [],
+    "recordedOutputRefs": [
+      {
+        "kind": "core-result",
+        "ref": "core-result:pr69-verification"
+      }
+    ],
+    "sourceRefsUsed": [
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:pr69-structured-input"
+      }
+    ]
+  },
+  "serializationSummary": {
+    "serializationVersion": "stable-json-v1",
+    "canonicalOrdering": true
+  }
+}

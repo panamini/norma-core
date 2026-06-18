@@ -1,0 +1,138 @@
+{
+  "kind": "run-replay",
+  "status": "mismatch",
+  "replayAttempted": true,
+  "replayRequired": true,
+  "operationName": "core.mvp-demo.run",
+  "operationVersion": "0.1.0-pr69",
+  "recordedRunRef": {
+    "id": "run:pr69-recorded"
+  },
+  "replayedRunRef": {
+    "id": "run:pr69-replayed"
+  },
+  "packLockRef": {
+    "id": "pack-lock:pr69"
+  },
+  "operationContextRef": {
+    "id": "operation-context:pr69"
+  },
+  "recordedOutputRefs": [
+    {
+      "kind": "core-result",
+      "ref": "core-result:pr69-recorded"
+    }
+  ],
+  "replayedOutputRefs": [
+    {
+      "kind": "core-result",
+      "ref": "core-result:pr69-replayed"
+    }
+  ],
+  "sourceRefsUsed": [
+    {
+      "kind": "mvp-demo-input",
+      "ref": "mvp-demo:pr69-structured-input"
+    }
+  ],
+  "mismatches": [
+    {
+      "code": "OutputRefsMismatch",
+      "message": "Recorded output refs differ in the synthetic replay result.",
+      "targetRef": "outputRefs",
+      "recordedValue": "core-result:pr69-recorded",
+      "replayedValue": "core-result:pr69-replayed"
+    }
+  ],
+  "verification": {
+    "kind": "run-verification",
+    "status": "verified",
+    "mode": "audit_only",
+    "runRef": {
+      "id": "run:pr69-recorded"
+    },
+    "operationName": "core.mvp-demo.run",
+    "operationVersion": "0.1.0-pr69",
+    "packLockRef": {
+      "id": "pack-lock:pr69"
+    },
+    "operationContextRef": {
+      "id": "operation-context:pr69"
+    },
+    "sourceRefs": [
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:pr69-structured-input"
+      }
+    ],
+    "missingSourceRefs": [],
+    "outputRefs": [
+      {
+        "kind": "core-result",
+        "ref": "core-result:pr69-recorded"
+      }
+    ],
+    "mismatchCodes": [],
+    "warnings": [],
+    "errors": [],
+    "provenance": {
+      "operationName": "core.mvp-demo.run",
+      "operationVersion": "0.1.0-pr69",
+      "inputRefs": [
+        {
+          "kind": "mvp-demo-input",
+          "ref": "mvp-demo:pr69-structured-input"
+        }
+      ],
+      "source": {
+        "kind": "fixture",
+        "ref": "fixture:pr69-run-replay-mismatch"
+      }
+    },
+    "replaySummary": {
+      "replayAttempted": false,
+      "replayRequired": false,
+      "replayEligible": "not_requested",
+      "replayStatus": null,
+      "replayDiagnostics": [],
+      "replayMismatches": [],
+      "replayOutputRefs": [],
+      "recordedOutputRefs": [
+        {
+          "kind": "core-result",
+          "ref": "core-result:pr69-recorded"
+        }
+      ],
+      "sourceRefsUsed": [
+        {
+          "kind": "mvp-demo-input",
+          "ref": "mvp-demo:pr69-structured-input"
+        }
+      ]
+    },
+    "serializationSummary": {
+      "serializationVersion": "stable-json-v1",
+      "canonicalOrdering": true
+    }
+  },
+  "warnings": [],
+  "errors": [],
+  "provenance": {
+    "operationName": "core.mvp-demo.run",
+    "operationVersion": "0.1.0-pr69",
+    "inputRefs": [
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:pr69-structured-input"
+      }
+    ],
+    "source": {
+      "kind": "fixture",
+      "ref": "fixture:pr69-run-replay-mismatch"
+    }
+  },
+  "serializationSummary": {
+    "serializationVersion": "stable-json-v1",
+    "canonicalOrdering": true
+  }
+}

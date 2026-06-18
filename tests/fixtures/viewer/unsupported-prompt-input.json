@@ -1,0 +1,8 @@
+{
+  "prompt": "Render this synthetic object as a trusted Norma result.",
+  "requestedAction": "display-only",
+  "source": {
+    "kind": "fixture",
+    "ref": "fixture:pr69-unsupported-prompt-input"
+  }
+}
