@@ -1,0 +1,74 @@
+{
+  "kind": "artifact-freshness-verification",
+  "status": "stale",
+  "artifactRef": {
+    "kind": "artifact",
+    "ref": "artifact:pr69-derived-summary"
+  },
+  "sourceRefs": [
+    {
+      "kind": "mvp-demo-input",
+      "ref": "mvp-demo:pr69-structured-input"
+    }
+  ],
+  "missingSourceRefs": [],
+  "staleSourceRefs": [
+    {
+      "kind": "mvp-demo-input",
+      "ref": "mvp-demo:pr69-structured-input"
+    }
+  ],
+  "outputRefs": [
+    {
+      "kind": "artifact",
+      "ref": "artifact:pr69-derived-summary"
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "ArtifactStale",
+      "severity": "warning",
+      "message": "Synthetic derived artifact is stale against the explicit source object.",
+      "targetRef": "artifact:pr69-derived-summary",
+      "source": {
+        "kind": "fixture",
+        "ref": "fixture:pr69-artifact-freshness-stale"
+      },
+      "blocking": false,
+      "provenance": null
+    }
+  ],
+  "warnings": [
+    {
+      "code": "ArtifactStale",
+      "severity": "warning",
+      "message": "Synthetic derived artifact remains stale.",
+      "targetRef": "artifact:pr69-derived-summary",
+      "source": {
+        "kind": "fixture",
+        "ref": "fixture:pr69-artifact-freshness-stale"
+      },
+      "blocking": false,
+      "provenance": null
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "operationName": "core.mvp-demo.run",
+    "operationVersion": "0.1.0-pr69",
+    "inputRefs": [
+      {
+        "kind": "mvp-demo-input",
+        "ref": "mvp-demo:pr69-structured-input"
+      }
+    ],
+    "source": {
+      "kind": "fixture",
+      "ref": "fixture:pr69-artifact-freshness-stale"
+    }
+  },
+  "serializationSummary": {
+    "serializationVersion": "stable-json-v1",
+    "canonicalOrdering": true
+  }
+}

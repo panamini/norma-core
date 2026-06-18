@@ -27,10 +27,19 @@ const pr68StaticViewerPaths = [
   "tests/read-only-viewer-static.test.mjs",
 ];
 
+const pr69ReadOnlyViewerFixturePaths = [
+  "tests/fixtures/viewer/run-verification.json",
+  "tests/fixtures/viewer/run-replay-mismatch.json",
+  "tests/fixtures/viewer/artifact-freshness-stale.json",
+  "tests/fixtures/viewer/unsupported-prompt-input.json",
+  "tests/read-only-viewer-fixtures.test.mjs",
+];
+
 const allowedPostPr65ChangedFiles = [
   ...expectedPr65ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
   ...pr68StaticViewerPaths,
+  ...pr69ReadOnlyViewerFixturePaths,
 ];
 
 const protectedExactPaths = [
