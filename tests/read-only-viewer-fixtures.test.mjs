@@ -73,6 +73,7 @@ test("PR69 replay mismatch fixture remains inert and visible", () => {
   assert.equal(treeText(jsonTextTree).includes("OutputRefsMismatch"), true);
   assert.equal(treeText(structuredTree).includes("OutputRefsMismatch"), true);
   assertNoExecutableReplayMarkers(jsonTextTree);
+  assertNoExecutableReplayMarkers(structuredTree);
   assertSemanticEquivalence(jsonTextModel, structuredModel);
 });
 
@@ -93,7 +94,7 @@ test("PR69 stale artifact remains derived", () => {
 
 test("PR69 prompt-shaped unsupported input stays unsupported", () => {
   const fixture = loadFixture(fixturePaths.unsupportedPrompt);
-  const { jsonTextModel, structuredModel, jsonTextTree } = assertPipeline(fixture, {
+  const { jsonTextModel, structuredModel, jsonTextTree, structuredTree } = assertPipeline(fixture, {
     classification: "unsupported-shape",
     status: "unsupported",
     displayable: false,
@@ -105,6 +106,7 @@ test("PR69 prompt-shaped unsupported input stays unsupported", () => {
   assert.equal(structuredModel.errors.some((notice) => notice.code === "UnsupportedInput"), true);
   assert.equal(treeText(jsonTextTree).includes("UnsupportedInput"), true);
   assertNoCreativeInference(jsonTextTree);
+  assertNoCreativeInference(structuredTree);
 });
 
 test("PR69 fixture pipeline is deterministic", () => {
@@ -265,23 +267,33 @@ function isJsonObject(value) {
 }
 
 function branchChangedFiles() {
-  return [
+  const probes = [
     gitLines(["diff", "--name-only", "main...HEAD"]),
+    gitLines(["diff", "--name-only", "origin/main...HEAD"]),
     gitLines(["diff", "--name-only"]),
     gitLines(["diff", "--cached", "--name-only"]),
     gitLines(["ls-files", "--others", "--exclude-standard"]),
-  ]
+  ];
+  const successful = probes.filter((files) => files !== null);
+
+  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
+  return successful
     .flat()
     .filter((file, index, files) => files.indexOf(file) === index)
     .sort();
 }
 
 function gitLines(args) {
-  const output = execFileSync("git", args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  }).trim();
+  let output;
+  try {
+    output = execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
 
   return output === "" ? [] : output.split("\n");
 }
