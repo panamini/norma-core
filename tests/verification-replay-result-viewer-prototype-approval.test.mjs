@@ -57,6 +57,10 @@ const pr69ReadOnlyViewerFixturePaths = [
   "tests/read-only-viewer-fixtures.test.mjs",
 ];
 
+const pr70ReadOnlyViewerDemoReadinessPaths = [
+  "tests/read-only-viewer-demo-readiness.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -65,6 +69,7 @@ const allowedPostPr60ChangedPaths = [
   ...pr67ReadOnlyViewerModelPaths,
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
+  ...pr70ReadOnlyViewerDemoReadinessPaths,
 ];
 
 const forbiddenSurfacePaths = [

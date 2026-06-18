@@ -35,11 +35,16 @@ const pr69ReadOnlyViewerFixturePaths = [
   "tests/read-only-viewer-fixtures.test.mjs",
 ];
 
+const pr70ReadOnlyViewerDemoReadinessPaths = [
+  "tests/read-only-viewer-demo-readiness.test.mjs",
+];
+
 const allowedPostPr65ChangedFiles = [
   ...expectedPr65ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
+  ...pr70ReadOnlyViewerDemoReadinessPaths,
 ];
 
 const protectedExactPaths = [

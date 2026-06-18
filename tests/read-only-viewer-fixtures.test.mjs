@@ -25,6 +25,7 @@ const expectedChangedFiles = [
   "tests/fixtures/viewer/run-verification.json",
   "tests/fixtures/viewer/unsupported-prompt-input.json",
   "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-demo-readiness.test.mjs",
   "tests/beta-pilot-readiness-approval.test.mjs",
   "tests/onboarding-examples-approval.test.mjs",
   "tests/privacy-security-support-approval.test.mjs",
