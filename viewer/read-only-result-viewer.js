@@ -2,62 +2,34 @@ const LOCAL_MODEL_IMPORT_PATH = "../dist/local-viewer/read-only-viewer-model.js"
 const INPUT_SELECTOR = "[data-viewer-input]";
 const RENDER_SELECTOR = "[data-viewer-render]";
 const OUTPUT_SELECTOR = "[data-viewer-output]";
+const SCALAR_FORMATTERS = Object.freeze({
+  string: (value) => value,
+  number: (value) => String(value),
+  boolean: (value) => String(value),
+  undefined: () => "undefined",
+  object: (value) => (value === null ? "null" : stringifyDisplayValue(value)),
+});
 
 export function formatViewerScalar(value) {
-  if (value === null) {
-    return "null";
-  }
-
-  if (value === undefined) {
-    return "undefined";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  return stableStringify(value);
+  const formatter = SCALAR_FORMATTERS[typeof value] ?? stringifyDisplayValue;
+  return formatter(value);
 }
 
 export function modelToStaticViewTree(model) {
-  const provenance = model?.provenance ?? {};
+  const viewerModel = recordOrEmpty(model);
 
   return {
-    title: formatViewerScalar(model?.title ?? "Unsupported input"),
-    status: formatViewerScalar(model?.status ?? "unsupported"),
-    summary: formatViewerScalar(model?.summary ?? "Input is not displayable."),
-    classification: formatViewerScalar(model?.classification ?? "unknown"),
-    sourceMode: formatViewerScalar(model?.sourceMode ?? "unknown"),
-    displayable: model?.displayable === true ? "yes" : "no",
-    notDisplayableReason:
-      model?.notDisplayableReason === null || model?.notDisplayableReason === undefined
-        ? "none"
-        : formatViewerScalar(model.notDisplayableReason),
-    sections: normalizeSections(model?.sections),
-    warnings: normalizeNotices(model?.warnings),
-    errors: normalizeNotices(model?.errors),
-    provenance: [
-      { label: "source truth", value: formatViewerScalar(provenance.sourceTruth ?? "explicit structured input") },
-      {
-        label: "artifacts",
-        value: provenance.artifactsAreDerived === true ? "derived display data only" : "not marked as derived",
-      },
-      {
-        label: "prompt text",
-        value: provenance.promptIsSourceTruth === false ? "not source truth" : "not accepted as source truth",
-      },
-      {
-        label: "displayability",
-        value:
-          provenance.displayabilityIsTruthValidation === false
-            ? "not source-truth validation"
-            : "not treated as validation",
-      },
-    ],
+    title: formatViewerScalar(fieldOr(viewerModel, "title", "Unsupported input")),
+    status: formatViewerScalar(fieldOr(viewerModel, "status", "unsupported")),
+    summary: formatViewerScalar(fieldOr(viewerModel, "summary", "Input is not displayable.")),
+    classification: formatViewerScalar(fieldOr(viewerModel, "classification", "unknown")),
+    sourceMode: formatViewerScalar(fieldOr(viewerModel, "sourceMode", "unknown")),
+    displayable: displayableLabel(viewerModel),
+    notDisplayableReason: notDisplayableReasonLabel(viewerModel),
+    sections: normalizeSections(viewerModel.sections),
+    warnings: normalizeNotices(viewerModel.warnings),
+    errors: normalizeNotices(viewerModel.errors),
+    provenance: provenanceRows(recordOrEmpty(viewerModel.provenance)),
   };
 }
 
@@ -106,16 +78,7 @@ function normalizeSections(sections) {
     return [];
   }
 
-  return sections.map((section) => ({
-    id: formatViewerScalar(section?.id ?? "section"),
-    title: formatViewerScalar(section?.title ?? "Section"),
-    rows: Array.isArray(section?.rows)
-      ? section.rows.map((row) => ({
-          label: formatViewerScalar(row?.label ?? "value"),
-          value: formatViewerScalar(row?.value ?? null),
-        }))
-      : [],
-  }));
+  return sections.map(normalizeSection);
 }
 
 function normalizeNotices(notices) {
@@ -123,11 +86,85 @@ function normalizeNotices(notices) {
     return [];
   }
 
-  return notices.map((notice) => ({
-    code: formatViewerScalar(notice?.code ?? "Notice"),
-    severity: formatViewerScalar(notice?.severity ?? "info"),
-    message: formatViewerScalar(notice?.message ?? ""),
-  }));
+  return notices.map(normalizeNotice);
+}
+
+function normalizeSection(section) {
+  const sectionRecord = recordOrEmpty(section);
+
+  return {
+    id: formatViewerScalar(fieldOr(sectionRecord, "id", "section")),
+    title: formatViewerScalar(fieldOr(sectionRecord, "title", "Section")),
+    rows: normalizeRows(sectionRecord.rows),
+  };
+}
+
+function normalizeRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map(normalizeRow);
+}
+
+function normalizeRow(row) {
+  const rowRecord = recordOrEmpty(row);
+
+  return {
+    label: formatViewerScalar(fieldOr(rowRecord, "label", "value")),
+    value: formatViewerScalar(fieldOr(rowRecord, "value", null)),
+  };
+}
+
+function normalizeNotice(notice) {
+  const noticeRecord = recordOrEmpty(notice);
+
+  return {
+    code: formatViewerScalar(fieldOr(noticeRecord, "code", "Notice")),
+    severity: formatViewerScalar(fieldOr(noticeRecord, "severity", "info")),
+    message: formatViewerScalar(fieldOr(noticeRecord, "message", "")),
+  };
+}
+
+function displayableLabel(model) {
+  return model.displayable === true ? "yes" : "no";
+}
+
+function notDisplayableReasonLabel(model) {
+  if (model.notDisplayableReason === null || model.notDisplayableReason === undefined) {
+    return "none";
+  }
+
+  return formatViewerScalar(model.notDisplayableReason);
+}
+
+function provenanceRows(provenance) {
+  return [
+    { label: "source truth", value: formatViewerScalar(provenance.sourceTruth ?? "explicit structured input") },
+    { label: "artifacts", value: artifactsLabel(provenance) },
+    { label: "prompt text", value: promptTruthLabel(provenance) },
+    { label: "displayability", value: displayabilityLabel(provenance) },
+  ];
+}
+
+function artifactsLabel(provenance) {
+  return provenance.artifactsAreDerived === true ? "derived display data only" : "not marked as derived";
+}
+
+function promptTruthLabel(provenance) {
+  return provenance.promptIsSourceTruth === false ? "not source truth" : "not accepted as source truth";
+}
+
+function displayabilityLabel(provenance) {
+  return provenance.displayabilityIsTruthValidation === false ? "not source-truth validation" : "not treated as validation";
+}
+
+function fieldOr(record, key, fallback) {
+  return record[key] === undefined || record[key] === null ? fallback : record[key];
+}
+
+function recordOrEmpty(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
 }
 
 function metaBlock(documentRef, tree) {
@@ -237,42 +274,12 @@ function showLocalBuildRequired(documentRef, error) {
   output.replaceChildren(block);
 }
 
-function stableStringify(value) {
-  return JSON.stringify(stableValue(value, new WeakSet()));
-}
-
-function stableValue(value, seen) {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-
-  if (value === undefined) {
-    return "undefined";
-  }
-
-  if (typeof value !== "object") {
+function stringifyDisplayValue(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
     return String(value);
   }
-
-  if (seen.has(value)) {
-    return "[Circular]";
-  }
-
-  seen.add(value);
-
-  if (Array.isArray(value)) {
-    const stableArray = value.map((item) => stableValue(item, seen));
-    seen.delete(value);
-    return stableArray;
-  }
-
-  const stableObject = {};
-  for (const key of Object.keys(value).sort()) {
-    stableObject[key] = stableValue(value[key], seen);
-  }
-
-  seen.delete(value);
-  return stableObject;
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {

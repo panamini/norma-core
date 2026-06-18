@@ -33,6 +33,12 @@ const pr68StaticViewerPaths = [
   "tests/read-only-viewer-static.test.mjs",
 ];
 
+const allowedPostPr62ChangedFiles = [
+  ...expectedChangedFiles,
+  ...pr67ReadOnlyViewerModelPaths,
+  ...pr68StaticViewerPaths,
+];
+
 const approvedFutureDocumentationPaths = [
   "docs/onboarding/README.md",
   "docs/examples/read-only-result-viewer-workflow.md",
@@ -214,9 +220,7 @@ test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !expectedChangedFiles.includes(file) &&
-      !pr67ReadOnlyViewerModelPaths.includes(file) &&
-      !pr68StaticViewerPaths.includes(file) &&
+      !allowedPostPr62ChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
