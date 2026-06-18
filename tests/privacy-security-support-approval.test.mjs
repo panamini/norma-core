@@ -20,6 +20,13 @@ const pr67ReadOnlyViewerModelPaths = [
   "tests/read-only-viewer-model.test.mjs",
 ];
 
+const pr68StaticViewerPaths = [
+  "viewer/read-only-result-viewer.html",
+  "viewer/read-only-result-viewer.js",
+  "viewer/read-only-result-viewer.css",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 const protectedExactPaths = [
   "package.json",
   "package-lock.json",
@@ -227,6 +234,7 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
     (file) =>
       !expectedPr65ChangedFiles.includes(file) &&
       !pr67ReadOnlyViewerModelPaths.includes(file) &&
+      !pr68StaticViewerPaths.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&

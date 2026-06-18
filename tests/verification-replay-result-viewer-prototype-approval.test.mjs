@@ -42,12 +42,20 @@ const pr67ReadOnlyViewerModelPaths = [
   "tests/read-only-viewer-model.test.mjs",
 ];
 
+const pr68StaticViewerPaths = [
+  "viewer/read-only-result-viewer.html",
+  "viewer/read-only-result-viewer.js",
+  "viewer/read-only-result-viewer.css",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
   ...pr62ApprovalBoundaryPaths,
   ...pr63DocumentationPaths,
   ...pr67ReadOnlyViewerModelPaths,
+  ...pr68StaticViewerPaths,
 ];
 
 const forbiddenSurfacePaths = [
