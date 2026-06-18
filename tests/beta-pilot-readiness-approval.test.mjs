@@ -22,6 +22,19 @@ const pr67ReadOnlyViewerModelPaths = [
   "tests/read-only-viewer-model.test.mjs",
 ];
 
+const pr68StaticViewerPaths = [
+  "viewer/read-only-result-viewer.html",
+  "viewer/read-only-result-viewer.js",
+  "viewer/read-only-result-viewer.css",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
+const allowedPostPr64ChangedFiles = [
+  ...expectedPr64ChangedFiles,
+  ...pr67ReadOnlyViewerModelPaths,
+  ...pr68StaticViewerPaths,
+];
+
 const protectedExactPaths = [
   "package.json",
   "package-lock.json",
@@ -216,8 +229,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   const changed = branchChangedFiles();
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !expectedPr64ChangedFiles.includes(file) &&
-      !pr67ReadOnlyViewerModelPaths.includes(file) &&
+      !allowedPostPr64ChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
