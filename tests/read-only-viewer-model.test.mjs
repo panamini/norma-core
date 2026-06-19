@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
+// fallow-ignore-next-line code-duplication
 const repoRoot = dirname(testDir);
 
 const pr71ApprovedChangedFiles = [
@@ -38,6 +39,7 @@ const pr72ApprovedChangedFiles = [
   "tests/read-only-viewer-fixtures.test.mjs",
   "tests/read-only-viewer-model.test.mjs",
   "tests/read-only-viewer-static.test.mjs",
+  // fallow-ignore-next-line code-duplication
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
@@ -65,12 +67,22 @@ const pr76ApprovedChangedFiles = [
 
 const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
 
+const pr78ApprovedChangedFiles = [
+  "docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr75ApprovedChangedFiles,
   pr76ApprovedChangedFiles,
   pr77ApprovedChangedFiles,
+  pr78ApprovedChangedFiles,
 ];
 
 test("PR67 returns an empty model for whitespace-only JSON text", () => {

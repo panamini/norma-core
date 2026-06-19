@@ -12,6 +12,7 @@ const htmlPath = join(repoRoot, "viewer", "read-only-result-viewer.html");
 const jsPath = join(repoRoot, "viewer", "read-only-result-viewer.js");
 const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
+// fallow-ignore-next-line code-duplication
 const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
 const pr71ApprovedChangedFiles = [
@@ -68,6 +69,15 @@ const pr76ApprovedChangedFiles = [
 ];
 
 const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
+
+const pr78ApprovedChangedFiles = [
+  "docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
 
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
@@ -214,6 +224,7 @@ test("PR68 static helper output is deterministic for the same input model", asyn
   assert.deepEqual(modelToStaticViewTree(model), modelToStaticViewTree(model));
 });
 
+// fallow-ignore-next-line complexity
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
   const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
@@ -221,10 +232,12 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr75ApprovedChangeSet = isExactPr75ApprovedChangeSet(changed);
   const isPr76ApprovedChangeSet = isExactPr76ApprovedChangeSet(changed);
   const isPr77ApprovedChangeSet = isExactPr77ApprovedChangeSet(changed);
+  const isPr78ApprovedChangeSet = isExactPr78ApprovedChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
     isPr77ApprovedChangeSet ? pr77ApprovedChangedFiles : [],
+    isPr78ApprovedChangeSet ? pr78ApprovedChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -328,6 +341,10 @@ function isExactPr76ApprovedChangeSet(changed) {
 
 function isExactPr77ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr77ApprovedChangedFiles);
+}
+
+function isExactPr78ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr78ApprovedChangedFiles);
 }
 
 function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {

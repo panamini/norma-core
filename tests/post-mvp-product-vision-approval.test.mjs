@@ -43,6 +43,15 @@ const exactPr76ChangedFilesWithGuards = [
 
 const exactPr77ChangedFilesWithGuards = exactPr76ChangedFilesWithGuards;
 
+const exactPr78ChangedFilesWithGuards = [
+  pr76DecisionPath,
+  pr76ContractTestPath,
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -256,6 +265,7 @@ test("PR75 roadmap update is minimal and links to the decision", () => {
   ]);
 });
 
+// fallow-ignore-next-line complexity
 test("PR75 changed-file scope is exact and protected files remain unchanged", () => {
   const changed = branchChangedFiles();
 
@@ -263,7 +273,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
     isExactChangedFileSet(changed, primaryPr75ChangedFiles) ||
       isExactChangedFileSet(changed, exactPr75ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
