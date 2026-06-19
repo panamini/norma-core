@@ -63,6 +63,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr62ChangedFiles = [
   ...expectedChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -250,21 +264,17 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
-  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr62ChangedFiles;
+  const approvedChangedFiles = approvedChangedFilesFor(changed);
+  const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
-  const unexpectedNonApprovalFiles = changed.filter((file) => {
-    return !isAllowedPostPr62ChangedFile(file, allowedChangedFiles);
-  });
+  const unexpectedNonApprovalFiles = changed.filter((file) => !isAllowedPostPr62ChangedFile(file, approvedChangedFiles));
 
-  const protectedFilesWithoutPr71Approval = changed.filter(
-    (file) =>
-      isProtectedChange(file) &&
-      (!isPr71ApprovedChangeSet || !pr71ApprovedChangedFiles.includes(file)),
+  const protectedFilesWithoutApprovedScope = changed.filter(
+    (file) => isUnexpectedProtectedChange(file, protectedAllowlist),
   );
 
   assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
-  assert.deepEqual(protectedFilesWithoutPr71Approval, []);
+  assert.deepEqual(protectedFilesWithoutApprovedScope, []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -287,10 +297,11 @@ test("PR62 updates the PR60 changed-file guard without weakening forbidden prote
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-    "const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed)",
+    "const approvedChangedPaths = approvedChangedPathsFor(changed)",
+    "const forbiddenAllowlist = exactApprovedChangedFiles(changed) ?? []",
     "changed.filter(",
-    "isForbiddenChange(relativePath) &&",
-    "!(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath))",
+    "isUnexpectedForbiddenChange(relativePath, forbiddenAllowlist)",
+    "isForbiddenChange(relativePath) && !forbiddenAllowlist.includes(relativePath)",
     "indexSource.includes(\"verification-replay-result-viewer\")",
   ]);
 });
@@ -340,11 +351,33 @@ function isAllowedPostPr62ChangedFile(file, allowedChangedFiles) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
-  if (changed.length !== pr71ApprovedChangedFiles.length) {
-    return false;
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function approvedChangedFilesFor(changed) {
+  return exactApprovedChangedFiles(changed) ?? allowedPostPr62ChangedFiles;
+}
+
+function exactApprovedChangedFiles(changed) {
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return pr71ApprovedChangedFiles;
   }
-  const approvedFiles = new Set(pr71ApprovedChangedFiles);
-  return changed.every((file) => approvedFiles.has(file));
+  if (isExactPr72ApprovedChangeSet(changed)) {
+    return pr72ApprovedChangedFiles;
+  }
+  return null;
+}
+
+function isUnexpectedProtectedChange(file, protectedAllowlist) {
+  return isProtectedChange(file) && !protectedAllowlist.includes(file);
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isProtectedChange(file) {

@@ -23,6 +23,10 @@ const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
 const packageJsonPath = join(repoRoot, "package.json");
 
+const pr72MaxRequestBytes = 524_288;
+const pr72MaxJsonDepth = 64;
+const pr72MaxStringLength = 65_536;
+
 const expectedTools = [
   {
     name: "norma.getVersion",
@@ -364,6 +368,75 @@ test("PR36 serializeCanonicalJson rejects direct non JSON-compatible values", ()
   }
 });
 
+test("PR72 bounds parsed MCP JSON depth without changing valid canonical serialization", () => {
+  const atLimit = parseToolResultResponse(canonicalJsonRequest("serialize-depth-limit", nestedValue(60)));
+  assert.equal(atLimit.result.structuredContent.tool, "norma.serializeCanonicalJson");
+
+  assert.deepEqual(parseRequiredResponse(canonicalJsonRequest("serialize-depth-over-limit", nestedValue(61))), {
+    jsonrpc: "2.0",
+    id: "serialize-depth-over-limit",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+});
+
+test("PR72 bounds MCP string values and object keys", () => {
+  const atValueLimit = parseToolResultResponse(
+    canonicalJsonRequest("serialize-string-limit", "x".repeat(pr72MaxStringLength)),
+  );
+  assert.equal(atValueLimit.result.structuredContent.canonicalJson.length > pr72MaxStringLength, true);
+
+  assert.deepEqual(
+    parseRequiredResponse(canonicalJsonRequest("serialize-string-over-limit", "x".repeat(pr72MaxStringLength + 1))),
+    {
+      jsonrpc: "2.0",
+      id: "serialize-string-over-limit",
+      error: {
+        code: -32602,
+        message: "Invalid params",
+      },
+    },
+  );
+
+  const atKeyLimit = parseToolResultResponse(
+    canonicalJsonRequest("serialize-key-limit", { ["k".repeat(pr72MaxStringLength)]: true }),
+  );
+  assert.equal(atKeyLimit.result.structuredContent.tool, "norma.serializeCanonicalJson");
+
+  assert.deepEqual(
+    parseRequiredResponse(canonicalJsonRequest("serialize-key-over-limit", { ["k".repeat(pr72MaxStringLength + 1)]: true })),
+    {
+      jsonrpc: "2.0",
+      id: "serialize-key-over-limit",
+      error: {
+        code: -32602,
+        message: "Invalid params",
+      },
+    },
+  );
+});
+
+test("PR72 applies the MCP raw request byte limit before oversized payload dispatch", () => {
+  const atLimit = parseRawResponse(rawRequestWithTargetBytes(pr72MaxRequestBytes));
+  assert.equal(atLimit.jsonrpc, "2.0");
+  assert.equal(atLimit.id, "raw-size-boundary");
+  assert.equal(atLimit.error.code, -32602);
+  assert.equal(atLimit.error.message, "Invalid params");
+
+  const overLimit = parseRawResponse(rawRequestWithTargetBytes(pr72MaxRequestBytes + 1));
+  assert.deepEqual(overLimit, {
+    jsonrpc: "2.0",
+    id: null,
+    error: {
+      code: -32600,
+      message: "Invalid Request",
+    },
+  });
+  assert.equal(JSON.stringify(overLimit).includes("x".repeat(128)), false);
+});
+
 test("PR36 tools/call validates params and unknown tools with JSON-RPC invalid params", () => {
   for (const request of [
     {
@@ -627,6 +700,47 @@ function parseRequiredResponse(message) {
   assert.notEqual(response, null);
   assert.equal(response.endsWith("\n"), false);
   return JSON.parse(response);
+}
+
+function parseRawResponse(rawLine) {
+  const response = handleMcpJsonRpcMessage(rawLine);
+  assert.notEqual(response, null);
+  assert.equal(response.endsWith("\n"), false);
+  return JSON.parse(response);
+}
+
+function canonicalJsonRequest(id, value) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value,
+      },
+    },
+  };
+}
+
+function nestedValue(depth) {
+  let value = "leaf";
+  for (let index = 0; index < depth; index += 1) {
+    value = { next: value };
+  }
+  return value;
+}
+
+function rawRequestWithTargetBytes(targetBytes) {
+  const request = canonicalJsonRequest("raw-size-boundary", "");
+  const empty = JSON.stringify(request);
+  const overhead = Buffer.byteLength(empty, "utf8");
+  const payloadBytes = targetBytes - overhead;
+  assert.ok(payloadBytes >= 0);
+  request.params.arguments.value = "x".repeat(payloadBytes);
+  const raw = JSON.stringify(request);
+  assert.equal(Buffer.byteLength(raw, "utf8"), targetBytes);
+  return raw;
 }
 
 function assertNoKeysRecursive(value, forbiddenKeys) {

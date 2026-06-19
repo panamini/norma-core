@@ -79,6 +79,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -215,23 +229,16 @@ test("PR60 preserves mandatory future result visibility", () => {
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
   const changed = branchChangedFiles();
-  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
-  const allowedChangedPaths = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr60ChangedPaths;
+  const approvedChangedPaths = approvedChangedPathsFor(changed);
+  const forbiddenAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
   const unexpectedNonApprovalFiles = changed.filter(
-    (relativePath) =>
-      !allowedChangedPaths.includes(relativePath) &&
-      !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) &&
-      !/^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath),
+    (relativePath) => !isAllowedApprovalScopePath(relativePath, approvedChangedPaths),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
   assert.deepEqual(
-    changed.filter(
-      (relativePath) =>
-        isForbiddenChange(relativePath) &&
-        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath)),
-    ),
+    changed.filter((relativePath) => isUnexpectedForbiddenChange(relativePath, forbiddenAllowlist)),
     [],
   );
   assert.deepEqual(
@@ -318,10 +325,41 @@ function gitFiles(args) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function approvedChangedPathsFor(changed) {
+  return exactApprovedChangedFiles(changed) ?? allowedPostPr60ChangedPaths;
+}
+
+function exactApprovedChangedFiles(changed) {
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return pr71ApprovedChangedFiles;
+  }
+  if (isExactPr72ApprovedChangeSet(changed)) {
+    return pr72ApprovedChangedFiles;
+  }
+  return null;
+}
+
+function isAllowedApprovalScopePath(relativePath, approvedChangedPaths) {
   return (
-    changed.length === pr71ApprovedChangedFiles.length &&
-    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+    approvedChangedPaths.includes(relativePath) ||
+    /^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) ||
+    /^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath)
   );
+}
+
+function isUnexpectedForbiddenChange(relativePath, forbiddenAllowlist) {
+  return isForbiddenChange(relativePath) && !forbiddenAllowlist.includes(relativePath);
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isForbiddenChange(file) {

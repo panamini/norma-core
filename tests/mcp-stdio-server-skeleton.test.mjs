@@ -239,7 +239,7 @@ test("PR34 wrapper imports the built protocol module and reads no env vars", () 
 
   assert.match(
     wrapperSource,
-    /import\s+\{\s*handleMcpJsonRpcMessage\s*\}\s+from\s+"..\/dist\/src\/mcp\/stdio-protocol\.js";/,
+    /import\s+\{[\s\S]*\bhandleMcpJsonRpcMessage\b[\s\S]*\}\s+from\s+"..\/dist\/src\/mcp\/stdio-protocol\.js";/,
   );
 
   for (const source of [wrapperSource, protocolSource]) {
@@ -322,6 +322,49 @@ test("PR34 spawned STDIO wrapper emits empty stdout for notification-only input"
   assert.equal(result.stdout, "");
 });
 
+test("PR72 spawned STDIO wrapper survives excessive-depth tool input and processes the next request", () => {
+  const excessiveDepthRequest = {
+    jsonrpc: "2.0",
+    id: "depth-2000",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: nestedValue(2_000),
+      },
+    },
+  };
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-depth",
+    method: "initialize",
+  };
+  const result = runStdioServer([excessiveDepthRequest, validRequest]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: "depth-2000",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+  assert.equal(lines[0].length < 512, true);
+  assert.doesNotMatch(result.stderr + result.stdout, /RangeError|Maximum call stack|file:\/\/|dist\/src\/mcp|\bat\s+/);
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-depth");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
 test("PR34 package metadata stays dependency-free and private", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 
@@ -399,6 +442,14 @@ function runStdioServer(messages) {
     input: `${messages.map((message) => JSON.stringify(message)).join("\n")}\n`,
     maxBuffer: 64 * 1024 * 1024,
   });
+}
+
+function nestedValue(depth) {
+  let value = "leaf";
+  for (let index = 0; index < depth; index += 1) {
+    value = { next: value };
+  }
+  return value;
 }
 
 function readStdoutLineBeforeClosingStdin(child, message) {
