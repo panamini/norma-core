@@ -12,6 +12,7 @@ const htmlPath = join(repoRoot, "viewer", "read-only-result-viewer.html");
 const jsPath = join(repoRoot, "viewer", "read-only-result-viewer.js");
 const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
+// fallow-ignore-next-line code-duplication
 const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
 const pr71ApprovedChangedFiles = [
@@ -223,6 +224,7 @@ test("PR68 static helper output is deterministic for the same input model", asyn
   assert.deepEqual(modelToStaticViewTree(model), modelToStaticViewTree(model));
 });
 
+// fallow-ignore-next-line complexity
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
   const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);

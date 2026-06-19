@@ -265,6 +265,7 @@ test("PR75 roadmap update is minimal and links to the decision", () => {
   ]);
 });
 
+// fallow-ignore-next-line complexity
 test("PR75 changed-file scope is exact and protected files remain unchanged", () => {
   const changed = branchChangedFiles();
 

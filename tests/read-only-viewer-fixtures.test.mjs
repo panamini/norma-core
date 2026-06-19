@@ -69,6 +69,7 @@ const pr73ApprovedChangedFiles = [
   "tests/onboarding-examples-approval.test.mjs",
   "tests/privacy-security-support-approval.test.mjs",
   "tests/read-only-viewer-fixtures.test.mjs",
+  // fallow-ignore-next-line code-duplication
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
+// fallow-ignore-next-line code-duplication
 const repoRoot = dirname(testDir);
 
 const pr71ApprovedChangedFiles = [
@@ -38,6 +39,7 @@ const pr72ApprovedChangedFiles = [
   "tests/read-only-viewer-fixtures.test.mjs",
   "tests/read-only-viewer-model.test.mjs",
   "tests/read-only-viewer-static.test.mjs",
+  // fallow-ignore-next-line code-duplication
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
