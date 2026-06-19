@@ -69,6 +69,8 @@ const pr76ApprovedChangedFiles = [
 
 const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
 
+const pr78ApprovedChangedFiles = pr76ApprovedChangedFiles;
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -221,10 +223,12 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr75ApprovedChangeSet = isExactPr75ApprovedChangeSet(changed);
   const isPr76ApprovedChangeSet = isExactPr76ApprovedChangeSet(changed);
   const isPr77ApprovedChangeSet = isExactPr77ApprovedChangeSet(changed);
+  const isPr78ApprovedChangeSet = isExactPr78ApprovedChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
     isPr77ApprovedChangeSet ? pr77ApprovedChangedFiles : [],
+    isPr78ApprovedChangeSet ? pr78ApprovedChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -328,6 +332,10 @@ function isExactPr76ApprovedChangeSet(changed) {
 
 function isExactPr77ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr77ApprovedChangedFiles);
+}
+
+function isExactPr78ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr78ApprovedChangedFiles);
 }
 
 function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {

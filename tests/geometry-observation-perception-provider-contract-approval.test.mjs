@@ -48,6 +48,7 @@ const requiredHeadings = [
   '## Validator Diagnostic V1',
   '## Reserved Diagnostics Without PR78 Callable Surface',
   '## AcceptedGeometry Revision Mismatch Boundary',
+  '## PR78 Validator Implementation Contract Completion',
   '## Privacy And Security Boundary',
   '## Provider Families',
   '## PR77 Authorized Scope',
@@ -168,10 +169,15 @@ test('PR76 requires provider identity while keeping provider output non-authorit
 });
 
 test('PR76 separates observation coordinates from Norma Core canonical coordinates', () => {
-  assertIncludes(decision, 'origin: `top-left`');
-  assertIncludes(decision, 'x axis: `right`');
-  assertIncludes(decision, 'y axis: `down`');
-  assertIncludes(decision, 'inclusive `[0, 1]` for x and y');
+  assertIncludes(decision, '`CoordinateFrame` V1 object has exactly these fields');
+  assertIncludes(decision, '`dimensions`: exactly `2`');
+  assertIncludes(decision, '`coordinateScale`: exactly `normalized`');
+  assertIncludes(decision, '`origin`: exactly `top-left`');
+  assertIncludes(decision, '`xDirection`: exactly `right`');
+  assertIncludes(decision, '`yDirection`: exactly `down`');
+  assertIncludes(decision, '`bounds`: exactly `{ x: [0, 1], y: [0, 1] }`');
+  assertIncludes(decision, '`sourcePixelWidth`: positive integer source raster width');
+  assertIncludes(decision, '`sourcePixelHeight`: positive integer source raster height');
   assertIncludes(decision, 'All coordinate values must be finite numbers');
   assertIncludes(decision, "Norma Core's canonical coordinate system");
   assertIncludes(decision, 'origin `bottom-left`, x axis `right`, y axis `up`');
@@ -221,6 +227,8 @@ test('PR76 defines confidence, evidence, correction, and acceptance boundaries',
   assertIncludes(decision, 'Every primitive and evidence item must carry an explicit confidence value');
   assertIncludes(decision, 'finite number in `[0, 1]`');
   assertIncludes(decision, 'There is no default confidence');
+  assertIncludes(decision, '`null` confidence requires a linked `ObservationWarning`');
+  assertIncludes(decision, '`code`: exactly `ConfidenceUnavailable`');
   assertIncludes(decision, 'Confidence is not a measurement');
   assertIncludes(decision, 'Approved correction operations are');
   assertIncludes(decision, '`add`');
@@ -246,6 +254,7 @@ test('PR77 defines the exact EvidenceRef V1 contract', () => {
   assertIncludes(decision, '`text-label`');
   assertIncludes(decision, '`region-reference`');
   assertIncludes(decision, '`warning-code`');
+  assertIncludes(decision, 'V1 does not require a kind-specific non-null field relationship for `EvidenceRef.kind`');
   assertIncludes(decision, 'Evidence must not include raw traces');
 });
 
@@ -277,7 +286,8 @@ test('PR77 defines provenance without making metadata part of deterministic iden
   assertIncludes(decision, '`human`');
   assertIncludes(decision, '`deterministic-test`');
   assertIncludes(decision, '`system`');
-  assertIncludes(decision, '`createdAt` may exist as metadata but must not participate in deterministic content identity');
+  assertIncludes(decision, '`createdAt` is a non-empty RFC 3339 date-time string');
+  assertIncludes(decision, '`createdAt` is metadata and must not participate in deterministic content identity');
 });
 
 test('PR77 defines correction entries as ordered non-executable records', () => {
@@ -291,6 +301,12 @@ test('PR77 defines correction entries as ordered non-executable records', () => 
   assertIncludes(decision, '`beforeContentIdentity`');
   assertIncludes(decision, '`afterContentIdentity`');
   assertIncludes(decision, '`provenance`');
+  assertIncludes(decision, 'For `operation: "add"`');
+  assertIncludes(decision, '`beforeContentIdentity` must be explicit `null`');
+  assertIncludes(decision, 'For `operation: "update"`');
+  assertIncludes(decision, '`beforeContentIdentity` and `afterContentIdentity` must not be equal');
+  assertIncludes(decision, 'For `operation: "remove"`');
+  assertIncludes(decision, '`afterContentIdentity` must be explicit `null`');
   assertIncludes(decision, 'duplicate sequence values are invalid');
   assertIncludes(decision, 'Executable patch payloads are not allowed');
 });
@@ -309,6 +325,9 @@ test('PR77 defines explicit acceptance records without provider self-acceptance'
   assertIncludes(decision, '`acceptedPrimitiveIds`');
   assertIncludes(decision, '`provenance`');
   assertIncludes(decision, '`actorType` must not be `provider`');
+  assertIncludes(decision, '`acceptedAt` is a non-empty RFC 3339 date-time string');
+  assertIncludes(decision, '`acceptedContentIdentity` is the content identity of the immutable accepted revision payload');
+  assertIncludes(decision, '`acceptedPrimitiveIds` must exactly equal `primitives.map((primitive) => primitive.id)` in the same order');
   assertIncludes(decision, '`acceptedAt` is metadata only and excluded from deterministic content identity');
 });
 
@@ -338,6 +357,8 @@ test('PR77 defines content identity projection and digest behavior', () => {
   assertIncludes(decision, 'The digest output prefix is `sha256:`');
   assertIncludes(decision, '`sha256:<64 lowercase hex characters>`');
   assertIncludes(decision, 'Content identity mismatch is a validation failure');
+  assertIncludes(decision, 'The accepted revision payload identity excludes');
+  assertIncludes(decision, 'the enclosing `AcceptedGeometry.contentIdentity`');
 });
 
 test('PR76 reserves mapping and replay behavior for deterministic accepted inputs', () => {
@@ -375,17 +396,19 @@ test('PR76 names validator diagnostics without exporting runtime diagnostics yet
     assertIncludes(decision, diagnostic);
   }
 
-  assertIncludes(decision, 'PR76 does not add these diagnostics to the runtime export surface');
+  assertIncludes(decision, 'PR76, PR77, and PR78 do not add these diagnostics to the package-root runtime export surface');
 });
 
 test('PR77 defines package-private validator result semantics', () => {
-  assertIncludes(decision, 'The validator result shape approved for PR78 is package-private');
+  assertIncludes(decision, 'The validator result shape approved for the local validator implementation track is package-private');
   assertIncludes(decision, '`ok: true`');
   assertIncludes(decision, '`value`');
   assertIncludes(decision, '`diagnostics: []`');
   assertIncludes(decision, '`ok: false`');
   assertIncludes(decision, 'no accepted value');
   assertIncludes(decision, 'Validators do not throw for ordinary invalid contract input');
+  assertIncludes(decision, 'Validators collect all deterministically discoverable diagnostics');
+  assertIncludes(decision, 'Validator warning or info diagnostics are not returned on successful V1 validation');
   assertIncludes(decision, 'No package-root export is approved');
 });
 
@@ -408,21 +431,38 @@ test('PR77 defines validator diagnostics and deterministic ordering', () => {
 test('PR77 reserves mapper diagnostics without creating a callable mapper surface', () => {
   assertIncludes(decision, 'UnsupportedAcceptedGeometryMappingRequest');
   assertIncludes(decision, 'is reserved for a future mapper boundary');
-  assertIncludes(decision, 'PR78 must not invent a mapper request just to emit it');
+  assertIncludes(decision, 'PR79 must not invent a mapper request just to emit it');
   assertIncludes(decision, 'Any future use requires a mapper approval PR');
   assertIncludes(decision, 'No mapper request, mapper function, provider call, image input, or Core mapping surface is approved');
 });
 
 test('PR77 scopes AcceptedGeometry revision mismatch to available checked inputs', () => {
-  assertIncludes(decision, 'PR78 may validate internal consistency of `AcceptedGeometry`');
+  assertIncludes(decision, 'PR79 may validate internal consistency of `AcceptedGeometry`');
   assertIncludes(decision, 'Validation against an external source observation is only allowed when the validator function explicitly receives both objects');
   assertIncludes(decision, 'A single-object `AcceptedGeometry` validator cannot prove external observation mismatch');
   assertIncludes(decision, '`AcceptedGeometryRevisionMismatch` applies only when the checked inputs contain enough information');
   assertIncludes(decision, 'Otherwise it remains reserved for a two-input validation helper');
 });
 
+test('PR78 closes the validator implementation contract without reopening resolved rules', () => {
+  assertIncludes(decision, 'PR78 completes the validator implementation contract');
+  assertIncludes(decision, 'exact `GeometryObservation` envelope keys are `contractId`, `contractVersion`, `observationId`, `status`, `sourceAsset`, `provider`, `coordinateFrame`, `primitives`, `evidence`, `warnings`, `provenance`, and `contentIdentity`');
+  assertIncludes(decision, 'exact `CoordinateFrame` keys are `dimensions`, `coordinateScale`, `origin`, `xDirection`, `yDirection`, `bounds`, `sourcePixelWidth`, and `sourcePixelHeight`');
+  assertIncludes(decision, '`createdAt` and `acceptedAt` are non-empty RFC 3339 date-time strings');
+  assertIncludes(decision, '`AcceptanceRecord.acceptedContentIdentity` identifies the accepted revision payload');
+  assertIncludes(decision, 'successful validator results always have `diagnostics: []`');
+  assertIncludes(decision, '`confidence: null` is explained only by a linked `ObservationWarning`');
+  assertIncludes(decision, 'correction identity nullability is operation-specific for `add`, `update`, and `remove`');
+  assertIncludes(decision, '`acceptedPrimitiveIds` must equal `primitives.map((primitive) => primitive.id)` in the same order');
+  assertIncludes(decision, 'validators collect all deterministically discoverable diagnostics');
+  assertIncludes(decision, 'closed object and unknown-property policy');
+  assertIncludes(decision, 'normalized endpoint object shape as exactly `{ x, y }`');
+  assertIncludes(decision, 'reserved mapper diagnostic behavior');
+  assertIncludes(decision, '`EvidenceRef.kind` cross-field coupling');
+});
+
 test('PR76 keeps privacy, security, provider family, and PR77 authorization narrow', () => {
-  assertIncludes(decision, 'PR77 and PR78 remain synthetic-data-only');
+  assertIncludes(decision, 'PR77, PR78, and PR79 remain synthetic-data-only');
   assertIncludes(decision, 'remote provider calls');
   assertIncludes(decision, 'network access');
   assertIncludes(decision, 'raw provider traces');
@@ -430,11 +470,13 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'Provider output must be treated as untrusted candidate data');
   assertIncludes(decision, 'Naming a provider family does not approve its implementation');
   assertIncludes(decision, 'PR77 may amend only this decision document and its contract approval test');
-  assertIncludes(decision, 'After PR77, PR78 may implement');
+  assertIncludes(decision, 'PR78 may amend only this decision document, its contract approval test, and exact proven guard-maintenance tests');
+  assertIncludes(decision, 'After PR78, PR79 may implement');
   assertIncludes(decision, 'local package-private TypeScript contract types');
   assertIncludes(decision, 'local package-private deterministic validator');
-  assertIncludes(decision, 'synthetic JSON fixtures only if approved by PR78');
+  assertIncludes(decision, 'synthetic JSON fixtures only if approved by PR79');
   assertIncludes(decision, 'PR77 must not implement');
+  assertIncludes(decision, 'PR78 must not implement');
   assertIncludes(decision, 'provider execution');
   assertIncludes(decision, 'OpenAI calls');
   assertIncludes(decision, 'mapping into Norma Core geometry');

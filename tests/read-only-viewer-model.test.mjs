@@ -65,12 +65,15 @@ const pr76ApprovedChangedFiles = [
 
 const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
 
+const pr78ApprovedChangedFiles = pr76ApprovedChangedFiles;
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr75ApprovedChangedFiles,
   pr76ApprovedChangedFiles,
   pr77ApprovedChangedFiles,
+  pr78ApprovedChangedFiles,
 ];
 
 test("PR67 returns an empty model for whitespace-only JSON text", () => {

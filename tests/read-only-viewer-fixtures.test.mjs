@@ -105,6 +105,8 @@ const pr76ApprovedChangedFiles = [
 
 const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
 
+const pr78ApprovedChangedFiles = pr76ApprovedChangedFiles;
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
@@ -113,6 +115,7 @@ const exactApprovedChangedFileSets = [
   pr75ApprovedChangedFiles,
   pr76ApprovedChangedFiles,
   pr77ApprovedChangedFiles,
+  pr78ApprovedChangedFiles,
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {

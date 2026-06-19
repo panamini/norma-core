@@ -171,13 +171,16 @@ Provider identity cannot be omitted. Provider configuration cannot silently chan
 
 `GeometryObservation` V1 uses an explicit two-dimensional normalized image coordinate frame:
 
-- dimensions: `2`;
-- coordinate scale: `normalized`;
-- origin: `top-left`;
-- x axis: `right`;
-- y axis: `down`;
-- valid bounds: inclusive `[0, 1]` for x and y;
-- source pixel width and height preserved as metadata.
+The `CoordinateFrame` V1 object has exactly these fields:
+
+- `dimensions`: exactly `2`;
+- `coordinateScale`: exactly `normalized`;
+- `origin`: exactly `top-left`;
+- `xDirection`: exactly `right`;
+- `yDirection`: exactly `down`;
+- `bounds`: exactly `{ x: [0, 1], y: [0, 1] }`;
+- `sourcePixelWidth`: positive integer source raster width;
+- `sourcePixelHeight`: positive integer source raster height.
 
 All coordinate values must be finite numbers. The contract must not rely on hidden coordinate conversion.
 
@@ -192,17 +195,23 @@ PR76 does not approve metric reconstruction, physical units, perspective correct
 - `contractId`;
 - `contractVersion`;
 - `observationId`;
-- candidate `status`;
+- `status`;
 - `sourceAsset`;
 - `provider`;
 - `coordinateFrame`;
-- ordered `primitives`;
-- evidence references;
-- warnings;
-- provenance;
-- content identity.
+- `primitives`;
+- `evidence`;
+- `warnings`;
+- `provenance`;
+- `contentIdentity`.
 
 The only approved observation status in V1 is `candidate`.
+
+`primitives` is an ordered array of `ObservationPrimitive` objects.
+
+`evidence` is an ordered array of `EvidenceRef` objects.
+
+`warnings` is an ordered array of `ObservationWarning` objects.
 
 Every item in `GeometryObservation.primitives[]` must include a non-empty string `id`.
 
@@ -316,7 +325,23 @@ Every primitive and evidence item must carry an explicit confidence value:
 
 There is no default confidence.
 
-`null` confidence requires a warning or evidence note explaining that confidence was unavailable or not meaningful.
+`null` confidence requires a linked `ObservationWarning` explaining that confidence was unavailable or not meaningful.
+
+For a primitive confidence value of `null`, `GeometryObservation.warnings[]` must include an `ObservationWarning` with:
+
+- `code`: exactly `ConfidenceUnavailable`;
+- `targetPath`: exactly `primitives.<index>.confidence` for that primitive;
+- `targetPrimitiveId`: exactly that primitive's `id`;
+- `severity`: either `info` or `warning`.
+
+For an `EvidenceRef` confidence value of `null`, `GeometryObservation.warnings[]` must include an `ObservationWarning` with:
+
+- `code`: exactly `ConfidenceUnavailable`;
+- `targetPath`: exactly `evidence.<index>.confidence` for that evidence item;
+- `targetPrimitiveId`: exactly the evidence item's `targetPrimitiveId`;
+- `severity`: either `info` or `warning`.
+
+No other evidence, warning-code, message-text, or global heuristic explains `null` confidence in V1.
 
 Confidence is not a measurement, not a Core evaluation score, not source truth, and not a calibrated probability unless a later provider-specific evaluation explicitly proves and documents calibration.
 
@@ -355,6 +380,8 @@ Evidence may include provider-local references, text labels, regions, or warning
 `warningCode` is a string or explicit `null`.
 
 `provenance` is a `ProvenanceRef`.
+
+V1 does not require a kind-specific non-null field relationship for `EvidenceRef.kind`. In particular, `text-label` does not require `label`, `region-reference` does not require `regionRef`, `warning-code` does not require `warningCode`, and `provider-local-reference` does not add another reference field.
 
 Evidence must not include raw traces, raw provider traces, hidden prompts, chain-of-thought, credentials, local paths, remote URLs, base64 payloads, or image bytes.
 
@@ -419,7 +446,9 @@ Warnings are not Core measurements, evaluations, scores, source truth, or accept
 
 `inputContentIdentity` is a string or explicit `null`.
 
-`createdAt` may exist as metadata but must not participate in deterministic content identity.
+`createdAt` is a non-empty RFC 3339 date-time string.
+
+`createdAt` is metadata and must not participate in deterministic content identity.
 
 `notes` is a string or explicit `null`.
 
@@ -479,7 +508,23 @@ Timestamps may exist as metadata, but they must not be the deterministic identit
 
 `reason` is a non-empty string.
 
-`beforeContentIdentity` and `afterContentIdentity` are strings or explicit `null` according to the operation.
+`beforeContentIdentity` and `afterContentIdentity` are strings in `sha256:<64 lowercase hex characters>` format or explicit `null` according to the operation.
+
+For `operation: "add"`:
+
+- `beforeContentIdentity` must be explicit `null`;
+- `afterContentIdentity` must be a content identity string.
+
+For `operation: "update"`:
+
+- `beforeContentIdentity` must be a content identity string;
+- `afterContentIdentity` must be a content identity string;
+- `beforeContentIdentity` and `afterContentIdentity` must not be equal.
+
+For `operation: "remove"`:
+
+- `beforeContentIdentity` must be a content identity string;
+- `afterContentIdentity` must be explicit `null`.
 
 Correction entries are ordered by `sequence`.
 
@@ -508,7 +553,7 @@ Acceptance must reference:
 
 There is no implicit acceptance, no provider self-acceptance, no confidence-threshold acceptance, and no automatic acceptance from successful validation alone.
 
-PR78 may use a deterministic test actor for synthetic fixtures only if PR78 approves fixtures, but it must still record explicit acceptance.
+PR79 may use a deterministic test actor for synthetic fixtures only if PR79 approves fixtures, but it must still record explicit acceptance.
 
 ## AcceptanceRecord V1
 
@@ -538,9 +583,32 @@ Deterministic tests may use `deterministic-test`.
 
 `actorId` is a string or explicit `null`.
 
+`acceptedAt` is a non-empty RFC 3339 date-time string.
+
+`acceptedContentIdentity` is the content identity of the immutable accepted revision payload, not the enclosing `AcceptedGeometry.contentIdentity`.
+
+The accepted revision payload identity is computed from:
+
+- `contractId`;
+- `contractVersion`;
+- `acceptedGeometryId`;
+- `sourceObservationId`;
+- `sourceObservationContentIdentity`;
+- `acceptedRevision`;
+- `coordinateFrame`;
+- ordered `primitives`;
+- ordered `correctionHistory`.
+
+The accepted revision payload identity excludes:
+
+- `acceptance`;
+- `provenance`;
+- the enclosing `AcceptedGeometry.contentIdentity`;
+- metadata-only timestamp fields.
+
 `acceptedPrimitiveIds` is an ordered array of unique primitive IDs.
 
-`acceptedPrimitiveIds` must match the accepted primitive IDs.
+`acceptedPrimitiveIds` must exactly equal `primitives.map((primitive) => primitive.id)` in the same order.
 
 `acceptedAt` is metadata only and excluded from deterministic content identity.
 
@@ -581,8 +649,8 @@ For `GeometryObservation`, the projection includes:
 - `provider`;
 - `coordinateFrame`;
 - ordered `primitives`;
-- ordered evidence references;
-- warnings;
+- ordered `evidence`;
+- ordered `warnings`;
 - provenance, excluding metadata-only timestamp fields according to this decision.
 
 For `AcceptedGeometry`, the projection includes:
@@ -595,7 +663,7 @@ For `AcceptedGeometry`, the projection includes:
 - `acceptedRevision`;
 - `coordinateFrame`;
 - ordered `primitives`;
-- `correctionHistory`;
+- ordered `correctionHistory`;
 - `acceptance`;
 - provenance, excluding metadata-only timestamp fields according to this decision.
 
@@ -691,15 +759,15 @@ PR76 approves these diagnostic concepts for PR77's local validator:
 - `MissingObservationProvenance`;
 - `UnsupportedAcceptedGeometryMappingRequest`.
 
-The names are contract-level concepts for PR77. PR76 does not add these diagnostics to the runtime export surface.
+The names are contract-level concepts for the local validator implementation track. PR76, PR77, and PR78 do not add these diagnostics to the package-root runtime export surface.
 
 Diagnostics must identify the failing contract surface, target path or primitive identifier when available, stable code, severity, and human-readable message.
 
 ## Validator Result V1
 
-The validator result shape approved for PR78 is package-private.
+The validator result shape approved for the local validator implementation track is package-private.
 
-Successful validation returns:
+Successful validation always returns:
 
 - `ok: true`;
 - `value`;
@@ -713,11 +781,15 @@ Failed validation returns:
 
 Validators do not throw for ordinary invalid contract input.
 
+Validators collect all deterministically discoverable diagnostics after the input type is safe to traverse.
+
+Validators do not stop at the first error when additional diagnostics can be discovered without dereferencing an invalid non-object, iterating a non-array as an array, or canonicalizing an unvalidated payload.
+
 Diagnostics are deterministic.
 
 Diagnostics are sorted by first path occurrence, then code, then message.
 
-Warnings may be returned with a successful result only when the contract explicitly allows a warning condition.
+Validator warning or info diagnostics are not returned on successful V1 validation. Contract `warnings` arrays remain part of the validated value, not validator diagnostics.
 
 Errors make the result invalid.
 
@@ -774,17 +846,17 @@ diagnostics must not include stack traces, local paths, full payload echoes, cre
 
 `UnsupportedAcceptedGeometryMappingRequest` is reserved for a future mapper boundary.
 
-PR78 must not invent a mapper request just to emit it.
+PR79 must not invent a mapper request just to emit it.
 
-PR78 may keep the diagnostic concept listed but unexercised when there is no approved input surface.
+PR79 may keep the diagnostic concept listed but unexercised when there is no approved input surface.
 
 Any future use requires a mapper approval PR.
 
-No mapper request, mapper function, provider call, image input, or Core mapping surface is approved by PR77.
+No mapper request, mapper function, provider call, image input, or Core mapping surface is approved by PR77 or PR78.
 
 ## AcceptedGeometry Revision Mismatch Boundary
 
-PR78 may validate internal consistency of `AcceptedGeometry`.
+PR79 may validate internal consistency of `AcceptedGeometry`.
 
 Validation against an external source observation is only allowed when the validator function explicitly receives both objects.
 
@@ -792,11 +864,34 @@ A single-object `AcceptedGeometry` validator cannot prove external observation m
 
 `AcceptedGeometryRevisionMismatch` applies only when the checked inputs contain enough information to compare revision or content identity deterministically.
 
-Otherwise it remains reserved for a two-input validation helper if approved by PR78's fiche.
+Otherwise it remains reserved for a two-input validation helper if approved by PR79's fiche.
+
+## PR78 Validator Implementation Contract Completion
+
+PR78 completes the validator implementation contract and remains documentation and contract-test only.
+
+PR78 resolves these implementation blockers:
+
+- exact `GeometryObservation` envelope keys are `contractId`, `contractVersion`, `observationId`, `status`, `sourceAsset`, `provider`, `coordinateFrame`, `primitives`, `evidence`, `warnings`, `provenance`, and `contentIdentity`;
+- exact `CoordinateFrame` keys are `dimensions`, `coordinateScale`, `origin`, `xDirection`, `yDirection`, `bounds`, `sourcePixelWidth`, and `sourcePixelHeight`;
+- `createdAt` and `acceptedAt` are non-empty RFC 3339 date-time strings and are excluded from deterministic content identity;
+- `AcceptanceRecord.acceptedContentIdentity` identifies the accepted revision payload and is not the enclosing `AcceptedGeometry.contentIdentity`;
+- successful validator results always have `diagnostics: []`;
+- `confidence: null` is explained only by a linked `ObservationWarning` with `code: "ConfidenceUnavailable"` and the exact confidence `targetPath`;
+- correction identity nullability is operation-specific for `add`, `update`, and `remove`;
+- `acceptedPrimitiveIds` must equal `primitives.map((primitive) => primitive.id)` in the same order;
+- validators collect all deterministically discoverable diagnostics after the input type is safe to traverse.
+
+PR78 does not reopen:
+
+- closed object and unknown-property policy;
+- normalized endpoint object shape as exactly `{ x, y }`;
+- reserved mapper diagnostic behavior;
+- `EvidenceRef.kind` cross-field coupling, because V1 does not require kind-specific non-null fields.
 
 ## Privacy And Security Boundary
 
-PR77 and PR78 remain synthetic-data-only unless a later PR explicitly changes that boundary.
+PR77, PR78, and PR79 remain synthetic-data-only unless a later PR explicitly changes that boundary.
 
 PR76 does not approve:
 
@@ -858,16 +953,42 @@ PR77 must not implement:
 - mapping into Norma Core geometry;
 - package exports.
 
-After PR77, PR78 may implement:
+PR78 may amend only this decision document, its contract approval test, and exact proven guard-maintenance tests needed to keep historical changed-file assertions narrow.
+
+PR78 must not implement:
+
+- runtime contract implementation;
+- TypeScript contract files;
+- JSON Schema files;
+- generated schemas;
+- validator code;
+- content identity helper code;
+- diagnostics code;
+- provider execution;
+- OpenAI calls;
+- image parsing;
+- image files;
+- camera input;
+- CAD import;
+- remote MCP;
+- UI overlays;
+- deployment;
+- fixtures;
+- real data handling;
+- automatic acceptance;
+- mapping into Norma Core geometry;
+- package exports.
+
+After PR78, PR79 may implement:
 
 - local package-private TypeScript contract types;
 - local package-private deterministic validator;
 - stable diagnostics aligned with this decision;
 - canonical/content identity helpers consistent with existing Core identity patterns;
-- synthetic JSON fixtures only if approved by PR78;
+- synthetic JSON fixtures only if approved by PR79;
 - unit tests.
 
-PR78 must not implement:
+PR79 must not implement:
 
 - provider execution;
 - OpenAI calls;
@@ -928,7 +1049,7 @@ PR76 implementation must prove:
 - validator result and diagnostic shapes are package-private, exact, and deterministic;
 - reserved diagnostics do not create mapper, provider, image, or Core mapping surfaces;
 - `AcceptedGeometry` is separate from existing Core geometry;
-- PR77 scope remains docs and contract tests only, and any PR78 validator scope remains local, synthetic, deterministic, and package-private;
+- PR77 and PR78 scope remain docs and contract tests only, and any PR79 validator scope remains local, synthetic, deterministic, and package-private;
 - protected runtime and package surfaces remain unchanged.
 
 ## Stop Criteria
@@ -953,8 +1074,8 @@ Stop implementation if validation shows that more than the approved decision, ap
 
 ## Rollback
 
-Rollback is reverting the PR77 commit.
+Rollback is reverting the PR78 commit.
 
-If guard maintenance is proven necessary, rollback also removes only the exact PR77 allow-list entries added to the affected historical guard tests.
+If guard maintenance is proven necessary, rollback also removes only the exact PR78 allow-list entries added to the affected historical guard tests.
 
-No runtime, package, provider, schema, fixture, deployment, or persisted data migration rollback should be needed because PR77 does not approve those changes.
+No runtime, package, provider, schema, fixture, deployment, or persisted data migration rollback should be needed because PR78 does not approve those changes.
