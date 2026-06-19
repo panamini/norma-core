@@ -43,7 +43,14 @@ const exactPr76ChangedFilesWithGuards = [
 
 const exactPr77ChangedFilesWithGuards = exactPr76ChangedFilesWithGuards;
 
-const exactPr78ChangedFilesWithGuards = exactPr76ChangedFilesWithGuards;
+const exactPr78ChangedFilesWithGuards = [
+  pr76DecisionPath,
+  pr76ContractTestPath,
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+].sort();
 
 const protectedExactPaths = [
   ".gitignore",

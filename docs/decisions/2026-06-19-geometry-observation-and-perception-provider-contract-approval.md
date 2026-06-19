@@ -448,6 +448,14 @@ Warnings are not Core measurements, evaluations, scores, source truth, or accept
 
 `createdAt` is a non-empty RFC 3339 date-time string.
 
+The accepted timestamp format must include full date, time, seconds, and timezone offset or `Z`.
+
+PR79 validators must validate `createdAt` with a strict RFC 3339 date-time regex or equivalent strict parser, not permissive `Date.parse`.
+
+Validators must not normalize, repair, or reinterpret timestamps.
+
+Invalid calendar dates, missing timezone, date-only values, and implementation-dependent `Date.parse` acceptance must be rejected.
+
 `createdAt` is metadata and must not participate in deterministic content identity.
 
 `notes` is a string or explicit `null`.
@@ -584,6 +592,14 @@ Deterministic tests may use `deterministic-test`.
 `actorId` is a string or explicit `null`.
 
 `acceptedAt` is a non-empty RFC 3339 date-time string.
+
+The accepted timestamp format must include full date, time, seconds, and timezone offset or `Z`.
+
+PR79 validators must validate `acceptedAt` with a strict RFC 3339 date-time regex or equivalent strict parser, not permissive `Date.parse`.
+
+Validators must not normalize, repair, or reinterpret timestamps.
+
+Invalid calendar dates, missing timezone, date-only values, and implementation-dependent `Date.parse` acceptance must be rejected.
 
 `acceptedContentIdentity` is the content identity of the immutable accepted revision payload, not the enclosing `AcceptedGeometry.contentIdentity`.
 
@@ -795,7 +811,7 @@ Errors make the result invalid.
 
 No package-root export is approved.
 
-This result shape is for the local package-private PR78 validator only.
+This result shape is for the local package-private validator implementation track only.
 
 ## Validator Diagnostic V1
 

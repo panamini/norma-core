@@ -287,6 +287,9 @@ test('PR77 defines provenance without making metadata part of deterministic iden
   assertIncludes(decision, '`deterministic-test`');
   assertIncludes(decision, '`system`');
   assertIncludes(decision, '`createdAt` is a non-empty RFC 3339 date-time string');
+  assertIncludes(decision, 'PR79 validators must validate `createdAt` with a strict RFC 3339 date-time regex or equivalent strict parser, not permissive `Date.parse`');
+  assertIncludes(decision, 'Validators must not normalize, repair, or reinterpret timestamps');
+  assertIncludes(decision, 'Invalid calendar dates, missing timezone, date-only values, and implementation-dependent `Date.parse` acceptance must be rejected');
   assertIncludes(decision, '`createdAt` is metadata and must not participate in deterministic content identity');
 });
 
@@ -326,6 +329,7 @@ test('PR77 defines explicit acceptance records without provider self-acceptance'
   assertIncludes(decision, '`provenance`');
   assertIncludes(decision, '`actorType` must not be `provider`');
   assertIncludes(decision, '`acceptedAt` is a non-empty RFC 3339 date-time string');
+  assertIncludes(decision, 'PR79 validators must validate `acceptedAt` with a strict RFC 3339 date-time regex or equivalent strict parser, not permissive `Date.parse`');
   assertIncludes(decision, '`acceptedContentIdentity` is the content identity of the immutable accepted revision payload');
   assertIncludes(decision, '`acceptedPrimitiveIds` must exactly equal `primitives.map((primitive) => primitive.id)` in the same order');
   assertIncludes(decision, '`acceptedAt` is metadata only and excluded from deterministic content identity');
@@ -410,6 +414,7 @@ test('PR77 defines package-private validator result semantics', () => {
   assertIncludes(decision, 'Validators collect all deterministically discoverable diagnostics');
   assertIncludes(decision, 'Validator warning or info diagnostics are not returned on successful V1 validation');
   assertIncludes(decision, 'No package-root export is approved');
+  assertIncludes(decision, 'This result shape is for the local package-private validator implementation track only');
 });
 
 test('PR77 defines validator diagnostics and deterministic ordering', () => {
@@ -449,6 +454,7 @@ test('PR78 closes the validator implementation contract without reopening resolv
   assertIncludes(decision, 'exact `GeometryObservation` envelope keys are `contractId`, `contractVersion`, `observationId`, `status`, `sourceAsset`, `provider`, `coordinateFrame`, `primitives`, `evidence`, `warnings`, `provenance`, and `contentIdentity`');
   assertIncludes(decision, 'exact `CoordinateFrame` keys are `dimensions`, `coordinateScale`, `origin`, `xDirection`, `yDirection`, `bounds`, `sourcePixelWidth`, and `sourcePixelHeight`');
   assertIncludes(decision, '`createdAt` and `acceptedAt` are non-empty RFC 3339 date-time strings');
+  assertIncludes(decision, 'full date, time, seconds, and timezone offset or `Z`');
   assertIncludes(decision, '`AcceptanceRecord.acceptedContentIdentity` identifies the accepted revision payload');
   assertIncludes(decision, 'successful validator results always have `diagnostics: []`');
   assertIncludes(decision, '`confidence: null` is explained only by a linked `ObservationWarning`');
@@ -482,30 +488,30 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'mapping into Norma Core geometry');
 });
 
-test('PR77 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
+test('PR78 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
   const changedFiles = branchChangedFiles();
 
   for (const requiredFile of primaryPr77Files) {
     assert.ok(
       changedFiles.includes(requiredFile),
-      `expected PR77 branch to include ${requiredFile}`,
+      `expected PR78 branch to include ${requiredFile}`,
     );
   }
 
   for (const changedFile of changedFiles) {
     assert.ok(
       primaryPr77Files.has(changedFile) || approvedGuardMaintenanceFiles.has(changedFile),
-      `unexpected PR77 file changed: ${changedFile}`,
+      `unexpected PR78 file changed: ${changedFile}`,
     );
 
     assert.ok(
       !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
-      `PR77 must not change protected implementation surface: ${changedFile}`,
+      `PR78 must not change protected implementation surface: ${changedFile}`,
     );
 
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
-      `PR77 must not change protected project contract file: ${changedFile}`,
+      `PR78 must not change protected project contract file: ${changedFile}`,
     );
   }
 });
