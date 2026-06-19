@@ -1,15 +1,14 @@
-// fallow-ignore-file unused-file
 import { createHash } from "node:crypto";
 import {
   DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
   serializeCanonicalJson,
 } from "./serialization.js";
 
-export const GEOMETRY_OBSERVATION_CONTRACT_ID = "norma.geometry-observation" as const;
+export const GEOMETRY_OBSERVATION_CONTRACT_ID = "norma.geometry-observation@1" as const;
 export const GEOMETRY_OBSERVATION_CONTRACT_VERSION = 1 as const;
-export const PERCEPTION_PROVIDER_CONTRACT_ID = "norma.perception-provider" as const;
+export const PERCEPTION_PROVIDER_CONTRACT_ID = "norma.perception-provider@1" as const;
 export const PERCEPTION_PROVIDER_CONTRACT_VERSION = 1 as const;
-export const ACCEPTED_GEOMETRY_CONTRACT_ID = "norma.accepted-geometry" as const;
+export const ACCEPTED_GEOMETRY_CONTRACT_ID = "norma.accepted-geometry@1" as const;
 export const ACCEPTED_GEOMETRY_CONTRACT_VERSION = 1 as const;
 
 export type ObservationActorType = "provider" | "human" | "deterministic-test" | "system";
@@ -326,6 +325,7 @@ const COORDINATE_FRAME_KEYS = [
   "sourcePixelWidth",
   "sourcePixelHeight",
 ] as const;
+const COORDINATE_BOUNDS_KEYS = ["x", "y"] as const;
 
 const POINT_PRIMITIVE_KEYS = ["id", "kind", "x", "y", "confidence"] as const;
 const SEGMENT_PRIMITIVE_KEYS = ["id", "kind", "start", "end", "confidence"] as const;
@@ -459,58 +459,66 @@ export function computeAcceptedGeometryContentIdentity(accepted: AcceptedGeometr
 export function validateGeometryObservationV1(value: unknown): ValidatorResult<GeometryObservation> {
   const diagnostics: ValidatorDiagnostic[] = [];
 
-  if (!isRecord(value)) {
-    addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "GeometryObservation", "", null, "GeometryObservation must be a closed object.");
-    return invalid(diagnostics);
-  }
+  try {
+    if (!isRecord(value)) {
+      addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "GeometryObservation", "", null, "GeometryObservation must be a closed object.");
+      return invalid(diagnostics);
+    }
 
-  validateExactKeys(value, GEOMETRY_OBSERVATION_KEYS, "GeometryObservation", "", "InvalidGeometryObservationShape", diagnostics);
-  validateGeometryObservationContract(value, diagnostics);
-  validateNonEmptyString(value.observationId, "observationId", "GeometryObservation", "InvalidGeometryObservationShape", diagnostics);
-  if (value.status !== "candidate") {
-    addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "GeometryObservation", "status", null, "GeometryObservation status must be candidate.");
-  }
+    validateExactKeys(value, GEOMETRY_OBSERVATION_KEYS, "GeometryObservation", "", "InvalidGeometryObservationShape", diagnostics);
+    validateGeometryObservationContract(value, diagnostics);
+    validateNonEmptyString(value.observationId, "observationId", "GeometryObservation", "InvalidGeometryObservationShape", diagnostics);
+    if (value.status !== "candidate") {
+      addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "GeometryObservation", "status", null, "GeometryObservation status must be candidate.");
+    }
 
-  validateSourceAssetRef(value.sourceAsset, "sourceAsset", diagnostics);
-  validateProviderIdentity(value.provider, "provider", diagnostics);
-  validateCoordinateFrame(value.coordinateFrame, "coordinateFrame", "InvalidObservationCoordinateFrame", diagnostics);
-  const primitiveIds = validatePrimitives(value.primitives, "primitives", "InvalidGeometryObservationShape", diagnostics);
-  const warnings = validateObservationWarnings(value.warnings, "warnings", primitiveIds, "InvalidGeometryObservationShape", diagnostics);
-  validateEvidenceRefs(value.evidence, "evidence", primitiveIds, warnings, "InvalidGeometryObservationShape", diagnostics);
-  validatePrimitiveNullConfidenceWarnings(value.primitives, warnings, diagnostics);
-  validateProvenanceRef(value.provenance, "provenance", "MissingObservationProvenance", diagnostics);
-  validateDigestField(value.contentIdentity, "contentIdentity", "ContentIdentity", "InvalidGeometryObservationShape", diagnostics);
-  validateGeometryObservationContentIdentity(value, diagnostics);
+    validateSourceAssetRef(value.sourceAsset, "sourceAsset", diagnostics);
+    validateProviderIdentity(value.provider, "provider", diagnostics);
+    validateCoordinateFrame(value.coordinateFrame, "coordinateFrame", "InvalidObservationCoordinateFrame", diagnostics);
+    const primitiveIds = validatePrimitives(value.primitives, "primitives", "InvalidGeometryObservationShape", diagnostics);
+    const warnings = validateObservationWarnings(value.warnings, "warnings", primitiveIds, "InvalidGeometryObservationShape", diagnostics);
+    validateEvidenceRefs(value.evidence, "evidence", primitiveIds, warnings, "InvalidGeometryObservationShape", diagnostics);
+    validatePrimitiveNullConfidenceWarnings(value.primitives, warnings, diagnostics);
+    validateProvenanceRef(value.provenance, "provenance", "MissingObservationProvenance", diagnostics);
+    validateDigestField(value.contentIdentity, "contentIdentity", "ContentIdentity", "InvalidGeometryObservationShape", diagnostics);
+    validateGeometryObservationContentIdentity(value, diagnostics);
+  } catch {
+    addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "GeometryObservation", "", null, "GeometryObservation could not be safely inspected.");
+  }
 
   return diagnostics.length === 0
-    ? { ok: true, value: value as unknown as GeometryObservation, diagnostics: [] }
+    ? { ok: true, value: clonePlainData(value) as GeometryObservation, diagnostics: [] }
     : invalid(diagnostics);
 }
 
 export function validateAcceptedGeometryV1(value: unknown): ValidatorResult<AcceptedGeometry> {
   const diagnostics: ValidatorDiagnostic[] = [];
 
-  if (!isRecord(value)) {
-    addDiagnostic(diagnostics, "InvalidAcceptedGeometryShape", "AcceptedGeometry", "", null, "AcceptedGeometry must be a closed object.");
-    return invalid(diagnostics);
+  try {
+    if (!isRecord(value)) {
+      addDiagnostic(diagnostics, "InvalidAcceptedGeometryShape", "AcceptedGeometry", "", null, "AcceptedGeometry must be a closed object.");
+      return invalid(diagnostics);
+    }
+
+    validateExactKeys(value, ACCEPTED_GEOMETRY_KEYS, "AcceptedGeometry", "", "InvalidAcceptedGeometryShape", diagnostics);
+    validateAcceptedGeometryContract(value, diagnostics);
+    validateNonEmptyString(value.acceptedGeometryId, "acceptedGeometryId", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
+    validateNonEmptyString(value.sourceObservationId, "sourceObservationId", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
+    validateDigestField(value.sourceObservationContentIdentity, "sourceObservationContentIdentity", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
+    validateNonNegativeInteger(value.acceptedRevision, "acceptedRevision", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
+    validateCoordinateFrame(value.coordinateFrame, "coordinateFrame", "InvalidAcceptedGeometryShape", diagnostics);
+    const primitiveIds = validatePrimitives(value.primitives, "primitives", "InvalidAcceptedGeometryShape", diagnostics);
+    validateCorrectionHistory(value.correctionHistory, "correctionHistory", primitiveIds, diagnostics);
+    validateAcceptanceRecord(value.acceptance, value, primitiveIds, diagnostics);
+    validateProvenanceRef(value.provenance, "provenance", "InvalidAcceptedGeometryShape", diagnostics);
+    validateDigestField(value.contentIdentity, "contentIdentity", "ContentIdentity", "InvalidAcceptedGeometryShape", diagnostics);
+    validateAcceptedGeometryContentIdentities(value, diagnostics);
+  } catch {
+    addDiagnostic(diagnostics, "InvalidAcceptedGeometryShape", "AcceptedGeometry", "", null, "AcceptedGeometry could not be safely inspected.");
   }
 
-  validateExactKeys(value, ACCEPTED_GEOMETRY_KEYS, "AcceptedGeometry", "", "InvalidAcceptedGeometryShape", diagnostics);
-  validateAcceptedGeometryContract(value, diagnostics);
-  validateNonEmptyString(value.acceptedGeometryId, "acceptedGeometryId", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
-  validateNonEmptyString(value.sourceObservationId, "sourceObservationId", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
-  validateDigestField(value.sourceObservationContentIdentity, "sourceObservationContentIdentity", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
-  validateNonNegativeInteger(value.acceptedRevision, "acceptedRevision", "AcceptedGeometry", "InvalidAcceptedGeometryShape", diagnostics);
-  validateCoordinateFrame(value.coordinateFrame, "coordinateFrame", "InvalidAcceptedGeometryShape", diagnostics);
-  const primitiveIds = validatePrimitives(value.primitives, "primitives", "InvalidAcceptedGeometryShape", diagnostics);
-  validateCorrectionHistory(value.correctionHistory, "correctionHistory", primitiveIds, diagnostics);
-  validateAcceptanceRecord(value.acceptance, value, primitiveIds, diagnostics);
-  validateProvenanceRef(value.provenance, "provenance", "InvalidAcceptedGeometryShape", diagnostics);
-  validateDigestField(value.contentIdentity, "contentIdentity", "ContentIdentity", "InvalidAcceptedGeometryShape", diagnostics);
-  validateAcceptedGeometryContentIdentities(value, diagnostics);
-
   return diagnostics.length === 0
-    ? { ok: true, value: value as unknown as AcceptedGeometry, diagnostics: [] }
+    ? { ok: true, value: clonePlainData(value) as AcceptedGeometry, diagnostics: [] }
     : invalid(diagnostics);
 }
 
@@ -590,8 +598,11 @@ function validateProviderIdentity(value: unknown, path: string, diagnostics: Val
   }
 
   validateProvenanceRef(value.provenance, `${path}.provenance`, "MissingObservationProvenance", diagnostics);
+  const warnings = Array.isArray(value.warnings)
+    ? validateObservationWarnings(value.warnings, `${path}.warnings`, new Set(), "InvalidGeometryObservationShape", diagnostics)
+    : [];
   if (Array.isArray(value.warnings)) {
-    validateObservationWarnings(value.warnings, `${path}.warnings`, new Set(), "InvalidGeometryObservationShape", diagnostics);
+    validateProviderVersionNullWarning(value.providerVersion, warnings, path, diagnostics);
   }
 }
 
@@ -607,6 +618,7 @@ function validateCoordinateFrame(
   }
 
   validateExactKeys(value, COORDINATE_FRAME_KEYS, "CoordinateFrame", path, shapeCode, diagnostics);
+  const boundsOk = validateCoordinateBounds(value.bounds, `${path}.bounds`, shapeCode, diagnostics);
   if (!allTrue([
     value.dimensions === 2,
     value.coordinateScale === "normalized",
@@ -615,7 +627,7 @@ function validateCoordinateFrame(
     value.yDirection === "down",
     isPositiveInteger(value.sourcePixelWidth),
     isPositiveInteger(value.sourcePixelHeight),
-    isCoordinateBounds(value.bounds),
+    boundsOk,
   ])) {
     addDiagnostic(diagnostics, shapeCode, "CoordinateFrame", path, null, "CoordinateFrame must use the exact normalized image V1 frame.");
   }
@@ -815,6 +827,37 @@ function validateObservationWarnings(
   }
 
   return warnings;
+}
+
+function validateProviderVersionNullWarning(
+  providerVersion: unknown,
+  warnings: readonly WarningInfo[],
+  path: string,
+  diagnostics: ValidatorDiagnostic[],
+): void {
+  if (providerVersion !== null) {
+    return;
+  }
+
+  if (!hasProviderVersionUnavailableWarning(warnings, `${path}.providerVersion`)) {
+    addDiagnostic(
+      diagnostics,
+      "MissingProviderIdentity",
+      "ProviderIdentity",
+      `${path}.providerVersion`,
+      null,
+      "Null providerVersion requires a linked ProviderVersionUnavailable warning.",
+    );
+  }
+}
+
+function hasProviderVersionUnavailableWarning(warnings: readonly WarningInfo[], targetPath: string): boolean {
+  return warnings.some((warning) => allTrue([
+    warning.code === "ProviderVersionUnavailable",
+    warning.targetPath === targetPath,
+    warning.targetPrimitiveId === null,
+    warning.severity === "info" || warning.severity === "warning",
+  ]));
 }
 
 function validateObservationWarning(
@@ -1402,20 +1445,26 @@ function validateExactKeys(
   code: ValidatorDiagnosticCode,
   diagnostics: ValidatorDiagnostic[],
 ): void {
+  const actualKeys = safeObjectKeys(value);
+  if (actualKeys === null) {
+    addDiagnostic(diagnostics, code, surface, path, null, "Object could not be safely inspected.");
+    return;
+  }
+
   const allowed = new Set(keys);
-  validateUnexpectedKeys(value, allowed, surface, path, code, diagnostics);
-  validateMissingKeys(value, keys, surface, path, code, diagnostics);
+  validateUnexpectedKeys(actualKeys, allowed, surface, path, code, diagnostics);
+  validateMissingKeys(new Set(actualKeys), keys, surface, path, code, diagnostics);
 }
 
 function validateUnexpectedKeys(
-  value: RecordValue,
+  actualKeys: readonly string[],
   allowed: ReadonlySet<string>,
   surface: ValidatorDiagnosticSurface,
   path: string,
   code: ValidatorDiagnosticCode,
   diagnostics: ValidatorDiagnostic[],
 ): void {
-  for (const key of Object.keys(value)) {
+  for (const key of [...actualKeys].sort(compareStrings)) {
     if (!allowed.has(key)) {
       addDiagnostic(diagnostics, code, surface, joinPath(path, key), null, `Unexpected property is not allowed: ${joinPath(path, key)}.`);
     }
@@ -1423,7 +1472,7 @@ function validateUnexpectedKeys(
 }
 
 function validateMissingKeys(
-  value: RecordValue,
+  actualKeys: ReadonlySet<string>,
   keys: readonly string[],
   surface: ValidatorDiagnosticSurface,
   path: string,
@@ -1431,7 +1480,7 @@ function validateMissingKeys(
   diagnostics: ValidatorDiagnostic[],
 ): void {
   for (const key of keys) {
-    if (!(key in value)) {
+    if (!actualKeys.has(key)) {
       addDiagnostic(diagnostics, code, surface, joinPath(path, key), null, `Required property is missing: ${joinPath(path, key)}.`);
     }
   }
@@ -1559,18 +1608,24 @@ function contentIdentityFor(projection: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalJson).digest("hex")}`;
 }
 
-function isCoordinateBounds(value: unknown): value is CoordinateFrame["bounds"] {
+function validateCoordinateBounds(
+  value: unknown,
+  path: string,
+  shapeCode: Extract<ValidatorDiagnosticCode, "InvalidObservationCoordinateFrame" | "InvalidAcceptedGeometryShape">,
+  diagnostics: ValidatorDiagnostic[],
+): boolean {
   if (!isRecord(value)) {
+    addDiagnostic(diagnostics, shapeCode, "CoordinateFrame", path, null, "CoordinateFrame bounds must be a closed object.");
     return false;
   }
 
-  validateBoundsKeys(value);
-  return isUnitTuple(value.x) && isUnitTuple(value.y);
-}
+  validateExactKeys(value, COORDINATE_BOUNDS_KEYS, "CoordinateFrame", path, shapeCode, diagnostics);
+  if (!isUnitTuple(value.x) || !isUnitTuple(value.y)) {
+    addDiagnostic(diagnostics, shapeCode, "CoordinateFrame", path, null, "CoordinateFrame bounds must exactly be { x: [0, 1], y: [0, 1] }.");
+    return false;
+  }
 
-function validateBoundsKeys(value: RecordValue): boolean {
-  const keys = Object.keys(value);
-  return keys.length === 2 && keys.includes("x") && keys.includes("y");
+  return true;
 }
 
 function isUnitTuple(value: unknown): value is readonly [0, 1] {
@@ -1649,7 +1704,28 @@ function isLeapYear(year: number): boolean {
 }
 
 function isRecord(value: unknown): value is RecordValue {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
+}
+
+function safeObjectKeys(value: RecordValue): readonly string[] | null {
+  try {
+    return Object.keys(value);
+  } catch {
+    return null;
+  }
+}
+
+function clonePlainData(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function isNonEmptyString(value: unknown): value is string {

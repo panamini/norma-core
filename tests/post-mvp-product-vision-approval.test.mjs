@@ -55,6 +55,8 @@ const exactPr78ChangedFilesWithGuards = [
 const exactPr79ChangedFilesWithGuards = [
   "src/geometry-observation.ts",
   "src/node-crypto.d.ts",
+  "tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json",
+  "tests/fixtures/geometry-observation/valid-observation-v1.json",
   "tests/geometry-observation-validator.test.mjs",
   pr76ContractTestPath,
   "tests/post-mvp-product-vision-approval.test.mjs",

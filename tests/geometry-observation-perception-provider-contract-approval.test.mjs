@@ -73,6 +73,8 @@ const approvedGuardMaintenanceFiles = new Set([
 const pr79ApprovedChangedFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
+  'tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json',
+  'tests/fixtures/geometry-observation/valid-observation-v1.json',
   'tests/geometry-observation-validator.test.mjs',
   'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
   'tests/post-mvp-product-vision-approval.test.mjs',
@@ -86,6 +88,11 @@ const pr79ApprovedChangedFiles = new Set([
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
+]);
+
+const pr79ApprovedFixtureFiles = new Set([
+  'tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json',
+  'tests/fixtures/geometry-observation/valid-observation-v1.json',
 ]);
 
 const forbiddenChangedPrefixes = [
@@ -599,6 +606,9 @@ function isExactChangedFileSet(changed, approvedFiles) {
 
 function isPr79ApprovedImplementationChange(changedFile) {
   if (pr79ApprovedImplementationFiles.has(changedFile)) {
+    return true;
+  }
+  if (pr79ApprovedFixtureFiles.has(changedFile)) {
     return true;
   }
   return !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix));
