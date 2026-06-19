@@ -54,15 +54,26 @@ function appendLineSegment(segment) {
     return;
   }
 
-  const segmentBytes = lineEncoder.encode(segment).length;
-  if (pendingBytes + segmentBytes > MCP_STDIO_MAX_REQUEST_BYTES) {
+  const nextPendingBytes = normalizedPendingBytesAfterAppend(segment);
+  if (nextPendingBytes > MCP_STDIO_MAX_REQUEST_BYTES) {
     resetPendingLine();
     droppingOversizedLine = true;
     return;
   }
 
   pending += segment;
-  pendingBytes += segmentBytes;
+  pendingBytes = nextPendingBytes;
+}
+
+function normalizedPendingBytesAfterAppend(segment) {
+  const previousTrailingCarriageReturnBytes = pending.endsWith("\r") ? 1 : 0;
+  const nextTrailingCarriageReturnBytes = segment.endsWith("\r") ? 1 : 0;
+  return (
+    pendingBytes +
+    previousTrailingCarriageReturnBytes +
+    lineEncoder.encode(segment).length -
+    nextTrailingCarriageReturnBytes
+  );
 }
 
 function flushPendingLine() {

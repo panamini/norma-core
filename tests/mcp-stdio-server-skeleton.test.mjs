@@ -479,6 +479,38 @@ test("PR72 spawned STDIO wrapper survives raw oversized input and processes the 
   assert.equal(recovered.result.protocolVersion, "2025-06-18");
 });
 
+test("PR72 spawned STDIO wrapper applies raw byte limits after CRLF normalization", () => {
+  const rawLimitLine = rawCanonicalJsonRequestWithTargetBytes("raw-crlf-limit", MCP_STDIO_MAX_REQUEST_BYTES);
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-raw-crlf-limit",
+    method: "initialize",
+  };
+  const result = runStdioServerRawLines([`${rawLimitLine}\r`, JSON.stringify(validRequest)]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: "raw-crlf-limit",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-raw-crlf-limit");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
 test("PR72 spawned STDIO wrapper survives over-limit string input and processes the next request", () => {
   const excessiveStringRequest = {
     jsonrpc: "2.0",
