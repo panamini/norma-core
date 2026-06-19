@@ -418,6 +418,52 @@ test("PR72 bounds MCP string values and object keys", () => {
   );
 });
 
+test("PR72 bounds JSON-RPC ids used in parsed-limit errors without changing valid ids", () => {
+  const longId = "i".repeat(pr72MaxStringLength + 1);
+  const longIdResponseText = handleMcpJsonRpcMessage(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: longId,
+      method: "tools/list",
+      params: {},
+    }),
+  );
+  assert.notEqual(longIdResponseText, null);
+  assert.equal(longIdResponseText.length < 512, true);
+  assert.equal(longIdResponseText.includes(longId), false);
+  assert.equal(longIdResponseText.includes(longId.slice(0, 128)), false);
+  assert.deepEqual(JSON.parse(longIdResponseText), {
+    jsonrpc: "2.0",
+    id: null,
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+
+  const atLimitId = "i".repeat(pr72MaxStringLength);
+  const atLimitResponse = parseToolsListResponse({
+    jsonrpc: "2.0",
+    id: atLimitId,
+    method: "tools/list",
+  });
+  assert.equal(atLimitResponse.id, atLimitId);
+
+  const shortIdResponse = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "safe-id",
+    method: "initialize",
+  });
+  assert.equal(shortIdResponse.id, "safe-id");
+
+  const numericIdResponse = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: 72,
+    method: "initialize",
+  });
+  assert.equal(numericIdResponse.id, 72);
+});
+
 test("PR72 applies the MCP raw request byte limit before oversized payload dispatch", () => {
   const atLimit = parseRawResponse(rawRequestWithTargetBytes(pr72MaxRequestBytes));
   assert.equal(atLimit.jsonrpc, "2.0");

@@ -516,7 +516,10 @@ function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
 }
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {
-  return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
+  return (
+    (typeof value === "string" && value.length <= MCP_STDIO_MAX_STRING_LENGTH) ||
+    (typeof value === "number" && Number.isFinite(value))
+  );
 }
 
 function stringifyJsonRpcResponse(
@@ -543,9 +546,9 @@ function parseJsonRpcLine(rawLine: string): { readonly ok: true; readonly messag
 }
 
 function handleParsedJsonRpcMessage(message: unknown): string | null {
-  const limitFailure = parsedMessageLimitFailure(message);
-  if (limitFailure !== null) {
-    return stringifyJsonRpcResponse(limitFailure);
+  const preDispatchResponse = parsedMessagePreDispatchResponse(message);
+  if (preDispatchResponse !== undefined) {
+    return preDispatchResponse;
   }
 
   try {
@@ -554,6 +557,15 @@ function handleParsedJsonRpcMessage(message: unknown): string | null {
   } catch {
     return stringifyJsonRpcResponse(createJsonRpcError(safeJsonRpcId(message), -32603, "Internal error"));
   }
+}
+
+function parsedMessagePreDispatchResponse(message: unknown): string | null | undefined {
+  if (isJsonRpcNotification(message)) {
+    return null;
+  }
+
+  const limitFailure = parsedMessageLimitFailure(message);
+  return limitFailure === null ? undefined : stringifyJsonRpcResponse(limitFailure);
 }
 
 function parsedMessageLimitFailure(message: unknown): JsonRpcErrorResponse | null {
@@ -576,6 +588,22 @@ function isToolOrListRequest(message: unknown): boolean {
 
 function rawJsonRpcId(message: unknown): unknown {
   return isJsonRpcRequestRecord(message) && Object.hasOwn(message, "id") ? message.id : undefined;
+}
+
+function isJsonRpcNotification(message: unknown): boolean {
+  if (!isJsonRpcRequestRecord(message) || Object.hasOwn(message, "id")) {
+    return false;
+  }
+
+  if (message.jsonrpc !== "2.0") {
+    return false;
+  }
+
+  return isNonEmptyString(message.method);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function limitFailureCode(message: unknown): -32600 | -32602 {
