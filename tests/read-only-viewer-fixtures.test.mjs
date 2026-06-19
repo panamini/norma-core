@@ -163,14 +163,20 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 
 test("PR69 keeps protected surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return;
-  }
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const expectedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : expectedChangedFiles;
 
-  const unexpected = changed.filter((file) => !expectedChangedFiles.includes(file));
+  const unexpected = changed.filter((file) => !expectedFiles.includes(file));
 
   assert.deepEqual(unexpected, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) =>
+        isProtectedChange(file) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
+    ),
+    [],
+  );
 });
 
 function assertPipeline(fixture, expected) {

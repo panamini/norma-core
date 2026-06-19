@@ -250,16 +250,21 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return;
-  }
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr62ChangedFiles;
 
   const unexpectedNonApprovalFiles = changed.filter((file) => {
-    return !isAllowedPostPr62ChangedFile(file, allowedPostPr62ChangedFiles);
+    return !isAllowedPostPr62ChangedFile(file, allowedChangedFiles);
   });
 
+  const protectedFilesWithoutPr71Approval = changed.filter(
+    (file) =>
+      isProtectedChange(file) &&
+      (!isPr71ApprovedChangeSet || !pr71ApprovedChangedFiles.includes(file)),
+  );
+
   assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(protectedFilesWithoutPr71Approval, []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -282,8 +287,10 @@ test("PR62 updates the PR60 changed-file guard without weakening forbidden prote
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-    "if (isExactPr71ApprovedChangeSet(changed))",
-    "changed.filter(isForbiddenChange)",
+    "const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed)",
+    "changed.filter(",
+    "isForbiddenChange(relativePath) &&",
+    "!(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath))",
     "indexSource.includes(\"verification-replay-result-viewer\")",
   ]);
 });

@@ -258,13 +258,12 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
   const changed = branchChangedFiles();
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return;
-  }
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr64ChangedFiles;
 
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr64ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -276,7 +275,14 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   }
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) =>
+        isProtectedChange(file) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
+    ),
+    [],
+  );
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 

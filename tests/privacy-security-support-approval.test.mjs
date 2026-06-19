@@ -268,21 +268,25 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
 
 test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
   const changed = branchChangedFiles();
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return;
-  }
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr65ChangedFiles;
 
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr65ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
 
+  const pr71ProtectedFileAllowlist = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : [];
+  const unexpectedProtectedFiles = changed.filter(
+    (file) => isProtectedChange(file) && !pr71ProtectedFileAllowlist.includes(file),
+  );
+
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(unexpectedProtectedFiles, []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 

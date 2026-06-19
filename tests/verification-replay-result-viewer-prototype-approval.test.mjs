@@ -215,19 +215,25 @@ test("PR60 preserves mandatory future result visibility", () => {
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
   const changed = branchChangedFiles();
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return;
-  }
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedPaths = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr60ChangedPaths;
 
   const unexpectedNonApprovalFiles = changed.filter(
     (relativePath) =>
-      !allowedPostPr60ChangedPaths.includes(relativePath) &&
+      !allowedChangedPaths.includes(relativePath) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isForbiddenChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (relativePath) =>
+        isForbiddenChange(relativePath) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath)),
+    ),
+    [],
+  );
   assert.deepEqual(
     forbiddenSurfacePaths
       .filter((relativePath) => !["package.json", "package-lock.json", "src/index.ts"].includes(relativePath))
