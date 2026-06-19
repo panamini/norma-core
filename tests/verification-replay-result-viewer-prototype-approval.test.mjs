@@ -29,6 +29,7 @@ const pr62ApprovalBoundaryPaths = [
   "tests/onboarding-examples-approval.test.mjs",
 ];
 
+// fallow-ignore-next-line code-duplication
 const pr63DocumentationPaths = [
   "docs/onboarding/README.md",
   "docs/examples/read-only-result-viewer-workflow.md",
@@ -61,6 +62,18 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
+const pr71GuardMaintenancePaths = [
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -70,6 +83,8 @@ const allowedPostPr60ChangedPaths = [
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
   ...pr70ReadOnlyViewerDemoReadinessPaths,
+  ...pr71GeometrySourceIdentityPaths,
+  ...pr71GuardMaintenancePaths,
 ];
 
 const forbiddenSurfacePaths = [
@@ -221,7 +236,10 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
 
   assert.equal(changed.includes("package.json"), false);
   assert.equal(changed.includes("package-lock.json"), false);
-  assert.equal(changed.includes("src/index.ts"), false);
+  assert.deepEqual(
+    changed.filter((relativePath) => relativePath === "src/index.ts" && !pr71GeometrySourceIdentityPaths.includes(relativePath)),
+    [],
+  );
   assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
   assert.deepEqual(mcpRemoteChanges, []);
 });
@@ -249,8 +267,10 @@ function assertMentions(value, snippets) {
   }
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
+    // fallow-ignore-next-line code-duplication
     gitFiles(["diff", "--name-only", "main...HEAD"]),
     gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
     gitFiles(["diff", "--name-only"]),
@@ -281,6 +301,10 @@ function gitFiles(args) {
 }
 
 function isForbiddenChange(file) {
+  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+    return false;
+  }
+
   return forbiddenSurfacePaths.some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
 }
 

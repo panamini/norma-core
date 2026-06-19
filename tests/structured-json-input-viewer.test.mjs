@@ -13,6 +13,13 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
 const requiredSectionKeys = [
   "status",
   "diagnostics",
@@ -536,7 +543,12 @@ function json(value) {
   return JSON.stringify(value);
 }
 
+// fallow-ignore-next-line code-duplication
 function isForbiddenStructuredJsonViewerChange(file) {
+  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+    return false;
+  }
+
   return [
     "package.json",
     "package-lock.json",

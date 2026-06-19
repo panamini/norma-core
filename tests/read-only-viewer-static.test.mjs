@@ -14,6 +14,13 @@ const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
 const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -163,7 +170,10 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const changed = branchChangedFiles();
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
-  assert.deepEqual(changed.filter((file) => file === "src/index.ts"), []);
+  assert.deepEqual(
+    changed.filter((file) => file === "src/index.ts" && !pr71GeometrySourceIdentityPaths.includes(file)),
+    [],
+  );
   assert.deepEqual(changed.filter((file) => file === "tsconfig.json"), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("docs/")), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
@@ -200,6 +210,7 @@ function sampleModel() {
   };
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),

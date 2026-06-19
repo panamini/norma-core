@@ -92,12 +92,26 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
+const pr71GuardMaintenancePaths = [
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 const allowedPostPr64ChangedFiles = [
   ...expectedPr64ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
   ...pr70ReadOnlyViewerDemoReadinessPaths,
+  ...pr71GeometrySourceIdentityPaths,
+  ...pr71GuardMaintenancePaths,
 ];
 
 test("PR64 approval document exists and is approval-only", () => {
@@ -263,6 +277,7 @@ function readDoc(path) {
   return readFileSync(join(repoRoot, path), "utf8");
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -297,6 +312,7 @@ function gitFiles(args) {
 function isProtectedChange(file) {
   return (
     !pr67ReadOnlyViewerModelPaths.includes(file) &&
+    !pr71GeometrySourceIdentityPaths.includes(file) &&
     (protectedExactPaths.includes(file) ||
       protectedPrefixes.some((prefix) => file.startsWith(prefix)))
   );

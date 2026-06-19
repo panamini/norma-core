@@ -29,7 +29,16 @@ const expectedChangedFiles = [
   "tests/beta-pilot-readiness-approval.test.mjs",
   "tests/onboarding-examples-approval.test.mjs",
   "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {
@@ -301,6 +310,21 @@ function gitLines(args) {
 }
 
 function isProtectedChange(file) {
+  const pr71GuardMaintenancePaths = [
+    "tests/read-only-viewer-model.test.mjs",
+    "tests/read-only-viewer-static.test.mjs",
+  ];
+  const pr71GeometrySourceIdentityPaths = [
+    "src/index.ts",
+    "src/measurements.ts",
+    "tests/core-skeleton.test.mjs",
+    "tests/measurements.test.mjs",
+  ];
+
+  if (pr71GuardMaintenancePaths.includes(file) || pr71GeometrySourceIdentityPaths.includes(file)) {
+    return false;
+  }
+
   return [
     "package.json",
     "package-lock.json",

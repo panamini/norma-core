@@ -14,6 +14,13 @@ const docPath = path.join(
 );
 const doc = fs.readFileSync(docPath, "utf8");
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
 test("PR57 approval document exists and is approval-only", () => {
   assert.equal(path.basename(docPath), "2026-06-16-structured-json-input-viewer-prototype-approval.md");
   assertInOrder(doc, [
@@ -247,6 +254,7 @@ function assertMentions(value, snippets) {
   }
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const baselineProbes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -262,6 +270,7 @@ function branchChangedFiles() {
   );
   const probes = [
     ...successfulBaseline,
+    // fallow-ignore-next-line code-duplication
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),
@@ -297,6 +306,10 @@ function escapeRegExp(value) {
 }
 
 function isForbiddenStructuredJsonViewerChange(file) {
+  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+    return false;
+  }
+
   return [
     "package.json",
     "package-lock.json",

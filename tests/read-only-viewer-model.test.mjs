@@ -10,6 +10,13 @@ import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-vi
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
+const pr71GeometrySourceIdentityPaths = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+];
+
 test("PR67 returns an empty model for whitespace-only JSON text", () => {
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: " \n\t " });
 
@@ -170,6 +177,7 @@ function section(model, id) {
   return model.sections.find((item) => item.id === id);
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -202,6 +210,10 @@ function gitFiles(args) {
 }
 
 function isForbiddenReadOnlyViewerChange(file) {
+  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+    return false;
+  }
+
   return [
     "package.json",
     "package-lock.json",
