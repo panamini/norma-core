@@ -2,45 +2,71 @@
 
 Norma Core is a deterministic proportional geometry engine. It applies explicit, versioned proportional systems to structured geometric inputs and returns traceable structured outputs.
 
-The current MVP proves the core engine, not the product ecosystem around it.
+The current repository proves the MVP core and local trust-layer surfaces. It is not a production product, public package, hosted service, or image/CAD adapter stack.
 
-## MVP status
+## Current State
 
-Current audited engine checkpoint:
+The MVP core works for explicit structured inputs:
 
-- MVP verdict: `MVP_READY_WITH_MINOR_DOC_FOLLOW_UP`
-- Audited merge SHA: `1de2ba5fd8df27fb36f6238c893bf69094277b2e`
-- Core version: `0.1.0-pr12`
-- Target release tag after this docs checkpoint: `v0.1.0`
+- structured input;
+- proportional system;
+- rule resolution;
+- construction;
+- measurement;
+- evaluation;
+- comparison and decision;
+- explanation;
+- derived artifacts;
+- run and replay metadata.
 
-PR0–PR12 implement the Norma Core MVP chain from structured input to replay-readiness. This documentation checkpoint prepares the repository for the `v0.1.0` tag. It does not start V1.5.
+The local trust-layer surfaces now exist:
 
-## MVP chain
+- local CLI for approved operations;
+- run verification;
+- artifact freshness verification;
+- MVP replay;
+- local read-only viewer and prototype documentation;
+- local MCP STDIO.
 
-```txt
-structured input
-→ proportional system
-→ rule resolution
-→ construction
-→ measurement
-→ evaluation
-→ decision
-→ explanation
-→ artifact
-→ run / replay-readiness
-```
+These surfaces preserve the core rule that source truth comes from explicit structured data. Artifacts, displays, prompts, files, MCP calls, and CLI envelopes are derived or transport surfaces; they do not become the core model.
 
-The MVP truth demo is:
+## Local Boundaries
 
-```txt
-Surface proportionnelle évaluée
-```
+The package remains private and local. `package.json` has `private: true`, no package-level `bin`, and no publish metadata. Public npm publication is not ready.
 
-The demo starts from explicit structured data, uses `norma.basic-proportions@0.1.0`, resolves `surface-basic-third-grid`, evaluates two simple 2D rectangular compositions with `basic-grid-alignment`, compares them in the same context, explains the result, emits derived artifacts, and wraps the result in a replay-readiness envelope.
+Local MCP STDIO is the only approved MCP runtime. It is local-only and hardened, not remote, hosted, or production. It does not approve remote MCP, ChatGPT integration, deployment, provider auth, resources, prompts, sampling, elicitation, filesystem access, network access, shell execution, package metadata drift, or new dependencies.
 
-## Verification commands
+The local CLI is also local-only. It calls approved package-root operations and writes structured JSON envelopes; it does not publish a package, create a production API, or add product/adaptation behavior.
 
-Run these commands before tagging `v0.1.0`:
+## Audit Checkpoint
+
+The current checkpoint after PR73 is:
+
+- MVP core works for explicit structured inputs.
+- PR71 fixed duplicate sibling source IDs.
+- PR72 hardened MCP STDIO input bounds and process survival.
+- PR73 added minimal CI for clean install, build, tests, repository checks, and diff whitespace checks.
+
+## What Is Not Implemented
+
+The following are not implemented:
+
+- image pipeline;
+- vision pipeline;
+- camera integration;
+- CAD integration;
+- adapters;
+- ChatGPT integration;
+- remote MCP;
+- production API or cloud service;
+- deployment;
+- public package publication.
+
+Norma Core evaluates closeness to a declared proportional system. It does not judge beauty, infer author intent, or derive source truth from prompts, images, renders, exports, UI state, native CAD objects, or hidden defaults.
+
+## Verification
+
+Use the repository scripts for local verification:
 
 ```bash
 npm run build
@@ -50,56 +76,9 @@ npm run check
 
 Available scripts are defined in `package.json`.
 
-## Source of truth
+## Related Documentation
 
-Norma source truth is held by structured core objects:
-
-- structured input;
-- `RatioPack` and `PackLock`;
-- resolved rules;
-- construction;
-- measurements;
-- evaluation;
-- comparison and decision;
-- explanation;
-- `Run` and `OperationContext`.
-
-Artifacts are derived projections. They preserve source refs, warnings, errors and provenance, but they never become the core model.
-
-## What Norma Core does not do in the MVP
-
-The MVP does not include:
-
-- full UI;
-- interactive canvas;
-- drag-and-drop;
-- camera;
-- image or vision pipeline;
-- OpenCV;
-- tracking;
-- plugin;
-- native CAD;
-- cloud API;
-- marketplace;
-- CLI, SDK, API or MCP surface;
-- native file import/export;
-- full `replayRun`;
-- `verifyRun`;
-- `verifyArtifactFreshness`;
-- 3D;
-- complex polygons;
-- creative optimization;
-- intent inference;
-- beauty score.
-
-Norma Core evaluates closeness to a declared proportional system. It does not judge beauty and does not infer author intent.
-
-## Package version and core version
-
-`package.json` is aligned to `0.1.0` for the release checkpoint. The exported `CORE_VERSION` remains `0.1.0-pr12` because it identifies the implemented PR12 engine checkpoint used to prepare `v0.1.0`.
-
-## Next phase
-
-After the docs checkpoint is merged and the verification commands pass, the next release step is to create the `v0.1.0` tag.
-
-V1.5 planning can start only after the MVP is tagged. V1.5 may consider CLI, SDK, API, MCP, adapters or full replay work, but none of those are part of this MVP checkpoint.
+- `docs/CLI.md` documents the local CLI boundary.
+- `docs/MCP_TOOL_CONTRACT.md` documents the local MCP tool contract.
+- `docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md` documents why public package publication remains blocked.
+- `docs/examples/` and `docs/onboarding/` document local viewer and onboarding examples.
