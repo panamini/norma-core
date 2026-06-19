@@ -103,6 +103,8 @@ const pr76ApprovedChangedFiles = [
   "tests/read-only-viewer-static.test.mjs",
 ];
 
+const pr77ApprovedChangedFiles = pr76ApprovedChangedFiles;
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
@@ -110,6 +112,7 @@ const exactApprovedChangedFileSets = [
   pr74ApprovedChangedFiles,
   pr75ApprovedChangedFiles,
   pr76ApprovedChangedFiles,
+  pr77ApprovedChangedFiles,
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {

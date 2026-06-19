@@ -23,18 +23,31 @@ const requiredHeadings = [
   '## Contract Purpose',
   '## Terms',
   '## Versioning',
+  '## V1 Object Shape And Unknown Properties',
   '## Source Asset Reference',
   '## Provider Identity',
   '## Coordinate Frame V1',
   '## GeometryObservation V1',
   '## Primitive Vocabulary V1',
+  '## ObservationPrimitive V1',
   '## Confidence And Evidence',
+  '## EvidenceRef V1',
+  '## ObservationWarning V1',
+  '## ProvenanceRef V1',
   '## Correction History',
+  '## CorrectionEntry V1',
   '## Acceptance State Machine',
+  '## AcceptanceRecord V1',
   '## AcceptedGeometry V1',
+  '## Content Identity V1',
+  '## Digest Algorithm And Format V1',
   '## Mapping Boundary To Norma Core',
   '## Determinism And Replay Boundary',
   '## Validation And Diagnostic Contract',
+  '## Validator Result V1',
+  '## Validator Diagnostic V1',
+  '## Reserved Diagnostics Without PR78 Callable Surface',
+  '## AcceptedGeometry Revision Mismatch Boundary',
   '## Privacy And Security Boundary',
   '## Provider Families',
   '## PR77 Authorized Scope',
@@ -44,16 +57,16 @@ const requiredHeadings = [
   '## Rollback',
 ];
 
-const primaryPr76Files = new Set([
+const primaryPr77Files = new Set([
   'docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md',
   'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
 ]);
 
 const approvedGuardMaintenanceFiles = new Set([
   'tests/post-mvp-product-vision-approval.test.mjs',
-  'tests/read-only-viewer-static.test.mjs',
   'tests/read-only-viewer-fixtures.test.mjs',
   'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
 ]);
 
 const forbiddenChangedPrefixes = [
@@ -98,6 +111,16 @@ test('PR76 versioning rejects unsupported unversioned or implicitly migrated pay
   assertIncludes(decision, 'No implicit migration is allowed');
   assertIncludes(decision, 'No hidden defaults are allowed');
   assertIncludes(decision, 'V1 approves no confidence default');
+});
+
+test('PR77 closes V1 contract-owned objects against unknown properties', () => {
+  assertIncludes(decision, 'V1 contract objects are closed at all contract-owned object levels');
+  assertIncludes(decision, 'Unknown properties are rejected');
+  assertIncludes(decision, 'Provider raw payloads must not be embedded as an escape hatch');
+  assertIncludes(decision, 'V1 has no extension bag');
+  assertIncludes(decision, 'Future extensibility must happen through a new contract version');
+  assertIncludes(decision, 'InvalidGeometryObservationShape');
+  assertIncludes(decision, 'InvalidAcceptedGeometryShape');
 });
 
 test('PR76 preserves candidate evidence before explicit acceptance', () => {
@@ -171,6 +194,29 @@ test('PR76 fixes the V1 primitive vocabulary and excludes unsupported geometry f
   assertIncludes(decision, 'native CAD layers');
 });
 
+test('PR77 defines exact closed ObservationPrimitive V1 object shapes', () => {
+  assertIncludes(decision, '`ObservationPrimitive` V1 is a closed discriminated object');
+  assertIncludes(decision, 'The primitive discriminant property is `kind`');
+  assertIncludes(decision, '`PrimitiveBase` fields are exactly');
+  assertIncludes(decision, '`point` primitives include exactly');
+  assertIncludes(decision, '`kind: "point"`');
+  assertIncludes(decision, '`x`');
+  assertIncludes(decision, '`y`');
+  assertIncludes(decision, '`segment` primitives include exactly');
+  assertIncludes(decision, '`kind: "segment"`');
+  assertIncludes(decision, '`start`');
+  assertIncludes(decision, '`end`');
+  assertIncludes(decision, '`axis` primitives include exactly');
+  assertIncludes(decision, '`kind: "axis"`');
+  assertIncludes(decision, '`rectangle` primitives include exactly');
+  assertIncludes(decision, '`kind: "rectangle"`');
+  assertIncludes(decision, '`width`');
+  assertIncludes(decision, '`height`');
+  assertIncludes(decision, '`start` and `end` are normalized point objects with exactly `x` and `y`');
+  assertIncludes(decision, 'Axis primitives use the same `start` and `end` point object shape as segment primitives');
+  assertIncludes(decision, 'No primitive may include alternate coordinate aliases');
+});
+
 test('PR76 defines confidence, evidence, correction, and acceptance boundaries', () => {
   assertIncludes(decision, 'Every primitive and evidence item must carry an explicit confidence value');
   assertIncludes(decision, 'finite number in `[0, 1]`');
@@ -186,6 +232,86 @@ test('PR76 defines confidence, evidence, correction, and acceptance boundaries',
   assertIncludes(decision, 'no confidence-threshold acceptance');
 });
 
+test('PR77 defines the exact EvidenceRef V1 contract', () => {
+  assertIncludes(decision, '`EvidenceRef` V1 must include');
+  assertIncludes(decision, '`evidenceId`');
+  assertIncludes(decision, '`kind`');
+  assertIncludes(decision, '`targetPrimitiveId`');
+  assertIncludes(decision, '`confidence`');
+  assertIncludes(decision, '`label`');
+  assertIncludes(decision, '`regionRef`');
+  assertIncludes(decision, '`warningCode`');
+  assertIncludes(decision, '`provenance`');
+  assertIncludes(decision, '`provider-local-reference`');
+  assertIncludes(decision, '`text-label`');
+  assertIncludes(decision, '`region-reference`');
+  assertIncludes(decision, '`warning-code`');
+  assertIncludes(decision, 'Evidence must not include raw traces');
+});
+
+test('PR77 defines observation warnings with exact severity values', () => {
+  assertIncludes(decision, '`ObservationWarning` V1 must include');
+  assertIncludes(decision, '`code`');
+  assertIncludes(decision, '`severity`');
+  assertIncludes(decision, '`message`');
+  assertIncludes(decision, '`targetPath`');
+  assertIncludes(decision, '`targetPrimitiveId`');
+  assertIncludes(decision, '`provenance`');
+  assertIncludes(decision, '`info`');
+  assertIncludes(decision, '`warning`');
+  assertIncludes(decision, '`error`');
+  assertIncludes(decision, 'Warnings do not make invalid input valid');
+});
+
+test('PR77 defines provenance without making metadata part of deterministic identity', () => {
+  assertIncludes(decision, '`ProvenanceRef` V1 must include');
+  assertIncludes(decision, '`provenanceId`');
+  assertIncludes(decision, '`actorType`');
+  assertIncludes(decision, '`actorId`');
+  assertIncludes(decision, '`operationId`');
+  assertIncludes(decision, '`operationVersion`');
+  assertIncludes(decision, '`inputContentIdentity`');
+  assertIncludes(decision, '`createdAt`');
+  assertIncludes(decision, '`notes`');
+  assertIncludes(decision, '`provider`');
+  assertIncludes(decision, '`human`');
+  assertIncludes(decision, '`deterministic-test`');
+  assertIncludes(decision, '`system`');
+  assertIncludes(decision, '`createdAt` may exist as metadata but must not participate in deterministic content identity');
+});
+
+test('PR77 defines correction entries as ordered non-executable records', () => {
+  assertIncludes(decision, '`CorrectionEntry` V1 must include');
+  assertIncludes(decision, '`correctionId`');
+  assertIncludes(decision, '`sequence`');
+  assertIncludes(decision, '`actorType`');
+  assertIncludes(decision, '`operation`');
+  assertIncludes(decision, '`targetPrimitiveId`');
+  assertIncludes(decision, '`reason`');
+  assertIncludes(decision, '`beforeContentIdentity`');
+  assertIncludes(decision, '`afterContentIdentity`');
+  assertIncludes(decision, '`provenance`');
+  assertIncludes(decision, 'duplicate sequence values are invalid');
+  assertIncludes(decision, 'Executable patch payloads are not allowed');
+});
+
+test('PR77 defines explicit acceptance records without provider self-acceptance', () => {
+  assertIncludes(decision, '`AcceptanceRecord` V1 must include');
+  assertIncludes(decision, '`acceptanceId`');
+  assertIncludes(decision, '`accepted`');
+  assertIncludes(decision, '`actorType`');
+  assertIncludes(decision, '`actorId`');
+  assertIncludes(decision, '`acceptedAt`');
+  assertIncludes(decision, '`sourceObservationId`');
+  assertIncludes(decision, '`sourceObservationContentIdentity`');
+  assertIncludes(decision, '`acceptedRevision`');
+  assertIncludes(decision, '`acceptedContentIdentity`');
+  assertIncludes(decision, '`acceptedPrimitiveIds`');
+  assertIncludes(decision, '`provenance`');
+  assertIncludes(decision, '`actorType` must not be `provider`');
+  assertIncludes(decision, '`acceptedAt` is metadata only and excluded from deterministic content identity');
+});
+
 test('PR76 keeps AcceptedGeometry separate from Core geometry, packs, and evaluation', () => {
   assertIncludes(decision, '`AcceptedGeometry` V1 is a separate envelope');
   assertIncludes(decision, '`sourceObservationId`');
@@ -198,6 +324,20 @@ test('PR76 keeps AcceptedGeometry separate from Core geometry, packs, and evalua
   assertIncludes(decision, '`contentIdentity`');
   assertIncludes(decision, '`AcceptedGeometry` must not include packs, rules, tolerances, scores, measurements, evaluations, decisions, or artifacts');
   assertIncludes(decision, '`AcceptedGeometry` is not `Composition2D`, `SegmentSpace`, or `SurfaceSpace`');
+});
+
+test('PR77 defines content identity projection and digest behavior', () => {
+  assertIncludes(decision, 'Content identity is computed from a deterministic canonical projection');
+  assertIncludes(decision, 'For `GeometryObservation`, the projection includes');
+  assertIncludes(decision, 'For `AcceptedGeometry`, the projection includes');
+  assertIncludes(decision, 'The envelope `contentIdentity` field is excluded from its own digest');
+  assertIncludes(decision, 'Array order is significant where the contract says ordered');
+  assertIncludes(decision, 'Object key order is not significant');
+  assertIncludes(decision, 'The digest algorithm is SHA-256');
+  assertIncludes(decision, 'The digest output format is lowercase hexadecimal');
+  assertIncludes(decision, 'The digest output prefix is `sha256:`');
+  assertIncludes(decision, '`sha256:<64 lowercase hex characters>`');
+  assertIncludes(decision, 'Content identity mismatch is a validation failure');
 });
 
 test('PR76 reserves mapping and replay behavior for deterministic accepted inputs', () => {
@@ -238,6 +378,49 @@ test('PR76 names validator diagnostics without exporting runtime diagnostics yet
   assertIncludes(decision, 'PR76 does not add these diagnostics to the runtime export surface');
 });
 
+test('PR77 defines package-private validator result semantics', () => {
+  assertIncludes(decision, 'The validator result shape approved for PR78 is package-private');
+  assertIncludes(decision, '`ok: true`');
+  assertIncludes(decision, '`value`');
+  assertIncludes(decision, '`diagnostics: []`');
+  assertIncludes(decision, '`ok: false`');
+  assertIncludes(decision, 'no accepted value');
+  assertIncludes(decision, 'Validators do not throw for ordinary invalid contract input');
+  assertIncludes(decision, 'No package-root export is approved');
+});
+
+test('PR77 defines validator diagnostics and deterministic ordering', () => {
+  assertIncludes(decision, '`ValidatorDiagnostic` V1 must include exactly');
+  assertIncludes(decision, '`code`');
+  assertIncludes(decision, '`severity`');
+  assertIncludes(decision, '`surface`');
+  assertIncludes(decision, '`path`');
+  assertIncludes(decision, '`primitiveId`');
+  assertIncludes(decision, '`message`');
+  assertIncludes(decision, '`GeometryObservation`');
+  assertIncludes(decision, '`AcceptedGeometry`');
+  assertIncludes(decision, '`EvidenceRef`');
+  assertIncludes(decision, '`ContentIdentity`');
+  assertIncludes(decision, 'Diagnostics must be ordered deterministically by path, then code, then message');
+  assertIncludes(decision, 'diagnostics must not include stack traces, local paths, full payload echoes, credentials, image bytes, hidden prompts, or chain-of-thought');
+});
+
+test('PR77 reserves mapper diagnostics without creating a callable mapper surface', () => {
+  assertIncludes(decision, 'UnsupportedAcceptedGeometryMappingRequest');
+  assertIncludes(decision, 'is reserved for a future mapper boundary');
+  assertIncludes(decision, 'PR78 must not invent a mapper request just to emit it');
+  assertIncludes(decision, 'Any future use requires a mapper approval PR');
+  assertIncludes(decision, 'No mapper request, mapper function, provider call, image input, or Core mapping surface is approved');
+});
+
+test('PR77 scopes AcceptedGeometry revision mismatch to available checked inputs', () => {
+  assertIncludes(decision, 'PR78 may validate internal consistency of `AcceptedGeometry`');
+  assertIncludes(decision, 'Validation against an external source observation is only allowed when the validator function explicitly receives both objects');
+  assertIncludes(decision, 'A single-object `AcceptedGeometry` validator cannot prove external observation mismatch');
+  assertIncludes(decision, '`AcceptedGeometryRevisionMismatch` applies only when the checked inputs contain enough information');
+  assertIncludes(decision, 'Otherwise it remains reserved for a two-input validation helper');
+});
+
 test('PR76 keeps privacy, security, provider family, and PR77 authorization narrow', () => {
   assertIncludes(decision, 'PR77 and PR78 remain synthetic-data-only');
   assertIncludes(decision, 'remote provider calls');
@@ -246,40 +429,41 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'chain-of-thought');
   assertIncludes(decision, 'Provider output must be treated as untrusted candidate data');
   assertIncludes(decision, 'Naming a provider family does not approve its implementation');
-  assertIncludes(decision, 'PR77 may implement');
-  assertIncludes(decision, 'local TypeScript contract types');
-  assertIncludes(decision, 'deterministic validator');
-  assertIncludes(decision, 'synthetic JSON fixtures');
+  assertIncludes(decision, 'PR77 may amend only this decision document and its contract approval test');
+  assertIncludes(decision, 'After PR77, PR78 may implement');
+  assertIncludes(decision, 'local package-private TypeScript contract types');
+  assertIncludes(decision, 'local package-private deterministic validator');
+  assertIncludes(decision, 'synthetic JSON fixtures only if approved by PR78');
   assertIncludes(decision, 'PR77 must not implement');
   assertIncludes(decision, 'provider execution');
   assertIncludes(decision, 'OpenAI calls');
   assertIncludes(decision, 'mapping into Norma Core geometry');
 });
 
-test('PR76 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
+test('PR77 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
   const changedFiles = branchChangedFiles();
 
-  for (const requiredFile of primaryPr76Files) {
+  for (const requiredFile of primaryPr77Files) {
     assert.ok(
       changedFiles.includes(requiredFile),
-      `expected PR76 branch to include ${requiredFile}`,
+      `expected PR77 branch to include ${requiredFile}`,
     );
   }
 
   for (const changedFile of changedFiles) {
     assert.ok(
-      primaryPr76Files.has(changedFile) || approvedGuardMaintenanceFiles.has(changedFile),
-      `unexpected PR76 file changed: ${changedFile}`,
+      primaryPr77Files.has(changedFile) || approvedGuardMaintenanceFiles.has(changedFile),
+      `unexpected PR77 file changed: ${changedFile}`,
     );
 
     assert.ok(
       !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
-      `PR76 must not change protected implementation surface: ${changedFile}`,
+      `PR77 must not change protected implementation surface: ${changedFile}`,
     );
 
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
-      `PR76 must not change protected project contract file: ${changedFile}`,
+      `PR77 must not change protected project contract file: ${changedFile}`,
     );
   }
 });
