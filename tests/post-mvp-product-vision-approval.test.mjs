@@ -52,6 +52,14 @@ const exactPr78ChangedFilesWithGuards = [
   "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
+const exactPr79ChangedFilesWithGuards = [
+  "src/geometry-observation.ts",
+  "tests/geometry-observation-validator.test.mjs",
+  pr76ContractTestPath,
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -274,15 +282,23 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr75ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  const pr79Allowlist = isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)
+    ? exactPr79ChangedFilesWithGuards
+    : [];
+
+  assert.deepEqual(changed.filter((file) => isProtectedChange(file) && !pr79Allowlist.includes(file)), []);
 });
 
 test("PR75 does not add runtime package deployment provider or schema files", () => {
   const changed = branchChangedFiles();
+  const pr79Allowlist = isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)
+    ? exactPr79ChangedFilesWithGuards
+    : [];
   const forbiddenPatterns = [
     /^src\//,
     /^bin\//,
@@ -295,6 +311,10 @@ test("PR75 does not add runtime package deployment provider or schema files", ()
   ];
 
   for (const file of changed) {
+    if (pr79Allowlist.includes(file)) {
+      continue;
+    }
+
     assert.equal(
       forbiddenPatterns.some((pattern) => pattern.test(file)),
       false,

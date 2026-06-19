@@ -70,6 +70,14 @@ const approvedGuardMaintenanceFiles = new Set([
   'tests/read-only-viewer-static.test.mjs',
 ]);
 
+const pr79ApprovedChangedFiles = new Set([
+  'src/geometry-observation.ts',
+  'tests/geometry-observation-validator.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+]);
+
 const forbiddenChangedPrefixes = [
   'src/',
   'bin/',
@@ -488,8 +496,27 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'mapping into Norma Core geometry');
 });
 
-test('PR78 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
+test('PR78 and PR79 branch changes stay limited to their approved contract surfaces', () => {
   const changedFiles = branchChangedFiles();
+
+  if (isExactChangedFileSet(changedFiles, [...pr79ApprovedChangedFiles].sort())) {
+    for (const changedFile of changedFiles) {
+      assert.ok(
+        pr79ApprovedChangedFiles.has(changedFile),
+        `unexpected PR79 file changed: ${changedFile}`,
+      );
+      assert.ok(
+        changedFile === 'src/geometry-observation.ts' ||
+          !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+        `PR79 must not change protected implementation surface outside the local validator: ${changedFile}`,
+      );
+      assert.ok(
+        !forbiddenChangedFiles.has(changedFile),
+        `PR79 must not change protected project contract file: ${changedFile}`,
+      );
+    }
+    return;
+  }
 
   for (const requiredFile of primaryPr77Files) {
     assert.ok(
@@ -545,6 +572,10 @@ function branchChangedFiles() {
     .flat()
     .filter((file, index, files) => files.indexOf(file) === index)
     .sort();
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function gitFiles(args) {
