@@ -230,8 +230,12 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
   }
 
   const changedFiles = gitChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changedFiles);
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
-    assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
+    assert.deepEqual(
+      changedFiles.filter((file) => isForbiddenStructuredJsonViewerChange(file, pr71ChangeSet)),
+      [],
+    );
   }
 });
 
@@ -544,12 +548,16 @@ function json(value) {
 }
 
 // fallow-ignore-next-line code-duplication
-function isForbiddenStructuredJsonViewerChange(file) {
-  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+}
+
+function isForbiddenStructuredJsonViewerChange(file, allowPr71GeometrySourceIdentity = false) {
+  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
     return false;
   }
 
-  return [
+  const forbiddenPaths = [
     "package.json",
     "package-lock.json",
     "src/index.ts",
@@ -565,7 +573,11 @@ function isForbiddenStructuredJsonViewerChange(file) {
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-  ].some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
+  ];
+
+  return forbiddenPaths.some((forbiddenPath) => {
+    return file === forbiddenPath || file.startsWith(`${forbiddenPath}/`);
+  });
 }
 
 function gitChangedFiles() {

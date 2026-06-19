@@ -29,12 +29,18 @@ const expectedChangedFiles = [
   "tests/beta-pilot-readiness-approval.test.mjs",
   "tests/onboarding-examples-approval.test.mjs",
   "tests/privacy-security-support-approval.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
+const pr71GuardMaintenancePaths = [
   "tests/read-only-viewer-model.test.mjs",
   "tests/read-only-viewer-static.test.mjs",
   "tests/structured-json-input-viewer-prototype-approval.test.mjs",
   "tests/structured-json-input-viewer.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
+];
+
+const pr71GeometrySourceIdentityPaths = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
@@ -155,10 +161,14 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 
 test("PR69 keeps protected surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  const unexpected = changed.filter((file) => !expectedChangedFiles.includes(file));
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const expectedFiles = pr71ChangeSet
+    ? [...expectedChangedFiles, ...pr71GuardMaintenancePaths, ...pr71GeometrySourceIdentityPaths]
+    : expectedChangedFiles;
+  const unexpected = changed.filter((file) => !expectedFiles.includes(file));
 
   assert.deepEqual(unexpected, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
 });
 
 function assertPipeline(fixture, expected) {
@@ -309,19 +319,15 @@ function gitLines(args) {
   return output === "" ? [] : output.split("\n");
 }
 
-function isProtectedChange(file) {
-  const pr71GuardMaintenancePaths = [
-    "tests/read-only-viewer-model.test.mjs",
-    "tests/read-only-viewer-static.test.mjs",
-  ];
-  const pr71GeometrySourceIdentityPaths = [
-    "src/index.ts",
-    "src/measurements.ts",
-    "tests/core-skeleton.test.mjs",
-    "tests/measurements.test.mjs",
-  ];
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+}
 
-  if (pr71GuardMaintenancePaths.includes(file) || pr71GeometrySourceIdentityPaths.includes(file)) {
+function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
+  if (
+    allowPr71GeometrySourceIdentity &&
+    (pr71GuardMaintenancePaths.includes(file) || pr71GeometrySourceIdentityPaths.includes(file))
+  ) {
     return false;
   }
 

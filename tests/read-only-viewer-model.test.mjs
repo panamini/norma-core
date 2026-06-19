@@ -161,7 +161,12 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
   }
 
   assert.doesNotMatch(modelSource, /\b(?:server|route|listener|browser|DOM)\b/);
-  assert.deepEqual(branchChangedFiles().filter(isForbiddenReadOnlyViewerChange), []);
+  const changedFiles = branchChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changedFiles);
+  assert.deepEqual(
+    changedFiles.filter((file) => isForbiddenReadOnlyViewerChange(file, pr71ChangeSet)),
+    [],
+  );
 });
 
 function assertProvenance(model) {
@@ -196,25 +201,32 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
 }
 
-function isForbiddenReadOnlyViewerChange(file) {
-  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
+    if (!files.includes(requiredPath)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isForbiddenReadOnlyViewerChange(file, allowPr71GeometrySourceIdentity = false) {
+  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
     return false;
   }
 
-  return [
+  const blockedReadOnlyViewerPaths = [
     "package.json",
     "package-lock.json",
     "src/index.ts",
@@ -227,7 +239,9 @@ function isForbiddenReadOnlyViewerChange(file) {
     "bin/",
     "examples/",
     "docs/",
-  ].some((forbiddenPath) => file === forbiddenPath || file.startsWith(forbiddenPath));
+  ];
+
+  return blockedReadOnlyViewerPaths.some((forbiddenPath) => file === forbiddenPath || file.startsWith(forbiddenPath));
 }
 
 function runVerification(overrides = {}) {

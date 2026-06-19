@@ -203,7 +203,12 @@ test("PR57 keeps the approved PR58 prototype files package-private after impleme
     approvedFutureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
     approvedFutureImplementationPaths,
   );
-  assert.deepEqual(branchChangedFiles().filter(isForbiddenStructuredJsonViewerChange), []);
+  const changed = branchChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  assert.deepEqual(
+    changed.filter((file) => isForbiddenStructuredJsonViewerChange(file, pr71ChangeSet)),
+    [],
+  );
 });
 
 test("PR57 keeps implementation UI server route and deployment files absent", () => {
@@ -305,8 +310,12 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function isForbiddenStructuredJsonViewerChange(file) {
-  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+}
+
+function isForbiddenStructuredJsonViewerChange(file, allowPr71GeometrySourceIdentity = false) {
+  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
     return false;
   }
 

@@ -168,10 +168,14 @@ test("PR68 static helper output is deterministic for the same input model", asyn
 
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
   assert.deepEqual(
-    changed.filter((file) => file === "src/index.ts" && !pr71GeometrySourceIdentityPaths.includes(file)),
+    changed.filter((file) => (
+      file === "src/index.ts" &&
+      !(pr71ChangeSet && pr71GeometrySourceIdentityPaths.includes(file))
+    )),
     [],
   );
   assert.deepEqual(changed.filter((file) => file === "tsconfig.json"), []);
@@ -229,17 +233,24 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
+}
+
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
+    if (!files.includes(requiredPath)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function assertNoRemoteUrl(source) {

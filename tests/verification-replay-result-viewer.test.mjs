@@ -291,8 +291,12 @@ test("PR61 keeps helper package-private and avoids forbidden surfaces", () => {
   assert.doesNotMatch(helperSource, /\b(?:route|server|browser|DOM)\b/);
 
   const changedFiles = gitChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changedFiles);
   if (changedFiles.some((file) => file.includes("verification-replay-result-viewer"))) {
-    assert.deepEqual(changedFiles.filter(isForbiddenVerificationReplayViewerChange), []);
+    assert.deepEqual(
+      changedFiles.filter((file) => isForbiddenVerificationReplayViewerChange(file, pr71ChangeSet)),
+      [],
+    );
   }
 });
 
@@ -561,8 +565,12 @@ function gitChangedFilesFor(args) {
 }
 
 // fallow-ignore-next-line code-duplication
-function isForbiddenVerificationReplayViewerChange(file) {
-  if (pr71GeometrySourceIdentityPaths.includes(file)) {
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+}
+
+function isForbiddenVerificationReplayViewerChange(file, allowPr71GeometrySourceIdentity = false) {
+  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
     return false;
   }
 

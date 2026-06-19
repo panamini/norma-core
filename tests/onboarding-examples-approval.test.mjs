@@ -64,8 +64,6 @@ const allowedPostPr62ChangedFiles = [
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
   ...pr70ReadOnlyViewerDemoReadinessPaths,
-  ...pr71GeometrySourceIdentityPaths,
-  ...pr71GuardMaintenancePaths,
 ];
 
 const approvedFutureDocumentationPaths = [
@@ -247,15 +245,17 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  const unexpectedNonApprovalFiles = changed.filter(
-    (file) =>
-      !allowedPostPr62ChangedFiles.includes(file) &&
-      !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
-      !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
-  );
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const allowedChangedFiles = [...allowedPostPr62ChangedFiles];
+  if (pr71ChangeSet) {
+    allowedChangedFiles.push(...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths);
+  }
+  const unexpectedNonApprovalFiles = changed.filter((file) => {
+    return !isAllowedPostPr62ChangedFile(file, allowedChangedFiles);
+  });
 
-  assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
+  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -278,7 +278,8 @@ test("PR62 updates the PR60 changed-file guard without weakening forbidden prote
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-    "changed.filter(isForbiddenChange)",
+    "const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed)",
+    "changed.filter((relativePath) => isForbiddenChange(relativePath, pr71ChangeSet))",
     "indexSource.includes(\"verification-replay-result-viewer\")",
   ]);
 });
@@ -319,13 +320,31 @@ function gitFiles(args) {
   }
 }
 
-function isProtectedChange(file) {
+function isAllowedPostPr62ChangedFile(file, allowedChangedFiles) {
   return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    !pr71GeometrySourceIdentityPaths.includes(file) &&
-    (protectedExactPaths.includes(file) ||
-      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
+    allowedChangedFiles.includes(file) ||
+    /^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) ||
+    /^tests\/[^/]*-approval\.test\.mjs$/.test(file)
   );
+}
+
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return !pr71GeometrySourceIdentityPaths.some((file) => !files.includes(file));
+}
+
+function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
+  const allowedPaths = new Set(pr67ReadOnlyViewerModelPaths);
+  if (allowPr71GeometrySourceIdentity) {
+    for (const pr71Path of pr71GeometrySourceIdentityPaths) {
+      allowedPaths.add(pr71Path);
+    }
+  }
+  return !allowedPaths.has(file) && isProtectedApprovalPath(file);
+}
+
+// fallow-ignore-next-line code-duplication
+function isProtectedApprovalPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
 }
 
 function assertPathsAbsent(paths) {

@@ -58,8 +58,6 @@ const allowedPostPr65ChangedFiles = [
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
   ...pr70ReadOnlyViewerDemoReadinessPaths,
-  ...pr71GeometrySourceIdentityPaths,
-  ...pr71GuardMaintenancePaths,
 ];
 
 const protectedExactPaths = [
@@ -265,9 +263,13 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
 
 test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
   const changed = branchChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const allowedChangedFiles = pr71ChangeSet
+    ? [...allowedPostPr65ChangedFiles, ...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths]
+    : allowedPostPr65ChangedFiles;
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr65ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
@@ -275,7 +277,7 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -302,25 +304,29 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
 }
 
-function isProtectedChange(file) {
-  return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    !pr71GeometrySourceIdentityPaths.includes(file) &&
-    (protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix)))
-  );
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  return pr71GeometrySourceIdentityPaths.reduce((hasAllPaths, file) => hasAllPaths && files.includes(file), true);
+}
+
+function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
+  const pr67Allowed = pr67ReadOnlyViewerModelPaths.includes(file);
+  const pr71Allowed = allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file);
+  return isPrivacyProtectedPath(file) && !pr67Allowed && !pr71Allowed;
+}
+
+function isPrivacyProtectedPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
 }
 
 function assertPathsAbsent(paths) {

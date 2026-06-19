@@ -110,8 +110,6 @@ const allowedPostPr64ChangedFiles = [
   ...pr68StaticViewerPaths,
   ...pr69ReadOnlyViewerFixturePaths,
   ...pr70ReadOnlyViewerDemoReadinessPaths,
-  ...pr71GeometrySourceIdentityPaths,
-  ...pr71GuardMaintenancePaths,
 ];
 
 test("PR64 approval document exists and is approval-only", () => {
@@ -255,9 +253,13 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
   const changed = branchChangedFiles();
+  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const allowedChangedFiles = pr71ChangeSet
+    ? [...allowedPostPr64ChangedFiles, ...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths]
+    : allowedPostPr64ChangedFiles;
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr64ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -269,7 +271,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   }
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -296,28 +298,38 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
 }
 
-function isProtectedChange(file) {
-  return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    !pr71GeometrySourceIdentityPaths.includes(file) &&
-    (protectedExactPaths.includes(file) ||
-      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
-  );
+function isPr71GeometrySourceIdentityChangeSet(files) {
+  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
+    if (!files.includes(requiredPath)) {
+      return false;
+    }
+  }
+  return true;
 }
 
+function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
+  const allowedPaths = allowPr71GeometrySourceIdentity
+    ? [...pr67ReadOnlyViewerModelPaths, ...pr71GeometrySourceIdentityPaths]
+    : pr67ReadOnlyViewerModelPaths;
+  return !allowedPaths.includes(file) && isProtectedPath(file);
+}
+
+function isProtectedPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
+}
+
+// fallow-ignore-next-line code-duplication
 function assertPathsAbsent(paths) {
   for (const path of paths) {
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
