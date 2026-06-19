@@ -93,6 +93,36 @@ No implicit migration is allowed. Any migration from one contract version to ano
 
 No hidden defaults are allowed. V1 approves no confidence default; an explicit `null` confidence is a recorded value, not a default.
 
+## V1 Object Shape And Unknown Properties
+
+V1 contract objects are closed at all contract-owned object levels.
+
+Unknown properties are rejected.
+
+This applies to:
+
+- `SourceAssetRef`;
+- `ProviderIdentity`;
+- `CoordinateFrame`;
+- `GeometryObservation`;
+- primitive objects;
+- `EvidenceRef`;
+- `ObservationWarning`;
+- `ProvenanceRef`;
+- `CorrectionEntry`;
+- `AcceptanceRecord`;
+- `AcceptedGeometry`.
+
+Unknown property rejection must use the relevant shape diagnostic:
+
+- `InvalidGeometryObservationShape`;
+- `InvalidAcceptedGeometryShape`;
+- or a more specific approved diagnostic when the failing surface already has one.
+
+Provider raw payloads must not be embedded as an escape hatch. V1 has no extension bag, generic metadata bag, provider payload bag, debug bag, or implementation-defined side channel.
+
+Future extensibility must happen through a new contract version rather than open-ended unknown fields.
+
 ## Source Asset Reference
 
 `SourceAssetRef` V1 must include:
@@ -216,6 +246,109 @@ Confidence is not a measurement, not a Core evaluation score, not source truth, 
 
 Evidence may include provider-local references, text labels, regions, or warning codes, but it must not include raw provider traces, chain-of-thought, credentials, hidden prompts, or image bytes.
 
+## EvidenceRef V1
+
+`EvidenceRef` V1 must include:
+
+- `evidenceId`;
+- `kind`;
+- `targetPrimitiveId`;
+- `confidence`;
+- `label`;
+- `regionRef`;
+- `warningCode`;
+- `provenance`.
+
+`evidenceId` is a non-empty string.
+
+`kind` is exactly one of:
+
+- `provider-local-reference`;
+- `text-label`;
+- `region-reference`;
+- `warning-code`.
+
+`targetPrimitiveId` is either a primitive ID or explicit `null`.
+
+`confidence` follows the same explicit confidence rule as primitives: a finite number in `[0, 1]` or explicit `null`.
+
+`label` is a string or explicit `null`.
+
+`regionRef` is a string or explicit `null`.
+
+`warningCode` is a string or explicit `null`.
+
+`provenance` is a `ProvenanceRef`.
+
+Evidence must not include raw traces, raw provider traces, hidden prompts, chain-of-thought, credentials, local paths, remote URLs, base64 payloads, or image bytes.
+
+## ObservationWarning V1
+
+`ObservationWarning` V1 must include:
+
+- `code`;
+- `severity`;
+- `message`;
+- `targetPath`;
+- `targetPrimitiveId`;
+- `provenance`.
+
+`code` is a non-empty string.
+
+`severity` is exactly one of:
+
+- `info`;
+- `warning`;
+- `error`.
+
+`message` is a concise human-readable string.
+
+`targetPath` is a deterministic contract path string or explicit `null`.
+
+`targetPrimitiveId` is a primitive ID or explicit `null`.
+
+`provenance` is a `ProvenanceRef`.
+
+Warnings do not make invalid input valid.
+
+Warnings are not Core measurements, evaluations, scores, source truth, or acceptance decisions.
+
+## ProvenanceRef V1
+
+`ProvenanceRef` V1 must include:
+
+- `provenanceId`;
+- `actorType`;
+- `actorId`;
+- `operationId`;
+- `operationVersion`;
+- `inputContentIdentity`;
+- `createdAt`;
+- `notes`.
+
+`provenanceId` is a non-empty string.
+
+`actorType` is exactly one of:
+
+- `provider`;
+- `human`;
+- `deterministic-test`;
+- `system`.
+
+`actorId` is a string or explicit `null`.
+
+`operationId` is a non-empty string.
+
+`operationVersion` is a non-empty string.
+
+`inputContentIdentity` is a string or explicit `null`.
+
+`createdAt` may exist as metadata but must not participate in deterministic content identity.
+
+`notes` is a string or explicit `null`.
+
+Provenance must not include credentials, bearer tokens, API keys, cookies, signed URLs, local paths, raw prompts, hidden prompts, chain-of-thought, raw provider traces, or image bytes.
+
 ## Correction History
 
 `CorrectionHistory` V1 records ordered correction entries with:
@@ -238,6 +371,46 @@ Correction history is append-only for the accepted revision. Generic executable 
 
 Timestamps may exist as metadata, but they must not be the deterministic identity for a corrected candidate or accepted geometry record.
 
+## CorrectionEntry V1
+
+`CorrectionEntry` V1 must include:
+
+- `correctionId`;
+- `sequence`;
+- `actorType`;
+- `operation`;
+- `targetPrimitiveId`;
+- `reason`;
+- `beforeContentIdentity`;
+- `afterContentIdentity`;
+- `provenance`.
+
+`correctionId` is a non-empty string.
+
+`sequence` is a non-negative integer.
+
+`actorType` uses the `ProvenanceRef` actor type vocabulary.
+
+`operation` is exactly one of:
+
+- `add`;
+- `update`;
+- `remove`.
+
+`targetPrimitiveId` is required for `update` and `remove`.
+
+`targetPrimitiveId` may be explicit `null` for `add` when the added primitive receives its own ID.
+
+`reason` is a non-empty string.
+
+`beforeContentIdentity` and `afterContentIdentity` are strings or explicit `null` according to the operation.
+
+Correction entries are ordered by `sequence`.
+
+duplicate sequence values are invalid.
+
+Executable patch payloads are not allowed. Arbitrary JSON Patch programs, scripts, provider self-mutation payloads, and hidden transforms are not approved.
+
 ## Acceptance State Machine
 
 The V1 acceptance state machine is intentionally small:
@@ -259,7 +432,43 @@ Acceptance must reference:
 
 There is no implicit acceptance, no provider self-acceptance, no confidence-threshold acceptance, and no automatic acceptance from successful validation alone.
 
-PR77 may use a deterministic test actor for synthetic fixtures, but it must still record explicit acceptance.
+PR78 may use a deterministic test actor for synthetic fixtures only if PR78 approves fixtures, but it must still record explicit acceptance.
+
+## AcceptanceRecord V1
+
+`AcceptanceRecord` V1 must include:
+
+- `acceptanceId`;
+- `accepted`;
+- `actorType`;
+- `actorId`;
+- `acceptedAt`;
+- `sourceObservationId`;
+- `sourceObservationContentIdentity`;
+- `acceptedRevision`;
+- `acceptedContentIdentity`;
+- `acceptedPrimitiveIds`;
+- `provenance`.
+
+`acceptanceId` is a non-empty string.
+
+`accepted` is exactly `true` for `AcceptedGeometry`.
+
+Rejected candidates are not represented as `AcceptedGeometry`.
+
+`actorType` must not be `provider` because provider self-acceptance is not approved.
+
+Deterministic tests may use `deterministic-test`.
+
+`actorId` is a string or explicit `null`.
+
+`acceptedPrimitiveIds` is an ordered array of unique primitive IDs.
+
+`acceptedPrimitiveIds` must match the accepted primitive IDs.
+
+`acceptedAt` is metadata only and excluded from deterministic content identity.
+
+There is no implicit acceptance, no provider self-acceptance, no confidence-threshold acceptance, and no acceptance from successful validation alone.
 
 ## AcceptedGeometry V1
 
@@ -281,6 +490,72 @@ PR77 may use a deterministic test actor for synthetic fixtures, but it must stil
 `AcceptedGeometry` must not include packs, rules, tolerances, scores, measurements, evaluations, decisions, or artifacts.
 
 `AcceptedGeometry` is not `Composition2D`, `SegmentSpace`, or `SurfaceSpace`. It may later be mapped into supported Norma Core geometry by an explicit deterministic mapper, but that mapper is outside PR76.
+
+## Content Identity V1
+
+Content identity is computed from a deterministic canonical projection of the contract envelope.
+
+For `GeometryObservation`, the projection includes:
+
+- `contractId`;
+- `contractVersion`;
+- `observationId`;
+- `status`;
+- `sourceAsset`;
+- `provider`;
+- `coordinateFrame`;
+- ordered `primitives`;
+- ordered evidence references;
+- warnings;
+- provenance, excluding metadata-only timestamp fields according to this decision.
+
+For `AcceptedGeometry`, the projection includes:
+
+- `contractId`;
+- `contractVersion`;
+- `acceptedGeometryId`;
+- `sourceObservationId`;
+- `sourceObservationContentIdentity`;
+- `acceptedRevision`;
+- `coordinateFrame`;
+- ordered `primitives`;
+- `correctionHistory`;
+- `acceptance`;
+- provenance, excluding metadata-only timestamp fields according to this decision.
+
+The envelope `contentIdentity` field is excluded from its own digest.
+
+Metadata-only `createdAt` and `acceptedAt` fields are excluded from deterministic content identity.
+
+Forbidden fields are rejected and therefore cannot participate in content identity.
+
+Local paths, raw provider traces, hidden prompts, credentials, remote URLs, base64 payloads, and image bytes are excluded because they are not allowed in the contract.
+
+Array order is significant where the contract says ordered.
+
+Object key order is not significant.
+
+## Digest Algorithm And Format V1
+
+The canonicalization input is the deterministic canonical JSON serialization of the approved content identity projection.
+
+The digest algorithm is SHA-256.
+
+The digest output format is lowercase hexadecimal.
+
+The digest output prefix is `sha256:`.
+
+The digest shape is `sha256:<64 lowercase hex characters>`.
+
+Content identity mismatch is a validation failure.
+
+`GeometryObservation` content identity mismatch uses `InvalidGeometryObservationShape` unless a more specific approved diagnostic exists.
+
+`AcceptedGeometry` content identity mismatch uses `InvalidAcceptedGeometryShape` unless a more specific approved diagnostic exists.
+
+Validators may compute and return the expected identity in diagnostic metadata only if doing so does not leak full payloads, forbidden data, hidden prompts, credentials, local paths, raw traces, or image bytes.
+
+Validators may report the mismatch generically when returning the expected digest would expose information outside the safe diagnostic boundary.
 
 ## Mapping Boundary To Norma Core
 
@@ -344,6 +619,105 @@ The names are contract-level concepts for PR77. PR76 does not add these diagnost
 
 Diagnostics must identify the failing contract surface, target path or primitive identifier when available, stable code, severity, and human-readable message.
 
+## Validator Result V1
+
+The validator result shape approved for PR78 is package-private.
+
+Successful validation returns:
+
+- `ok: true`;
+- `value`;
+- `diagnostics: []`.
+
+Failed validation returns:
+
+- `ok: false`;
+- `diagnostics`;
+- no accepted value.
+
+Validators do not throw for ordinary invalid contract input.
+
+Diagnostics are deterministic.
+
+Diagnostics are sorted by first path occurrence, then code, then message.
+
+Warnings may be returned with a successful result only when the contract explicitly allows a warning condition.
+
+Errors make the result invalid.
+
+No package-root export is approved.
+
+This result shape is for the local package-private PR78 validator only.
+
+## Validator Diagnostic V1
+
+`ValidatorDiagnostic` V1 must include exactly:
+
+- `code`;
+- `severity`;
+- `surface`;
+- `path`;
+- `primitiveId`;
+- `message`.
+
+`code` is one of the approved contract diagnostic concepts.
+
+`severity` is exactly one of:
+
+- `error`;
+- `warning`;
+- `info`.
+
+`surface` is exactly one of:
+
+- `GeometryObservation`;
+- `AcceptedGeometry`;
+- `SourceAssetRef`;
+- `ProviderIdentity`;
+- `CoordinateFrame`;
+- `Primitive`;
+- `EvidenceRef`;
+- `ObservationWarning`;
+- `ProvenanceRef`;
+- `CorrectionHistory`;
+- `CorrectionEntry`;
+- `AcceptanceRecord`;
+- `ContentIdentity`.
+
+`path` is a deterministic contract path string.
+
+`primitiveId` is a string or explicit `null`.
+
+`message` is concise and deterministic.
+
+Diagnostics must be ordered deterministically by path, then code, then message.
+
+diagnostics must not include stack traces, local paths, full payload echoes, credentials, image bytes, hidden prompts, or chain-of-thought.
+
+## Reserved Diagnostics Without PR78 Callable Surface
+
+`UnsupportedAcceptedGeometryMappingRequest` is reserved for a future mapper boundary.
+
+PR78 must not invent a mapper request just to emit it.
+
+PR78 may keep the diagnostic concept listed but unexercised when there is no approved input surface.
+
+Any future use requires a mapper approval PR.
+
+No mapper request, mapper function, provider call, image input, or Core mapping surface is approved by PR77.
+
+## AcceptedGeometry Revision Mismatch Boundary
+
+PR78 may validate internal consistency of `AcceptedGeometry`.
+
+Validation against an external source observation is only allowed when the validator function explicitly receives both objects.
+
+A single-object `AcceptedGeometry` validator cannot prove external observation mismatch unless all required source identities are embedded in the accepted geometry envelope.
+
+`AcceptedGeometryRevisionMismatch` applies only when the checked inputs contain enough information to compare revision or content identity deterministically.
+
+Otherwise it remains reserved for a two-input validation helper if approved by PR78's fiche.
+
 ## Privacy And Security Boundary
 
 PR77 and PR78 remain synthetic-data-only unless a later PR explicitly changes that boundary.
@@ -382,16 +756,42 @@ Naming a provider family does not approve its implementation, package dependency
 
 ## PR77 Authorized Scope
 
-PR77 may implement:
-
-- local TypeScript contract types;
-- deterministic validator;
-- stable diagnostics aligned with this decision;
-- canonical/content identity helpers consistent with existing Core identity patterns;
-- synthetic JSON fixtures;
-- unit tests.
+PR77 may amend only this decision document and its contract approval test.
 
 PR77 must not implement:
+
+- runtime contract implementation;
+- TypeScript contract files;
+- JSON Schema files;
+- generated schemas;
+- validator code;
+- content identity helper code;
+- diagnostics code;
+- provider execution;
+- OpenAI calls;
+- image parsing;
+- image files;
+- camera input;
+- CAD import;
+- remote MCP;
+- UI overlays;
+- deployment;
+- fixtures;
+- real data handling;
+- automatic acceptance;
+- mapping into Norma Core geometry;
+- package exports.
+
+After PR77, PR78 may implement:
+
+- local package-private TypeScript contract types;
+- local package-private deterministic validator;
+- stable diagnostics aligned with this decision;
+- canonical/content identity helpers consistent with existing Core identity patterns;
+- synthetic JSON fixtures only if approved by PR78;
+- unit tests.
+
+PR78 must not implement:
 
 - provider execution;
 - OpenAI calls;
@@ -430,7 +830,7 @@ PR76 does not approve:
 - packs, rules, tolerances, or score logic;
 - production storage;
 - public API behavior;
-- PR77 implementation work.
+- validator implementation work in PR77.
 
 ## Validation Gates
 
@@ -445,8 +845,13 @@ PR76 implementation must prove:
 - coordinate frame V1 is explicit and distinct from Norma Core coordinates;
 - primitive vocabulary V1 is exact;
 - confidence, evidence, correction history, and acceptance rules are explicit;
+- exact `EvidenceRef`, `ObservationWarning`, `ProvenanceRef`, `CorrectionEntry`, and `AcceptanceRecord` shapes are explicit;
+- V1 object shapes are closed to unknown properties;
+- content identity projection, exclusions, digest algorithm, digest format, and mismatch behavior are explicit;
+- validator result and diagnostic shapes are package-private, exact, and deterministic;
+- reserved diagnostics do not create mapper, provider, image, or Core mapping surfaces;
 - `AcceptedGeometry` is separate from existing Core geometry;
-- PR77 scope remains local, synthetic, deterministic, and validator-only;
+- PR77 scope remains docs and contract tests only, and any PR78 validator scope remains local, synthetic, deterministic, and package-private;
 - protected runtime and package surfaces remain unchanged.
 
 ## Stop Criteria
@@ -471,8 +876,8 @@ Stop implementation if validation shows that more than the approved decision, ap
 
 ## Rollback
 
-Rollback is deleting the PR76 decision file and PR76 approval test.
+Rollback is reverting the PR77 commit.
 
-If guard maintenance is proven necessary, rollback also removes only the exact PR76 allow-list entries added to the affected historical guard tests.
+If guard maintenance is proven necessary, rollback also removes only the exact PR77 allow-list entries added to the affected historical guard tests.
 
-No runtime, package, provider, schema, fixture, deployment, or persisted data migration rollback should be needed because PR76 does not approve those changes.
+No runtime, package, provider, schema, fixture, deployment, or persisted data migration rollback should be needed because PR77 does not approve those changes.

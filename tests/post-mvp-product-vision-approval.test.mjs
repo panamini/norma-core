@@ -41,6 +41,8 @@ const exactPr76ChangedFilesWithGuards = [
   "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
+const exactPr77ChangedFilesWithGuards = exactPr76ChangedFilesWithGuards;
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -260,7 +262,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
   assert.ok(
     isExactChangedFileSet(changed, primaryPr75ChangedFiles) ||
       isExactChangedFileSet(changed, exactPr75ChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
