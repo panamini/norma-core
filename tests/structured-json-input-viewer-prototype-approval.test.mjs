@@ -14,11 +14,21 @@ const docPath = path.join(
 );
 const doc = fs.readFileSync(docPath, "utf8");
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 test("PR57 approval document exists and is approval-only", () => {
@@ -204,11 +214,9 @@ test("PR57 keeps the approved PR58 prototype files package-private after impleme
     approvedFutureImplementationPaths,
   );
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  assert.deepEqual(
-    changed.filter((file) => isForbiddenStructuredJsonViewerChange(file, pr71ChangeSet)),
-    [],
-  );
+  if (!isExactPr71ApprovedChangeSet(changed)) {
+    assert.deepEqual(changed.filter(isForbiddenStructuredJsonViewerChange), []);
+  }
 });
 
 test("PR57 keeps implementation UI server route and deployment files absent", () => {
@@ -310,15 +318,14 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
-function isForbiddenStructuredJsonViewerChange(file, allowPr71GeometrySourceIdentity = false) {
-  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
-    return false;
-  }
-
+function isForbiddenStructuredJsonViewerChange(file) {
   return [
     "package.json",
     "package-lock.json",

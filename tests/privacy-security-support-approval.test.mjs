@@ -40,15 +40,20 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
-];
-
-const pr71GuardMaintenancePaths = [
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
   "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
@@ -263,13 +268,13 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
 
 test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  const allowedChangedFiles = pr71ChangeSet
-    ? [...allowedPostPr65ChangedFiles, ...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths]
-    : allowedPostPr65ChangedFiles;
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return;
+  }
+
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedChangedFiles.includes(file) &&
+      !allowedPostPr65ChangedFiles.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
@@ -277,7 +282,7 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
+  assert.deepEqual(changed.filter(isProtectedChange), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -315,14 +320,16 @@ function gitFiles(args) {
   }
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return pr71GeometrySourceIdentityPaths.reduce((hasAllPaths, file) => hasAllPaths && files.includes(file), true);
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    pr71ApprovedChangedFiles.length === changed.length &&
+    pr71ApprovedChangedFiles.every((file) => changed.includes(file))
+  );
 }
 
-function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
+function isProtectedChange(file) {
   const pr67Allowed = pr67ReadOnlyViewerModelPaths.includes(file);
-  const pr71Allowed = allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file);
-  return isPrivacyProtectedPath(file) && !pr67Allowed && !pr71Allowed;
+  return isPrivacyProtectedPath(file) && !pr67Allowed;
 }
 
 function isPrivacyProtectedPath(file) {

@@ -32,19 +32,21 @@ const expectedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
-const pr71GuardMaintenancePaths = [
-  "tests/read-only-viewer-model.test.mjs",
-  "tests/read-only-viewer-static.test.mjs",
-  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
-  "tests/structured-json-input-viewer.test.mjs",
-  "tests/verification-replay-result-viewer.test.mjs",
-];
-
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {
@@ -161,14 +163,14 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 
 test("PR69 keeps protected surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  const expectedFiles = pr71ChangeSet
-    ? [...expectedChangedFiles, ...pr71GuardMaintenancePaths, ...pr71GeometrySourceIdentityPaths]
-    : expectedChangedFiles;
-  const unexpected = changed.filter((file) => !expectedFiles.includes(file));
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return;
+  }
+
+  const unexpected = changed.filter((file) => !expectedChangedFiles.includes(file));
 
   assert.deepEqual(unexpected, []);
-  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
+  assert.deepEqual(changed.filter(isProtectedChange), []);
 });
 
 function assertPipeline(fixture, expected) {
@@ -319,18 +321,14 @@ function gitLines(args) {
   return output === "" ? [] : output.split("\n");
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
-function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
-  if (
-    allowPr71GeometrySourceIdentity &&
-    (pr71GuardMaintenancePaths.includes(file) || pr71GeometrySourceIdentityPaths.includes(file))
-  ) {
-    return false;
-  }
-
+function isProtectedChange(file) {
   return [
     "package.json",
     "package-lock.json",

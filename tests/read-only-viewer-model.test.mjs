@@ -10,11 +10,21 @@ import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-vi
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 test("PR67 returns an empty model for whitespace-only JSON text", () => {
@@ -162,11 +172,9 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
 
   assert.doesNotMatch(modelSource, /\b(?:server|route|listener|browser|DOM)\b/);
   const changedFiles = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changedFiles);
-  assert.deepEqual(
-    changedFiles.filter((file) => isForbiddenReadOnlyViewerChange(file, pr71ChangeSet)),
-    [],
-  );
+  if (!isExactPr71ApprovedChangeSet(changedFiles)) {
+    assert.deepEqual(changedFiles.filter(isForbiddenReadOnlyViewerChange), []);
+  }
 });
 
 function assertProvenance(model) {
@@ -212,20 +220,14 @@ function gitFiles(args) {
   }
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
-    if (!files.includes(requiredPath)) {
-      return false;
-    }
-  }
-  return true;
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    pr71ApprovedChangedFiles.length === changed.length &&
+    pr71ApprovedChangedFiles.every((file) => changed.includes(file))
+  );
 }
 
-function isForbiddenReadOnlyViewerChange(file, allowPr71GeometrySourceIdentity = false) {
-  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
-    return false;
-  }
-
+function isForbiddenReadOnlyViewerChange(file) {
   const blockedReadOnlyViewerPaths = [
     "package.json",
     "package-lock.json",

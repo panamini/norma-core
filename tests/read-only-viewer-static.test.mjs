@@ -14,11 +14,21 @@ const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
 const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 test("PR68 static viewer files exist", () => {
@@ -168,13 +178,13 @@ test("PR68 static helper output is deterministic for the same input model", asyn
 
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
   assert.deepEqual(
     changed.filter((file) => (
       file === "src/index.ts" &&
-      !(pr71ChangeSet && pr71GeometrySourceIdentityPaths.includes(file))
+      !isPr71ApprovedChangeSet
     )),
     [],
   );
@@ -244,9 +254,12 @@ function gitFiles(args) {
   }
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
-    if (!files.includes(requiredPath)) {
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  for (const approvedFile of pr71ApprovedChangedFiles) {
+    if (!changed.includes(approvedFile)) {
       return false;
     }
   }

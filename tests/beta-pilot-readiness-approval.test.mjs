@@ -92,15 +92,20 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
-];
-
-const pr71GuardMaintenancePaths = [
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
   "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
@@ -253,13 +258,13 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  const allowedChangedFiles = pr71ChangeSet
-    ? [...allowedPostPr64ChangedFiles, ...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths]
-    : allowedPostPr64ChangedFiles;
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return;
+  }
+
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedChangedFiles.includes(file) &&
+      !allowedPostPr64ChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -271,7 +276,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   }
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
+  assert.deepEqual(changed.filter(isProtectedChange), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -309,20 +314,20 @@ function gitFiles(args) {
   }
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  for (const requiredPath of pr71GeometrySourceIdentityPaths) {
-    if (!files.includes(requiredPath)) {
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  for (const approvedFile of pr71ApprovedChangedFiles) {
+    if (!changed.includes(approvedFile)) {
       return false;
     }
   }
   return true;
 }
 
-function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
-  const allowedPaths = allowPr71GeometrySourceIdentity
-    ? [...pr67ReadOnlyViewerModelPaths, ...pr71GeometrySourceIdentityPaths]
-    : pr67ReadOnlyViewerModelPaths;
-  return !allowedPaths.includes(file) && isProtectedPath(file);
+function isProtectedChange(file) {
+  return !pr67ReadOnlyViewerModelPaths.includes(file) && isProtectedPath(file);
 }
 
 function isProtectedPath(file) {

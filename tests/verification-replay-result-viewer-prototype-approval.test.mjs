@@ -62,15 +62,20 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
-];
-
-const pr71GuardMaintenancePaths = [
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
   "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
@@ -210,19 +215,19 @@ test("PR60 preserves mandatory future result visibility", () => {
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  const allowedChangedPaths = pr71ChangeSet
-    ? [...allowedPostPr60ChangedPaths, ...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths]
-    : allowedPostPr60ChangedPaths;
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return;
+  }
+
   const unexpectedNonApprovalFiles = changed.filter(
     (relativePath) =>
-      !allowedChangedPaths.includes(relativePath) &&
+      !allowedPostPr60ChangedPaths.includes(relativePath) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter((relativePath) => isForbiddenChange(relativePath, pr71ChangeSet)), []);
+  assert.deepEqual(changed.filter(isForbiddenChange), []);
   assert.deepEqual(
     forbiddenSurfacePaths
       .filter((relativePath) => !["package.json", "package-lock.json", "src/index.ts"].includes(relativePath))
@@ -234,7 +239,7 @@ test("PR60 permits only approval files or approved future prototype files after 
 test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
   const mcpRemoteChanges = changed.filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
 
   assert.equal(changed.includes("package.json"), false);
@@ -242,7 +247,7 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   assert.deepEqual(
     changed.filter((relativePath) => (
       relativePath === "src/index.ts" &&
-      !(pr71ChangeSet && pr71GeometrySourceIdentityPaths.includes(relativePath))
+      !isPr71ApprovedChangeSet
     )),
     [],
   );
@@ -306,15 +311,14 @@ function gitFiles(args) {
   }
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
-function isForbiddenChange(file, allowPr71GeometrySourceIdentity = false) {
-  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
-    return false;
-  }
-
+function isForbiddenChange(file) {
   return forbiddenSurfacePaths.some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
 }
 

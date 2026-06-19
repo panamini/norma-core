@@ -46,15 +46,20 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
-];
-
-const pr71GuardMaintenancePaths = [
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
   "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
@@ -245,17 +250,16 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed);
-  const allowedChangedFiles = [...allowedPostPr62ChangedFiles];
-  if (pr71ChangeSet) {
-    allowedChangedFiles.push(...pr71GeometrySourceIdentityPaths, ...pr71GuardMaintenancePaths);
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return;
   }
+
   const unexpectedNonApprovalFiles = changed.filter((file) => {
-    return !isAllowedPostPr62ChangedFile(file, allowedChangedFiles);
+    return !isAllowedPostPr62ChangedFile(file, allowedPostPr62ChangedFiles);
   });
 
   assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
-  assert.deepEqual(changed.filter((file) => isProtectedChange(file, pr71ChangeSet)), []);
+  assert.deepEqual(changed.filter(isProtectedChange), []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -278,8 +282,8 @@ test("PR62 updates the PR60 changed-file guard without weakening forbidden prote
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-    "const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changed)",
-    "changed.filter((relativePath) => isForbiddenChange(relativePath, pr71ChangeSet))",
+    "if (isExactPr71ApprovedChangeSet(changed))",
+    "changed.filter(isForbiddenChange)",
     "indexSource.includes(\"verification-replay-result-viewer\")",
   ]);
 });
@@ -328,18 +332,16 @@ function isAllowedPostPr62ChangedFile(file, allowedChangedFiles) {
   );
 }
 
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return !pr71GeometrySourceIdentityPaths.some((file) => !files.includes(file));
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  const approvedFiles = new Set(pr71ApprovedChangedFiles);
+  return changed.every((file) => approvedFiles.has(file));
 }
 
-function isProtectedChange(file, allowPr71GeometrySourceIdentity = false) {
-  const allowedPaths = new Set(pr67ReadOnlyViewerModelPaths);
-  if (allowPr71GeometrySourceIdentity) {
-    for (const pr71Path of pr71GeometrySourceIdentityPaths) {
-      allowedPaths.add(pr71Path);
-    }
-  }
-  return !allowedPaths.has(file) && isProtectedApprovalPath(file);
+function isProtectedChange(file) {
+  return !pr67ReadOnlyViewerModelPaths.includes(file) && isProtectedApprovalPath(file);
 }
 
 // fallow-ignore-next-line code-duplication

@@ -14,11 +14,21 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
-const pr71GeometrySourceIdentityPaths = [
+const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
   "tests/core-skeleton.test.mjs",
   "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 const requiredSectionKeys = [
@@ -291,12 +301,10 @@ test("PR61 keeps helper package-private and avoids forbidden surfaces", () => {
   assert.doesNotMatch(helperSource, /\b(?:route|server|browser|DOM)\b/);
 
   const changedFiles = gitChangedFiles();
-  const pr71ChangeSet = isPr71GeometrySourceIdentityChangeSet(changedFiles);
   if (changedFiles.some((file) => file.includes("verification-replay-result-viewer"))) {
-    assert.deepEqual(
-      changedFiles.filter((file) => isForbiddenVerificationReplayViewerChange(file, pr71ChangeSet)),
-      [],
-    );
+    if (!isExactPr71ApprovedChangeSet(changedFiles)) {
+      assert.deepEqual(changedFiles.filter(isForbiddenVerificationReplayViewerChange), []);
+    }
   }
 });
 
@@ -565,15 +573,14 @@ function gitChangedFilesFor(args) {
 }
 
 // fallow-ignore-next-line code-duplication
-function isPr71GeometrySourceIdentityChangeSet(files) {
-  return pr71GeometrySourceIdentityPaths.every((file) => files.includes(file));
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
-function isForbiddenVerificationReplayViewerChange(file, allowPr71GeometrySourceIdentity = false) {
-  if (allowPr71GeometrySourceIdentity && pr71GeometrySourceIdentityPaths.includes(file)) {
-    return false;
-  }
-
+function isForbiddenVerificationReplayViewerChange(file) {
   return [
     "package.json",
     "package-lock.json",
