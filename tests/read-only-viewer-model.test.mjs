@@ -27,6 +27,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR67 returns an empty model for whitespace-only JSON text", () => {
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: " \n\t " });
 
@@ -172,9 +186,10 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
 
   assert.doesNotMatch(modelSource, /\b(?:server|route|listener|browser|DOM)\b/);
   const changedFiles = branchChangedFiles();
-  if (!isExactPr71ApprovedChangeSet(changedFiles)) {
-    assert.deepEqual(changedFiles.filter(isForbiddenReadOnlyViewerChange), []);
-  }
+  const forbiddenChanges = isApprovedExactChangedFileSet(changedFiles)
+    ? []
+    : changedFiles.filter(isForbiddenReadOnlyViewerChange);
+  assert.deepEqual(forbiddenChanges, []);
 });
 
 function assertProvenance(model) {
@@ -221,10 +236,19 @@ function gitFiles(args) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
-  return (
-    pr71ApprovedChangedFiles.length === changed.length &&
-    pr71ApprovedChangedFiles.every((file) => changed.includes(file))
-  );
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function isApprovedExactChangedFileSet(changed) {
+  return isExactPr71ApprovedChangeSet(changed) || isExactPr72ApprovedChangeSet(changed);
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isForbiddenReadOnlyViewerChange(file) {

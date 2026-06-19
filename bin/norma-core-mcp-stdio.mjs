@@ -1,37 +1,97 @@
-import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+import {
+  MCP_STDIO_MAX_REQUEST_BYTES,
+  createJsonRpcError,
+  handleMcpJsonRpcMessage,
+} from "../dist/src/mcp/stdio-protocol.js";
 
 let pending = "";
+let pendingBytes = 0;
+let droppingOversizedLine = false;
+
+const lineEncoder = new TextEncoder();
 
 process.stdin.setEncoding("utf8");
 
 process.stdin.on("data", (chunk) => {
-  pending += chunk;
-  flushCompleteLines();
+  processChunk(chunk);
 });
 
 process.stdin.on("end", () => {
-  if (pending !== "") {
+  if (droppingOversizedLine) {
+    writeResponse(createJsonRpcError(null, -32600, "Invalid Request"));
+  } else if (pending !== "") {
     processLine(pending.replace(/\r$/, ""));
-    pending = "";
   }
+  resetPendingLine();
 });
 
 process.stdin.on("error", () => {
   process.exitCode = 1;
 });
 
-function flushCompleteLines() {
-  while (true) {
-    const newlineIndex = pending.indexOf("\n");
+function processChunk(chunk) {
+  let start = 0;
 
+  while (start <= chunk.length) {
+    const newlineIndex = chunk.indexOf("\n", start);
     if (newlineIndex === -1) {
+      appendLineSegment(chunk.slice(start));
       return;
     }
 
-    const rawLine = pending.slice(0, newlineIndex).replace(/\r$/, "");
-    pending = pending.slice(newlineIndex + 1);
-    processLine(rawLine);
+    appendLineSegment(chunk.slice(start, newlineIndex));
+    flushPendingLine();
+    start = newlineIndex + 1;
   }
+}
+
+function appendLineSegment(segment) {
+  if (segment === "") {
+    return;
+  }
+
+  if (droppingOversizedLine) {
+    return;
+  }
+
+  const nextPendingBytes = normalizedPendingBytesAfterAppend(segment);
+  if (nextPendingBytes > MCP_STDIO_MAX_REQUEST_BYTES) {
+    resetPendingLine();
+    droppingOversizedLine = true;
+    return;
+  }
+
+  pending += segment;
+  pendingBytes = nextPendingBytes;
+}
+
+function normalizedPendingBytesAfterAppend(segment) {
+  const previousTrailingCarriageReturnBytes = pending.endsWith("\r") ? 1 : 0;
+  const nextTrailingCarriageReturnBytes = segment.endsWith("\r") ? 1 : 0;
+  return (
+    pendingBytes +
+    previousTrailingCarriageReturnBytes +
+    lineEncoder.encode(segment).length -
+    nextTrailingCarriageReturnBytes
+  );
+}
+
+function flushPendingLine() {
+  if (droppingOversizedLine) {
+    writeResponse(createJsonRpcError(null, -32600, "Invalid Request"));
+    resetPendingLine();
+    return;
+  }
+
+  const rawLine = pending.replace(/\r$/, "");
+  resetPendingLine();
+  processLine(rawLine);
+}
+
+function resetPendingLine() {
+  pending = "";
+  pendingBytes = 0;
+  droppingOversizedLine = false;
 }
 
 function processLine(rawLine) {
@@ -39,9 +99,17 @@ function processLine(rawLine) {
     return;
   }
 
-  const response = handleMcpJsonRpcMessage(rawLine);
+  try {
+    const response = handleMcpJsonRpcMessage(rawLine);
 
-  if (response !== null) {
-    process.stdout.write(`${response}\n`);
+    if (response !== null) {
+      process.stdout.write(`${response}\n`);
+    }
+  } catch {
+    writeResponse(createJsonRpcError(null, -32603, "Internal error"));
   }
+}
+
+function writeResponse(response) {
+  process.stdout.write(`${JSON.stringify(response)}\n`);
 }

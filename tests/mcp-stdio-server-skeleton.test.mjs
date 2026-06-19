@@ -9,6 +9,8 @@ import {
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_NAME,
   MCP_SERVER_VERSION,
+  MCP_STDIO_MAX_REQUEST_BYTES,
+  MCP_STDIO_MAX_STRING_LENGTH,
   handleMcpJsonRpcMessage,
 } from "../dist/src/mcp/stdio-protocol.js";
 
@@ -131,6 +133,40 @@ test("PR34 notifications do not produce stdout responses", () => {
   );
 });
 
+test("PR72 excessive parsed notifications do not produce stdout responses", () => {
+  assert.equal(
+    handleMcpJsonRpcMessage(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "norma.serializeCanonicalJson",
+          arguments: {
+            value: nestedValue(2_000),
+          },
+        },
+      }),
+    ),
+    null,
+  );
+
+  assert.equal(
+    handleMcpJsonRpcMessage(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "norma.serializeCanonicalJson",
+          arguments: {
+            value: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+          },
+        },
+      }),
+    ),
+    null,
+  );
+});
+
 test("PR34 invalid JSON returns parse error with null id", () => {
   const response = parseRawResponse("{ invalid json");
 
@@ -239,7 +275,7 @@ test("PR34 wrapper imports the built protocol module and reads no env vars", () 
 
   assert.match(
     wrapperSource,
-    /import\s+\{\s*handleMcpJsonRpcMessage\s*\}\s+from\s+"..\/dist\/src\/mcp\/stdio-protocol\.js";/,
+    /import\s+\{[\s\S]*\bhandleMcpJsonRpcMessage\b[\s\S]*\}\s+from\s+"..\/dist\/src\/mcp\/stdio-protocol\.js";/,
   );
 
   for (const source of [wrapperSource, protocolSource]) {
@@ -322,6 +358,203 @@ test("PR34 spawned STDIO wrapper emits empty stdout for notification-only input"
   assert.equal(result.stdout, "");
 });
 
+test("PR72 spawned STDIO wrapper survives excessive-depth tool input and processes the next request", () => {
+  const excessiveDepthRequest = {
+    jsonrpc: "2.0",
+    id: "depth-2000",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: nestedValue(2_000),
+      },
+    },
+  };
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-depth",
+    method: "initialize",
+  };
+  const result = runStdioServer([excessiveDepthRequest, validRequest]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: "depth-2000",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+  assert.equal(lines[0].length < 512, true);
+  assert.doesNotMatch(result.stderr + result.stdout, /RangeError|Maximum call stack|file:\/\/|dist\/src\/mcp|\bat\s+/);
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-depth");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
+test("PR72 spawned STDIO wrapper preserves silence for excessive notifications and processes the next request", () => {
+  const excessiveDepthNotification = {
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: nestedValue(2_000),
+      },
+    },
+  };
+  const excessiveStringNotification = {
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+      },
+    },
+  };
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-excessive-notifications",
+    method: "initialize",
+  };
+  const result = runStdioServer([excessiveDepthNotification, excessiveStringNotification, validRequest]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 1);
+
+  const recovered = JSON.parse(lines[0]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-excessive-notifications");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
+test("PR72 spawned STDIO wrapper survives raw oversized input and processes the next request", () => {
+  const rawOversizedLine = rawCanonicalJsonRequestWithTargetBytes(
+    "raw-over-limit",
+    MCP_STDIO_MAX_REQUEST_BYTES + 1,
+  );
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-raw-over-limit",
+    method: "initialize",
+  };
+  const result = runStdioServerRawLines([rawOversizedLine, JSON.stringify(validRequest)]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: null,
+    error: {
+      code: -32600,
+      message: "Invalid Request",
+    },
+  });
+  assert.equal(lines[0].length < 512, true);
+  assert.equal(lines[0].includes("x".repeat(128)), false);
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-raw-over-limit");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
+test("PR72 spawned STDIO wrapper applies raw byte limits after CRLF normalization", () => {
+  const rawLimitLine = rawCanonicalJsonRequestWithTargetBytes("raw-crlf-limit", MCP_STDIO_MAX_REQUEST_BYTES);
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-raw-crlf-limit",
+    method: "initialize",
+  };
+  const result = runStdioServerRawLines([`${rawLimitLine}\r`, JSON.stringify(validRequest)]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: "raw-crlf-limit",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-raw-crlf-limit");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
+test("PR72 spawned STDIO wrapper survives over-limit string input and processes the next request", () => {
+  const excessiveStringRequest = {
+    jsonrpc: "2.0",
+    id: "string-over-limit",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+      },
+    },
+  };
+  const validRequest = {
+    jsonrpc: "2.0",
+    id: "after-string-over-limit",
+    method: "initialize",
+  };
+  const result = runStdioServer([excessiveStringRequest, validRequest]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = result.stdout.trimEnd().split("\n");
+  assert.equal(lines.length, 2);
+
+  const rejected = JSON.parse(lines[0]);
+  assert.deepEqual(rejected, {
+    jsonrpc: "2.0",
+    id: "string-over-limit",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+  assert.equal(lines[0].length < 512, true);
+  assert.equal(lines[0].includes("x".repeat(128)), false);
+
+  const recovered = JSON.parse(lines[1]);
+  assert.equal(recovered.jsonrpc, "2.0");
+  assert.equal(recovered.id, "after-string-over-limit");
+  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+});
+
 test("PR34 package metadata stays dependency-free and private", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 
@@ -399,6 +632,48 @@ function runStdioServer(messages) {
     input: `${messages.map((message) => JSON.stringify(message)).join("\n")}\n`,
     maxBuffer: 64 * 1024 * 1024,
   });
+}
+
+function runStdioServerRawLines(rawLines) {
+  return spawnSync(process.execPath, [wrapperPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    input: `${rawLines.join("\n")}\n`,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function nestedValue(depth) {
+  let value = "leaf";
+  for (let index = 0; index < depth; index += 1) {
+    value = { next: value };
+  }
+  return value;
+}
+
+function rawCanonicalJsonRequestWithTargetBytes(id, targetBytes) {
+  const request = {
+    jsonrpc: "2.0",
+    id,
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value: "",
+      },
+    },
+  };
+  const overhead = Buffer.byteLength(JSON.stringify(request), "utf8");
+  const payloadBytes = targetBytes - overhead;
+  assert.ok(payloadBytes >= 0);
+  request.params.arguments.value = "x".repeat(payloadBytes);
+  const rawLine = JSON.stringify(request);
+  assert.equal(Buffer.byteLength(rawLine, "utf8"), targetBytes);
+  return rawLine;
+}
+
+function assertNoDiagnosticLeak(text) {
+  assert.doesNotMatch(text, /RangeError|Maximum call stack|file:\/\/|\/Volumes\/|\/Users\/|dist\/src\/mcp|\bat\s+/);
 }
 
 function readStdoutLineBeforeClosingStdin(child, message) {

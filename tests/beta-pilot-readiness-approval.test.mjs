@@ -109,6 +109,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr64ChangedFiles = [
   ...expectedPr64ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -258,14 +272,11 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
   const changed = branchChangedFiles();
-  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
-  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr64ChangedFiles;
+  const approvedChangedFiles = approvedChangedFilesFor(changed);
+  const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
   const unexpectedNonApprovalFiles = changed.filter(
-    (file) =>
-      !allowedChangedFiles.includes(file) &&
-      !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
-      !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
+    (file) => !isAllowedApprovalScopeFile(file, approvedChangedFiles),
   );
 
   if (changed.includes(pr64DocPath)) {
@@ -276,11 +287,7 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
   assert.deepEqual(
-    changed.filter(
-      (file) =>
-        isProtectedChange(file) &&
-        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
-    ),
+    changed.filter((file) => isUnexpectedProtectedChange(file, protectedAllowlist)),
     [],
   );
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
@@ -321,15 +328,41 @@ function gitFiles(args) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
-  if (changed.length !== pr71ApprovedChangedFiles.length) {
-    return false;
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function approvedChangedFilesFor(changed) {
+  return exactApprovedChangedFiles(changed) ?? allowedPostPr64ChangedFiles;
+}
+
+function exactApprovedChangedFiles(changed) {
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return pr71ApprovedChangedFiles;
   }
-  for (const approvedFile of pr71ApprovedChangedFiles) {
-    if (!changed.includes(approvedFile)) {
-      return false;
-    }
+  if (isExactPr72ApprovedChangeSet(changed)) {
+    return pr72ApprovedChangedFiles;
   }
-  return true;
+  return null;
+}
+
+function isAllowedApprovalScopeFile(file, approvedChangedFiles) {
+  return (
+    approvedChangedFiles.includes(file) ||
+    /^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) ||
+    /^tests\/[^/]*-approval\.test\.mjs$/.test(file)
+  );
+}
+
+function isUnexpectedProtectedChange(file, protectedAllowlist) {
+  return isProtectedChange(file) && !protectedAllowlist.includes(file);
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isProtectedChange(file) {

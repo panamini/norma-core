@@ -49,6 +49,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR69 fixtures are valid deterministic JSON", () => {
   for (const name of Object.values(fixturePaths)) {
     const path = fixturePath(name);
@@ -163,18 +177,14 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 
 test("PR69 keeps protected surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
-  const expectedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : expectedChangedFiles;
+  const expectedFiles = approvedChangedFilesFor(changed);
+  const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
   const unexpected = changed.filter((file) => !expectedFiles.includes(file));
 
   assert.deepEqual(unexpected, []);
   assert.deepEqual(
-    changed.filter(
-      (file) =>
-        isProtectedChange(file) &&
-        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
-    ),
+    changed.filter((file) => isUnexpectedProtectedChange(file, protectedAllowlist)),
     [],
   );
 });
@@ -328,10 +338,33 @@ function gitLines(args) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
-  return (
-    changed.length === pr71ApprovedChangedFiles.length &&
-    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
-  );
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function approvedChangedFilesFor(changed) {
+  return exactApprovedChangedFiles(changed) ?? expectedChangedFiles;
+}
+
+function exactApprovedChangedFiles(changed) {
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return pr71ApprovedChangedFiles;
+  }
+  if (isExactPr72ApprovedChangeSet(changed)) {
+    return pr72ApprovedChangedFiles;
+  }
+  return null;
+}
+
+function isUnexpectedProtectedChange(file, protectedAllowlist) {
+  return isProtectedChange(file) && !protectedAllowlist.includes(file);
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isProtectedChange(file) {

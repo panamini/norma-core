@@ -8,10 +8,15 @@ import { serializeCanonicalJson, STABLE_SERIALIZATION_VERSION } from "../seriali
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_NAME = "norma-core-mcp-stdio-skeleton";
 export const MCP_SERVER_VERSION = "0.1.0-pr12";
+export const MCP_STDIO_MAX_REQUEST_BYTES = 524_288;
+export const MCP_STDIO_MAX_JSON_DEPTH = 64;
+export const MCP_STDIO_MAX_STRING_LENGTH = 65_536;
 
 type JsonRpcId = string | number;
 
 type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603;
+
+const requestEncoder = new TextEncoder();
 
 interface McpToolDefinition {
   readonly name: string;
@@ -137,17 +142,20 @@ interface ToolsCallResponse {
   };
 }
 
-export function handleMcpJsonRpcMessage(rawLine: string): string | null {
-  let message: unknown;
+type JsonTraversalStackItem = {
+  readonly value: unknown;
+  readonly depth: number;
+  readonly ancestors: readonly object[];
+};
 
-  try {
-    message = JSON.parse(rawLine);
-  } catch {
-    return JSON.stringify(createJsonRpcError(null, -32700, "Parse error"));
+export function handleMcpJsonRpcMessage(rawLine: string): string | null {
+  const rawLineFailure = rawLineLimitFailure(rawLine);
+  if (rawLineFailure !== null) {
+    return stringifyJsonRpcResponse(rawLineFailure);
   }
 
-  const response = handleMcpJsonRpcRequest(message);
-  return response === null ? null : JSON.stringify(response);
+  const parsed = parseJsonRpcLine(rawLine);
+  return parsed.ok ? handleParsedJsonRpcMessage(parsed.message) : stringifyJsonRpcResponse(parsed.error);
 }
 
 export function handleMcpJsonRpcRequest(
@@ -508,49 +516,210 @@ function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
 }
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {
-  return typeof value === "string" || (typeof value === "number" && Number.isFinite(value));
+  return (
+    (typeof value === "string" && value.length <= MCP_STDIO_MAX_STRING_LENGTH) ||
+    (typeof value === "number" && Number.isFinite(value))
+  );
 }
 
-function isJsonCompatibleValue(value: unknown, seen: WeakSet<object> = new WeakSet()): boolean {
-  if (value === null) {
-    return true;
+function stringifyJsonRpcResponse(
+  response: InitializeResponse | ToolsListResponse | ToolsCallResponse | JsonRpcErrorResponse,
+): string {
+  return JSON.stringify(response);
+}
+
+function rawLineLimitFailure(rawLine: string): JsonRpcErrorResponse | null {
+  return requestEncoder.encode(rawLine).length > MCP_STDIO_MAX_REQUEST_BYTES
+    ? createJsonRpcError(null, -32600, "Invalid Request")
+    : null;
+}
+
+function parseJsonRpcLine(rawLine: string): { readonly ok: true; readonly message: unknown } | {
+  readonly ok: false;
+  readonly error: JsonRpcErrorResponse;
+} {
+  try {
+    return { ok: true, message: JSON.parse(rawLine) };
+  } catch {
+    return { ok: false, error: createJsonRpcError(null, -32700, "Parse error") };
+  }
+}
+
+function handleParsedJsonRpcMessage(message: unknown): string | null {
+  const preDispatchResponse = parsedMessagePreDispatchResponse(message);
+  if (preDispatchResponse !== undefined) {
+    return preDispatchResponse;
   }
 
-  if (typeof value === "string" || typeof value === "boolean") {
-    return true;
+  try {
+    const response = handleMcpJsonRpcRequest(message);
+    return response === null ? null : stringifyJsonRpcResponse(response);
+  } catch {
+    return stringifyJsonRpcResponse(createJsonRpcError(safeJsonRpcId(message), -32603, "Internal error"));
+  }
+}
+
+function parsedMessagePreDispatchResponse(message: unknown): string | null | undefined {
+  if (isJsonRpcNotification(message)) {
+    return null;
+  }
+
+  const limitFailure = parsedMessageLimitFailure(message);
+  return limitFailure === null ? undefined : stringifyJsonRpcResponse(limitFailure);
+}
+
+function parsedMessageLimitFailure(message: unknown): JsonRpcErrorResponse | null {
+  if (jsonValueLimitExceeded(message)) {
+    const id = safeJsonRpcId(message);
+    return createJsonRpcError(id, limitFailureCode(message), limitFailureMessage(message));
+  }
+
+  return null;
+}
+
+function safeJsonRpcId(message: unknown): JsonRpcId | null {
+  const id = rawJsonRpcId(message);
+  return isJsonRpcId(id) ? id : null;
+}
+
+function isToolOrListRequest(message: unknown): boolean {
+  return isJsonRpcRequestRecord(message) && message.jsonrpc === "2.0" && isToolRequestMethod(message.method);
+}
+
+function rawJsonRpcId(message: unknown): unknown {
+  return isJsonRpcRequestRecord(message) && Object.hasOwn(message, "id") ? message.id : undefined;
+}
+
+function isJsonRpcNotification(message: unknown): boolean {
+  if (!isJsonRpcRequestRecord(message) || Object.hasOwn(message, "id")) {
+    return false;
+  }
+
+  if (message.jsonrpc !== "2.0") {
+    return false;
+  }
+
+  return isNonEmptyString(message.method);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function limitFailureCode(message: unknown): -32600 | -32602 {
+  return isToolOrListRequest(message) ? -32602 : -32600;
+}
+
+function limitFailureMessage(message: unknown): "Invalid Request" | "Invalid params" {
+  return isToolOrListRequest(message) ? "Invalid params" : "Invalid Request";
+}
+
+function isToolRequestMethod(method: unknown): boolean {
+  return method === "tools/call" || method === "tools/list";
+}
+
+function isJsonRpcRequestRecord(message: unknown): message is Record<string, unknown> {
+  return isRecord(message) && !Array.isArray(message);
+}
+
+function isJsonCompatibleValue(value: unknown): boolean {
+  return !jsonValueLimitExceeded(value);
+}
+
+function jsonValueLimitExceeded(value: unknown): boolean {
+  const stack: JsonTraversalStackItem[] = [
+    { value, depth: 1, ancestors: [] },
+  ];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined) {
+      break;
+    }
+
+    if (!validateJsonStackItem(current, stack)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function validateJsonStackItem(
+  item: JsonTraversalStackItem,
+  stack: JsonTraversalStackItem[],
+): boolean {
+  if (item.depth > MCP_STDIO_MAX_JSON_DEPTH) {
+    return false;
+  }
+
+  const value = item.value;
+  return isJsonScalar(value) ? isBoundedJsonScalar(value) : pushJsonCompositeChildren(item, stack);
+}
+
+function isJsonScalar(value: unknown): boolean {
+  return value === null || typeof value !== "object";
+}
+
+function isBoundedJsonScalar(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.length <= MCP_STDIO_MAX_STRING_LENGTH;
   }
 
   if (typeof value === "number") {
     return Number.isFinite(value);
   }
 
-  if (typeof value !== "object") {
+  return value === null || typeof value === "boolean";
+}
+
+function pushJsonCompositeChildren(item: JsonTraversalStackItem, stack: JsonTraversalStackItem[]): boolean {
+  const value = item.value as object;
+  if (item.ancestors.includes(value)) {
     return false;
   }
 
-  if (seen.has(value)) {
-    return false;
+  const ancestors = [...item.ancestors, value];
+  if (Array.isArray(value)) {
+    pushJsonArrayItems(value, item.depth + 1, ancestors, stack);
+    return true;
   }
 
-  seen.add(value);
-
-  const result = Array.isArray(value) ? isJsonCompatibleArray(value, seen) : isJsonCompatibleRecord(value, seen);
-
-  seen.delete(value);
-  return result;
+  return isPlainJsonRecord(value) && pushJsonRecordEntries(value, item.depth + 1, ancestors, stack);
 }
 
-function isJsonCompatibleArray(value: readonly unknown[], seen: WeakSet<object>): boolean {
-  return value.every((item) => isJsonCompatibleValue(item, seen));
+function pushJsonArrayItems(
+  value: readonly unknown[],
+  depth: number,
+  ancestors: readonly object[],
+  stack: JsonTraversalStackItem[],
+): void {
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    stack.push({ value: value[index], depth, ancestors });
+  }
 }
 
-function isJsonCompatibleRecord(value: object, seen: WeakSet<object>): boolean {
+function pushJsonRecordEntries(
+  value: object,
+  depth: number,
+  ancestors: readonly object[],
+  stack: JsonTraversalStackItem[],
+): boolean {
+  const entries = Object.entries(value);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const [key, nestedValue] = entries[index] as [string, unknown];
+    if (key.length > MCP_STDIO_MAX_STRING_LENGTH) {
+      return false;
+    }
+    stack.push({ value: nestedValue, depth, ancestors });
+  }
+
+  return true;
+}
+
+function isPlainJsonRecord(value: object): boolean {
   const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    return false;
-  }
-
-  return Object.values(value).every((item) => isJsonCompatibleValue(item, seen));
+  return prototype === Object.prototype || prototype === null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

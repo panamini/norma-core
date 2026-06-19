@@ -31,6 +31,20 @@ const pr71ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ];
 
+const pr72ApprovedChangedFiles = [
+  "bin/norma-core-mcp-stdio.mjs",
+  "src/mcp/stdio-protocol.ts",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -179,6 +193,7 @@ test("PR68 static helper output is deterministic for the same input model", asyn
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
   const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const isPr72ApprovedChangeSet = isExactPr72ApprovedChangeSet(changed);
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
   assert.deepEqual(
@@ -191,8 +206,14 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   assert.deepEqual(changed.filter((file) => file === "tsconfig.json"), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("docs/")), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
-  assert.deepEqual(changed.filter((file) => file.startsWith("src/mcp/")), []);
-  assert.deepEqual(changed.filter((file) => file.startsWith("bin/")), []);
+  assert.deepEqual(
+    changed.filter((file) => isUnapprovedPr72PrefixChange(file, "src/mcp/", isPr72ApprovedChangeSet)),
+    [],
+  );
+  assert.deepEqual(
+    changed.filter((file) => isUnapprovedPr72PrefixChange(file, "bin/", isPr72ApprovedChangeSet)),
+    [],
+  );
   assert.deepEqual(changed.filter((file) => file.startsWith("examples/")), []);
 });
 
@@ -255,15 +276,19 @@ function gitFiles(args) {
 }
 
 function isExactPr71ApprovedChangeSet(changed) {
-  if (changed.length !== pr71ApprovedChangedFiles.length) {
-    return false;
-  }
-  for (const approvedFile of pr71ApprovedChangedFiles) {
-    if (!changed.includes(approvedFile)) {
-      return false;
-    }
-  }
-  return true;
+  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
+}
+
+function isExactPr72ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
+}
+
+function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {
+  return file.startsWith(prefix) && !(isPr72ApprovedChangeSet && pr72ApprovedChangedFiles.includes(file));
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function assertNoRemoteUrl(source) {
