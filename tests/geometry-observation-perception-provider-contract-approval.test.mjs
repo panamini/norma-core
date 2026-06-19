@@ -1,0 +1,331 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..');
+
+const decisionPath = path.join(
+  repoRoot,
+  'docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md',
+);
+const decision = readFileSync(decisionPath, 'utf8');
+
+const requiredHeadings = [
+  '# GeometryObservation And PerceptionProvider Contract Approval',
+  '## Status',
+  '## Decision',
+  '## PR75 Architecture Dependency',
+  '## Contract Purpose',
+  '## Terms',
+  '## Versioning',
+  '## Source Asset Reference',
+  '## Provider Identity',
+  '## Coordinate Frame V1',
+  '## GeometryObservation V1',
+  '## Primitive Vocabulary V1',
+  '## Confidence And Evidence',
+  '## Correction History',
+  '## Acceptance State Machine',
+  '## AcceptedGeometry V1',
+  '## Mapping Boundary To Norma Core',
+  '## Determinism And Replay Boundary',
+  '## Validation And Diagnostic Contract',
+  '## Privacy And Security Boundary',
+  '## Provider Families',
+  '## PR77 Authorized Scope',
+  '## Explicit Non-Goals',
+  '## Validation Gates',
+  '## Stop Criteria',
+  '## Rollback',
+];
+
+const primaryPr76Files = new Set([
+  'docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+]);
+
+const approvedGuardMaintenanceFiles = new Set([
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+]);
+
+const forbiddenChangedPrefixes = [
+  'src/',
+  'bin/',
+  'viewer/',
+  'examples/',
+  'tests/fixtures/',
+  'schemas/',
+  '.github/',
+];
+
+const forbiddenChangedFiles = new Set([
+  'README.md',
+  'package.json',
+  'package-lock.json',
+  'tsconfig.json',
+  'docs/BUSINESS_READINESS_ROADMAP.md',
+  'docs/MVP_GUARDRAILS.md',
+  'docs/GLOSSARY_CORE.md',
+  'docs/SPEC_FREEZE.md',
+  'docs/PR_REVIEW_CHECKLIST.md',
+]);
+
+test('PR76 decision keeps the required approval headings in order', () => {
+  assertHeadingsInOrder(decision, requiredHeadings);
+});
+
+test('PR76 approves only the provider-agnostic observation and acceptance contracts', () => {
+  assertIncludes(decision, '`norma.geometry-observation@1`');
+  assertIncludes(decision, '`norma.accepted-geometry@1`');
+  assertIncludes(decision, '`norma.perception-provider@1`');
+  assertIncludes(decision, 'documentation and contract-test approval only');
+  assertIncludes(decision, 'does not add runtime code');
+  assertIncludes(decision, 'PR75 remains the authority');
+});
+
+test('PR76 versioning rejects unsupported unversioned or implicitly migrated payloads', () => {
+  assertIncludes(decision, 'Unsupported future contract versions must be rejected');
+  assertIncludes(decision, 'must not accept a higher major or unknown contract version by default');
+  assertIncludes(decision, 'Unversioned provider payloads are invalid and must be rejected');
+  assertIncludes(decision, 'No implicit migration is allowed');
+  assertIncludes(decision, 'No hidden defaults are allowed');
+  assertIncludes(decision, 'V1 approves no confidence default');
+});
+
+test('PR76 preserves candidate evidence before explicit acceptance', () => {
+  assertIncludes(
+    decision,
+    '`source asset -> provider execution -> GeometryObservation candidate -> validation -> review or correction -> explicit acceptance -> AcceptedGeometry -> later deterministic mapping -> Norma Core input`',
+  );
+  assertIncludes(decision, '`image -> provider -> automatic Norma evaluation`');
+  assertIncludes(decision, '`GeometryObservation` is candidate evidence');
+  assertIncludes(decision, 'It is not a Norma Core source object');
+  assertIncludes(decision, '`AcceptedGeometry` is the first contract that may later be mapped');
+  assertIncludes(decision, 'No mapper is approved in PR76 or PR77');
+});
+
+test('PR76 requires source asset identity without embedding source content or secrets', () => {
+  assertIncludes(decision, '`SourceAssetRef` V1 must include');
+  assertIncludes(decision, '`assetId`: stable asset identifier');
+  assertIncludes(decision, '`mediaType`: source media type');
+  assertIncludes(decision, '`contentDigest`: digest for the exact analyzed asset content');
+  assertIncludes(decision, '`contentIdentity`: immutable content identity');
+  assertIncludes(decision, '`pixelWidth`: raster pixel width');
+  assertIncludes(decision, '`pixelHeight`: raster pixel height');
+  assertIncludes(decision, '`synthetic`: boolean synthetic-data marker');
+  assertIncludes(decision, '`localOnly`: boolean local-only marker');
+  assertIncludes(decision, '`provenance`: provenance reference');
+  assertIncludes(decision, 'raw image bytes');
+  assertIncludes(decision, 'base64 image content');
+  assertIncludes(decision, 'credentials, bearer tokens, API keys, cookies, or signed URLs');
+  assertIncludes(decision, 'PR76 approves synthetic assets only');
+});
+
+test('PR76 requires provider identity while keeping provider output non-authoritative', () => {
+  assertIncludes(decision, '`ProviderIdentity` V1 must include');
+  assertIncludes(decision, '`providerFamily`: provider family');
+  assertIncludes(decision, '`providerImplementationId`: implementation identifier');
+  assertIncludes(decision, '`providerVersion`: provider version');
+  assertIncludes(decision, '`operationId`: provider operation identifier');
+  assertIncludes(decision, '`operationVersion`: provider operation version');
+  assertIncludes(decision, '`configurationIdentity`: configuration identity or digest');
+  assertIncludes(decision, '`providerRunId`: provider run or execution reference');
+  assertIncludes(decision, '`warnings`: warnings when identity is partial');
+  assertIncludes(decision, 'Provider identity cannot be omitted');
+  assertIncludes(decision, 'Provider configuration cannot silently change');
+  assertIncludes(decision, 'Provider output remains candidate evidence; it is never source truth');
+});
+
+test('PR76 separates observation coordinates from Norma Core canonical coordinates', () => {
+  assertIncludes(decision, 'origin: `top-left`');
+  assertIncludes(decision, 'x axis: `right`');
+  assertIncludes(decision, 'y axis: `down`');
+  assertIncludes(decision, 'inclusive `[0, 1]` for x and y');
+  assertIncludes(decision, 'All coordinate values must be finite numbers');
+  assertIncludes(decision, "Norma Core's canonical coordinate system");
+  assertIncludes(decision, 'origin `bottom-left`, x axis `right`, y axis `up`');
+  assertIncludes(decision, 'outside PR76');
+});
+
+test('PR76 fixes the V1 primitive vocabulary and excludes unsupported geometry families', () => {
+  assertIncludes(decision, 'Every item in `GeometryObservation.primitives[]` must include a non-empty string `id`');
+  assertIncludes(decision, 'Primitive IDs must be unique within one `GeometryObservation`');
+  assertIncludes(decision, 'Duplicate primitive IDs must be rejected with `DuplicateObservationPrimitiveId`');
+  assertIncludes(decision, '`point`');
+  assertIncludes(decision, '`segment`');
+  assertIncludes(decision, '`axis`');
+  assertIncludes(decision, '`rectangle`');
+  assertIncludes(decision, 'Infinite lines');
+  assertIncludes(decision, 'polygons');
+  assertIncludes(decision, 'Bezier curves');
+  assertIncludes(decision, 'masks');
+  assertIncludes(decision, '3D points');
+  assertIncludes(decision, 'native CAD layers');
+});
+
+test('PR76 defines confidence, evidence, correction, and acceptance boundaries', () => {
+  assertIncludes(decision, 'Every primitive and evidence item must carry an explicit confidence value');
+  assertIncludes(decision, 'finite number in `[0, 1]`');
+  assertIncludes(decision, 'There is no default confidence');
+  assertIncludes(decision, 'Confidence is not a measurement');
+  assertIncludes(decision, 'Approved correction operations are');
+  assertIncludes(decision, '`add`');
+  assertIncludes(decision, '`update`');
+  assertIncludes(decision, '`remove`');
+  assertIncludes(decision, '`candidate -> accepted`');
+  assertIncludes(decision, 'There is no implicit acceptance');
+  assertIncludes(decision, 'no provider self-acceptance');
+  assertIncludes(decision, 'no confidence-threshold acceptance');
+});
+
+test('PR76 keeps AcceptedGeometry separate from Core geometry, packs, and evaluation', () => {
+  assertIncludes(decision, '`AcceptedGeometry` V1 is a separate envelope');
+  assertIncludes(decision, '`sourceObservationId`');
+  assertIncludes(decision, '`sourceObservationContentIdentity`');
+  assertIncludes(decision, '`acceptedRevision`');
+  assertIncludes(decision, '`coordinateFrame`');
+  assertIncludes(decision, '`primitives`');
+  assertIncludes(decision, '`correctionHistory`');
+  assertIncludes(decision, '`acceptance`');
+  assertIncludes(decision, '`contentIdentity`');
+  assertIncludes(decision, '`AcceptedGeometry` must not include packs, rules, tolerances, scores, measurements, evaluations, decisions, or artifacts');
+  assertIncludes(decision, '`AcceptedGeometry` is not `Composition2D`, `SegmentSpace`, or `SurfaceSpace`');
+});
+
+test('PR76 reserves mapping and replay behavior for deterministic accepted inputs', () => {
+  assertIncludes(decision, '`AcceptedGeometry -> explicit deterministic normalizer -> supported Norma Core geometry input`');
+  assertIncludes(decision, 'consume only accepted geometry');
+  assertIncludes(decision, 'record the coordinate transform');
+  assertIncludes(decision, 'reject unsupported primitives');
+  assertIncludes(decision, 'Provider execution may be nondeterministic');
+  assertIncludes(decision, 'Norma Core replay must not rerun providers');
+  assertIncludes(decision, 'The deterministic guarantee begins after accepted geometry is mapped');
+});
+
+test('PR76 names validator diagnostics without exporting runtime diagnostics yet', () => {
+  const diagnostics = [
+    'UnsupportedGeometryObservationContract',
+    'UnsupportedAcceptedGeometryContract',
+    'InvalidGeometryObservationShape',
+    'InvalidAcceptedGeometryShape',
+    'MissingProviderIdentity',
+    'MissingSourceAssetIdentity',
+    'InvalidObservationCoordinateFrame',
+    'UnsupportedObservationPrimitiveKind',
+    'DuplicateObservationPrimitiveId',
+    'ObservationCoordinateOutsideBounds',
+    'DegenerateObservationPrimitive',
+    'InvalidObservationConfidence',
+    'InvalidCorrectionHistory',
+    'ExplicitAcceptanceRequired',
+    'AcceptedGeometryRevisionMismatch',
+    'MissingObservationProvenance',
+    'UnsupportedAcceptedGeometryMappingRequest',
+  ];
+
+  for (const diagnostic of diagnostics) {
+    assertIncludes(decision, diagnostic);
+  }
+
+  assertIncludes(decision, 'PR76 does not add these diagnostics to the runtime export surface');
+});
+
+test('PR76 keeps privacy, security, provider family, and PR77 authorization narrow', () => {
+  assertIncludes(decision, 'PR77 and PR78 remain synthetic-data-only');
+  assertIncludes(decision, 'remote provider calls');
+  assertIncludes(decision, 'network access');
+  assertIncludes(decision, 'raw provider traces');
+  assertIncludes(decision, 'chain-of-thought');
+  assertIncludes(decision, 'Provider output must be treated as untrusted candidate data');
+  assertIncludes(decision, 'Naming a provider family does not approve its implementation');
+  assertIncludes(decision, 'PR77 may implement');
+  assertIncludes(decision, 'local TypeScript contract types');
+  assertIncludes(decision, 'deterministic validator');
+  assertIncludes(decision, 'synthetic JSON fixtures');
+  assertIncludes(decision, 'PR77 must not implement');
+  assertIncludes(decision, 'provider execution');
+  assertIncludes(decision, 'OpenAI calls');
+  assertIncludes(decision, 'mapping into Norma Core geometry');
+});
+
+test('PR76 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
+  const changedFiles = branchChangedFiles();
+
+  for (const requiredFile of primaryPr76Files) {
+    assert.ok(
+      changedFiles.includes(requiredFile),
+      `expected PR76 branch to include ${requiredFile}`,
+    );
+  }
+
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      primaryPr76Files.has(changedFile) || approvedGuardMaintenanceFiles.has(changedFile),
+      `unexpected PR76 file changed: ${changedFile}`,
+    );
+
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `PR76 must not change protected implementation surface: ${changedFile}`,
+    );
+
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `PR76 must not change protected project contract file: ${changedFile}`,
+    );
+  }
+});
+
+function assertHeadingsInOrder(text, headings) {
+  let cursor = -1;
+
+  for (const heading of headings) {
+    const index = text.indexOf(heading, cursor + 1);
+    assert.notEqual(index, -1, `missing heading: ${heading}`);
+    assert.ok(index > cursor, `heading out of order: ${heading}`);
+    cursor = index;
+  }
+}
+
+function assertIncludes(text, expected) {
+  assert.ok(text.includes(expected), `expected decision to include: ${expected}`);
+}
+
+function branchChangedFiles() {
+  const probes = [
+    gitFiles(['diff', '--name-only', 'main...HEAD']),
+    gitFiles(['diff', '--name-only', 'origin/main...HEAD']),
+    gitFiles(['diff', '--name-only']),
+    gitFiles(['diff', '--cached', '--name-only']),
+    gitFiles(['ls-files', '--others', '--exclude-standard']),
+  ];
+  const successful = probes.filter((files) => files !== null);
+  assert.notEqual(successful.length, 0, 'Unable to inspect changed files with git');
+  return successful
+    .flat()
+    .filter((file, index, files) => files.indexOf(file) === index)
+    .sort();
+}
+
+function gitFiles(args) {
+  try {
+    return execFileSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .split('\n')
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return null;
+  }
+}

@@ -58,6 +58,15 @@ const pr75ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr76ApprovedChangedFiles = [
+  "docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -208,6 +217,11 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
   const isPr72ApprovedChangeSet = isExactPr72ApprovedChangeSet(changed);
   const isPr75ApprovedChangeSet = isExactPr75ApprovedChangeSet(changed);
+  const isPr76ApprovedChangeSet = isExactPr76ApprovedChangeSet(changed);
+  const approvedDocChangeSets = [
+    isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
+    isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
+  ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
   assert.deepEqual(
@@ -219,7 +233,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   );
   assert.deepEqual(changed.filter((file) => file === "tsconfig.json"), []);
   assert.deepEqual(
-    changed.filter((file) => isUnapprovedPr75DocsChange(file, isPr75ApprovedChangeSet)),
+    changed.filter((file) => isUnapprovedDocsChange(file, approvedDocChangeSets)),
     [],
   );
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
@@ -304,12 +318,20 @@ function isExactPr75ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr75ApprovedChangedFiles);
 }
 
+function isExactPr76ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr76ApprovedChangedFiles);
+}
+
 function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {
   return file.startsWith(prefix) && !(isPr72ApprovedChangeSet && pr72ApprovedChangedFiles.includes(file));
 }
 
-function isUnapprovedPr75DocsChange(file, isPr75ApprovedChangeSet) {
-  return file.startsWith("docs/") && !(isPr75ApprovedChangeSet && pr75ApprovedChangedFiles.includes(file));
+function isUnapprovedDocsChange(file, approvedDocChangeSets) {
+  if (!file.startsWith("docs/")) {
+    return false;
+  }
+
+  return !approvedDocChangeSets.some((approvedFiles) => approvedFiles.includes(file));
 }
 
 function isExactChangedFileSet(changed, approvedFiles) {
