@@ -54,6 +54,22 @@ const pr75ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr76ApprovedChangedFiles = [
+  "docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
+const exactApprovedChangedFileSets = [
+  pr71ApprovedChangedFiles,
+  pr72ApprovedChangedFiles,
+  pr75ApprovedChangedFiles,
+  pr76ApprovedChangedFiles,
+];
+
 test("PR67 returns an empty model for whitespace-only JSON text", () => {
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: " \n\t " });
 
@@ -249,29 +265,8 @@ function gitFiles(args) {
   }
 }
 
-function isExactPr71ApprovedChangeSet(changed) {
-  return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
-}
-
-function isExactPr72ApprovedChangeSet(changed) {
-  return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
-}
-
-function isExactPr75ApprovedChangeSet(changed) {
-  return isExactChangedFileSet(changed, pr75ApprovedChangedFiles);
-}
-
 function approvedExactChangedFilesFor(changed) {
-  if (isExactPr71ApprovedChangeSet(changed)) {
-    return pr71ApprovedChangedFiles;
-  }
-  if (isExactPr72ApprovedChangeSet(changed)) {
-    return pr72ApprovedChangedFiles;
-  }
-  if (isExactPr75ApprovedChangeSet(changed)) {
-    return pr75ApprovedChangedFiles;
-  }
-  return null;
+  return exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
 }
 
 function isExactChangedFileSet(changed, approvedFiles) {

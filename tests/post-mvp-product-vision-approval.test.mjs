@@ -11,6 +11,9 @@ const repoRoot = dirname(testDir);
 const decisionPath = "docs/decisions/2026-06-19-post-mvp-product-vision-and-adapter-architecture.md";
 const roadmapPath = "docs/BUSINESS_READINESS_ROADMAP.md";
 const contractTestPath = "tests/post-mvp-product-vision-approval.test.mjs";
+const pr76DecisionPath =
+  "docs/decisions/2026-06-19-geometry-observation-and-perception-provider-contract-approval.md";
+const pr76ContractTestPath = "tests/geometry-observation-perception-provider-contract-approval.test.mjs";
 
 const primaryPr75ChangedFiles = [
   decisionPath,
@@ -27,6 +30,15 @@ const exactPr75ChangedFilesWithGuards = [
   "tests/read-only-viewer-model.test.mjs",
   "tests/read-only-viewer-static.test.mjs",
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
+const exactPr76ChangedFilesWithGuards = [
+  pr76DecisionPath,
+  pr76ContractTestPath,
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
 const protectedExactPaths = [
@@ -247,7 +259,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
 
   assert.ok(
     isExactChangedFileSet(changed, primaryPr75ChangedFiles) ||
-      isExactChangedFileSet(changed, exactPr75ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr75ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
