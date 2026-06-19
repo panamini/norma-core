@@ -12,6 +12,41 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
+## Current State After PR74
+
+PR70 through PR74 completed the local read-only viewer and current-state checkpoint track:
+
+- PR70 completed local read-only viewer demo readiness;
+- PR71 hardened duplicate sibling geometry source IDs;
+- PR72 hardened MCP STDIO input bounds and process survival;
+- PR73 added minimal CI;
+- PR74 recorded the current-state README checkpoint.
+
+The repository now has deterministic core behavior, local CLI, local MCP STDIO, verification/freshness/replay trust-layer surfaces, and a local read-only viewer boundary.
+
+The repository still has no public npm publication, deployed product, remote MCP, ChatGPT app, image/vision provider, camera adapter, CAD adapter, production data workflow, or real-user-data approval.
+
+## PR75 Post-MVP Architecture Freeze
+
+PR75 freezes the post-MVP product vision and adapter architecture as documentation and contract tests only.
+
+Decision reference: `docs/decisions/2026-06-19-post-mvp-product-vision-and-adapter-architecture.md`.
+
+PR75 keeps Norma Core as a deterministic proportional geometry engine and defines how future providers, adapters, accepted observations, pack registries, risk tiers, and derived artifacts connect to it without changing runtime scope.
+
+The first approved future product direction is ChatGPT Analyze as a local/synthetic architecture track only: an image can produce a candidate observation, a user or validator must accept structured geometry, and then Norma Core measures and evaluates that accepted geometry against an explicit pack.
+
+PR75 does not approve image analysis, OpenAI API calls, ChatGPT integration, remote MCP, deployment, camera, CAD, 3D, music runtime, private pack runtime, public npm, package changes, runtime schemas, provider code, adapters, UI, product behavior, or real-user-data processing.
+
+Candidate follow-up sequence, each requiring its own fiche and approval:
+
+1. PR76 - GeometryObservation and PerceptionProvider contract approval.
+2. PR77 - GeometryObservation validator and synthetic fixtures.
+3. PR78 - Perception evaluation harness.
+4. PR79 - OpenAI Vision Provider local experiment.
+5. PR80 - ChatGPT app integration approval.
+6. PR81 - Local ChatGPT Analyze vertical slice.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:

@@ -111,6 +111,19 @@ const pr74ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr75ApprovedChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-19-post-mvp-product-vision-and-adapter-architecture.md",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -358,6 +371,10 @@ function isExactPr74ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr74ApprovedChangedFiles);
 }
 
+function isExactPr75ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr75ApprovedChangedFiles);
+}
+
 function approvedChangedPathsFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr60ChangedPaths;
 }
@@ -374,6 +391,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactPr74ApprovedChangeSet(changed)) {
     return pr74ApprovedChangedFiles;
+  }
+  if (isExactPr75ApprovedChangeSet(changed)) {
+    return pr75ApprovedChangedFiles;
   }
   return null;
 }

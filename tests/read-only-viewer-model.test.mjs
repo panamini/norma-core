@@ -41,6 +41,19 @@ const pr72ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr75ApprovedChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-19-post-mvp-product-vision-and-adapter-architecture.md",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR67 returns an empty model for whitespace-only JSON text", () => {
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: " \n\t " });
 
@@ -186,9 +199,10 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
 
   assert.doesNotMatch(modelSource, /\b(?:server|route|listener|browser|DOM)\b/);
   const changedFiles = branchChangedFiles();
-  const forbiddenChanges = isApprovedExactChangedFileSet(changedFiles)
-    ? []
-    : changedFiles.filter(isForbiddenReadOnlyViewerChange);
+  const approvedExactChangedFiles = approvedExactChangedFilesFor(changedFiles) ?? [];
+  const forbiddenChanges = changedFiles.filter(
+    (file) => isForbiddenReadOnlyViewerChange(file) && !approvedExactChangedFiles.includes(file),
+  );
   assert.deepEqual(forbiddenChanges, []);
 });
 
@@ -243,8 +257,21 @@ function isExactPr72ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
 }
 
-function isApprovedExactChangedFileSet(changed) {
-  return isExactPr71ApprovedChangeSet(changed) || isExactPr72ApprovedChangeSet(changed);
+function isExactPr75ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr75ApprovedChangedFiles);
+}
+
+function approvedExactChangedFilesFor(changed) {
+  if (isExactPr71ApprovedChangeSet(changed)) {
+    return pr71ApprovedChangedFiles;
+  }
+  if (isExactPr72ApprovedChangeSet(changed)) {
+    return pr72ApprovedChangedFiles;
+  }
+  if (isExactPr75ApprovedChangeSet(changed)) {
+    return pr75ApprovedChangedFiles;
+  }
+  return null;
 }
 
 function isExactChangedFileSet(changed, approvedFiles) {
