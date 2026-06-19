@@ -58,6 +58,10 @@ const exactPr79ChangedFilesWithGuards = [
   pr76ContractTestPath,
   "tests/post-mvp-product-vision-approval.test.mjs",
   "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
 const protectedExactPaths = [
