@@ -93,6 +93,15 @@ const pr72ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr73ApprovedChangedFiles = [
+  ".github/workflows/ci.yml",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -332,6 +341,10 @@ function isExactPr72ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr72ApprovedChangedFiles);
 }
 
+function isExactPr73ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr73ApprovedChangedFiles);
+}
+
 function approvedChangedPathsFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr60ChangedPaths;
 }
@@ -342,6 +355,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactPr72ApprovedChangeSet(changed)) {
     return pr72ApprovedChangedFiles;
+  }
+  if (isExactPr73ApprovedChangeSet(changed)) {
+    return pr73ApprovedChangedFiles;
   }
   return null;
 }
