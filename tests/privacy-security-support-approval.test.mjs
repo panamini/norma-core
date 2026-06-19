@@ -104,6 +104,7 @@ const pr75ApprovedChangedFiles = [
 
 const pr79ApprovedChangedFiles = [
   "src/geometry-observation.ts",
+  "src/node-crypto.d.ts",
   "tests/geometry-observation-validator.test.mjs",
   "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
   "tests/post-mvp-product-vision-approval.test.mjs",
