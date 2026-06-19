@@ -231,6 +231,82 @@ The approved primitive kinds are:
 
 V1 does not approve polygons, Bezier curves, freeform paths, masks, OCR text regions as geometry, 3D points, point clouds, native CAD layers, perspective transforms, or semantic regions as Core geometry.
 
+## ObservationPrimitive V1
+
+`ObservationPrimitive` V1 is a closed discriminated object.
+
+The primitive discriminant property is `kind`.
+
+`PrimitiveBase` fields are exactly:
+
+- `id`;
+- `kind`;
+- `confidence`.
+
+`id` is a non-empty string.
+
+`kind` is one of the approved V1 primitive kind values.
+
+`confidence` follows the explicit confidence rule in this decision: a finite number in `[0, 1]` or explicit `null`.
+
+`point` primitives include exactly:
+
+- `id`;
+- `kind: "point"`;
+- `x`;
+- `y`;
+- `confidence`.
+
+Point `x` and `y` are finite normalized coordinates in inclusive `[0, 1]`.
+
+`segment` primitives include exactly:
+
+- `id`;
+- `kind: "segment"`;
+- `start`;
+- `end`;
+- `confidence`.
+
+`start` and `end` are normalized point objects with exactly `x` and `y`.
+
+Segment `start` and `end` coordinates are finite normalized coordinates in inclusive `[0, 1]`.
+
+Segment `start` and `end` must be distinct.
+
+`axis` primitives include exactly:
+
+- `id`;
+- `kind: "axis"`;
+- `start`;
+- `end`;
+- `confidence`.
+
+Axis primitives use the same `start` and `end` point object shape as segment primitives.
+
+Axis `start` and `end` coordinates are finite normalized coordinates in inclusive `[0, 1]`.
+
+Axis `start` and `end` must be distinct. Infinite axes, implicit angles, hidden extensions, and inferred unbounded axes are not approved.
+
+`rectangle` primitives include exactly:
+
+- `id`;
+- `kind: "rectangle"`;
+- `x`;
+- `y`;
+- `width`;
+- `height`;
+- `confidence`.
+
+Rectangle `x`, `y`, `width`, and `height` are finite normalized numbers.
+
+Rectangle `width` and `height` must be positive.
+
+The rectangle must remain within inclusive normalized bounds.
+
+No primitive may include alternate coordinate aliases such as `startPoint`, `endPoint`, `x1`, `y1`, `x2`, `y2`, `left`, `top`, `right`, `bottom`, `angle`, or `length`.
+
+Future primitive fields require a new contract version.
+
 ## Confidence And Evidence
 
 Every primitive and evidence item must carry an explicit confidence value:
@@ -846,6 +922,7 @@ PR76 implementation must prove:
 - primitive vocabulary V1 is exact;
 - confidence, evidence, correction history, and acceptance rules are explicit;
 - exact `EvidenceRef`, `ObservationWarning`, `ProvenanceRef`, `CorrectionEntry`, and `AcceptanceRecord` shapes are explicit;
+- exact `ObservationPrimitive` shapes are explicit for every approved primitive kind;
 - V1 object shapes are closed to unknown properties;
 - content identity projection, exclusions, digest algorithm, digest format, and mismatch behavior are explicit;
 - validator result and diagnostic shapes are package-private, exact, and deterministic;

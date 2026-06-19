@@ -29,6 +29,7 @@ const requiredHeadings = [
   '## Coordinate Frame V1',
   '## GeometryObservation V1',
   '## Primitive Vocabulary V1',
+  '## ObservationPrimitive V1',
   '## Confidence And Evidence',
   '## EvidenceRef V1',
   '## ObservationWarning V1',
@@ -191,6 +192,29 @@ test('PR76 fixes the V1 primitive vocabulary and excludes unsupported geometry f
   assertIncludes(decision, 'masks');
   assertIncludes(decision, '3D points');
   assertIncludes(decision, 'native CAD layers');
+});
+
+test('PR77 defines exact closed ObservationPrimitive V1 object shapes', () => {
+  assertIncludes(decision, '`ObservationPrimitive` V1 is a closed discriminated object');
+  assertIncludes(decision, 'The primitive discriminant property is `kind`');
+  assertIncludes(decision, '`PrimitiveBase` fields are exactly');
+  assertIncludes(decision, '`point` primitives include exactly');
+  assertIncludes(decision, '`kind: "point"`');
+  assertIncludes(decision, '`x`');
+  assertIncludes(decision, '`y`');
+  assertIncludes(decision, '`segment` primitives include exactly');
+  assertIncludes(decision, '`kind: "segment"`');
+  assertIncludes(decision, '`start`');
+  assertIncludes(decision, '`end`');
+  assertIncludes(decision, '`axis` primitives include exactly');
+  assertIncludes(decision, '`kind: "axis"`');
+  assertIncludes(decision, '`rectangle` primitives include exactly');
+  assertIncludes(decision, '`kind: "rectangle"`');
+  assertIncludes(decision, '`width`');
+  assertIncludes(decision, '`height`');
+  assertIncludes(decision, '`start` and `end` are normalized point objects with exactly `x` and `y`');
+  assertIncludes(decision, 'Axis primitives use the same `start` and `end` point object shape as segment primitives');
+  assertIncludes(decision, 'No primitive may include alternate coordinate aliases');
 });
 
 test('PR76 defines confidence, evidence, correction, and acceptance boundaries', () => {
