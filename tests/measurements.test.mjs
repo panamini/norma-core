@@ -14,6 +14,7 @@ const measurementDiagnosticCodes = [
   "MeasurementOverlapWarning",
   "MeasurementOutOfTolerance",
   "MeasurementOutputRejected",
+  "DuplicateGeometrySourceId",
 ];
 
 const measurementTypes = [
@@ -445,4 +446,74 @@ test("PR7 rejects missing source geometry, missing metric policy, and forbidden 
     }),
     "MeasurementOutputRejected",
   );
+});
+
+test("PR71 rejects duplicate sibling element source ids at the measurement boundary", () => {
+  const duplicateComposition = {
+    ...compositionA,
+    id: "composition:duplicate-elements",
+    elements: [
+      { kind: "element", id: "dup", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 800 } },
+      { kind: "element", id: "dup", geometry: { kind: "rect", x: 400, y: 0, width: 400, height: 800 } },
+    ],
+  };
+
+  const result = measureGeometry({
+    compositionA: duplicateComposition,
+    compositionB: undefined,
+  });
+
+  assertFailedWithDiagnostic(result, "DuplicateGeometrySourceId");
+  assert.equal(result.errors[0].targetRef, "composition.elements.1.id");
+  assert.equal(result.errors[0].source.ref, "composition.elements.1.id");
+  assert.equal(
+    result.errors[0].message,
+    "Duplicate Geometry V1 element id \"dup\" at composition.elements.1.id; first occurrence at composition.elements.0.id.",
+  );
+});
+
+test("PR71 keeps sparse measurement element arrays invalid instead of throwing", () => {
+  const sparseElements = [
+    { kind: "element", id: "first", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 800 } },
+  ];
+  sparseElements.length = 2;
+
+  const sparseComposition = {
+    ...compositionA,
+    id: "composition:sparse-elements",
+    elements: sparseElements,
+  };
+
+  const result = measureGeometry({
+    compositionA: sparseComposition,
+    compositionB: undefined,
+  });
+
+  assertFailedWithDiagnostic(result, "InvalidMeasurementInput");
+  assert.equal(result.errors[0].targetRef, "composition.elements");
+});
+
+test("PR71 permits matching element ids across independent measured compositions", () => {
+  const firstComposition = {
+    ...compositionA,
+    id: "composition:first-independent",
+    elements: [
+      { kind: "element", id: "shared", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 800 } },
+    ],
+  };
+  const secondComposition = {
+    ...compositionB,
+    id: "composition:second-independent",
+    elements: [
+      { kind: "element", id: "shared", geometry: { kind: "rect", x: 400, y: 0, width: 400, height: 800 } },
+    ],
+  };
+
+  const result = measureGeometry({
+    compositionA: firstComposition,
+    compositionB: secondComposition,
+  });
+
+  assertOk(result);
+  assert.deepEqual(result.output.compositions.map((composition) => composition.label), ["A", "B"]);
 });

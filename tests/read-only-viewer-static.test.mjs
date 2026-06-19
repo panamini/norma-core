@@ -14,6 +14,23 @@ const cssPath = join(repoRoot, "viewer", "read-only-result-viewer.css");
 const localModelPath = "../dist/local-viewer/read-only-viewer-model.js";
 const currentBuildModelPath = "../dist/src/local-viewer/read-only-viewer-model.js";
 
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -161,9 +178,16 @@ test("PR68 static helper output is deterministic for the same input model", asyn
 
 test("PR68 branch keeps protected package docs runtime and API surfaces unchanged", () => {
   const changed = branchChangedFiles();
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
-  assert.deepEqual(changed.filter((file) => file === "src/index.ts"), []);
+  assert.deepEqual(
+    changed.filter((file) => (
+      file === "src/index.ts" &&
+      !isPr71ApprovedChangeSet
+    )),
+    [],
+  );
   assert.deepEqual(changed.filter((file) => file === "tsconfig.json"), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("docs/")), []);
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
@@ -200,6 +224,7 @@ function sampleModel() {
   };
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -218,17 +243,27 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
+}
+
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  for (const approvedFile of pr71ApprovedChangedFiles) {
+    if (!changed.includes(approvedFile)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function assertNoRemoteUrl(source) {

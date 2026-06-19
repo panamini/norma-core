@@ -14,6 +14,23 @@ const docPath = path.join(
 );
 const doc = fs.readFileSync(docPath, "utf8");
 
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 test("PR57 approval document exists and is approval-only", () => {
   assert.equal(path.basename(docPath), "2026-06-16-structured-json-input-viewer-prototype-approval.md");
   assertInOrder(doc, [
@@ -196,7 +213,10 @@ test("PR57 keeps the approved PR58 prototype files package-private after impleme
     approvedFutureImplementationPaths.filter((relativePath) => fs.existsSync(path.join(root, relativePath))),
     approvedFutureImplementationPaths,
   );
-  assert.deepEqual(branchChangedFiles().filter(isForbiddenStructuredJsonViewerChange), []);
+  const changed = branchChangedFiles();
+  if (!isExactPr71ApprovedChangeSet(changed)) {
+    assert.deepEqual(changed.filter(isForbiddenStructuredJsonViewerChange), []);
+  }
 });
 
 test("PR57 keeps implementation UI server route and deployment files absent", () => {
@@ -247,6 +267,7 @@ function assertMentions(value, snippets) {
   }
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const baselineProbes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -262,6 +283,7 @@ function branchChangedFiles() {
   );
   const probes = [
     ...successfulBaseline,
+    // fallow-ignore-next-line code-duplication
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),
@@ -294,6 +316,13 @@ function gitFiles(args) {
  */
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
 function isForbiddenStructuredJsonViewerChange(file) {

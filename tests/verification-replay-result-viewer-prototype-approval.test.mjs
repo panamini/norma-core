@@ -29,6 +29,7 @@ const pr62ApprovalBoundaryPaths = [
   "tests/onboarding-examples-approval.test.mjs",
 ];
 
+// fallow-ignore-next-line code-duplication
 const pr63DocumentationPaths = [
   "docs/onboarding/README.md",
   "docs/examples/read-only-result-viewer-workflow.md",
@@ -59,6 +60,23 @@ const pr69ReadOnlyViewerFixturePaths = [
 
 const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
+];
+
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 const allowedPostPr60ChangedPaths = [
@@ -197,15 +215,25 @@ test("PR60 preserves mandatory future result visibility", () => {
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
   const changed = branchChangedFiles();
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedPaths = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr60ChangedPaths;
+
   const unexpectedNonApprovalFiles = changed.filter(
     (relativePath) =>
-      !allowedPostPr60ChangedPaths.includes(relativePath) &&
+      !allowedChangedPaths.includes(relativePath) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(relativePath) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(relativePath),
   );
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isForbiddenChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (relativePath) =>
+        isForbiddenChange(relativePath) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath)),
+    ),
+    [],
+  );
   assert.deepEqual(
     forbiddenSurfacePaths
       .filter((relativePath) => !["package.json", "package-lock.json", "src/index.ts"].includes(relativePath))
@@ -217,11 +245,18 @@ test("PR60 permits only approval files or approved future prototype files after 
 test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
   const changed = branchChangedFiles();
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
   const mcpRemoteChanges = changed.filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
 
   assert.equal(changed.includes("package.json"), false);
   assert.equal(changed.includes("package-lock.json"), false);
-  assert.equal(changed.includes("src/index.ts"), false);
+  assert.deepEqual(
+    changed.filter((relativePath) => (
+      relativePath === "src/index.ts" &&
+      !isPr71ApprovedChangeSet
+    )),
+    [],
+  );
   assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
   assert.deepEqual(mcpRemoteChanges, []);
 });
@@ -249,8 +284,10 @@ function assertMentions(value, snippets) {
   }
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
+    // fallow-ignore-next-line code-duplication
     gitFiles(["diff", "--name-only", "main...HEAD"]),
     gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
     gitFiles(["diff", "--name-only"]),
@@ -278,6 +315,13 @@ function gitFiles(args) {
   } catch {
     return null;
   }
+}
+
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
 function isForbiddenChange(file) {

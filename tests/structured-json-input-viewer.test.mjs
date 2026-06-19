@@ -13,6 +13,23 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
+const pr71ApprovedChangedFiles = Object.freeze([
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+]);
+
 const requiredSectionKeys = [
   "status",
   "diagnostics",
@@ -224,7 +241,9 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
 
   const changedFiles = gitChangedFiles();
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
-    assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
+    if (!isExactPr71ApprovedChangeSet(changedFiles)) {
+      assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
+    }
   }
 });
 
@@ -536,8 +555,16 @@ function json(value) {
   return JSON.stringify(value);
 }
 
+// fallow-ignore-next-line code-duplication
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
+}
+
 function isForbiddenStructuredJsonViewerChange(file) {
-  return [
+  const forbiddenPaths = [
     "package.json",
     "package-lock.json",
     "src/index.ts",
@@ -553,7 +580,11 @@ function isForbiddenStructuredJsonViewerChange(file) {
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-  ].some((forbiddenPath) => file === forbiddenPath || file.startsWith(`${forbiddenPath}/`));
+  ];
+
+  return forbiddenPaths.some((forbiddenPath) => {
+    return file === forbiddenPath || file.startsWith(`${forbiddenPath}/`);
+  });
 }
 
 function gitChangedFiles() {

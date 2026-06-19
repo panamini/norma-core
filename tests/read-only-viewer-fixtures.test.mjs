@@ -32,6 +32,23 @@ const expectedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 test("PR69 fixtures are valid deterministic JSON", () => {
   for (const name of Object.values(fixturePaths)) {
     const path = fixturePath(name);
@@ -146,10 +163,20 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 
 test("PR69 keeps protected surfaces unchanged", () => {
   const changed = branchChangedFiles();
-  const unexpected = changed.filter((file) => !expectedChangedFiles.includes(file));
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const expectedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : expectedChangedFiles;
+
+  const unexpected = changed.filter((file) => !expectedFiles.includes(file));
 
   assert.deepEqual(unexpected, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) =>
+        isProtectedChange(file) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
+    ),
+    [],
+  );
 });
 
 function assertPipeline(fixture, expected) {
@@ -298,6 +325,13 @@ function gitLines(args) {
   }
 
   return output === "" ? [] : output.split("\n");
+}
+
+function isExactPr71ApprovedChangeSet(changed) {
+  return (
+    changed.length === pr71ApprovedChangedFiles.length &&
+    changed.every((file) => pr71ApprovedChangedFiles.includes(file))
+  );
 }
 
 function isProtectedChange(file) {

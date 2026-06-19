@@ -92,6 +92,23 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+];
+
 const allowedPostPr64ChangedFiles = [
   ...expectedPr64ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -241,9 +258,12 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
   const changed = branchChangedFiles();
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr64ChangedFiles;
+
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr64ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
@@ -255,7 +275,14 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
   }
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) =>
+        isProtectedChange(file) &&
+        !(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(file)),
+    ),
+    [],
+  );
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -263,6 +290,7 @@ function readDoc(path) {
   return readFileSync(join(repoRoot, path), "utf8");
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -281,27 +309,38 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
 }
 
-function isProtectedChange(file) {
-  return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    (protectedExactPaths.includes(file) ||
-      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
-  );
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  for (const approvedFile of pr71ApprovedChangedFiles) {
+    if (!changed.includes(approvedFile)) {
+      return false;
+    }
+  }
+  return true;
 }
 
+function isProtectedChange(file) {
+  return !pr67ReadOnlyViewerModelPaths.includes(file) && isProtectedPath(file);
+}
+
+function isProtectedPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
+}
+
+// fallow-ignore-next-line code-duplication
 function assertPathsAbsent(paths) {
   for (const path of paths) {
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);

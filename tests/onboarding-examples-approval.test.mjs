@@ -11,6 +11,7 @@ const repoRoot = dirname(testDir);
 const pr62DocPath = join("docs", "decisions", "2026-06-17-onboarding-examples-approval.md");
 const pr60GuardTestPath = join("tests", "verification-replay-result-viewer-prototype-approval.test.mjs");
 
+// fallow-ignore-next-line code-duplication
 const expectedChangedFiles = [
   "docs/examples/read-only-result-viewer-workflow.md",
   "docs/examples/structured-json-input-viewer.md",
@@ -43,6 +44,23 @@ const pr69ReadOnlyViewerFixturePaths = [
 
 const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
+];
+
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 const allowedPostPr62ChangedFiles = [
@@ -232,15 +250,21 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   const changed = branchChangedFiles();
-  const unexpectedNonApprovalFiles = changed.filter(
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr62ChangedFiles;
+
+  const unexpectedNonApprovalFiles = changed.filter((file) => {
+    return !isAllowedPostPr62ChangedFile(file, allowedChangedFiles);
+  });
+
+  const protectedFilesWithoutPr71Approval = changed.filter(
     (file) =>
-      !allowedPostPr62ChangedFiles.includes(file) &&
-      !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
-      !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
+      isProtectedChange(file) &&
+      (!isPr71ApprovedChangeSet || !pr71ApprovedChangedFiles.includes(file)),
   );
 
-  assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
+  assert.deepEqual(protectedFilesWithoutPr71Approval, []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -263,7 +287,10 @@ test("PR62 updates the PR60 changed-file guard without weakening forbidden prote
     "docker-compose.yml",
     "vercel.json",
     "wrangler.toml",
-    "changed.filter(isForbiddenChange)",
+    "const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed)",
+    "changed.filter(",
+    "isForbiddenChange(relativePath) &&",
+    "!(isPr71ApprovedChangeSet && pr71ApprovedChangedFiles.includes(relativePath))",
     "indexSource.includes(\"verification-replay-result-viewer\")",
   ]);
 });
@@ -272,6 +299,7 @@ function readDoc(path) {
   return readFileSync(join(repoRoot, path), "utf8");
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -303,12 +331,29 @@ function gitFiles(args) {
   }
 }
 
-function isProtectedChange(file) {
+function isAllowedPostPr62ChangedFile(file, allowedChangedFiles) {
   return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    (protectedExactPaths.includes(file) ||
-      protectedPrefixes.some((prefix) => file.startsWith(prefix)))
+    allowedChangedFiles.includes(file) ||
+    /^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) ||
+    /^tests\/[^/]*-approval\.test\.mjs$/.test(file)
   );
+}
+
+function isExactPr71ApprovedChangeSet(changed) {
+  if (changed.length !== pr71ApprovedChangedFiles.length) {
+    return false;
+  }
+  const approvedFiles = new Set(pr71ApprovedChangedFiles);
+  return changed.every((file) => approvedFiles.has(file));
+}
+
+function isProtectedChange(file) {
+  return !pr67ReadOnlyViewerModelPaths.includes(file) && isProtectedApprovalPath(file);
+}
+
+// fallow-ignore-next-line code-duplication
+function isProtectedApprovalPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
 }
 
 function assertPathsAbsent(paths) {

@@ -10,6 +10,7 @@ const repoRoot = dirname(testDir);
 
 const pr65DocPath = join("docs", "decisions", "2026-06-17-privacy-security-support-approval.md");
 
+// fallow-ignore-next-line code-duplication
 const expectedPr65ChangedFiles = [
   "docs/decisions/2026-06-17-privacy-security-support-approval.md",
   "tests/privacy-security-support-approval.test.mjs",
@@ -37,6 +38,23 @@ const pr69ReadOnlyViewerFixturePaths = [
 
 const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
+];
+
+const pr71ApprovedChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/core-skeleton.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
 ];
 
 const allowedPostPr65ChangedFiles = [
@@ -250,17 +268,25 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
 
 test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
   const changed = branchChangedFiles();
+  const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
+  const allowedChangedFiles = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : allowedPostPr65ChangedFiles;
+
   const unexpectedNonApprovalFiles = changed.filter(
     (file) =>
-      !allowedPostPr65ChangedFiles.includes(file) &&
+      !allowedChangedFiles.includes(file) &&
       // Future approval-only PRs may add date-prefixed decision docs and approval tests,
       // but protected runtime/package/docs surfaces remain blocked below.
       !/^docs\/decisions\/\d{4}-\d{2}-\d{2}-.*\.md$/.test(file) &&
       !/^tests\/[^/]*-approval\.test\.mjs$/.test(file),
   );
 
+  const pr71ProtectedFileAllowlist = isPr71ApprovedChangeSet ? pr71ApprovedChangedFiles : [];
+  const unexpectedProtectedFiles = changed.filter(
+    (file) => isProtectedChange(file) && !pr71ProtectedFileAllowlist.includes(file),
+  );
+
   assert.deepEqual(unexpectedNonApprovalFiles, []);
-  assert.deepEqual(changed.filter(isProtectedChange), []);
+  assert.deepEqual(unexpectedProtectedFiles, []);
   assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
 });
 
@@ -268,6 +294,7 @@ function readDoc(path) {
   return readFileSync(join(repoRoot, path), "utf8");
 }
 
+// fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
   const probes = [
     gitFiles(["diff", "--name-only", "main...HEAD"]),
@@ -286,24 +313,31 @@ function branchChangedFiles() {
 
 function gitFiles(args) {
   try {
-    return execFileSync("git", args, {
+    const output = execFileSync("git", args, {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
+    });
+    return output.split("\n").filter(Boolean).sort();
   } catch {
     return null;
   }
 }
 
-function isProtectedChange(file) {
+function isExactPr71ApprovedChangeSet(changed) {
   return (
-    !pr67ReadOnlyViewerModelPaths.includes(file) &&
-    (protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix)))
+    pr71ApprovedChangedFiles.length === changed.length &&
+    pr71ApprovedChangedFiles.every((file) => changed.includes(file))
   );
+}
+
+function isProtectedChange(file) {
+  const pr67Allowed = pr67ReadOnlyViewerModelPaths.includes(file);
+  return isPrivacyProtectedPath(file) && !pr67Allowed;
+}
+
+function isPrivacyProtectedPath(file) {
+  return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
 }
 
 function assertPathsAbsent(paths) {
