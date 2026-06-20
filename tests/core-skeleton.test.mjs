@@ -38,6 +38,21 @@ const resultProvenance = {
   source: { kind: "test", ref: "result" },
 };
 
+function validOperationResult(overrides = {}) {
+  return {
+    status: "ok",
+    output: null,
+    outputRefs: [],
+    warnings: [],
+    errors: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+    ...overrides,
+  };
+}
+
 function assertStructuredResult(result) {
   assert.equal(typeof result, "object");
   assert.ok(result.status);
@@ -267,6 +282,58 @@ test("operation call contract rejects missing operationContext", () => {
   assert.ok(diagnosticCodes(result).includes("MissingOperationContext"));
 });
 
+test("operation call contract rejects malformed operationContext values", () => {
+  for (const operationContext of ["bad", [], 42, false, { ref: { id: 42 } }]) {
+    const result = core.validateOperationCallContract({
+      operation: { name: "core.validateGeometry", version: "0.1.0" },
+      operationContext,
+      input: {},
+      requestedOutputs: ["validated-geometry"],
+      requestedArtifacts: [],
+    });
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), String(operationContext));
+  }
+});
+
+test("operation call contract rejects malformed packLock for pack-scoped references", () => {
+  for (const packLock of ["bad", [], 42, false, { id: 42 }, { ref: { id: 42 } }]) {
+    const result = core.validateOperationCallContract({
+      operation: { name: "core.resolveRules", version: "0.1.0" },
+      operationContext: explicitOperationContext,
+      packLock,
+      ruleSetRef: "surface-basic-third-grid",
+      evaluationProfileRef: "profile:basic",
+      input: {},
+      requestedOutputs: ["rule-resolution"],
+      requestedArtifacts: [],
+    });
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), JSON.stringify(packLock));
+    assert.ok(result.errors.some((error) => error.blocking), JSON.stringify(packLock));
+  }
+});
+
+test("operation call contract accepts valid minimal structured refs", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.resolveRules", version: "0.1.0" },
+    operationContext: { ref: { id: "context:rules" } },
+    packLock: { ref: { id: "pack-lock:rules" } },
+    ruleSetRef: "surface-basic-third-grid",
+    input: {},
+    requestedOutputs: ["rule-resolution"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.errors, []);
+});
+
 test("operation call contract rejects hidden tolerance", () => {
   const result = core.validateOperationCallContract({
     operation: { name: "core.measureConstruction", version: "0.1.0" },
@@ -313,15 +380,13 @@ test("operation call contract rejects output-changing defaults that are not expl
 });
 
 test("operation result contract rejects missing warnings or errors arrays", () => {
-  const result = core.validateCoreOperationResult({
-    status: "ok",
-    output: {},
-    outputRefs: [],
-    provenance: null,
-    runRef: null,
-    packLockRef: null,
-    operationContextRef: null,
-  });
+  const result = core.validateCoreOperationResult(
+    validOperationResult({
+      output: {},
+      warnings: undefined,
+      errors: undefined,
+    }),
+  );
 
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
@@ -404,34 +469,56 @@ test("operation result contract rejects derived output without provenance", () =
 });
 
 test("operation result contract rejects malformed outputRefs entries", () => {
-  assertInvalidOperationResultShape({
-    status: "ok",
+  assertInvalidOperationResultShape(validOperationResult({
     output: { derived: true },
     outputRefs: [42, "bad"],
-    warnings: [],
-    errors: [],
     provenance: resultProvenance,
-    runRef: null,
-    packLockRef: null,
-    operationContextRef: null,
-  });
+  }));
 });
 
 test("operation result contract rejects missing output field", () => {
-  const result = core.validateCoreOperationResult({
-    status: "ok",
-    outputRefs: [],
-    warnings: [],
-    errors: [],
-    provenance: null,
-    runRef: null,
-    packLockRef: null,
-    operationContextRef: null,
-  });
+  const { output, ...resultShape } = validOperationResult();
+  const result = core.validateCoreOperationResult(resultShape);
 
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
   assert.ok(diagnosticCodes(result).includes("MissingResultOutput"));
+});
+
+test("operation result contract rejects missing visible envelope fields", () => {
+  for (const field of ["provenance", "runRef", "packLockRef", "operationContextRef"]) {
+    const resultShape = validOperationResult();
+    delete resultShape[field];
+
+    const result = core.validateCoreOperationResult(resultShape);
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed", field);
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), field);
+  }
+});
+
+test("operation result contract rejects malformed provenance and runtime refs", () => {
+  for (const overrides of [
+    { provenance: "bad" },
+    { provenance: { operationName: "core.test" } },
+    { runRef: "bad" },
+    { runRef: { id: 42 } },
+    { packLockRef: "bad" },
+    { packLockRef: { id: 42 } },
+    { operationContextRef: "bad" },
+    { operationContextRef: { id: 42 } },
+  ]) {
+    assertInvalidOperationResultShape(validOperationResult(overrides));
+  }
+});
+
+test("operation result contract accepts valid minimal PR2 result envelope", () => {
+  const result = core.validateCoreOperationResult(validOperationResult());
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.errors, []);
 });
 
 test("critical warnings cannot be suppressed", () => {

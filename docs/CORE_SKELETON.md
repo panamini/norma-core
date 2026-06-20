@@ -15,9 +15,9 @@ PR1 creates the minimal TypeScript boundary for Norma Core. It is a skeleton onl
 
 PR2 keeps the core contract-only. It adds canonical operation call/result vocabulary, validation levels, and a conceptual V1 operation registry while leaving every future business operation as a stub.
 
-The operation call contract can carry explicit `operation`, `operationVersion`, `input`, `operationContext`, `packLock`, rule/profile refs, tolerances, coordinate and metric policies, requested outputs/artifacts, feature flags, and source references. It rejects free-form prompts as source input, implicit pack usage, hidden tolerances, and output-changing defaults that are not explicit and versioned.
+The operation call contract can carry explicit `operation`, `operationVersion`, `input`, structured `operationContext` and `packLock` refs, rule/profile refs, tolerances, coordinate and metric policies, requested outputs/artifacts, feature flags, and source references. It rejects free-form prompts as source input, implicit pack usage, hidden tolerances, and output-changing defaults that are not explicit and versioned.
 
-The operation result contract keeps `status`, `output`, `outputRefs`, `warnings`, `errors`, `provenance`, `runRef`, `packLockRef`, and `operationContextRef` visible. Derived output without provenance and results missing `output` or diagnostic arrays are invalid.
+The operation result contract keeps `status`, `output`, `outputRefs`, `warnings`, `errors`, `provenance`, `runRef`, `packLockRef`, and `operationContextRef` visible. Nullable fields must still be present as explicit `null` values when absent. Derived output without provenance, malformed provenance/runtime refs, and results missing `output` or diagnostic arrays are invalid.
 
 ## Does Not Contain
 

@@ -304,6 +304,8 @@ export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
   "cli",
 ] as const;
 
+const PROVENANCE_STRING_FIELDS = ["operationName", "operationVersion"] as const;
+
 export function createCoreError(input: DiagnosticInput): CoreError {
   const diagnostic = { ...DEFAULT_DIAGNOSTIC_FIELDS, ...input };
 
@@ -743,6 +745,8 @@ function operationInvariantViolation(operationName: OperationName): CoreResult {
 
 function validateCanonicalCallShapes(request: CoreOperationRequest): CoreResult | null {
   return firstFailure([
+    validateOperationContextShape(request.operationContext),
+    validatePackLockShape(request.packLock),
     validateOptionalStringArray(request.requestedOutputs, "requestedOutputs", "Requested outputs must be strings."),
     validateOptionalStringArray(request.requestedArtifacts, "requestedArtifacts", "Requested artifacts must be strings."),
     validateOptionalStringArray(request.hiddenDefaults, "hiddenDefaults", "Hidden defaults must be named with strings."),
@@ -769,6 +773,7 @@ function validateOperationResultShape(result: Record<string, unknown>): CoreResu
     validateResultOutputShape(result),
     validateResultDiagnosticsShape(result),
     validateResultOutputRefsShape(result),
+    validateResultVisibleEnvelopeShape(result),
   ]);
 }
 
@@ -827,7 +832,7 @@ function validateResultOutputRefsShape(result: Record<string, unknown>): CoreRes
 }
 
 function operationResultProvenance(result: Record<string, unknown>): Provenance | null {
-  return result.provenance === null || isRecord(result.provenance) ? (result.provenance as Provenance | null) : null;
+  return result.provenance as Provenance | null;
 }
 
 function validateOperationResultProvenance(
@@ -855,6 +860,18 @@ function validateOptionalStringArray(value: unknown, targetRef: string, message:
   return value === undefined || isStringArray(value) ? null : invalidInputShape(targetRef, message);
 }
 
+function validateOperationContextShape(value: unknown): CoreResult | null {
+  return value === undefined || value === null || isOperationContextLike(value)
+    ? null
+    : invalidInputShape("operationContext", "Operation context must be a structured ref object.");
+}
+
+function validatePackLockShape(value: unknown): CoreResult | null {
+  return value === undefined || value === null || isPackLockLike(value)
+    ? null
+    : invalidInputShape("packLock", "Pack lock must be a structured ref object.");
+}
+
 function validateRuleRefsShape(value: unknown): CoreResult | null {
   return value === undefined || isStringArray(value) || isSourceReferenceArray(value)
     ? null
@@ -880,6 +897,37 @@ function validateOutputChangingDefaultsShape(value: unknown): CoreResult | null 
         "outputChangingDefaults",
         "Output-changing defaults must expose a string name and boolean explicit/versioned flags.",
       );
+}
+
+function validateResultVisibleEnvelopeShape(result: Record<string, unknown>): CoreResult | null {
+  return firstFailure([
+    validateRequiredResultField(result, "provenance"),
+    validateRequiredResultField(result, "runRef"),
+    validateRequiredResultField(result, "packLockRef"),
+    validateRequiredResultField(result, "operationContextRef"),
+    validateResultProvenanceShape(result.provenance),
+    validateResultRuntimeRefShape(result.runRef, "runRef"),
+    validateResultRuntimeRefShape(result.packLockRef, "packLockRef"),
+    validateResultRuntimeRefShape(result.operationContextRef, "operationContextRef"),
+  ]);
+}
+
+function validateRequiredResultField(result: Record<string, unknown>, field: string): CoreResult | null {
+  return field in result
+    ? null
+    : invalidInputShape(field, `Operation result contract requires a visible ${field} field.`);
+}
+
+function validateResultProvenanceShape(value: unknown): CoreResult | null {
+  return value === null || isProvenance(value)
+    ? null
+    : invalidInputShape("provenance", "Operation result provenance must be null or structured provenance.");
+}
+
+function validateResultRuntimeRefShape(value: unknown, targetRef: string): CoreResult | null {
+  return value === null || isRuntimeRef(value)
+    ? null
+    : invalidInputShape(targetRef, `Operation result ${targetRef} must be null or a structured ref.`);
 }
 
 function hasFreeFormPromptInput(input: unknown): boolean {
@@ -1035,6 +1083,42 @@ function isSourceReference(value: unknown): value is SourceReference {
   return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string";
 }
 
+function isProvenance(value: unknown): value is Provenance {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return [
+    hasNonEmptyStringFields(value, PROVENANCE_STRING_FIELDS),
+    isSourceReferenceArray(value.inputRefs),
+    isSourceReference(value.source),
+  ].every(Boolean);
+}
+
+function isRuntimeRef(value: unknown): value is RunRef | PackLockRef | OperationContextRef {
+  return isRecord(value) && nonEmptyString(value.id) !== null;
+}
+
+function isOperationContextLike(value: unknown): value is OperationContext | OperationContextRef {
+  return isRuntimeRef(value) || isRuntimeRefWrapper(value, "contextRef");
+}
+
+function isPackLockLike(value: unknown): value is PackLock | PackLockRef {
+  return isRuntimeRef(value) || isRuntimeRefWrapper(value, "packRef");
+}
+
+function isRuntimeRefWrapper(value: unknown, nullableRefField: "contextRef" | "packRef"): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return [
+    isRuntimeRef(value.ref),
+    hasOptionalStringField(value, "coreVersion"),
+    hasOptionalNullableStringField(value, nullableRefField),
+  ].every(Boolean);
+}
+
 function isCoreWarningArray(value: unknown): value is readonly CoreWarning[] {
   return Array.isArray(value) && value.every(isCoreWarning);
 }
@@ -1090,7 +1174,7 @@ function hasDiagnosticBlocking(value: Record<string, unknown>): boolean {
 }
 
 function hasDiagnosticProvenance(value: Record<string, unknown>): boolean {
-  return value.provenance === null || isRecord(value.provenance);
+  return value.provenance === null || isProvenance(value.provenance);
 }
 
 function isDiagnosticCode(value: unknown): value is DiagnosticCode {
@@ -1127,6 +1211,21 @@ function isOutputChangingDefault(value: unknown): value is OutputChangingDefault
 
 function hasOptionalBooleanField(value: Record<string, unknown>, key: string): boolean {
   return !(key in value) || typeof value[key] === "boolean";
+}
+
+function hasOptionalStringField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || typeof value[key] === "string";
+}
+
+function hasOptionalNullableStringField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || value[key] === null || typeof value[key] === "string";
+}
+
+function hasNonEmptyStringFields(
+  value: Record<string, unknown>,
+  fields: readonly string[],
+): boolean {
+  return fields.every((field) => nonEmptyString(value[field]) !== null);
 }
 
 function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean {
