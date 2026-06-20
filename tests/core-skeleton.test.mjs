@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR2 operation contracts", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr2");
+test("core version reflects PR3 geometry model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr3");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -137,6 +137,10 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingResultOutput",
       "MissingResultDiagnostics",
       "MissingOperationContext",
+      "MissingCoordinateSystem",
+      "UnsupportedGeometryV1",
+      "InvalidGeometryV1",
+      "MissingMetricPolicy",
     ]),
   );
 });
@@ -577,4 +581,410 @@ test("dependency boundary rejects forbidden dependency segments", () => {
 
 test("the skeleton registry exposes only the known stub operation", () => {
   assert.deepEqual(Object.keys(CORE_SKELETON_OPERATION_REGISTRY), ["core.skeleton.stub@0.1.0"]);
+});
+
+const metricCoordinateSystem2d = {
+  kind: "coordinate-system",
+  id: "norma-canonical-2d-metric",
+  origin: "bottom-left",
+  xAxis: "right",
+  yAxis: "up",
+  dimensions: 2,
+  coordinateScale: "metric",
+};
+
+const normalizedCoordinateSystem2d = {
+  kind: "coordinate-system",
+  id: "norma-canonical-2d-normalized",
+  origin: "bottom-left",
+  xAxis: "right",
+  yAxis: "up",
+  dimensions: 2,
+  coordinateScale: "normalized",
+};
+
+const normalizedCoordinateSystem1d = {
+  ...normalizedCoordinateSystem2d,
+  id: "norma-canonical-1d-normalized",
+  dimensions: 1,
+};
+
+const metricPolicy = {
+  kind: "metric-policy",
+  id: "unit-length-policy",
+  quantity: "length",
+  unit: "unit",
+};
+
+const tolerancePolicy = {
+  kind: "tolerance-policy",
+  id: "exact-geometry",
+  coordinateTolerance: 0,
+  metricTolerance: 0,
+};
+
+function assertGeometryOk(result) {
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.output);
+}
+
+function assertGeometryFailed(result, diagnosticCode) {
+  assertFailedWithDiagnostic(result, diagnosticCode);
+  assert.equal(result.output, null);
+}
+
+test("PR3 exports canonical geometry model vocabulary", () => {
+  assert.deepEqual(core.GEOMETRY_V1_SUPPORTED_KINDS, [
+    "segment-space",
+    "surface-space",
+    "composition-2d",
+  ]);
+  assert.equal(core.NORMA_CANONICAL_COORDINATE_SYSTEM.origin, "bottom-left");
+  assert.equal(core.NORMA_CANONICAL_COORDINATE_SYSTEM.xAxis, "right");
+  assert.equal(core.NORMA_CANONICAL_COORDINATE_SYSTEM.yAxis, "up");
+  assert.equal(core.NORMA_CANONICAL_COORDINATE_SYSTEM.dimensions, 2);
+  assert.equal(core.NORMA_CANONICAL_COORDINATE_SYSTEM.coordinateScale, "normalized");
+});
+
+test("PR3 validates a metric rectangular surface space", () => {
+  const geometry = {
+    kind: "surface-space",
+    id: "surface:1200x800",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+  };
+
+  const result = core.validateGeometryV1(geometry);
+
+  assertGeometryOk(result);
+  assert.equal(result.output, geometry);
+  assert.equal(result.output.bounds.width, 1200);
+  assert.equal(result.output.coordinateSystem.coordinateScale, "metric");
+  assert.equal(result.provenance.source.ref, "norma-core/core");
+});
+
+test("PR3 validates normalized rectangles without treating them as metric measurements", () => {
+  const result = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:normalized",
+    coordinateSystem: normalizedCoordinateSystem2d,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:normalized",
+      coordinateSystem: normalizedCoordinateSystem2d,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1, height: 1 },
+    },
+    elements: [
+      {
+        kind: "element",
+        id: "element:rect",
+        geometry: { kind: "rect", x: 0.25, y: 0.1, width: 0.5, height: 0.4 },
+      },
+    ],
+  });
+
+  assertGeometryOk(result);
+  assert.equal(result.output.coordinateSystem.coordinateScale, "normalized");
+  assert.equal(result.output.metricPolicy ?? null, null);
+});
+
+test("PR3 validates a bounded segment space and rejects zero-length segments", () => {
+  const validSegment = core.validateGeometryV1({
+    kind: "segment-space",
+    id: "segment:unit",
+    coordinateSystem: normalizedCoordinateSystem1d,
+    tolerancePolicy,
+    extent: {
+      kind: "segment",
+      start: { kind: "point", x: 0 },
+      end: { kind: "point", x: 1 },
+    },
+  });
+
+  assertGeometryOk(validSegment);
+
+  const zeroSegment = core.validateGeometryV1({
+    kind: "segment-space",
+    id: "segment:zero",
+    coordinateSystem: normalizedCoordinateSystem1d,
+    tolerancePolicy,
+    extent: {
+      kind: "segment",
+      start: { kind: "point", x: 0.5 },
+      end: { kind: "point", x: 0.5 },
+    },
+  });
+
+  assertGeometryFailed(zeroSegment, "InvalidGeometryV1");
+});
+
+test("PR3 rejects invalid surface bounds", () => {
+  for (const bounds of [
+    { kind: "rect", x: 0, y: 0, width: 0, height: 800 },
+    { kind: "rect", x: 0, y: 0, width: 1200, height: -1 },
+    { kind: "rect", x: 0.75, y: 0, width: 0.5, height: 1 },
+    { kind: "rect", x: 0, y: 0, width: Number.NaN, height: 1 },
+    { kind: "rect", x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 1 },
+  ]) {
+    const result = core.validateGeometryV1({
+      kind: "surface-space",
+      id: "surface:invalid-bounds",
+      coordinateSystem: bounds.width <= 1 ? normalizedCoordinateSystem2d : metricCoordinateSystem2d,
+      metricPolicy: bounds.width <= 1 ? undefined : metricPolicy,
+      tolerancePolicy,
+      bounds,
+    });
+
+    assertGeometryFailed(result, "InvalidGeometryV1");
+  }
+});
+
+test("PR3 composition requires rectangular element geometry and preserves order", () => {
+  const validComposition = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:rectangles",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:metric",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [
+      {
+        kind: "element",
+        id: "element:left",
+        geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 },
+      },
+      {
+        kind: "element",
+        id: "element:right",
+        geometry: { kind: "rect", x: 600, y: 0, width: 600, height: 800 },
+      },
+    ],
+    anchors: [{ kind: "anchor", id: "anchor:center", point: { kind: "point", x: 600, y: 400 } }],
+  });
+
+  assertGeometryOk(validComposition);
+  assert.deepEqual(validComposition.output.elements.map((element) => element.id), ["element:left", "element:right"]);
+
+  const invalidElement = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:missing-element-geometry",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:metric",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [{ kind: "element", id: "element:missing" }],
+  });
+
+  assertGeometryFailed(invalidElement, "InvalidGeometryV1");
+});
+
+test("PR3 rejects geometry without an explicit coordinate system", () => {
+  const result = core.validateGeometryV1({
+    kind: "surface-space",
+    id: "surface:missing-coordinate-system",
+    metricPolicy,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+  });
+
+  assertGeometryFailed(result, "MissingCoordinateSystem");
+});
+
+test("PR3 rejects unsupported coordinate systems", () => {
+  for (const coordinateSystem of [
+    { ...normalizedCoordinateSystem2d, origin: "top-left" },
+    { ...normalizedCoordinateSystem2d, xAxis: "left" },
+    { ...normalizedCoordinateSystem2d, yAxis: "down" },
+    { ...normalizedCoordinateSystem2d, dimensions: 3 },
+    { ...normalizedCoordinateSystem2d, coordinateScale: "pixels" },
+  ]) {
+    const result = core.validateGeometryV1({
+      kind: "surface-space",
+      id: "surface:bad-coordinate-system",
+      coordinateSystem,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1, height: 1 },
+    });
+
+    assertGeometryFailed(result, "InvalidGeometryV1");
+  }
+});
+
+test("PR3 rejects metric coordinate geometry without metric policy", () => {
+  const result = core.validateGeometryV1({
+    kind: "surface-space",
+    id: "surface:missing-metric-policy",
+    coordinateSystem: metricCoordinateSystem2d,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+  });
+
+  assertGeometryFailed(result, "MissingMetricPolicy");
+});
+
+test("PR3 validates metric and tolerance policy shapes only", () => {
+  const validTolerance = core.validateGeometryV1({
+    kind: "surface-space",
+    id: "surface:tolerance",
+    coordinateSystem: normalizedCoordinateSystem2d,
+    tolerancePolicy: { kind: "tolerance-policy", id: "coordinate-only", coordinateTolerance: 0 },
+    bounds: { kind: "rect", x: 0, y: 0, width: 1, height: 1 },
+  });
+
+  assertGeometryOk(validTolerance);
+  assert.equal(validTolerance.output.tolerancePolicy.metricTolerance, undefined);
+
+  for (const overrides of [
+    { metricPolicy: { kind: "metric-policy", id: "", quantity: "length", unit: "unit" } },
+    { metricPolicy: { kind: "metric-policy", id: "metric", quantity: "area", unit: "unit" } },
+    { tolerancePolicy: { kind: "tolerance-policy", id: "bad", coordinateTolerance: -1 } },
+    { tolerancePolicy: { kind: "tolerance-policy", id: "bad", coordinateTolerance: Number.NaN } },
+  ]) {
+    const result = core.validateGeometryV1({
+      kind: "surface-space",
+      id: "surface:bad-policy",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+      ...overrides,
+    });
+
+    assertGeometryFailed(result, "InvalidGeometryV1");
+  }
+});
+
+test("PR3 rejects unbounded line values", () => {
+  const result = core.validateGeometryV1({
+    kind: "segment-space",
+    id: "line:unbounded",
+    coordinateSystem: normalizedCoordinateSystem1d,
+    tolerancePolicy,
+    extent: {
+      kind: "segment",
+      start: { kind: "point", x: 0 },
+      end: { kind: "point", x: 1 },
+    },
+    line: {
+      kind: "line",
+      bounded: false,
+      segment: {
+        kind: "segment",
+        start: { kind: "point", x: 0 },
+        end: { kind: "point", x: 1 },
+      },
+    },
+  });
+
+  assertGeometryFailed(result, "InvalidGeometryV1");
+});
+
+test("PR3 rejects unsupported V1 geometry and presentation fields", () => {
+  for (const geometry of [
+    {
+      kind: "surface-space",
+      id: "surface:rotated",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800, rotation: 15 },
+    },
+    {
+      kind: "polygon",
+      coordinateSystem: normalizedCoordinateSystem2d,
+      points: [
+        { kind: "point", x: 0, y: 0 },
+        { kind: "point", x: 1, y: 0 },
+        { kind: "point", x: 0.5, y: 1 },
+      ],
+    },
+    { kind: "curve", coordinateSystem: normalizedCoordinateSystem2d },
+    { kind: "3d", coordinateSystem: normalizedCoordinateSystem2d },
+    { kind: "image", coordinateSystem: normalizedCoordinateSystem2d, src: "camera-frame.png" },
+    { kind: "cad-object", coordinateSystem: normalizedCoordinateSystem2d, cadObject: { id: "cad:1" } },
+    { kind: "plugin-object", coordinateSystem: normalizedCoordinateSystem2d, pluginObject: { id: "plugin:1" } },
+  ]) {
+    assertGeometryFailed(core.validateGeometryV1(geometry), "UnsupportedGeometryV1");
+  }
+});
+
+test("PR3 rejects unsupported fields on internal primitives", () => {
+  for (const geometry of [
+    {
+      kind: "segment-space",
+      id: "segment:point-z",
+      coordinateSystem: normalizedCoordinateSystem1d,
+      tolerancePolicy,
+      extent: {
+        kind: "segment",
+        start: { kind: "point", x: 0, z: 0 },
+        end: { kind: "point", x: 1 },
+      },
+    },
+    {
+      kind: "composition-2d",
+      id: "composition:element-style",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      surface: {
+        kind: "surface-space",
+        id: "surface:metric",
+        coordinateSystem: metricCoordinateSystem2d,
+        metricPolicy,
+        tolerancePolicy,
+        bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+      },
+      elements: [
+        {
+          kind: "element",
+          id: "element:styled",
+          geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 },
+          style: "presentation",
+        },
+      ],
+    },
+  ]) {
+    assertGeometryFailed(core.validateGeometryV1(geometry), "UnsupportedGeometryV1");
+  }
+});
+
+test("PR3 geometry validation does not mutate or repair input", () => {
+  const geometry = {
+    kind: "surface-space",
+    id: "surface:mutation-check",
+    coordinateSystem: normalizedCoordinateSystem2d,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1.25, height: 1 },
+  };
+  const before = JSON.stringify(geometry);
+
+  const first = core.validateGeometryV1(geometry);
+  const second = core.validateGeometryV1(geometry);
+
+  assertGeometryFailed(first, "InvalidGeometryV1");
+  assertGeometryFailed(second, "InvalidGeometryV1");
+  assert.equal(JSON.stringify(geometry), before);
+  assert.equal(first.errors[0].code, second.errors[0].code);
+  assert.equal(geometry.bounds.width, 1.25);
 });
