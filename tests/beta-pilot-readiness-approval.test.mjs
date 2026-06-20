@@ -154,6 +154,21 @@ const pr75ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr79ApprovedChangedFiles = [
+  "src/geometry-observation.ts",
+  "src/node-crypto.d.ts",
+  "tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json",
+  "tests/fixtures/geometry-observation/valid-observation-v1.json",
+  "tests/geometry-observation-validator.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr64ChangedFiles = [
   ...expectedPr64ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -378,6 +393,10 @@ function isExactPr75ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr75ApprovedChangedFiles);
 }
 
+function isExactPr79ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr79ApprovedChangedFiles);
+}
+
 function approvedChangedFilesFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr64ChangedFiles;
 }
@@ -397,6 +416,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactPr75ApprovedChangeSet(changed)) {
     return pr75ApprovedChangedFiles;
+  }
+  if (isExactPr79ApprovedChangeSet(changed)) {
+    return pr79ApprovedChangedFiles;
   }
   return null;
 }

@@ -70,6 +70,31 @@ const approvedGuardMaintenanceFiles = new Set([
   'tests/read-only-viewer-static.test.mjs',
 ]);
 
+const pr79ApprovedChangedFiles = new Set([
+  'src/geometry-observation.ts',
+  'src/node-crypto.d.ts',
+  'tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json',
+  'tests/fixtures/geometry-observation/valid-observation-v1.json',
+  'tests/geometry-observation-validator.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
+const pr79ApprovedImplementationFiles = new Set([
+  'src/geometry-observation.ts',
+  'src/node-crypto.d.ts',
+]);
+
+const pr79ApprovedFixtureFiles = new Set([
+  'tests/fixtures/geometry-observation/valid-accepted-geometry-v1.json',
+  'tests/fixtures/geometry-observation/valid-observation-v1.json',
+]);
+
 const forbiddenChangedPrefixes = [
   'src/',
   'bin/',
@@ -488,9 +513,37 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'mapping into Norma Core geometry');
 });
 
-test('PR78 branch changes stay limited to the approval doc, approval test, and exact proven guard maintenance', () => {
-  const changedFiles = branchChangedFiles();
+test('PR78 and PR79 branch changes stay limited to their approved contract surfaces', () => {
+  assertApprovedContractSurfaceChanges(branchChangedFiles());
+});
 
+function assertApprovedContractSurfaceChanges(changedFiles) {
+  if (isExactChangedFileSet(changedFiles, [...pr79ApprovedChangedFiles].sort())) {
+    assertPr79ApprovedChangedFiles(changedFiles);
+    return;
+  }
+
+  assertPr78ApprovedChangedFiles(changedFiles);
+}
+
+function assertPr79ApprovedChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      pr79ApprovedChangedFiles.has(changedFile),
+      `unexpected PR79 file changed: ${changedFile}`,
+    );
+    assert.ok(
+      isPr79ApprovedImplementationChange(changedFile),
+      `PR79 must not change protected implementation surface outside the local validator: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `PR79 must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertPr78ApprovedChangedFiles(changedFiles) {
   for (const requiredFile of primaryPr77Files) {
     assert.ok(
       changedFiles.includes(requiredFile),
@@ -514,7 +567,7 @@ test('PR78 branch changes stay limited to the approval doc, approval test, and e
       `PR78 must not change protected project contract file: ${changedFile}`,
     );
   }
-});
+}
 
 function assertHeadingsInOrder(text, headings) {
   let cursor = -1;
@@ -545,6 +598,20 @@ function branchChangedFiles() {
     .flat()
     .filter((file, index, files) => files.indexOf(file) === index)
     .sort();
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
+}
+
+function isPr79ApprovedImplementationChange(changedFile) {
+  if (pr79ApprovedImplementationFiles.has(changedFile)) {
+    return true;
+  }
+  if (pr79ApprovedFixtureFiles.has(changedFile)) {
+    return true;
+  }
+  return !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix));
 }
 
 function gitFiles(args) {

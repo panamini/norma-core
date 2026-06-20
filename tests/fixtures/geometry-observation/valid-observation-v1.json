@@ -1,0 +1,142 @@
+{
+  "contractId": "norma.geometry-observation@1",
+  "contractVersion": 1,
+  "observationId": "observation:synthetic-pr79",
+  "status": "candidate",
+  "sourceAsset": {
+    "assetId": "asset:synthetic-pr79",
+    "mediaType": "image/png",
+    "contentDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "contentIdentity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "pixelWidth": 100,
+    "pixelHeight": 200,
+    "synthetic": true,
+    "localOnly": true,
+    "provenance": {
+      "provenanceId": "provenance:source-asset",
+      "actorType": "deterministic-test",
+      "actorId": "pr79-test",
+      "operationId": "geometry-observation.synthetic",
+      "operationVersion": "1.0.0",
+      "inputContentIdentity": null,
+      "createdAt": "2026-06-19T21:33:30Z",
+      "notes": null
+    }
+  },
+  "provider": {
+    "providerFamily": "synthetic",
+    "providerImplementationId": "norma-core-pr79-test-provider",
+    "providerVersion": "0.1.0-test",
+    "operationId": "geometry-observation.synthetic",
+    "operationVersion": "1.0.0",
+    "configurationIdentity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "providerRunId": "provider-run:synthetic-pr79",
+    "provenance": {
+      "provenanceId": "provenance:provider",
+      "actorType": "deterministic-test",
+      "actorId": "pr79-test",
+      "operationId": "geometry-observation.synthetic",
+      "operationVersion": "1.0.0",
+      "inputContentIdentity": null,
+      "createdAt": "2026-06-19T21:33:30Z",
+      "notes": null
+    },
+    "warnings": []
+  },
+  "coordinateFrame": {
+    "dimensions": 2,
+    "coordinateScale": "normalized",
+    "origin": "top-left",
+    "xDirection": "right",
+    "yDirection": "down",
+    "bounds": {
+      "x": [
+        0,
+        1
+      ],
+      "y": [
+        0,
+        1
+      ]
+    },
+    "sourcePixelWidth": 100,
+    "sourcePixelHeight": 200
+  },
+  "primitives": [
+    {
+      "id": "point:center",
+      "kind": "point",
+      "x": 0.5,
+      "y": 0.5,
+      "confidence": 1
+    },
+    {
+      "id": "segment:diagonal",
+      "kind": "segment",
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "end": {
+        "x": 1,
+        "y": 1
+      },
+      "confidence": 0.95
+    },
+    {
+      "id": "axis:vertical-center",
+      "kind": "axis",
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      },
+      "confidence": 0.9
+    },
+    {
+      "id": "rectangle:frame",
+      "kind": "rectangle",
+      "x": 0.1,
+      "y": 0.2,
+      "width": 0.7,
+      "height": 0.6,
+      "confidence": 0.85
+    }
+  ],
+  "evidence": [
+    {
+      "evidenceId": "evidence:synthetic-pr79",
+      "kind": "provider-local-reference",
+      "targetPrimitiveId": "point:center",
+      "confidence": 1,
+      "label": null,
+      "regionRef": null,
+      "warningCode": null,
+      "provenance": {
+        "provenanceId": "provenance:evidence",
+        "actorType": "deterministic-test",
+        "actorId": "pr79-test",
+        "operationId": "geometry-observation.synthetic",
+        "operationVersion": "1.0.0",
+        "inputContentIdentity": null,
+        "createdAt": "2026-06-19T21:33:30Z",
+        "notes": null
+      }
+    }
+  ],
+  "warnings": [],
+  "provenance": {
+    "provenanceId": "provenance:observation",
+    "actorType": "deterministic-test",
+    "actorId": "pr79-test",
+    "operationId": "geometry-observation.synthetic",
+    "operationVersion": "1.0.0",
+    "inputContentIdentity": null,
+    "createdAt": "2026-06-19T21:33:30Z",
+    "notes": null
+  },
+  "contentIdentity": "sha256:7bd94745fef56ffe82e46c8af562524d8c2b6e787764de71aee4c8501632517a"
+}
