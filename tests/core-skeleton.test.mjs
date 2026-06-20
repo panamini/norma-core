@@ -525,6 +525,24 @@ test("operation result contract accepts valid minimal PR2 result envelope", () =
   assert.deepEqual(result.errors, []);
 });
 
+test("operation result contract preserves visible runtime refs", () => {
+  const runRef = { id: "run:preserve" };
+  const packLockRef = { id: "pack-lock:preserve" };
+  const operationContextRef = { id: "operation-context:preserve" };
+
+  const result = core.validateCoreOperationResult(validOperationResult({
+    runRef,
+    packLockRef,
+    operationContextRef,
+  }));
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.equal(result.runRef, runRef);
+  assert.equal(result.packLockRef, packLockRef);
+  assert.equal(result.operationContextRef, operationContextRef);
+});
+
 test("critical warnings cannot be suppressed", () => {
   const criticalWarning = createCoreWarning({
     code: "MissingProvenance",
@@ -633,6 +651,52 @@ function assertGeometryOk(result) {
 function assertGeometryFailed(result, diagnosticCode) {
   assertFailedWithDiagnostic(result, diagnosticCode);
   assert.equal(result.output, null);
+}
+
+function validMetricSurface(overrides = {}) {
+  return {
+    kind: "surface-space",
+    id: "surface:metric",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    ...overrides,
+  };
+}
+
+function validSegmentSpace(overrides = {}) {
+  return {
+    kind: "segment-space",
+    id: "segment:unit",
+    coordinateSystem: normalizedCoordinateSystem1d,
+    tolerancePolicy,
+    extent: {
+      kind: "segment",
+      start: { kind: "point", x: 0 },
+      end: { kind: "point", x: 1 },
+    },
+    ...overrides,
+  };
+}
+
+function validComposition(overrides = {}) {
+  return {
+    kind: "composition-2d",
+    id: "composition:rectangles",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: validMetricSurface(),
+    elements: [
+      {
+        kind: "element",
+        id: "element:left",
+        geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 },
+      },
+    ],
+    ...overrides,
+  };
 }
 
 test("PR3 exports canonical geometry model vocabulary", () => {
@@ -967,6 +1031,105 @@ test("PR3 rejects unsupported fields on internal primitives", () => {
   ]) {
     assertGeometryFailed(core.validateGeometryV1(geometry), "UnsupportedGeometryV1");
   }
+});
+
+test("PR3 rejects unknown fields on every Geometry V1 object shape", () => {
+  const cases = [
+    ["segment-space", validSegmentSpace({ metadata: { future: true } })],
+    ["surface-space", validMetricSurface({ metadata: { future: true } })],
+    ["composition-2d", validComposition({ metadata: { future: true } })],
+    ["coordinate-system", validMetricSurface({ coordinateSystem: { ...metricCoordinateSystem2d, metadata: true } })],
+    ["metric-policy", validMetricSurface({ metricPolicy: { ...metricPolicy, metadata: true } })],
+    ["tolerance-policy", validMetricSurface({ tolerancePolicy: { ...tolerancePolicy, metadata: true } })],
+    ["point", validSegmentSpace({
+      extent: {
+        kind: "segment",
+        start: { kind: "point", x: 0, metadata: true },
+        end: { kind: "point", x: 1 },
+      },
+    })],
+    ["segment", validSegmentSpace({
+      extent: {
+        kind: "segment",
+        start: { kind: "point", x: 0 },
+        end: { kind: "point", x: 1 },
+        metadata: true,
+      },
+    })],
+    ["line", validSegmentSpace({
+      line: {
+        kind: "line",
+        bounded: true,
+        segment: {
+          kind: "segment",
+          start: { kind: "point", x: 0 },
+          end: { kind: "point", x: 1 },
+        },
+        metadata: true,
+      },
+    })],
+    ["rect", validMetricSurface({ bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800, metadata: true } })],
+    ["anchor", validComposition({
+      anchors: [{ kind: "anchor", id: "anchor:future", point: { kind: "point", x: 600, y: 400 }, metadata: true }],
+    })],
+    ["element", validComposition({
+      elements: [
+        {
+          kind: "element",
+          id: "element:future",
+          geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 },
+          metadata: true,
+        },
+      ],
+    })],
+  ];
+
+  for (const [shapeName, geometry] of cases) {
+    assertGeometryFailed(core.validateGeometryV1(geometry), "UnsupportedGeometryV1", shapeName);
+  }
+
+  assertGeometryOk(core.validateGeometryV1(validComposition()));
+});
+
+test("PR3 rejects future-looking fields even when they are not in the legacy blacklist", () => {
+  for (const field of ["packRef", "ruleRefs", "score", "sourceTruth", "metadata"]) {
+    assertGeometryFailed(
+      core.validateGeometryV1(validMetricSurface({ [field]: `future:${field}` })),
+      "UnsupportedGeometryV1",
+    );
+  }
+});
+
+test("PR3 geometry validation accepts only plain structured objects", () => {
+  class SurfaceGeometry {
+    constructor() {
+      this.kind = "surface-space";
+      this.id = "surface:class-instance";
+      this.coordinateSystem = metricCoordinateSystem2d;
+      this.metricPolicy = metricPolicy;
+      this.tolerancePolicy = tolerancePolicy;
+      this.bounds = { kind: "rect", x: 0, y: 0, width: 1200, height: 800 };
+    }
+  }
+
+  const dateCoordinateSystem = new Date();
+  Object.assign(dateCoordinateSystem, metricCoordinateSystem2d);
+
+  const mapBounds = new Map(Object.entries({ kind: "rect", x: 0, y: 0, width: 1200, height: 800 }));
+  const setPoint = new Set(Object.entries({ kind: "point", x: 0 }));
+
+  assertGeometryFailed(core.validateGeometryV1(new SurfaceGeometry()), "InvalidGeometryV1");
+  assertGeometryFailed(core.validateGeometryV1(validMetricSurface({ coordinateSystem: dateCoordinateSystem })), "InvalidGeometryV1");
+  assertGeometryFailed(core.validateGeometryV1(validMetricSurface({ bounds: mapBounds })), "InvalidGeometryV1");
+  assertGeometryFailed(core.validateGeometryV1(validSegmentSpace({
+    extent: { kind: "segment", start: setPoint, end: { kind: "point", x: 1 } },
+  })), "InvalidGeometryV1");
+  assertGeometryFailed(core.validateGeometryV1(validMetricSurface({ bounds: [] })), "InvalidGeometryV1");
+
+  assert.doesNotThrow(() => {
+    const result = core.validateGeometryV1({ kind: "surface-space", bounds: [] });
+    assertGeometryFailed(result, "MissingCoordinateSystem");
+  });
 });
 
 test("PR3 geometry validation does not mutate or repair input", () => {

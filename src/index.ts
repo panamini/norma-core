@@ -441,24 +441,50 @@ const GEOMETRY_V1_UNSUPPORTED_KINDS = [
   "polygon",
 ] as const;
 
-const GEOMETRY_V1_UNSUPPORTED_FIELDS = [
-  "angle",
-  "cadObject",
-  "color",
-  "curve",
-  "depth",
-  "font",
-  "image",
-  "imageRef",
-  "layer",
-  "nativeLayer",
-  "path",
-  "pluginObject",
-  "rotation",
-  "src",
-  "style",
-  "transform",
-  "z",
+const COORDINATE_SYSTEM_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "origin",
+  "xAxis",
+  "yAxis",
+  "dimensions",
+  "coordinateScale",
+] as const;
+
+const METRIC_POLICY_ALLOWED_KEYS = ["kind", "id", "quantity", "unit"] as const;
+const TOLERANCE_POLICY_ALLOWED_KEYS = ["kind", "id", "coordinateTolerance", "metricTolerance"] as const;
+const POINT_ALLOWED_KEYS = ["kind", "x", "y"] as const;
+const SEGMENT_ALLOWED_KEYS = ["kind", "start", "end"] as const;
+const LINE_ALLOWED_KEYS = ["kind", "segment", "bounded"] as const;
+const RECT_ALLOWED_KEYS = ["kind", "x", "y", "width", "height"] as const;
+const ANCHOR_ALLOWED_KEYS = ["kind", "id", "point", "targetElementId"] as const;
+const ELEMENT_ALLOWED_KEYS = ["kind", "id", "geometry", "anchors"] as const;
+const SEGMENT_SPACE_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "coordinateSystem",
+  "metricPolicy",
+  "tolerancePolicy",
+  "extent",
+  "line",
+] as const;
+const SURFACE_SPACE_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "coordinateSystem",
+  "metricPolicy",
+  "tolerancePolicy",
+  "bounds",
+] as const;
+const COMPOSITION_2D_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "coordinateSystem",
+  "metricPolicy",
+  "tolerancePolicy",
+  "surface",
+  "elements",
+  "anchors",
 ] as const;
 
 const PROVENANCE_STRING_FIELDS = ["operationName", "operationVersion"] as const;
@@ -671,6 +697,9 @@ export function validateCoreOperationResult(result: unknown): CoreResult {
     warnings: result.warnings as readonly CoreWarning[],
     outputRefs,
     provenance,
+    runRef: result.runRef as RunRef | null,
+    packLockRef: result.packLockRef as PackLockRef | null,
+    operationContextRef: result.operationContextRef as OperationContextRef | null,
     output: result.output,
   });
 }
@@ -716,7 +745,7 @@ export function validateGeometryV1(geometry: unknown): CoreResult<GeometryV1> {
 }
 
 function validateGeometryV1Value(geometry: unknown): GeometryValueValidation<GeometryV1> {
-  if (!isRecord(geometry)) {
+  if (!isPlainGeometryObject(geometry)) {
     return failedGeometryValue(invalidGeometryV1("geometry", "Geometry V1 input must be a structured object."));
   }
 
@@ -727,13 +756,6 @@ function validateGeometryV1Value(geometry: unknown): GeometryValueValidation<Geo
 
   if (isUnsupportedGeometryV1Kind(geometryKind) || !isGeometryV1Kind(geometryKind)) {
     return failedGeometryValue(unsupportedGeometryV1("kind", `Geometry kind is outside V1: ${geometryKind}.`));
-  }
-
-  const unsupportedField = firstUnsupportedGeometryField(geometry);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(unsupportedField, `Geometry field is outside V1: ${unsupportedField}.`),
-    );
   }
 
   if (geometryKind === "segment-space") {
@@ -748,6 +770,11 @@ function validateGeometryV1Value(geometry: unknown): GeometryValueValidation<Geo
 }
 
 function validateSegmentSpace(value: Record<string, unknown>): GeometryValueValidation<SegmentSpace> {
+  const fieldsFailure = validateAllowedGeometryFields(value, SEGMENT_SPACE_ALLOWED_KEYS, "", "SegmentSpace");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
   const policiesValidation = validateGeometryPolicies(value, 1);
   if (!policiesValidation.ok) {
     return policiesValidation;
@@ -773,6 +800,11 @@ function validateSegmentSpace(value: Record<string, unknown>): GeometryValueVali
 }
 
 function validateSurfaceSpace(value: Record<string, unknown>): GeometryValueValidation<SurfaceSpace> {
+  const fieldsFailure = validateAllowedGeometryFields(value, SURFACE_SPACE_ALLOWED_KEYS, "", "SurfaceSpace");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
   const policiesValidation = validateGeometryPolicies(value, 2);
   if (!policiesValidation.ok) {
     return policiesValidation;
@@ -791,6 +823,11 @@ function validateSurfaceSpace(value: Record<string, unknown>): GeometryValueVali
 }
 
 function validateComposition2D(value: Record<string, unknown>): GeometryValueValidation<Composition2D> {
+  const fieldsFailure = validateAllowedGeometryFields(value, COMPOSITION_2D_ALLOWED_KEYS, "", "Composition2D");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
   const policiesValidation = validateGeometryPolicies(value, 2);
   if (!policiesValidation.ok) {
     return policiesValidation;
@@ -825,7 +862,7 @@ function validateComposition2D(value: Record<string, unknown>): GeometryValueVal
 }
 
 function validateSurfaceInput(value: unknown): GeometryValueValidation<SurfaceSpace> {
-  if (!isRecord(value)) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1("surface", "Composition2D requires a rectangular SurfaceSpace."));
   }
 
@@ -833,11 +870,9 @@ function validateSurfaceInput(value: unknown): GeometryValueValidation<SurfaceSp
     return failedGeometryValue(invalidGeometryV1("surface.kind", "Composition2D surface must be a SurfaceSpace."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`surface.${unsupportedField}`, `SurfaceSpace field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, SURFACE_SPACE_ALLOWED_KEYS, "surface", "SurfaceSpace");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   return validateSurfaceSpace(value);
@@ -885,8 +920,18 @@ function validateCoordinateSystem(
     return failedGeometryValue(missingCoordinateSystem());
   }
 
-  if (!isRecord(value)) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1("coordinateSystem", "CoordinateSystem must be a structured object."));
+  }
+
+  const fieldsFailure = validateAllowedGeometryFields(
+    value,
+    COORDINATE_SYSTEM_ALLOWED_KEYS,
+    "coordinateSystem",
+    "CoordinateSystem",
+  );
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   if (!isCoordinateSystemRecord(value)) {
@@ -914,6 +959,15 @@ function validateMetricPolicy(value: unknown, coordinateScale: CoordinateScale):
       : validGeometryValue(null);
   }
 
+  if (!isPlainGeometryObject(value)) {
+    return failedGeometryValue(invalidGeometryV1("metricPolicy", "MetricPolicy must explicitly describe length units."));
+  }
+
+  const fieldsFailure = validateAllowedGeometryFields(value, METRIC_POLICY_ALLOWED_KEYS, "metricPolicy", "MetricPolicy");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
   if (!isMetricPolicyRecord(value)) {
     return failedGeometryValue(invalidGeometryV1("metricPolicy", "MetricPolicy must explicitly describe length units."));
   }
@@ -924,6 +978,22 @@ function validateMetricPolicy(value: unknown, coordinateScale: CoordinateScale):
 function validateTolerancePolicy(value: unknown): GeometryValueValidation<TolerancePolicy | null> {
   if (value === undefined || value === null) {
     return validGeometryValue(null);
+  }
+
+  if (!isPlainGeometryObject(value)) {
+    return failedGeometryValue(
+      invalidGeometryV1("tolerancePolicy", "TolerancePolicy must expose explicit non-negative tolerances."),
+    );
+  }
+
+  const fieldsFailure = validateAllowedGeometryFields(
+    value,
+    TOLERANCE_POLICY_ALLOWED_KEYS,
+    "tolerancePolicy",
+    "TolerancePolicy",
+  );
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   if (!isTolerancePolicyRecord(value)) {
@@ -940,15 +1010,13 @@ function validateRect(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Rect> {
-  if (!isRecord(value)) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Rect must be a structured object."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Rect field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, RECT_ALLOWED_KEYS, targetRef, "Rect");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   if (!isRectRecord(value)) {
@@ -968,15 +1036,13 @@ function validateSegment(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Segment> {
-  if (!isRecord(value)) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Segment must be a structured object."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Segment field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, SEGMENT_ALLOWED_KEYS, targetRef, "Segment");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   if (value.kind !== "segment") {
@@ -1005,15 +1071,17 @@ function validateLine(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Line> {
-  if (!isRecord(value) || value.kind !== "line") {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Line field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, LINE_ALLOWED_KEYS, targetRef, "Line");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
+  if (value.kind !== "line") {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Line V1 must be explicitly bounded."));
   }
 
   if (value.bounded !== true) {
@@ -1033,15 +1101,13 @@ function validatePoint(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Point> {
-  if (!isRecord(value)) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Point must expose finite coordinates."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Point field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, POINT_ALLOWED_KEYS, targetRef, "Point");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
   }
 
   if (!isPointRecord(value)) {
@@ -1087,15 +1153,17 @@ function validateElement(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Element> {
-  if (!isRecord(value) || value.kind !== "element" || !hasNonEmptyString(value, "id")) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Element must expose kind and id."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Element field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, ELEMENT_ALLOWED_KEYS, targetRef, "Element");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
+  if (value.kind !== "element" || !hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Element must expose kind and id."));
   }
 
   const rectValidation = validateRect(value.geometry, coordinateSystem, `${targetRef}.geometry`);
@@ -1139,15 +1207,17 @@ function validateAnchor(
   coordinateSystem: CoordinateSystem,
   targetRef: string,
 ): GeometryValueValidation<Anchor> {
-  if (!isRecord(value) || value.kind !== "anchor" || !hasNonEmptyString(value, "id")) {
+  if (!isPlainGeometryObject(value)) {
     return failedGeometryValue(invalidGeometryV1(targetRef, "Anchor must expose kind and id."));
   }
 
-  const unsupportedField = firstUnsupportedGeometryField(value);
-  if (unsupportedField !== null) {
-    return failedGeometryValue(
-      unsupportedGeometryV1(`${targetRef}.${unsupportedField}`, `Anchor field is outside V1: ${unsupportedField}.`),
-    );
+  const fieldsFailure = validateAllowedGeometryFields(value, ANCHOR_ALLOWED_KEYS, targetRef, "Anchor");
+  if (fieldsFailure !== null) {
+    return failedGeometryValue(fieldsFailure);
+  }
+
+  if (value.kind !== "anchor" || !hasNonEmptyString(value, "id")) {
+    return failedGeometryValue(invalidGeometryV1(targetRef, "Anchor must expose kind and id."));
   }
 
   if (!hasOptionalStringField(value, "targetElementId")) {
@@ -1927,8 +1997,29 @@ function isUnsupportedGeometryV1Kind(value: string): boolean {
   return GEOMETRY_V1_UNSUPPORTED_KINDS.includes(value as (typeof GEOMETRY_V1_UNSUPPORTED_KINDS)[number]);
 }
 
-function firstUnsupportedGeometryField(value: Record<string, unknown>): string | null {
-  return GEOMETRY_V1_UNSUPPORTED_FIELDS.find((field) => field in value) ?? null;
+function validateAllowedGeometryFields(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  targetPrefix: string,
+  shapeName: string,
+): CoreResult | null {
+  const unsupportedField = firstUnsupportedGeometryKey(value, allowedKeys);
+  if (unsupportedField === null) {
+    return null;
+  }
+
+  return unsupportedGeometryV1(
+    geometryTargetRef(targetPrefix, unsupportedField),
+    `${shapeName} field is outside V1: ${unsupportedField}.`,
+  );
+}
+
+function firstUnsupportedGeometryKey(value: Record<string, unknown>, allowedKeys: readonly string[]): string | null {
+  return Object.keys(value).find((key) => !allowedKeys.includes(key)) ?? null;
+}
+
+function geometryTargetRef(targetPrefix: string, field: string): string {
+  return targetPrefix.length === 0 ? field : `${targetPrefix}.${field}`;
 }
 
 function isCoordinateDimensions(value: unknown): value is CoordinateDimensions {
@@ -2124,4 +2215,13 @@ function dependencyRefSegments(dependencyRef: string): readonly string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlainGeometryObject(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
