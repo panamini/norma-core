@@ -461,6 +461,28 @@ test("PR79 rejects invalid AcceptedGeometry acceptance and correction consistenc
   assert.deepEqual(result.diagnostics, sortedDiagnostics(result.diagnostics));
 });
 
+test("PR79 reports AcceptedGeometry segment endpoint diagnostics on the accepted geometry surface", () => {
+  const invalidAccepted = acceptedGeometryWithMutation((accepted) => {
+    accepted.primitives[1].start = null;
+  }, { recomputeIdentity: false });
+
+  const result = validateAcceptedGeometryV1(invalidAccepted);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(diagnosticCodesAtPath(result, "primitives.1.start"), ["InvalidAcceptedGeometryShape"]);
+});
+
+test("PR79 reports CorrectionEntry provenance diagnostics as correction history diagnostics", () => {
+  const invalidAccepted = acceptedGeometryWithMutation((accepted) => {
+    accepted.correctionHistory[0].provenance = null;
+  }, { recomputeIdentity: false });
+
+  const result = validateAcceptedGeometryV1(invalidAccepted);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(diagnosticCodesAtPath(result, "correctionHistory.0.provenance"), ["InvalidCorrectionHistory"]);
+});
+
 function readJsonFixture(fileName) {
   return JSON.parse(readFileSync(path.join(fixturesDir, fileName), "utf8"));
 }
@@ -591,6 +613,12 @@ function assertDiagnosticCodes(result, expectedCodes) {
 
 function hasDiagnosticPath(result, path) {
   return result.diagnostics.some((diagnostic) => diagnostic.path === path);
+}
+
+function diagnosticCodesAtPath(result, path) {
+  return result.diagnostics
+    .filter((diagnostic) => diagnostic.path === path)
+    .map((diagnostic) => diagnostic.code);
 }
 
 function unexpectedPropertyPaths(result) {

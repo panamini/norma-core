@@ -719,7 +719,7 @@ function validatePrimitiveGeometry(
 
   if (kind === "segment" || kind === "axis") {
     validateExactKeys(primitive, SEGMENT_PRIMITIVE_KEYS, "Primitive", primitivePath, shapeCode, diagnostics);
-    validateSegmentLikePrimitive(primitive, primitivePath, primitiveId, diagnostics);
+    validateSegmentLikePrimitive(primitive, primitivePath, primitiveId, shapeCode, diagnostics);
     return;
   }
 
@@ -969,7 +969,7 @@ function isPrimitiveNullConfidenceCheckable(value: unknown): value is RecordValu
 function validateProvenanceRef(
   value: unknown,
   path: string,
-  code: Extract<ValidatorDiagnosticCode, "MissingObservationProvenance" | "InvalidAcceptedGeometryShape">,
+  code: Extract<ValidatorDiagnosticCode, "MissingObservationProvenance" | "InvalidAcceptedGeometryShape" | "InvalidCorrectionHistory">,
   diagnostics: ValidatorDiagnostic[],
 ): void {
   if (!isRecord(value)) {
@@ -1031,7 +1031,7 @@ function validateCorrectionEntry(
   validateCorrectionTargetPrimitive(value, entryPath, primitiveIds, diagnostics);
   validateNonEmptyString(value.reason, `${entryPath}.reason`, "CorrectionEntry", "InvalidCorrectionHistory", diagnostics);
   validateCorrectionContentIdentities(value, entryPath, diagnostics);
-  validateProvenanceRef(value.provenance, `${entryPath}.provenance`, "InvalidAcceptedGeometryShape", diagnostics);
+  validateProvenanceRef(value.provenance, `${entryPath}.provenance`, "InvalidCorrectionHistory", diagnostics);
 }
 
 function validateCorrectionSequence(
@@ -1274,10 +1274,11 @@ function validateSegmentLikePrimitive(
   primitive: RecordValue,
   primitivePath: string,
   primitiveId: string | null,
+  shapeCode: Extract<ValidatorDiagnosticCode, "InvalidGeometryObservationShape" | "InvalidAcceptedGeometryShape">,
   diagnostics: ValidatorDiagnostic[],
 ): void {
-  const startOk = validateEndpoint(primitive.start, `${primitivePath}.start`, primitiveId, diagnostics);
-  const endOk = validateEndpoint(primitive.end, `${primitivePath}.end`, primitiveId, diagnostics);
+  const startOk = validateEndpoint(primitive.start, `${primitivePath}.start`, primitiveId, shapeCode, diagnostics);
+  const endOk = validateEndpoint(primitive.end, `${primitivePath}.end`, primitiveId, shapeCode, diagnostics);
 
   if (startOk && endOk && endpointsMatch(primitive.start as ObservationPoint, primitive.end as ObservationPoint)) {
     addDiagnostic(diagnostics, "DegenerateObservationPrimitive", "Primitive", primitivePath, primitiveId, "Segment and axis endpoints must be distinct.");
@@ -1292,14 +1293,15 @@ function validateEndpoint(
   value: unknown,
   path: string,
   primitiveId: string | null,
+  shapeCode: Extract<ValidatorDiagnosticCode, "InvalidGeometryObservationShape" | "InvalidAcceptedGeometryShape">,
   diagnostics: ValidatorDiagnostic[],
 ): boolean {
   if (!isRecord(value)) {
-    addDiagnostic(diagnostics, "InvalidGeometryObservationShape", "Primitive", path, primitiveId, "Endpoint must be a closed { x, y } object.");
+    addDiagnostic(diagnostics, shapeCode, "Primitive", path, primitiveId, "Endpoint must be a closed { x, y } object.");
     return false;
   }
 
-  validateExactKeys(value, POINT_KEYS, "Primitive", path, "InvalidGeometryObservationShape", diagnostics);
+  validateExactKeys(value, POINT_KEYS, "Primitive", path, shapeCode, diagnostics);
   validatePointCoordinates(value.x, value.y, path, primitiveId, diagnostics);
   return isFiniteNormalized(value.x) && isFiniteNormalized(value.y);
 }
