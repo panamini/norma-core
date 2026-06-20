@@ -246,6 +246,7 @@ function assertHeadingSequence(source, expectedHeadings) {
 
 function branchChangedFiles() {
   const files = new Set();
+  let successfulGitProbes = 0;
   for (const args of [
     ["diff", "--name-only", "main...HEAD"],
     ["diff", "--name-only", "origin/main...HEAD"],
@@ -253,21 +254,31 @@ function branchChangedFiles() {
     ["diff", "--cached", "--name-only"],
     ["ls-files", "--others", "--exclude-standard"],
   ]) {
-    for (const file of gitOutputLines(args)) {
+    const outputLines = gitOutputLines(args);
+    if (outputLines === null) {
+      continue;
+    }
+    successfulGitProbes += 1;
+    for (const file of outputLines) {
       files.add(file);
     }
   }
+  assert.notEqual(successfulGitProbes, 0, "Unable to inspect changed files with git");
   return [...files].sort();
 }
 
 function gitOutputLines(args) {
-  const output = execGitSync("git", args, {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  }).trim();
+  try {
+    const output = execGitSync("git", args, {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
 
-  return output === "" ? [] : output.split("\n");
+    return output === "" ? [] : output.split("\n");
+  } catch {
+    return null;
+  }
 }
 
 function literalRegExp(value) {
