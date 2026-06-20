@@ -130,6 +130,16 @@ const pr79ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr80ApprovedChangedFiles = [
+  "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
@@ -140,6 +150,7 @@ const exactApprovedChangedFileSets = [
   pr77ApprovedChangedFiles,
   pr78ApprovedChangedFiles,
   pr79ApprovedChangedFiles,
+  pr80ApprovedChangedFiles,
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {

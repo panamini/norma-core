@@ -67,6 +67,16 @@ const exactPr79ChangedFilesWithGuards = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const exactPr80ChangedFilesWithGuards = [
+  "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  pr76ContractTestPath,
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -81,6 +91,17 @@ const protectedPrefixes = [
   "examples/",
   "src/",
   "viewer/",
+];
+
+const forbiddenRuntimePatterns = [
+  /^src\//,
+  /^bin\//,
+  /^viewer\//,
+  /^examples\//,
+  /^\.github\//,
+  /^tests\/fixtures\/.*\.(?:png|jpe?g|webp|gif|svg)$/i,
+  /(?:^|\/)(?:Dockerfile|docker-compose\.yml|vercel\.json|wrangler\.toml)$/,
+  /(?:^|\/)(?:.*schema.*\.(?:ts|json))$/i,
 ];
 
 const headings = [
@@ -290,44 +311,27 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr76ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
-  const pr79Allowlist = isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)
-    ? exactPr79ChangedFilesWithGuards
-    : [];
+  const protectedAllowlist = exactProtectedAllowlist(changed);
 
-  assert.deepEqual(changed.filter((file) => isProtectedChange(file) && !pr79Allowlist.includes(file)), []);
+  assert.deepEqual(
+    changed.filter((file) => isProtectedChange(file) && !protectedAllowlist.includes(file)),
+    [],
+  );
 });
 
 test("PR75 does not add runtime package deployment provider or schema files", () => {
   const changed = branchChangedFiles();
-  const pr79Allowlist = isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)
-    ? exactPr79ChangedFilesWithGuards
-    : [];
-  const forbiddenPatterns = [
-    /^src\//,
-    /^bin\//,
-    /^viewer\//,
-    /^examples\//,
-    /^\.github\//,
-    /^tests\/fixtures\/.*\.(?:png|jpe?g|webp|gif|svg)$/i,
-    /(?:^|\/)(?:Dockerfile|docker-compose\.yml|vercel\.json|wrangler\.toml)$/,
-    /(?:^|\/)(?:.*schema.*\.(?:ts|json))$/i,
-  ];
+  const runtimeAllowlist = exactProtectedAllowlist(changed);
+  const unexpected = changed.filter(
+    (file) => !runtimeAllowlist.includes(file) && forbiddenRuntimePatterns.some((pattern) => pattern.test(file)),
+  );
 
-  for (const file of changed) {
-    if (pr79Allowlist.includes(file)) {
-      continue;
-    }
-
-    assert.equal(
-      forbiddenPatterns.some((pattern) => pattern.test(file)),
-      false,
-      `${file} is outside PR75 documentation/roadmap/contract-test scope`,
-    );
-  }
+  assert.deepEqual(unexpected, []);
 });
 
 function read(relativePath) {
@@ -384,6 +388,16 @@ function gitFiles(args) {
 
 function isProtectedChange(file) {
   return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
+}
+
+function exactProtectedAllowlist(changed) {
+  if (isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)) {
+    return exactPr79ChangedFilesWithGuards;
+  }
+  if (isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards)) {
+    return exactPr80ChangedFilesWithGuards;
+  }
+  return [];
 }
 
 function isExactChangedFileSet(changed, approvedFiles) {

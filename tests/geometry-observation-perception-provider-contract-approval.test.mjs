@@ -85,6 +85,16 @@ const pr79ApprovedChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const pr80ApprovedChangedFiles = new Set([
+  'docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -513,11 +523,16 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
   assertIncludes(decision, 'mapping into Norma Core geometry');
 });
 
-test('PR78 and PR79 branch changes stay limited to their approved contract surfaces', () => {
+test('PR78 PR79 and PR80 branch changes stay limited to their approved contract surfaces', () => {
   assertApprovedContractSurfaceChanges(branchChangedFiles());
 });
 
 function assertApprovedContractSurfaceChanges(changedFiles) {
+  if (isExactChangedFileSet(changedFiles, [...pr80ApprovedChangedFiles].sort())) {
+    assertPr80ApprovedChangedFiles(changedFiles);
+    return;
+  }
+
   if (isExactChangedFileSet(changedFiles, [...pr79ApprovedChangedFiles].sort())) {
     assertPr79ApprovedChangedFiles(changedFiles);
     return;
@@ -539,6 +554,23 @@ function assertPr79ApprovedChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
       `PR79 must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertPr80ApprovedChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      pr80ApprovedChangedFiles.has(changedFile),
+      `unexpected PR80 file changed: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `PR80 must not change protected implementation surface: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `PR80 must not change protected project contract file: ${changedFile}`,
     );
   }
 }
