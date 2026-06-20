@@ -79,6 +79,16 @@ const pr78ApprovedChangedFiles = [
   "tests/read-only-viewer-static.test.mjs",
 ];
 
+const pr80ApprovedChangedFiles = [
+  "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -233,11 +243,13 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr76ApprovedChangeSet = isExactPr76ApprovedChangeSet(changed);
   const isPr77ApprovedChangeSet = isExactPr77ApprovedChangeSet(changed);
   const isPr78ApprovedChangeSet = isExactPr78ApprovedChangeSet(changed);
+  const isPr80ApprovedChangeSet = isExactPr80ApprovedChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
     isPr77ApprovedChangeSet ? pr77ApprovedChangedFiles : [],
     isPr78ApprovedChangeSet ? pr78ApprovedChangedFiles : [],
+    isPr80ApprovedChangeSet ? pr80ApprovedChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -345,6 +357,10 @@ function isExactPr77ApprovedChangeSet(changed) {
 
 function isExactPr78ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr78ApprovedChangedFiles);
+}
+
+function isExactPr80ApprovedChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr80ApprovedChangedFiles);
 }
 
 function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {
