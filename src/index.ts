@@ -3,9 +3,13 @@ export type OperationName = string;
 export type OperationVersion = string;
 export type OperationKey = `${OperationName}@${OperationVersion}`;
 
-export type OperationStatus = "ok" | "failed" | "not_implemented";
+export const CORE_OPERATION_STATUSES = ["ok", "failed", "not_implemented"] as const;
+export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr1";
+export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
+export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
+
+export const CORE_VERSION: CoreVersion = "0.1.0-pr2";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -19,6 +23,13 @@ export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperationVersion",
   "InternalInvariantViolation",
   "ForbiddenCoreDependency",
+  "ImplicitPackNotAllowed",
+  "HiddenToleranceNotAllowed",
+  "FreeFormPromptNotAllowed",
+  "HiddenOutputChangingDefault",
+  "MissingResultOutput",
+  "MissingResultDiagnostics",
+  "MissingOperationContext",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -109,6 +120,11 @@ export interface CoreResult<TOutput = unknown> {
   output: TOutput | null;
 }
 
+export interface OperationDescriptor {
+  name?: OperationName;
+  version?: OperationVersion;
+}
+
 export interface OperationDefinition {
   name: OperationName;
   version: OperationVersion;
@@ -117,13 +133,70 @@ export interface OperationDefinition {
 
 export type OperationRegistry = Readonly<Record<OperationKey, OperationDefinition>>;
 
-export interface CoreOperationRequest {
-  operation?: {
-    name?: OperationName;
-    version?: OperationVersion;
-  };
+export const CORE_CANONICAL_VARIABLES = [
+  "operation",
+  "operationVersion",
+  "input",
+  "operationContext",
+  "packLock",
+  "ruleRefs",
+  "ruleSetRef",
+  "evaluationProfileRef",
+  "tolerances",
+  "coordinateSystem",
+  "metricPolicy",
+  "requestedOutputs",
+  "requestedArtifacts",
+  "featureFlags",
+  "sourceReferences",
+  "status",
+  "warnings",
+  "errors",
+  "provenance",
+  "runRef",
+  "packLockRef",
+  "operationContextRef",
+  "output",
+  "outputRefs",
+] as const;
+
+export type CoreCanonicalVariable = (typeof CORE_CANONICAL_VARIABLES)[number];
+
+export interface OutputChangingDefault {
+  name: string;
+  explicit?: boolean;
+  versioned?: boolean;
+}
+
+export interface OperationCallContract {
+  operation?: OperationDescriptor;
+  operationVersion?: OperationVersion;
   input?: unknown;
+  operationContext?: OperationContext | OperationContextRef | null;
+  packLock?: PackLock | PackLockRef | null;
+  ruleRefs?: readonly string[] | readonly SourceReference[];
+  ruleSetRef?: string;
+  evaluationProfileRef?: string;
+  tolerances?: unknown;
+  coordinateSystem?: unknown;
+  metricPolicy?: unknown;
+  requestedOutputs?: readonly string[];
+  requestedArtifacts?: readonly string[];
+  featureFlags?: Readonly<Record<string, boolean>>;
+  sourceReferences?: readonly SourceReference[];
+  hiddenDefaults?: readonly string[];
+  outputChangingDefaults?: readonly OutputChangingDefault[];
   dependencyRefs?: readonly string[];
+}
+
+export interface CoreOperationRequest extends OperationCallContract {}
+
+export interface OperationResultContract<TOutput = unknown> extends CoreResult<TOutput> {
+  run?: Run | null;
+  packLock?: PackLock | null;
+  operationContext?: OperationContext | null;
+  artifactRefs?: readonly SourceReference[];
+  explanationRefs?: readonly SourceReference[];
 }
 
 interface DiagnosticInput {
@@ -198,11 +271,22 @@ const PR1_STUB_OPERATION: OperationDefinition = Object.freeze({
   status: "stub",
 });
 
+const CORE_V1_CONCEPTUAL_OPERATIONS = [
+  Object.freeze({ name: "core.validateGeometry", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.resolveRules", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.generateConstruction", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.measureConstruction", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.evaluateComposition", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.compareEvaluations", version: "0.1.0", status: "stub" }),
+] as const satisfies readonly OperationDefinition[];
+
 export const EMPTY_OPERATION_REGISTRY: OperationRegistry = Object.freeze({});
 
 export const CORE_SKELETON_OPERATION_REGISTRY: OperationRegistry = Object.freeze({
   [operationKey(PR1_STUB_OPERATION.name, PR1_STUB_OPERATION.version)]: PR1_STUB_OPERATION,
 });
+
+export const CORE_OPERATION_REGISTRY: OperationRegistry = operationRegistryFromDefinitions(CORE_V1_CONCEPTUAL_OPERATIONS);
 
 export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
   "ui",
@@ -219,6 +303,8 @@ export const FORBIDDEN_CORE_DEPENDENCY_TERMS = [
   "sdk",
   "cli",
 ] as const;
+
+const PROVENANCE_STRING_FIELDS = ["operationName", "operationVersion"] as const;
 
 export function createCoreError(input: DiagnosticInput): CoreError {
   const diagnostic = { ...DEFAULT_DIAGNOSTIC_FIELDS, ...input };
@@ -253,6 +339,14 @@ export function operationKey(name: OperationName, version: OperationVersion): Op
   return `${name}@${version}`;
 }
 
+function operationRegistryFromDefinitions(operations: readonly OperationDefinition[]): OperationRegistry {
+  return Object.freeze(
+    Object.fromEntries(
+      operations.map((operation) => [operationKey(operation.name, operation.version), operation]),
+    ),
+  ) as OperationRegistry;
+}
+
 export function unsupportedOperation(operationRef: OperationName | OperationKey): CoreResult {
   return createCoreResult({
     status: "failed",
@@ -274,7 +368,7 @@ export function notImplementedOperation(operation: OperationDefinition): CoreRes
     errors: [
       createCoreError({
         code: "OperationNotImplemented",
-        message: `Operation is registered as a PR1 stub and has no business implementation: ${operation.name}.`,
+        message: `Operation is registered as a stub operation and has no business implementation: ${operation.name}.`,
         sourceRef: { kind: "operation", ref: operation.name },
         provenance,
       }),
@@ -292,17 +386,13 @@ export function executeCoreOperation(
     return requestValidation.result;
   }
 
-  const dependencyBoundaryResult = dependencyBoundaryForRequest(requestValidation.request);
-  if (dependencyBoundaryResult !== null) {
-    return dependencyBoundaryResult;
-  }
+  const preflightFailure = firstFailure([
+    dependencyBoundaryForRequest(requestValidation.request),
+    inputShapeForRequest(requestValidation.request),
+    failedResultOnly(validateOperationCallContract(requestValidation.request)),
+  ]);
 
-  const inputShapeResult = inputShapeForRequest(requestValidation.request);
-  if (inputShapeResult !== null) {
-    return inputShapeResult;
-  }
-
-  return executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
+  return preflightFailure ?? executeRegisteredOperation(requestValidation.operationName, requestValidation.operationVersion, registry);
 }
 
 export function suppressCoreWarnings(
@@ -380,6 +470,52 @@ export function validateCoreDependencyBoundary(dependencyRefs: readonly string[]
   }
 
   return createCoreResult({ status: "ok" });
+}
+
+export function validateOperationCallContract(request: unknown = {}): CoreResult {
+  const requestValidation = validateOperationRequest(request as CoreOperationRequest);
+  if (!requestValidation.ok) {
+    return requestValidation.result;
+  }
+
+  const operationRequest = requestValidation.request;
+  const failure = firstFailure([
+    dependencyBoundaryForRequest(operationRequest),
+    inputShapeForRequest(operationRequest),
+    validateCanonicalCallShapes(operationRequest),
+    validateCallContractGuardrails(operationRequest),
+  ]);
+
+  return failure ?? createCoreResult({
+    status: "ok",
+    provenance: createProvenance("core.operation-call-contract.validate", "0.1.0"),
+  });
+}
+
+export function validateCoreOperationResult(result: unknown): CoreResult {
+  if (!isRecord(result)) {
+    return invalidInputShape("result", "Operation result must be an object.");
+  }
+
+  const shapeFailure = validateOperationResultShape(result);
+  if (shapeFailure !== null) {
+    return shapeFailure;
+  }
+
+  const outputRefs = result.outputRefs as readonly SourceReference[];
+  const provenance = operationResultProvenance(result);
+  const provenanceFailure = validateOperationResultProvenance(outputRefs, provenance);
+  if (provenanceFailure !== null) {
+    return provenanceFailure;
+  }
+
+  return createCoreResult({
+    status: "ok",
+    warnings: result.warnings as readonly CoreWarning[],
+    outputRefs,
+    provenance,
+    output: result.output,
+  });
 }
 
 export function missingRequiredDiagnosticCodes(diagnosticCodes: readonly DiagnosticCode[]): readonly DiagnosticCode[] {
@@ -485,7 +621,8 @@ function validateOperationRequest(request: CoreOperationRequest): OperationReque
     return failedRequestValidation(invalidInputShape("request", "Core operation request must be an object."));
   }
 
-  const operationValidation = validateOperationDescriptor(request.operation);
+  const operationVersionOverride = typeof request.operationVersion === "string" ? request.operationVersion : undefined;
+  const operationValidation = validateOperationDescriptor(request.operation, operationVersionOverride);
   if (!operationValidation.ok) {
     return operationValidation;
   }
@@ -498,7 +635,7 @@ function validateOperationRequest(request: CoreOperationRequest): OperationReque
   };
 }
 
-function validateOperationDescriptor(operation: unknown): OperationDescriptorValidation {
+function validateOperationDescriptor(operation: unknown, operationVersionOverride?: OperationVersion): OperationDescriptorValidation {
   if (operation == null) {
     return failedRequestValidation(missingOperation());
   }
@@ -507,16 +644,19 @@ function validateOperationDescriptor(operation: unknown): OperationDescriptorVal
     return failedRequestValidation(invalidInputShape("operation", "Operation descriptor must be an object."));
   }
 
-  return validateOperationIdentity(operation);
+  return validateOperationIdentity(operation, operationVersionOverride);
 }
 
-function validateOperationIdentity(operation: Record<string, unknown>): OperationDescriptorValidation {
+function validateOperationIdentity(
+  operation: Record<string, unknown>,
+  operationVersionOverride?: OperationVersion,
+): OperationDescriptorValidation {
   const operationName = nonEmptyString(operation.name);
   if (operationName === null) {
     return failedRequestValidation(missingOperationName());
   }
 
-  const operationVersion = nonEmptyString(operation.version);
+  const operationVersion = nonEmptyString(operationVersionOverride ?? operation.version);
   if (operationVersion === null) {
     return failedRequestValidation(missingOperationVersion(operationName));
   }
@@ -603,6 +743,322 @@ function operationInvariantViolation(operationName: OperationName): CoreResult {
   });
 }
 
+function validateCanonicalCallShapes(request: CoreOperationRequest): CoreResult | null {
+  return firstFailure([
+    validateOperationContextShape(request.operationContext),
+    validatePackLockShape(request.packLock),
+    validateOptionalStringArray(request.requestedOutputs, "requestedOutputs", "Requested outputs must be strings."),
+    validateOptionalStringArray(request.requestedArtifacts, "requestedArtifacts", "Requested artifacts must be strings."),
+    validateOptionalStringArray(request.hiddenDefaults, "hiddenDefaults", "Hidden defaults must be named with strings."),
+    validateRuleRefsShape(request.ruleRefs),
+    validateSourceReferencesShape(request.sourceReferences),
+    validateFeatureFlagsShape(request.featureFlags),
+    validateOutputChangingDefaultsShape(request.outputChangingDefaults),
+  ]);
+}
+
+function validateCallContractGuardrails(request: CoreOperationRequest): CoreResult | null {
+  return firstFailure([
+    validateOperationContextGuardrail(request),
+    validateFreeFormPromptGuardrail(request),
+    validateHiddenToleranceGuardrail(request),
+    validateHiddenDefaultGuardrail(request),
+    validateImplicitPackGuardrail(request),
+  ]);
+}
+
+function validateOperationResultShape(result: Record<string, unknown>): CoreResult | null {
+  return firstFailure([
+    validateResultStatusShape(result),
+    validateResultOutputShape(result),
+    validateResultDiagnosticsShape(result),
+    validateResultOutputRefsShape(result),
+    validateResultVisibleEnvelopeShape(result),
+  ]);
+}
+
+function validateOperationContextGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasEffectiveOperationContext(request) ? null : missingOperationContext();
+}
+
+function validateFreeFormPromptGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasFreeFormPromptInput(request.input) ? freeFormPromptNotAllowed() : null;
+}
+
+function validateHiddenToleranceGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasHiddenTolerance(request) ? hiddenToleranceNotAllowed() : null;
+}
+
+function validateHiddenDefaultGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return hasHiddenOutputChangingDefault(request) ? hiddenOutputChangingDefault() : null;
+}
+
+function validateImplicitPackGuardrail(request: CoreOperationRequest): CoreResult | null {
+  return usesPackScopedReferences(request) && !hasEffectivePackLock(request) ? implicitPackNotAllowed() : null;
+}
+
+function validateResultStatusShape(result: Record<string, unknown>): CoreResult | null {
+  return isOperationStatus(result.status)
+    ? null
+    : invalidInputShape("status", "Operation result status must be one of CORE_OPERATION_STATUSES.");
+}
+
+function validateResultOutputShape(result: Record<string, unknown>): CoreResult | null {
+  return "output" in result ? null : missingResultOutput();
+}
+
+function validateResultDiagnosticsShape(result: Record<string, unknown>): CoreResult | null {
+  if (!hasResultDiagnosticsArrays(result)) {
+    return missingResultDiagnostics();
+  }
+
+  return hasStructuredResultDiagnostics(result)
+    ? null
+    : invalidInputShape("diagnostics", "Operation result warnings and errors must contain structured diagnostics.");
+}
+
+function hasResultDiagnosticsArrays(result: Record<string, unknown>): boolean {
+  return ["warnings", "errors"].every((key) => Array.isArray(result[key]));
+}
+
+function hasStructuredResultDiagnostics(result: Record<string, unknown>): boolean {
+  return isCoreWarningArray(result.warnings) && isCoreErrorArray(result.errors);
+}
+
+function validateResultOutputRefsShape(result: Record<string, unknown>): CoreResult | null {
+  return isSourceReferenceArray(result.outputRefs)
+    ? null
+    : invalidInputShape("outputRefs", "Operation result outputRefs must be source references.");
+}
+
+function operationResultProvenance(result: Record<string, unknown>): Provenance | null {
+  return result.provenance as Provenance | null;
+}
+
+function validateOperationResultProvenance(
+  outputRefs: readonly SourceReference[],
+  provenance: Provenance | null,
+): CoreResult | null {
+  if (outputRefs.length === 0 || provenance !== null) {
+    return null;
+  }
+
+  return createCoreResult({
+    status: "failed",
+    outputRefs,
+    errors: [
+      createCoreError({
+        code: "MissingProvenance",
+        message: "Derived operation result output cannot be accepted without provenance.",
+        sourceRef: { kind: "provenance", ref: "missing" },
+      }),
+    ],
+  });
+}
+
+function validateOptionalStringArray(value: unknown, targetRef: string, message: string): CoreResult | null {
+  return value === undefined || isStringArray(value) ? null : invalidInputShape(targetRef, message);
+}
+
+function validateOperationContextShape(value: unknown): CoreResult | null {
+  return value === undefined || value === null || isOperationContextLike(value)
+    ? null
+    : invalidInputShape("operationContext", "Operation context must be a structured ref object.");
+}
+
+function validatePackLockShape(value: unknown): CoreResult | null {
+  return value === undefined || value === null || isPackLockLike(value)
+    ? null
+    : invalidInputShape("packLock", "Pack lock must be a structured ref object.");
+}
+
+function validateRuleRefsShape(value: unknown): CoreResult | null {
+  return value === undefined || isStringArray(value) || isSourceReferenceArray(value)
+    ? null
+    : invalidInputShape("ruleRefs", "Rule references must be strings or source references.");
+}
+
+function validateSourceReferencesShape(value: unknown): CoreResult | null {
+  return value === undefined || isSourceReferenceArray(value)
+    ? null
+    : invalidInputShape("sourceReferences", "Source references must expose kind and ref strings.");
+}
+
+function validateFeatureFlagsShape(value: unknown): CoreResult | null {
+  return value === undefined || isBooleanRecord(value)
+    ? null
+    : invalidInputShape("featureFlags", "Feature flags must be explicit booleans.");
+}
+
+function validateOutputChangingDefaultsShape(value: unknown): CoreResult | null {
+  return value === undefined || isOutputChangingDefaultArray(value)
+    ? null
+    : invalidInputShape(
+        "outputChangingDefaults",
+        "Output-changing defaults must expose a string name and boolean explicit/versioned flags.",
+      );
+}
+
+function validateResultVisibleEnvelopeShape(result: Record<string, unknown>): CoreResult | null {
+  return firstFailure([
+    validateRequiredResultField(result, "provenance"),
+    validateRequiredResultField(result, "runRef"),
+    validateRequiredResultField(result, "packLockRef"),
+    validateRequiredResultField(result, "operationContextRef"),
+    validateResultProvenanceShape(result.provenance),
+    validateResultRuntimeRefShape(result.runRef, "runRef"),
+    validateResultRuntimeRefShape(result.packLockRef, "packLockRef"),
+    validateResultRuntimeRefShape(result.operationContextRef, "operationContextRef"),
+  ]);
+}
+
+function validateRequiredResultField(result: Record<string, unknown>, field: string): CoreResult | null {
+  return field in result
+    ? null
+    : invalidInputShape(field, `Operation result contract requires a visible ${field} field.`);
+}
+
+function validateResultProvenanceShape(value: unknown): CoreResult | null {
+  return value === null || isProvenance(value)
+    ? null
+    : invalidInputShape("provenance", "Operation result provenance must be null or structured provenance.");
+}
+
+function validateResultRuntimeRefShape(value: unknown, targetRef: string): CoreResult | null {
+  return value === null || isRuntimeRef(value)
+    ? null
+    : invalidInputShape(targetRef, `Operation result ${targetRef} must be null or a structured ref.`);
+}
+
+function hasFreeFormPromptInput(input: unknown): boolean {
+  if (!isRecord(input)) {
+    return false;
+  }
+
+  return hasNonEmptyString(input, "prompt") || hasNonEmptyString(input, "freeFormPrompt");
+}
+
+function hasHiddenTolerance(request: CoreOperationRequest): boolean {
+  return request.hiddenDefaults?.some((defaultName) => isToleranceName(defaultName)) ?? false;
+}
+
+function hasHiddenOutputChangingDefault(request: CoreOperationRequest): boolean {
+  return request.outputChangingDefaults?.some(
+    (defaultValue) => defaultValue.explicit !== true || defaultValue.versioned !== true,
+  ) ?? false;
+}
+
+function usesPackScopedReferences(request: CoreOperationRequest): boolean {
+  return request.ruleRefs !== undefined || request.ruleSetRef !== undefined || request.evaluationProfileRef !== undefined;
+}
+
+function hasEffectivePackLock(request: CoreOperationRequest): boolean {
+  return request.packLock !== undefined && request.packLock !== null;
+}
+
+function hasEffectiveOperationContext(request: CoreOperationRequest): boolean {
+  return request.operationContext !== undefined && request.operationContext !== null;
+}
+
+function freeFormPromptNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "FreeFormPromptNotAllowed",
+        message: "Free-form prompt text cannot be used as Norma Core source input.",
+        sourceRef: { kind: "input", ref: "prompt" },
+      }),
+    ],
+  });
+}
+
+function implicitPackNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "ImplicitPackNotAllowed",
+        message: "Pack-scoped operation data requires an explicit effective packLock.",
+        sourceRef: { kind: "packLock", ref: "implicit" },
+      }),
+    ],
+  });
+}
+
+function hiddenToleranceNotAllowed(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "HiddenToleranceNotAllowed",
+        message: "Tolerance defaults that can affect output must be explicit and visible.",
+        sourceRef: { kind: "tolerance", ref: "hidden" },
+      }),
+    ],
+  });
+}
+
+function hiddenOutputChangingDefault(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "HiddenOutputChangingDefault",
+        message: "Output-changing defaults must be explicit and versioned or rejected.",
+        sourceRef: { kind: "operation-context", ref: "default" },
+      }),
+    ],
+  });
+}
+
+function missingResultOutput(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingResultOutput",
+        message: "Operation result contract requires an explicit output field, even when null.",
+        sourceRef: { kind: "result", ref: "output" },
+      }),
+    ],
+  });
+}
+
+function missingResultDiagnostics(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingResultDiagnostics",
+        message: "Operation result contract requires visible warnings and errors arrays.",
+        sourceRef: { kind: "result", ref: "diagnostics" },
+      }),
+    ],
+  });
+}
+
+function missingOperationContext(): CoreResult {
+  return createCoreResult({
+    status: "failed",
+    errors: [
+      createCoreError({
+        code: "MissingOperationContext",
+        message: "Significant operation calls require an explicit operationContext.",
+        sourceRef: { kind: "operation-context", ref: "missing" },
+      }),
+    ],
+  });
+}
+
+function firstFailure(results: readonly (CoreResult | null)[]): CoreResult | null {
+  return results.find((result) => result !== null) ?? null;
+}
+
+function failedResultOnly(result: CoreResult): CoreResult | null {
+  return result.status === "ok" ? null : result;
+}
+
 function failedRequestValidation(result: CoreResult): FailedOperationValidation {
   return { ok: false, result };
 }
@@ -611,8 +1067,173 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function isOperationStatus(value: unknown): value is OperationStatus {
+  return typeof value === "string" && CORE_OPERATION_STATUSES.includes(value as OperationStatus);
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isSourceReferenceArray(value: unknown): value is readonly SourceReference[] {
+  return Array.isArray(value) && value.every(isSourceReference);
+}
+
+function isSourceReference(value: unknown): value is SourceReference {
+  return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string";
+}
+
+function isProvenance(value: unknown): value is Provenance {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return [
+    hasNonEmptyStringFields(value, PROVENANCE_STRING_FIELDS),
+    isSourceReferenceArray(value.inputRefs),
+    isSourceReference(value.source),
+  ].every(Boolean);
+}
+
+function isRuntimeRef(value: unknown): value is RunRef | PackLockRef | OperationContextRef {
+  return isRecord(value) && nonEmptyString(value.id) !== null;
+}
+
+function isOperationContextLike(value: unknown): value is OperationContext | OperationContextRef {
+  return isRuntimeRef(value) || isRuntimeRefWrapper(value, "contextRef");
+}
+
+function isPackLockLike(value: unknown): value is PackLock | PackLockRef {
+  return isRuntimeRef(value) || isRuntimeRefWrapper(value, "packRef");
+}
+
+function isRuntimeRefWrapper(value: unknown, nullableRefField: "contextRef" | "packRef"): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return [
+    isRuntimeRef(value.ref),
+    hasOptionalStringField(value, "coreVersion"),
+    hasOptionalNullableStringField(value, nullableRefField),
+  ].every(Boolean);
+}
+
+function isCoreWarningArray(value: unknown): value is readonly CoreWarning[] {
+  return Array.isArray(value) && value.every(isCoreWarning);
+}
+
+function isCoreWarning(value: unknown): value is CoreWarning {
+  return isDiagnostic(value) && isWarningSeverity(value.severity);
+}
+
+function isCoreErrorArray(value: unknown): value is readonly CoreError[] {
+  return Array.isArray(value) && value.every(isCoreError);
+}
+
+function isCoreError(value: unknown): value is CoreError {
+  return isDiagnostic(value) && isErrorSeverity(value.severity) && value.blocking === true;
+}
+
+const DIAGNOSTIC_SHAPE_CHECKS = [
+  hasDiagnosticCode,
+  hasDiagnosticSeverity,
+  hasDiagnosticMessage,
+  hasDiagnosticTargetRef,
+  hasDiagnosticSource,
+  hasDiagnosticBlocking,
+  hasDiagnosticProvenance,
+] as const;
+
+function isDiagnostic(value: unknown): value is Diagnostic {
+  return isRecord(value) && DIAGNOSTIC_SHAPE_CHECKS.every((check) => check(value));
+}
+
+function hasDiagnosticCode(value: Record<string, unknown>): boolean {
+  return isDiagnosticCode(value.code);
+}
+
+function hasDiagnosticSeverity(value: Record<string, unknown>): boolean {
+  return isDiagnosticSeverity(value.severity);
+}
+
+function hasDiagnosticMessage(value: Record<string, unknown>): boolean {
+  return typeof value.message === "string";
+}
+
+function hasDiagnosticTargetRef(value: Record<string, unknown>): boolean {
+  return value.targetRef === null || typeof value.targetRef === "string";
+}
+
+function hasDiagnosticSource(value: Record<string, unknown>): boolean {
+  return isSourceReference(value.source);
+}
+
+function hasDiagnosticBlocking(value: Record<string, unknown>): boolean {
+  return typeof value.blocking === "boolean";
+}
+
+function hasDiagnosticProvenance(value: Record<string, unknown>): boolean {
+  return value.provenance === null || isProvenance(value.provenance);
+}
+
+function isDiagnosticCode(value: unknown): value is DiagnosticCode {
+  return typeof value === "string" && CORE_DIAGNOSTIC_CODES.includes(value as DiagnosticCode);
+}
+
+function isDiagnosticSeverity(value: unknown): value is DiagnosticSeverity {
+  return isWarningSeverity(value) || isErrorSeverity(value);
+}
+
+function isWarningSeverity(value: unknown): value is CoreWarning["severity"] {
+  return value === "info" || value === "warning" || value === "critical";
+}
+
+function isErrorSeverity(value: unknown): value is CoreError["severity"] {
+  return value === "error" || value === "fatal";
+}
+
+function isBooleanRecord(value: unknown): value is Readonly<Record<string, boolean>> {
+  return isRecord(value) && Object.values(value).every((item) => typeof item === "boolean");
+}
+
+function isOutputChangingDefaultArray(value: unknown): value is readonly OutputChangingDefault[] {
+  return Array.isArray(value) && value.every(isOutputChangingDefault);
+}
+
+function isOutputChangingDefault(value: unknown): value is OutputChangingDefault {
+  if (!isRecord(value) || typeof value.name !== "string") {
+    return false;
+  }
+
+  return hasOptionalBooleanField(value, "explicit") && hasOptionalBooleanField(value, "versioned");
+}
+
+function hasOptionalBooleanField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || typeof value[key] === "boolean";
+}
+
+function hasOptionalStringField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || typeof value[key] === "string";
+}
+
+function hasOptionalNullableStringField(value: Record<string, unknown>, key: string): boolean {
+  return !(key in value) || value[key] === null || typeof value[key] === "string";
+}
+
+function hasNonEmptyStringFields(
+  value: Record<string, unknown>,
+  fields: readonly string[],
+): boolean {
+  return fields.every((field) => nonEmptyString(value[field]) !== null);
+}
+
+function hasNonEmptyString(value: Record<string, unknown>, key: string): boolean {
+  return typeof value[key] === "string" && value[key].length > 0;
+}
+
+function isToleranceName(value: string): boolean {
+  return value.toLowerCase().includes("tolerance");
 }
 
 function isValidCoreInput(input: unknown): boolean {

@@ -4,6 +4,7 @@ import test from "node:test";
 import * as core from "../dist/src/index.js";
 import {
   CORE_DIAGNOSTIC_CODES,
+  CORE_VERSION,
   CORE_SKELETON_OPERATION_REGISTRY,
   createCoreError,
   createCoreWarning,
@@ -28,12 +29,37 @@ function diagnosticCodes(result) {
   return [...result.errors, ...result.warnings].map((diagnostic) => diagnostic.code);
 }
 
+const explicitOperationContext = { ref: { id: "context:test" } };
+
+const resultProvenance = {
+  operationName: "core.test",
+  operationVersion: "0.1.0",
+  inputRefs: [],
+  source: { kind: "test", ref: "result" },
+};
+
+function validOperationResult(overrides = {}) {
+  return {
+    status: "ok",
+    output: null,
+    outputRefs: [],
+    warnings: [],
+    errors: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+    ...overrides,
+  };
+}
+
 function assertStructuredResult(result) {
   assert.equal(typeof result, "object");
   assert.ok(result.status);
   assert.ok(Array.isArray(result.errors));
   assert.ok(Array.isArray(result.warnings));
   assert.ok(Array.isArray(result.outputRefs));
+  assert.ok("output" in result);
   assert.ok("provenance" in result);
   assert.ok("runRef" in result);
   assert.ok("packLockRef" in result);
@@ -45,6 +71,20 @@ function assertStructuredResult(result) {
     }
   }
 }
+
+function assertFailedWithDiagnostic(result, diagnosticCode) {
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes(diagnosticCode));
+}
+
+function assertInvalidOperationResultShape(resultShape) {
+  assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
+}
+
+test("core version reflects PR2 operation contracts", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr2");
+});
 
 test("validateCoreSkeleton returns a structured result", () => {
   const result = validateCoreSkeleton();
@@ -90,6 +130,13 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingOperationVersion",
       "InternalInvariantViolation",
       "ForbiddenCoreDependency",
+      "ImplicitPackNotAllowed",
+      "HiddenToleranceNotAllowed",
+      "FreeFormPromptNotAllowed",
+      "HiddenOutputChangingDefault",
+      "MissingResultOutput",
+      "MissingResultDiagnostics",
+      "MissingOperationContext",
     ]),
   );
 });
@@ -121,25 +168,23 @@ test("required diagnostic comparison detects a missing required diagnostic", () 
 test("missing operation returns MissingOperation", () => {
   const result = executeCoreOperation({});
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("MissingOperation"));
+  assertFailedWithDiagnostic(result, "MissingOperation");
 });
 
 test("unknown operation returns UnsupportedOperation", () => {
   const result = executeCoreOperation({
     operation: { name: "core.unknown", version: "0.1.0" },
+    operationContext: explicitOperationContext,
     input: {},
   });
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("UnsupportedOperation"));
+  assertFailedWithDiagnostic(result, "UnsupportedOperation");
 });
 
 test("known stub operation returns not implemented without fake output", () => {
   const result = executeCoreOperation({
     operation: { name: "core.skeleton.stub", version: "0.1.0" },
+    operationContext: explicitOperationContext,
     input: {},
   });
 
@@ -148,17 +193,18 @@ test("known stub operation returns not implemented without fake output", () => {
   assert.equal(result.output, null);
   assert.deepEqual(result.outputRefs, []);
   assert.ok(diagnosticCodes(result).includes("OperationNotImplemented"));
+  assert.ok(result.errors.some((error) => !error.message.includes("PR1 stub")));
+  assert.ok(result.errors.some((error) => error.message.includes("stub operation")));
 });
 
 test("known stub operation with unsupported version returns UnsupportedOperation", () => {
   const result = executeCoreOperation({
     operation: { name: "core.skeleton.stub", version: "9.9.9" },
+    operationContext: explicitOperationContext,
     input: {},
   });
 
-  assertStructuredResult(result);
-  assert.equal(result.status, "failed");
-  assert.ok(diagnosticCodes(result).includes("UnsupportedOperation"));
+  assertFailedWithDiagnostic(result, "UnsupportedOperation");
 });
 
 test("malformed input returns InvalidInputShape", () => {
@@ -170,6 +216,309 @@ test("malformed input returns InvalidInputShape", () => {
   assertStructuredResult(result);
   assert.equal(result.status, "failed");
   assert.ok(diagnosticCodes(result).includes("InvalidInputShape"));
+});
+
+test("PR2 operation contract exports canonical validation levels", () => {
+  assert.deepEqual(core.CORE_VALIDATION_LEVELS, ["call", "result", "replay"]);
+});
+
+test("PR2 canonical variables include runtime refs", () => {
+  assert.ok(core.CORE_CANONICAL_VARIABLES.includes("packLockRef"));
+  assert.ok(core.CORE_CANONICAL_VARIABLES.includes("operationContextRef"));
+});
+
+test("PR2 operation registry exposes only conceptual V1 stub operations", () => {
+  assert.deepEqual(Object.keys(core.CORE_OPERATION_REGISTRY), [
+    "core.validateGeometry@0.1.0",
+    "core.resolveRules@0.1.0",
+    "core.generateConstruction@0.1.0",
+    "core.measureConstruction@0.1.0",
+    "core.evaluateComposition@0.1.0",
+    "core.compareEvaluations@0.1.0",
+  ]);
+
+  for (const operation of Object.values(core.CORE_OPERATION_REGISTRY)) {
+    assert.equal(operation.status, "stub");
+  }
+});
+
+test("operation without operationVersion returns MissingOperationVersion", () => {
+  const result = executeCoreOperation({
+    operation: { name: "core.skeleton.stub" },
+    input: {},
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingOperationVersion"));
+});
+
+test("operation call contract rejects implicit pack usage", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.resolveRules", version: "0.1.0" },
+    operationContext: explicitOperationContext,
+    input: {},
+    packLock: null,
+    ruleSetRef: "surface-basic-third-grid",
+    requestedOutputs: ["rule-resolution"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("ImplicitPackNotAllowed"));
+});
+
+test("operation call contract rejects missing operationContext", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.validateGeometry", version: "0.1.0" },
+    input: {},
+    requestedOutputs: ["validated-geometry"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingOperationContext"));
+});
+
+test("operation call contract rejects malformed operationContext values", () => {
+  for (const operationContext of ["bad", [], 42, false, { ref: { id: 42 } }]) {
+    const result = core.validateOperationCallContract({
+      operation: { name: "core.validateGeometry", version: "0.1.0" },
+      operationContext,
+      input: {},
+      requestedOutputs: ["validated-geometry"],
+      requestedArtifacts: [],
+    });
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), String(operationContext));
+  }
+});
+
+test("operation call contract rejects malformed packLock for pack-scoped references", () => {
+  for (const packLock of ["bad", [], 42, false, { id: 42 }, { ref: { id: 42 } }]) {
+    const result = core.validateOperationCallContract({
+      operation: { name: "core.resolveRules", version: "0.1.0" },
+      operationContext: explicitOperationContext,
+      packLock,
+      ruleSetRef: "surface-basic-third-grid",
+      evaluationProfileRef: "profile:basic",
+      input: {},
+      requestedOutputs: ["rule-resolution"],
+      requestedArtifacts: [],
+    });
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed");
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), JSON.stringify(packLock));
+    assert.ok(result.errors.some((error) => error.blocking), JSON.stringify(packLock));
+  }
+});
+
+test("operation call contract accepts valid minimal structured refs", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.resolveRules", version: "0.1.0" },
+    operationContext: { ref: { id: "context:rules" } },
+    packLock: { ref: { id: "pack-lock:rules" } },
+    ruleSetRef: "surface-basic-third-grid",
+    input: {},
+    requestedOutputs: ["rule-resolution"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.errors, []);
+});
+
+test("operation call contract rejects hidden tolerance", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.measureConstruction", version: "0.1.0" },
+    input: {},
+    operationContext: { ref: { id: "context:measurement" } },
+    requestedOutputs: ["measurements"],
+    requestedArtifacts: [],
+    hiddenDefaults: ["tolerance"],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("HiddenToleranceNotAllowed"));
+});
+
+test("operation call contract rejects free-form prompt input", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.validateGeometry", version: "0.1.0" },
+    operationContext: explicitOperationContext,
+    input: { prompt: "draw a pleasing golden rectangle" },
+    requestedOutputs: ["validated-geometry"],
+    requestedArtifacts: [],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("FreeFormPromptNotAllowed"));
+});
+
+test("operation call contract rejects output-changing defaults that are not explicit", () => {
+  const result = core.validateOperationCallContract({
+    operation: { name: "core.evaluateComposition", version: "0.1.0" },
+    input: {},
+    operationContext: { ref: { id: "context:evaluation" } },
+    evaluationProfileRef: "profile:basic",
+    requestedOutputs: ["evaluation"],
+    requestedArtifacts: [],
+    outputChangingDefaults: [{ name: "roundingPolicy", explicit: false, versioned: false }],
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("HiddenOutputChangingDefault"));
+});
+
+test("operation result contract rejects missing warnings or errors arrays", () => {
+  const result = core.validateCoreOperationResult(
+    validOperationResult({
+      output: {},
+      warnings: undefined,
+      errors: undefined,
+    }),
+  );
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingResultDiagnostics"));
+});
+
+test("operation result contract rejects malformed warnings or errors entries", () => {
+  for (const resultShape of [
+    {
+      status: "ok",
+      output: null,
+      outputRefs: [],
+      warnings: [42, "bad"],
+      errors: [],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+    {
+      status: "failed",
+      output: null,
+      outputRefs: [],
+      warnings: [],
+      errors: [42, "bad"],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+  ]) {
+    assertInvalidOperationResultShape(resultShape);
+  }
+});
+
+test("operation result contract rejects missing or invalid status", () => {
+  for (const resultShape of [
+    {
+      output: null,
+      outputRefs: [],
+      warnings: [],
+      errors: [],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+    {
+      status: "maybe",
+      output: null,
+      outputRefs: [],
+      warnings: [],
+      errors: [],
+      provenance: null,
+      runRef: null,
+      packLockRef: null,
+      operationContextRef: null,
+    },
+  ]) {
+    assertInvalidOperationResultShape(resultShape);
+  }
+});
+
+test("operation result contract rejects derived output without provenance", () => {
+  const result = core.validateCoreOperationResult({
+    status: "ok",
+    output: { derived: true },
+    outputRefs: [{ kind: "core-output", ref: "derived:1" }],
+    warnings: [],
+    errors: [],
+    provenance: null,
+    runRef: null,
+    packLockRef: null,
+    operationContextRef: null,
+  });
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingProvenance"));
+});
+
+test("operation result contract rejects malformed outputRefs entries", () => {
+  assertInvalidOperationResultShape(validOperationResult({
+    output: { derived: true },
+    outputRefs: [42, "bad"],
+    provenance: resultProvenance,
+  }));
+});
+
+test("operation result contract rejects missing output field", () => {
+  const { output, ...resultShape } = validOperationResult();
+  const result = core.validateCoreOperationResult(resultShape);
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "failed");
+  assert.ok(diagnosticCodes(result).includes("MissingResultOutput"));
+});
+
+test("operation result contract rejects missing visible envelope fields", () => {
+  for (const field of ["provenance", "runRef", "packLockRef", "operationContextRef"]) {
+    const resultShape = validOperationResult();
+    delete resultShape[field];
+
+    const result = core.validateCoreOperationResult(resultShape);
+
+    assertStructuredResult(result);
+    assert.equal(result.status, "failed", field);
+    assert.ok(diagnosticCodes(result).includes("InvalidInputShape"), field);
+  }
+});
+
+test("operation result contract rejects malformed provenance and runtime refs", () => {
+  for (const overrides of [
+    { provenance: "bad" },
+    { provenance: { operationName: "core.test" } },
+    { runRef: "bad" },
+    { runRef: { id: 42 } },
+    { packLockRef: "bad" },
+    { packLockRef: { id: 42 } },
+    { operationContextRef: "bad" },
+    { operationContextRef: { id: 42 } },
+  ]) {
+    assertInvalidOperationResultShape(validOperationResult(overrides));
+  }
+});
+
+test("operation result contract accepts valid minimal PR2 result envelope", () => {
+  const result = core.validateCoreOperationResult(validOperationResult());
+
+  assertStructuredResult(result);
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.errors, []);
 });
 
 test("critical warnings cannot be suppressed", () => {
