@@ -293,6 +293,59 @@ test("PR4 rejects beauty and UI preset claims", () => {
   );
 });
 
+test("PR4 rejects executable rule declaration fields", () => {
+  for (const field of ["algorithm", "execute", "script", "code"]) {
+    const pack = clonePack({
+      ruleDeclarations: [
+        {
+          ...structuredClone(BASIC_PROPORTIONS_PACK.ruleDeclarations[0]),
+          [field]: "not allowed in PR4",
+        },
+      ],
+    });
+
+    assertFailedWithDiagnostic(validateRatioPackV1(pack), "UnsupportedRatioPackClaim");
+  }
+});
+
+test("PR4 rejects out-of-scope pack-owned fields", () => {
+  for (const field of [
+    "score",
+    "scoring",
+    "measurement",
+    "evaluation",
+    "artifact",
+    "construction",
+    "cad",
+    "cloud",
+    "marketplace",
+    "api",
+    "mcp",
+    "packLock",
+    "run",
+    "replay",
+  ]) {
+    assertFailedWithDiagnostic(
+      validateRatioPackV1(clonePack({ [field]: { kind: "unsupported" } })),
+      "UnsupportedRatioPackClaim",
+    );
+  }
+});
+
+test("PR4 rejects intent, optimization, recommendation, and preference claims", () => {
+  for (const claim of [
+    "intent inference",
+    "optimization",
+    "recommendation",
+    "preference",
+  ]) {
+    assertFailedWithDiagnostic(
+      validateRatioPackV1(clonePack({ claims: [claim] })),
+      "UnsupportedRatioPackClaim",
+    );
+  }
+});
+
 test("PR4 ratio pack validation is deterministic and does not mutate input", () => {
   const pack = clonePack({
     partitionPatterns: [
