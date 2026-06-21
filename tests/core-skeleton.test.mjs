@@ -648,9 +648,13 @@ function assertGeometryOk(result) {
   assert.ok(result.output);
 }
 
-function assertGeometryFailed(result, diagnosticCode) {
+function assertGeometryFailed(result, diagnosticCode, context = "") {
   assertFailedWithDiagnostic(result, diagnosticCode);
-  assert.equal(result.output, null);
+  assert.equal(
+    result.output,
+    null,
+    context ? `${context}: output should be null` : "output should be null",
+  );
 }
 
 function validMetricSurface(overrides = {}) {
