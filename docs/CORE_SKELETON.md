@@ -33,13 +33,28 @@ PR3 adds the minimal geometry model that later operations can validate against w
 The PR3 validator returns structured `CoreResult` failures for missing coordinate systems, invalid geometry, missing metric policy for metric coordinate spaces, and unsupported V1 geometry.
 `validateGeometryV1` is a boundary validator only. It does not construct, transform, measure, normalize, score, or repair geometry.
 
+## PR4 Ratio Pack Model
+
+PR4 adds the minimal declarative ratio pack model that later rule-resolution work can reference without executing rules. The MVP pack is `norma.basic-proportions` version `0.1.0`, schema `ratio-pack-v1`, with content identity `norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-minimal`.
+
+The MVP pack declares:
+
+- Ratios `1/2`, `1/3`, and `2/3`.
+- Ratio sequence `1:1:1`.
+- Partition patterns `halves` and `thirds`.
+- Declaration-only rule set `surface-basic-third-grid`.
+
+`validateRatioPackV1` validates the pack shape, required identity fields, duplicate IDs across pack-owned collections, and missing cross-references. Missing referenced ratios, sequences, partition patterns, or rule declarations return `MissingRatioReference` instead of generic structural diagnostics. Read helpers expose declared ratios, ratio sequences, partition patterns, and rule sets from a validated pack.
+
+`RatioPackPreLock` remains a pre-lock identity carrier only. It is not a final `PackLock`, does not resolve pack runtime state, and does not execute rule behavior.
+
 ## Does Not Contain
 
 - Geometry calculations.
-- Ratio packs or implicit ratios.
-- Construction, measurements, evaluation, artifacts, or scoring.
+- Implicit ratios, ratio inference, or generated ratio defaults.
+- Rule resolution, construction, measurements, evaluation, artifacts, or scoring.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
-- UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, CLI, SDK, MCP, or replay runtime.
+- UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
 
 ## Rules
