@@ -55,6 +55,12 @@ function clonePack(overrides = {}) {
   };
 }
 
+function validResolutionOutput() {
+  const result = resolveRuleSetV1(BASIC_PROPORTIONS_PACK, SURFACE_BASIC_THIRD_GRID_RULE_SET_ID);
+  assertOk(result);
+  return structuredClone(result.output);
+}
+
 test("PR5 exports Rule Resolution V1 vocabulary and diagnostics", () => {
   assert.equal(CORE_VERSION, "0.1.0-pr5");
   assert.equal(RULE_RESOLUTION_V1_SCHEMA_VERSION, "rule-resolution-v1");
@@ -115,12 +121,107 @@ test("PR5 validates resolved rule resolution output shape", () => {
   );
 });
 
+test("PR5 rejects malformed nested resolved ratio refs", () => {
+  const output = validResolutionOutput();
+
+  output.rules[0].ratioRefs[0] = {
+    ...output.rules[0].ratioRefs[0],
+    ratioRef: 42,
+  };
+  assertFailedWithDiagnostic(validateRuleResolutionV1(output), "InvalidRuleResolutionV1");
+
+  const nonFiniteOutput = validResolutionOutput();
+  nonFiniteOutput.rules[0].ratioRefs[0].normalizedValue = Number.POSITIVE_INFINITY;
+  assertFailedWithDiagnostic(validateRuleResolutionV1(nonFiniteOutput), "InvalidRuleResolutionV1");
+
+  const extraFieldOutput = validResolutionOutput();
+  extraFieldOutput.rules[0].ratioRefs[0].construction = { kind: "not-pr5" };
+  assertFailedWithDiagnostic(validateRuleResolutionV1(extraFieldOutput), "InvalidRuleResolutionV1");
+});
+
+test("PR5 rejects malformed nested source refs", () => {
+  const output = validResolutionOutput();
+
+  output.rules[0].ratioRefs[0].sourceRef = { kind: "ratio" };
+  assertFailedWithDiagnostic(validateRuleResolutionV1(output), "InvalidRuleResolutionV1");
+});
+
+test("PR5 rejects malformed nested sequence and partition pattern refs", () => {
+  const sequenceOutput = validResolutionOutput();
+  sequenceOutput.rules[0].sequenceRefs[0].sequenceRef = 42;
+  assertFailedWithDiagnostic(validateRuleResolutionV1(sequenceOutput), "InvalidRuleResolutionV1");
+
+  const emptyPartsOutput = validResolutionOutput();
+  emptyPartsOutput.rules[0].sequenceRefs[0].normalizedParts = [];
+  assertFailedWithDiagnostic(validateRuleResolutionV1(emptyPartsOutput), "InvalidRuleResolutionV1");
+
+  const nonFinitePartsOutput = validResolutionOutput();
+  nonFinitePartsOutput.rules[0].sequenceRefs[0].normalizedParts = [1 / 3, Number.NaN];
+  assertFailedWithDiagnostic(validateRuleResolutionV1(nonFinitePartsOutput), "InvalidRuleResolutionV1");
+
+  const patternOutput = validResolutionOutput();
+  patternOutput.rules[0].partitionPatternRefs[0].partitionPatternRef = 42;
+  assertFailedWithDiagnostic(validateRuleResolutionV1(patternOutput), "InvalidRuleResolutionV1");
+
+  const patternSourceOutput = validResolutionOutput();
+  patternSourceOutput.rules[0].partitionPatternRefs[0].sourceRef = { kind: "partition-pattern" };
+  assertFailedWithDiagnostic(validateRuleResolutionV1(patternSourceOutput), "InvalidRuleResolutionV1");
+});
+
+test("PR5 rejects top-level PR6 output refs", () => {
+  for (const field of ["constructionRefs", "measurementRefs", "artifactRefs", "scoringRefs"]) {
+    const output = validResolutionOutput();
+    output[field] = [{ kind: "future", ref: "not-pr5" }];
+
+    assertFailedWithDiagnostic(validateRuleResolutionV1(output), "InvalidRuleResolutionV1");
+  }
+});
+
+test("PR5 rejects resolved-rule PR6 output refs", () => {
+  for (const field of ["constructionRefs", "measurementRefs"]) {
+    const output = validResolutionOutput();
+    output.rules[0][field] = [{ kind: "future", ref: "not-pr5" }];
+
+    assertFailedWithDiagnostic(validateRuleResolutionV1(output), "InvalidRuleResolutionV1");
+  }
+});
+
 test("PR5 returns MissingRuleSet for absent declared rule sets", () => {
   assertFailedWithDiagnosticTarget(
     resolveRuleSetV1(BASIC_PROPORTIONS_PACK, "missing-rule-set"),
     "MissingRuleSet",
     "ruleSets.missing-rule-set",
   );
+});
+
+test("PR5 rejects unsupported declarative rule types during resolution", () => {
+  const unsupportedTypePack = clonePack({
+    ruleDeclarations: [
+      {
+        kind: "rule-declaration",
+        id: "unsupported-rule",
+        type: "surface.diagonal-line",
+        target: "surface",
+        ratioRefs: ["1/3"],
+        declarationOnly: true,
+      },
+    ],
+    ruleSets: [
+      {
+        kind: "rule-set",
+        id: "unsupported-rule-set",
+        ruleRefs: ["unsupported-rule"],
+        declarationOnly: true,
+      },
+    ],
+  });
+
+  assertOk(validateRatioPackV1(unsupportedTypePack));
+  assertFailedWithDiagnostic(
+    resolveRuleSetV1(unsupportedTypePack, "unsupported-rule-set"),
+    "UnsupportedRuleDeclaration",
+  );
+  assertOk(resolveRuleSetV1(BASIC_PROPORTIONS_PACK, SURFACE_BASIC_THIRD_GRID_RULE_SET_ID));
 });
 
 test("PR5 rejects empty rule set refs and declarations without resolvable refs", () => {
