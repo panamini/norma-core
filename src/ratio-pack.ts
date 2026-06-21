@@ -232,6 +232,7 @@ const UNSUPPORTED_RATIO_PACK_FIELDS = [
   "measurement",
   "optimization",
   "packlock",
+  "runtimepacklock",
   "plugin",
   "recommendation",
   "render",
@@ -246,6 +247,9 @@ const UNSUPPORTED_RATIO_PACK_FIELDS = [
   "styles",
   "theme",
   "ui",
+  "uipreset",
+  "ruleresolution",
+  "intentinference",
 ] as const;
 
 export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
@@ -267,7 +271,7 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
   provenance: Object.freeze({
     kind: "ratio-pack-provenance",
     source: "norma-basic",
-    sourceRefs: Object.freeze([{ kind: "spec", ref: "PR4 Minimal ratio pack model" }]),
+    sourceRefs: Object.freeze([Object.freeze({ kind: "spec", ref: "PR4 Minimal ratio pack model" })]),
   }),
   compatibility: Object.freeze({
     schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
@@ -428,8 +432,16 @@ function validateRatioPackValue(pack: unknown): RatioPackValidation<RatioPack> {
     return failedRatioPack(invalidRatioPack("ratioPack", "Ratio pack must be a structured object."));
   }
 
+  if (pack.kind !== "ratio-pack") {
+    return failedRatioPack(invalidRatioPack("kind", "Ratio pack V1 kind must be ratio-pack."));
+  }
+
   if (!hasNonEmptyString(pack, "id") || !isRatioPackIdentity(pack.identity)) {
     return failedRatioPack(missingRatioPackIdentity());
+  }
+
+  if (pack.identity.id !== pack.id) {
+    return failedRatioPack(invalidRatioPack("identity.id", "Ratio pack identity id must match the pack id."));
   }
 
   if (!hasNonEmptyString(pack, "version")) {
@@ -466,6 +478,12 @@ function validateRatioPackValue(pack: unknown): RatioPackValidation<RatioPack> {
   const ratioFamilies = validateRatioFamilies(pack.ratioFamilies, ratioIds);
   if (!ratioFamilies.ok) {
     return ratioFamilies;
+  }
+
+  const ratioFamilyIds = new Set(ratioFamilies.value.map((family) => family.id));
+  const missingRatioFamilyRef = ratios.value.find((ratio) => ratio.familyRef !== undefined && !ratioFamilyIds.has(ratio.familyRef));
+  if (missingRatioFamilyRef !== undefined) {
+    return failedRatioPack(missingRatioReference(`ratios.${missingRatioFamilyRef.id}.familyRef`, `Ratio references an absent ratio family: ${missingRatioFamilyRef.familyRef}.`));
   }
 
   const ratioSequences = validateRatioSequences(pack.ratioSequences);
@@ -539,12 +557,17 @@ function validateRatios(value: unknown): RatioPackValidation<readonly Ratio[]> {
     }
 
     const ratioId = ratio.id as string;
+    const normalizedValue = ratio.numerator / ratio.denominator;
+    if (!isPositiveFiniteNumber(normalizedValue)) {
+      return failedRatioPack(invalidRatioValue(`ratios.${ratioId}.normalizedValue`, "Ratio normalizedValue must be positive and finite."));
+    }
+
     ratios.push({
       kind: "ratio",
       id: ratioId,
       numerator: ratio.numerator,
       denominator: ratio.denominator,
-      normalizedValue: ratio.numerator / ratio.denominator,
+      normalizedValue,
       ...(typeof ratio.familyRef === "string" ? { familyRef: ratio.familyRef } : {}),
     });
   }
@@ -603,11 +626,20 @@ function validateRatioSequences(value: unknown): RatioPackValidation<readonly Ra
 
     const sequenceId = sequence.id as string;
     const total = sequence.parts.reduce((sum, part) => sum + part, 0);
+    if (!isPositiveFiniteNumber(total)) {
+      return failedRatioPack(invalidRatioSequence(`ratioSequences.${sequenceId}.parts`, "Ratio sequence parts total must be positive and finite."));
+    }
+
+    const normalizedParts = sequence.parts.map((part) => part / total);
+    if (!normalizedParts.every(isPositiveFiniteNumber)) {
+      return failedRatioPack(invalidRatioSequence(`ratioSequences.${sequenceId}.normalizedParts`, "Ratio sequence normalized parts must be positive and finite."));
+    }
+
     sequences.push({
       kind: "ratio-sequence",
       id: sequenceId,
       parts: sequence.parts,
-      normalizedParts: sequence.parts.map((part) => part / total),
+      normalizedParts,
     });
   }
 
@@ -936,7 +968,7 @@ function firstUnsupportedPackClaim(value: unknown, fieldPath = ""): string | nul
   }
 
   for (const [key, item] of Object.entries(value)) {
-    const normalizedKey = key.toLowerCase();
+    const normalizedKey = canonicalRatioPackFieldKey(key);
     if (UNSUPPORTED_RATIO_PACK_FIELDS.includes(normalizedKey as (typeof UNSUPPORTED_RATIO_PACK_FIELDS)[number])) {
       return key;
     }
@@ -952,6 +984,10 @@ function firstUnsupportedPackClaim(value: unknown, fieldPath = ""): string | nul
 
 function isClaimTextField(fieldPath: string): boolean {
   return fieldPath === "claims" || fieldPath === "claim" || fieldPath === "concept";
+}
+
+function canonicalRatioPackFieldKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function hasRatioPackRequiredObjects(value: Record<string, unknown>): boolean {

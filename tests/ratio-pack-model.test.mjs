@@ -48,6 +48,11 @@ function assertFailedWithDiagnostic(result, diagnosticCode) {
   assert.equal(result.output, null);
 }
 
+function assertFailedWithDiagnosticTarget(result, diagnosticCode, targetRef) {
+  assertFailedWithDiagnostic(result, diagnosticCode);
+  assert.ok(result.errors.some((diagnostic) => diagnostic.code === diagnosticCode && diagnostic.targetRef === targetRef));
+}
+
 function clonePack(overrides = {}) {
   return {
     ...structuredClone(BASIC_PROPORTIONS_PACK),
@@ -84,6 +89,11 @@ test("PR4 validates the norma.basic-proportions MVP pack", () => {
     ["1/2", "1/3", "2/3"],
   );
   assert.equal(result.output.ratios.some((ratio) => ratio.id === "1:1:1"), false);
+});
+
+test("PR4 freezes nested provenance source references", () => {
+  assert.equal(Object.isFrozen(BASIC_PROPORTIONS_PACK.provenance.sourceRefs), true);
+  assert.equal(Object.isFrozen(BASIC_PROPORTIONS_PACK.provenance.sourceRefs[0]), true);
 });
 
 test("PR4 reads declared ratios from the pack without hardcoded operation ratios", () => {
@@ -134,6 +144,20 @@ test("PR4 rejects missing required pack identity fields", () => {
   );
 });
 
+test("PR4 rejects root kind and identity mismatches", () => {
+  assertFailedWithDiagnostic(validateRatioPackV1(clonePack({ kind: "not-ratio-pack" })), "InvalidRatioPackV1");
+  assertFailedWithDiagnostic(
+    validateRatioPackV1(clonePack({
+      identity: {
+        ...BASIC_PROPORTIONS_PACK.identity,
+        id: "norma.other-pack",
+      },
+    })),
+    "InvalidRatioPackV1",
+  );
+  assertOk(validateRatioPackV1(BASIC_PROPORTIONS_PACK));
+});
+
 test("PR4 rejects unsupported schema version", () => {
   assertFailedWithDiagnostic(
     validateRatioPackV1(clonePack({ schemaVersion: "ratio-pack-v2" })),
@@ -148,9 +172,13 @@ test("PR4 rejects duplicate and invalid ratio definitions", () => {
   const invalidRatio = clonePack({
     ratios: [{ kind: "ratio", id: "broken", numerator: 1, denominator: 0 }],
   });
+  const infiniteNormalizedRatio = clonePack({
+    ratios: [{ kind: "ratio", id: "overflow", numerator: Number.MAX_VALUE, denominator: Number.MIN_VALUE }],
+  });
 
   assertFailedWithDiagnostic(validateRatioPackV1(duplicateRatio), "DuplicateRatioDefinition");
   assertFailedWithDiagnostic(validateRatioPackV1(invalidRatio), "InvalidRatioValue");
+  assertFailedWithDiagnostic(validateRatioPackV1(infiniteNormalizedRatio), "InvalidRatioValue");
 });
 
 test("PR4 rejects duplicate IDs across pack-owned collections", () => {
@@ -196,8 +224,15 @@ test("PR4 rejects invalid ratio sequences", () => {
   const invalidSequence = clonePack({
     ratioSequences: [{ kind: "ratio-sequence", id: "bad", parts: [1, 0, 1] }],
   });
+  const overflowTotalSequence = clonePack({
+    ratioSequences: [{ kind: "ratio-sequence", id: "overflow", parts: [Number.MAX_VALUE, Number.MAX_VALUE] }],
+  });
 
   assertFailedWithDiagnostic(validateRatioPackV1(invalidSequence), "InvalidRatioSequence");
+  assertFailedWithDiagnostic(validateRatioPackV1(overflowTotalSequence), "InvalidRatioSequence");
+  assertOk(validateRatioPackV1(clonePack({
+    ratioSequences: [{ kind: "ratio-sequence", id: "1:1:1", parts: [1, 1, 1] }],
+  })));
 });
 
 test("PR4 rejects missing ratio references", () => {
@@ -217,12 +252,23 @@ test("PR4 rejects missing ratio references", () => {
       },
     ],
   });
+  const missingFamilyRef = clonePack({
+    ratios: [
+      {
+        ...structuredClone(BASIC_PROPORTIONS_PACK.ratios[0]),
+        familyRef: "missing-family",
+      },
+      ...structuredClone(BASIC_PROPORTIONS_PACK.ratios.slice(1)),
+    ],
+  });
 
   assertFailedWithDiagnostic(readMissing, "MissingRatioReference");
   assertFailedWithDiagnostic(readMissingSequence, "MissingRatioReference");
   assertFailedWithDiagnostic(readMissingPattern, "MissingRatioReference");
   assertFailedWithDiagnostic(readMissingRuleSet, "MissingRatioReference");
   assertFailedWithDiagnostic(validateRatioPackV1(partitionMissingRatio), "MissingRatioReference");
+  assertFailedWithDiagnosticTarget(validateRatioPackV1(missingFamilyRef), "MissingRatioReference", "ratios.1/2.familyRef");
+  assertOk(validateRatioPackV1(BASIC_PROPORTIONS_PACK));
 });
 
 test("PR4 emits MissingRatioReference for absent declaration cross-references", () => {
@@ -322,8 +368,12 @@ test("PR4 rejects out-of-scope pack-owned fields", () => {
     "api",
     "mcp",
     "packLock",
+    "runtimePackLock",
     "run",
     "replay",
+    "uiPreset",
+    "ruleResolution",
+    "intentInference",
   ]) {
     assertFailedWithDiagnostic(
       validateRatioPackV1(clonePack({ [field]: { kind: "unsupported" } })),
