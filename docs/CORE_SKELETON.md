@@ -48,11 +48,19 @@ The MVP pack declares:
 
 `RatioPackPreLock` remains a pre-lock identity carrier only. It is not a final `PackLock`, does not resolve pack runtime state, and does not execute rule behavior.
 
+## PR5 Rule Resolution V1
+
+PR5 adds a minimal rule-resolution model for declaration-only rule sets. `resolveRuleSetV1` validates a Ratio Pack V1 input, locates a declared rule set, and resolves each referenced rule declaration to explicit ratio, sequence, and partition-pattern references.
+
+Rule Resolution V1 output is a visible `rule-resolution-v1` envelope with provenance, pack identity, rule refs, and empty construction, measurement, artifact, and scoring refs. It does not create guide lines, coordinates, geometry, measurements, scores, artifacts, or UI output.
+
+`validateRuleResolutionV1` validates the resolved envelope shape and rejects unsupported output-looking fields so rule resolution cannot silently broaden into construction or evaluation.
+
 ## Does Not Contain
 
 - Geometry calculations.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Rule resolution, construction, measurements, evaluation, artifacts, or scoring.
+- Construction, measurements, evaluation, artifacts, or scoring.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
