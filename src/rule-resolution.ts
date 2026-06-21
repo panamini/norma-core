@@ -47,8 +47,8 @@ export interface ResolvedPartitionPatternRef {
 export interface ResolvedRule {
   kind: "resolved-rule";
   ruleRef: string;
-  type: RuleDeclaration["type"];
-  target: RuleDeclaration["target"];
+  type: "surface.partition-line";
+  target: "surface";
   ratioRefs: readonly ResolvedRatioRef[];
   sequenceRefs: readonly ResolvedRatioSequenceRef[];
   partitionPatternRefs: readonly ResolvedPartitionPatternRef[];
@@ -143,6 +143,31 @@ const RESOLVED_RULE_ALLOWED_KEYS = [
   "measurementRefs",
 ] as const;
 
+const SOURCE_REFERENCE_ALLOWED_KEYS = ["kind", "ref"] as const;
+
+const RESOLVED_RATIO_REF_ALLOWED_KEYS = [
+  "kind",
+  "ratioRef",
+  "normalizedValue",
+  "sourceRef",
+] as const;
+
+const RESOLVED_RATIO_SEQUENCE_REF_ALLOWED_KEYS = [
+  "kind",
+  "sequenceRef",
+  "normalizedParts",
+  "sourceRef",
+] as const;
+
+const RESOLVED_PARTITION_PATTERN_REF_ALLOWED_KEYS = [
+  "kind",
+  "partitionPatternRef",
+  "ratioRefs",
+  "sequenceRef",
+  "axis",
+  "sourceRef",
+] as const;
+
 export function resolveRuleSetV1(pack: unknown, ruleSetRef: string): CoreResult<RuleResolutionV1> {
   if (nonEmptyString(ruleSetRef) === null) {
     return invalidRuleResolution("ruleSetRef", "Rule resolution requires a non-empty ruleSetRef.") as CoreResult<RuleResolutionV1>;
@@ -230,7 +255,7 @@ function resolveRuleDeclaration(
   declaration: RuleDeclaration,
 ): RuleResolutionValidation<ResolvedRule> {
   if (declaration.type !== "surface.partition-line" || declaration.target !== "surface") {
-    return failedRuleResolution(unsupportedRuleDeclaration(declaration.id, declaration.type));
+    return failedRuleResolution(unsupportedRuleDeclaration(declaration.id, declaration.type, declaration.target));
   }
 
   const ratioRefs = resolveRatioRefs(pack, declaration);
@@ -364,7 +389,7 @@ function validateRuleResolutionValue(value: unknown): RuleResolutionValidation<R
     return failedRuleResolution(invalidRuleResolution("rules", "Rule Resolution V1 resolved rules are invalid."));
   }
 
-  if (![value.constructionRefs, value.measurementRefs, value.artifactRefs, value.scoringRefs].every(Array.isArray)) {
+  if (![value.constructionRefs, value.measurementRefs, value.artifactRefs, value.scoringRefs].every(isEmptyArray)) {
     return failedRuleResolution(invalidRuleResolution("outputRefs", "Rule Resolution V1 output-changing refs must be visible arrays."));
   }
 
@@ -389,16 +414,47 @@ function isResolvedRule(value: unknown): value is ResolvedRule {
     nonEmptyString(value.ruleRef) !== null,
     value.type === "surface.partition-line",
     value.target === "surface",
-    Array.isArray(ratioRefs),
-    Array.isArray(sequenceRefs),
-    Array.isArray(partitionPatternRefs),
-    Array.isArray(value.constructionRefs),
-    Array.isArray(value.measurementRefs),
+    Array.isArray(ratioRefs) && ratioRefs.every(isResolvedRatioRef),
+    Array.isArray(sequenceRefs) && sequenceRefs.every(isResolvedRatioSequenceRef),
+    Array.isArray(partitionPatternRefs) && partitionPatternRefs.every(isResolvedPartitionPatternRef),
+    isEmptyArray(value.constructionRefs),
+    isEmptyArray(value.measurementRefs),
     Array.isArray(ratioRefs) &&
       Array.isArray(sequenceRefs) &&
       Array.isArray(partitionPatternRefs) &&
       ratioRefs.length + sequenceRefs.length + partitionPatternRefs.length > 0,
   ].every(Boolean);
+}
+
+function isResolvedRatioRef(value: unknown): value is ResolvedRatioRef {
+  return isRecord(value)
+    && firstUnsupportedKey(value, RESOLVED_RATIO_REF_ALLOWED_KEYS) === null
+    && value.kind === "resolved-ratio-ref"
+    && nonEmptyString(value.ratioRef) !== null
+    && isFiniteNumber(value.normalizedValue)
+    && isSourceReference(value.sourceRef);
+}
+
+function isResolvedRatioSequenceRef(value: unknown): value is ResolvedRatioSequenceRef {
+  return isRecord(value)
+    && firstUnsupportedKey(value, RESOLVED_RATIO_SEQUENCE_REF_ALLOWED_KEYS) === null
+    && value.kind === "resolved-ratio-sequence-ref"
+    && nonEmptyString(value.sequenceRef) !== null
+    && isFiniteNumberArray(value.normalizedParts)
+    && value.normalizedParts.length > 0
+    && isSourceReference(value.sourceRef);
+}
+
+function isResolvedPartitionPatternRef(value: unknown): value is ResolvedPartitionPatternRef {
+  return isRecord(value)
+    && firstUnsupportedKey(value, RESOLVED_PARTITION_PATTERN_REF_ALLOWED_KEYS) === null
+    && value.kind === "resolved-partition-pattern-ref"
+    && nonEmptyString(value.partitionPatternRef) !== null
+    && isStringArray(value.ratioRefs)
+    && value.ratioRefs.length > 0
+    && (value.sequenceRef === undefined || nonEmptyString(value.sequenceRef) !== null)
+    && isPartitionAxis(value.axis)
+    && isSourceReference(value.sourceRef);
 }
 
 function createRuleResolutionResult<TOutput = unknown>(input: CoreResultInput<TOutput>): CoreResult<TOutput> {
@@ -476,13 +532,13 @@ function invalidRuleResolution(targetRef: string, message: string): CoreResult {
   });
 }
 
-function unsupportedRuleDeclaration(ruleRef: string, ruleType: string): CoreResult {
+function unsupportedRuleDeclaration(ruleRef: string, ruleType: string, ruleTarget: string): CoreResult {
   return createRuleResolutionResult({
     status: "failed",
     errors: [
       createRuleResolutionError({
         code: "UnsupportedRuleDeclaration",
-        message: `Rule declaration type is outside Rule Resolution V1: ${ruleType}.`,
+        message: `Rule declaration is outside Rule Resolution V1: ${ruleType} targeting ${ruleTarget}.`,
         targetRef: `ruleDeclarations.${ruleRef}.type`,
         sourceRef: { kind: "rule-declaration", ref: ruleRef },
       }),
@@ -520,6 +576,29 @@ function errorSeverity(severity: DiagnosticSeverity | undefined): CoreError["sev
 
 function firstUnsupportedKey(value: Record<string, unknown>, allowedKeys: readonly string[]): string | null {
   return Object.keys(value).find((key) => !allowedKeys.includes(key)) ?? null;
+}
+
+function isEmptyArray(value: unknown): value is readonly never[] {
+  return Array.isArray(value) && value.length === 0;
+}
+
+function isSourceReference(value: unknown): value is SourceReference {
+  return isRecord(value)
+    && firstUnsupportedKey(value, SOURCE_REFERENCE_ALLOWED_KEYS) === null
+    && nonEmptyString(value.kind) !== null
+    && nonEmptyString(value.ref) !== null;
+}
+
+function isPartitionAxis(value: unknown): value is PartitionPattern["axis"] {
+  return value === "horizontal" || value === "vertical" || value === "both";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isFiniteNumberArray(value: unknown): value is readonly number[] {
+  return Array.isArray(value) && value.every(isFiniteNumber);
 }
 
 function nonEmptyString(value: unknown): string | null {
