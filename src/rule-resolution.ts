@@ -240,12 +240,14 @@ export function validateRuleResolutionV1(value: unknown): CoreResult<RuleResolut
     return validation.result as CoreResult<RuleResolutionV1>;
   }
 
+  const ruleResolutionRef = `${validation.value.packRef}:${validation.value.ruleSetRef}`;
+
   return createRuleResolutionResult({
     status: "ok",
     provenance: createRuleResolutionProvenance("core.rule-resolution-v1.validate", [
-      { kind: "rule-resolution", ref: validation.value.ruleSetRef },
+      { kind: "rule-resolution", ref: ruleResolutionRef },
     ]),
-    outputRefs: [{ kind: "rule-resolution", ref: validation.value.ruleSetRef }],
+    outputRefs: [{ kind: "rule-resolution", ref: ruleResolutionRef }],
     output: validation.value,
   });
 }
@@ -376,7 +378,7 @@ function validateRuleResolutionValue(value: unknown): RuleResolutionValidation<R
     return failedRuleResolution(invalidRuleResolution("ruleResolution", "Rule Resolution V1 requires ruleSetRef, packRef, and contentIdentity."));
   }
 
-  if (!isStringArray(value.ruleRefs) || value.ruleRefs.length === 0) {
+  if (!isNonEmptyStringArray(value.ruleRefs)) {
     return failedRuleResolution(invalidRuleResolution("ruleRefs", "Rule Resolution V1 requires non-empty ruleRefs."));
   }
 
@@ -450,8 +452,7 @@ function isResolvedPartitionPatternRef(value: unknown): value is ResolvedPartiti
     && firstUnsupportedKey(value, RESOLVED_PARTITION_PATTERN_REF_ALLOWED_KEYS) === null
     && value.kind === "resolved-partition-pattern-ref"
     && nonEmptyString(value.partitionPatternRef) !== null
-    && isStringArray(value.ratioRefs)
-    && value.ratioRefs.length > 0
+    && isNonEmptyStringArray(value.ratioRefs)
     && (value.sequenceRef === undefined || nonEmptyString(value.sequenceRef) !== null)
     && isPartitionAxis(value.axis)
     && isSourceReference(value.sourceRef);
@@ -605,8 +606,8 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function isStringArray(value: unknown): value is readonly string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+function isNonEmptyStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => nonEmptyString(item) !== null);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
