@@ -698,6 +698,28 @@ test("coverage and area-ratio components use explicit targets and tolerances", (
   }), exactMeasurements), "InvalidEvaluationProfileV1");
 });
 
+test("area-ratio scoring uses the PR8 profile target instead of stale PR7 absoluteDelta", () => {
+  const measurements = runMeasurements(compositionA());
+  const ratioMeasurement = measurements.measurements.find((measurement) => measurement.requestRef === "ratio:side-main");
+  assert.equal(ratioMeasurement.result.ratio, 0.5);
+  assert.equal(ratioMeasurement.result.absoluteDelta, 0);
+
+  const component = componentDefinition(measurements, {
+    componentRef: "component:area-ratio-match",
+    componentType: "area_ratio_match",
+    measurementType: "ratio",
+    measurementRefs: [ratioMeasurement.measurementRef],
+    scoring: { kind: "ratio-target-closeness", deltaBasis: "absoluteDelta", targetRatio: 1, tolerance: 1 },
+    sourceRefs: [{ kind: "evaluation-component", ref: "component:area-ratio-match" }],
+  });
+  const evaluation = evaluate(measurements, oneComponentProfile(measurements, component, {
+    profileRef: "evaluation-profile:ratio-target-override",
+  }));
+
+  assertClose(evaluation.componentScores[0].normalizedScore, 0.5);
+  assert.equal(evaluation.componentScores[0].rawValues.some((raw) => raw.key === "absoluteDelta" && raw.value === 0.5), true);
+});
+
 test("weights normalize deterministically and drive overall score without order sensitivity", () => {
   const measurements = runMeasurements(compositionB());
   const profile = basicProfile(measurements);
@@ -731,6 +753,7 @@ test("missing measurements follow required-fail and optional-renormalize policy"
   const missingRequired = basicProfile(measurements, {
     components: [{ ...profile.components[0], measurementRefs: ["measurement:missing"], required: true }],
   });
+  assertFailedWithDiagnostic(validateEvaluationProfileV1(missingRequired, measurements), "MissingEvaluationMeasurement");
   assertFailedWithDiagnostic(evaluateCompositionBasicV1(evaluationInput(measurements, missingRequired)), "MissingEvaluationMeasurement");
 
   const optionalMissing = basicProfile(measurements, {
@@ -739,6 +762,7 @@ test("missing measurements follow required-fail and optional-renormalize policy"
       profile.components[1],
     ],
   });
+  assertOk(validateEvaluationProfileV1(optionalMissing, measurements));
   const evaluation = evaluate(measurements, optionalMissing);
   assert.equal(evaluation.componentScores.length, 1);
   assertClose(evaluation.componentScores[0].effectiveWeight, 1);
@@ -746,6 +770,23 @@ test("missing measurements follow required-fail and optional-renormalize policy"
   assert.ok(warningCodes(evaluation).includes("PartialEvaluation"));
   assert.ok(evaluation.confidence.value < 1);
   assert.equal(evaluation.score.measurementsUsed.includes("measurement:missing"), false);
+});
+
+test("evaluation rejects measurement results that are not traceable to the declared composition", () => {
+  const measurements = runMeasurements(compositionA());
+  const profile = basicProfile(measurements);
+
+  assertFailedWithDiagnostic(
+    evaluateCompositionBasicV1(evaluationInput(measurements, profile, { compositionRef: "composition:B" })),
+    "IncompatibleEvaluationMeasurement",
+  );
+
+  const valid = evaluate(measurements, profile);
+  assertOk(validateEvaluationV1(structuredClone(valid)));
+
+  const forged = structuredClone(valid);
+  forged.compositionRef = "composition:B";
+  assertFailedWithDiagnostic(validateEvaluationV1(forged), "InvalidEvaluationV1");
 });
 
 test("status thresholds are inclusive and low confidence can make status ambiguous", () => {
@@ -908,6 +949,47 @@ test("closed Evaluation V1 validation rejects orphan refs, inconsistent invarian
     { ...evaluation, componentScores: [], score: { ...evaluation.score, componentScoreRefs: [] } },
     { ...evaluation, profileRef: "" },
     { ...evaluation, measurementResultRef: "" },
+    {
+      ...evaluation,
+      confidence: { ...evaluation.confidence, value: 0, status: "low" },
+      status: "ambiguous",
+    },
+    {
+      ...evaluation,
+      confidence: {
+        ...evaluation.confidence,
+        inputs: { ...evaluation.confidence.inputs, warningCount: 999 },
+      },
+    },
+    {
+      ...evaluation,
+      score: {
+        ...evaluation.score,
+        componentScoreRefs: [
+          evaluation.score.componentScoreRefs[0],
+          evaluation.score.componentScoreRefs[0],
+          ...evaluation.score.componentScoreRefs.slice(2),
+        ],
+      },
+    },
+    {
+      ...evaluation,
+      score: { ...evaluation.score, measurementsUsed: [...evaluation.score.measurementsUsed, "measurement:unknown"] },
+    },
+    {
+      ...evaluation,
+      score: { ...evaluation.score, measurementsUsed: [evaluation.score.measurementsUsed[0], ...evaluation.score.measurementsUsed] },
+    },
+    {
+      ...evaluation,
+      score: {
+        ...evaluation.score,
+        effectiveWeights: [
+          { ...evaluation.score.effectiveWeights[0], componentRef: "component:unknown" },
+          ...evaluation.score.effectiveWeights.slice(1),
+        ],
+      },
+    },
   ];
 
   for (const candidate of cases) {

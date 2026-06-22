@@ -730,6 +730,11 @@ function validateEvaluationInputValue(input: unknown): EvaluationValidation<Eval
     return failedEvaluation(invalidEvaluationProfile("profile", "Evaluation input packRef and ruleSetRef must match the profile."));
   }
 
+  const compositionTraceFailure = validateMeasurementResultCompositionTrace(input.compositionRef, measurementValidation.output);
+  if (compositionTraceFailure !== null) {
+    return failedEvaluation(compositionTraceFailure);
+  }
+
   return validEvaluation({
     kind: "evaluation-input",
     schemaVersion: "evaluation-input-v1",
@@ -883,11 +888,16 @@ function validateProfileMeasurementCompatibility(
 ): CoreResult | null {
   const measurementByRef = new Map(measurementResult.measurements.map((measurement) => [measurement.measurementRef, measurement]));
   for (const component of components) {
-    for (const measurementRef of component.measurementRefs) {
-      const measurement = measurementByRef.get(measurementRef);
-      if (measurement === undefined) {
-        return missingEvaluationMeasurement(measurementRef, `Evaluation component references an unknown measurement: ${measurementRef}.`);
+    const measurements = component.measurementRefs.map((measurementRef) => measurementByRef.get(measurementRef));
+    const missingMeasurementRef = component.measurementRefs.find((measurementRef) => !measurementByRef.has(measurementRef));
+    if (missingMeasurementRef !== undefined) {
+      if (component.required) {
+        return missingEvaluationMeasurement(missingMeasurementRef, `Evaluation component references an unknown required measurement: ${missingMeasurementRef}.`);
       }
+      continue;
+    }
+
+    for (const measurement of measurements as MeasurementV1[]) {
       if (measurement.measurementType !== component.measurementType) {
         return incompatibleEvaluationMeasurement(component.componentRef, `Evaluation component expects ${component.measurementType} but references ${measurement.measurementType}.`);
       }
@@ -1123,7 +1133,7 @@ function scoreMeasurement(component: EvaluationComponentDefinitionV1, measuremen
   if (component.componentType === "area_ratio_match" && measurement.measurementType === "ratio") {
     const scoring = component.scoring as RatioTargetClosenessScoringV1;
     const ratio = measurement as RatioMeasurementV1;
-    const delta = ratio.result.absoluteDelta ?? Math.abs(ratio.result.ratio - scoring.targetRatio);
+    const delta = Math.abs(ratio.result.ratio - scoring.targetRatio);
     return {
       normalizedScore: clamp(1 - delta / scoring.tolerance, 0, 1),
       rawValues: [
@@ -1211,10 +1221,7 @@ function createConfidence(
 ): ConfidenceV1 {
   const confidenceRef = `${evaluationRef}:confidence`;
   const policy = profile.confidencePolicy;
-  const value = clamp(1
-    - inputs.missingOptionalComponents * policy.optionalMissingPenalty
-    - inputs.ambiguousMeasurements * policy.ambiguousMeasurementPenalty
-    - inputs.warningCount * policy.warningPenalty, 0, 1);
+  const value = confidenceValue(policy, { kind: "confidence-inputs", ...inputs });
   const sourceRefs = uniqueSourceRefs([
     { kind: "confidence", ref: confidenceRef },
     { kind: "evaluation-profile", ref: profile.profileRef },
@@ -1282,13 +1289,16 @@ function validateEvaluationValue(value: unknown): EvaluationValidation<Evaluatio
   if (new Set(validComponentScores.map((componentScore) => componentScore.componentScoreRef)).size !== validComponentScores.length) {
     return failedEvaluation(invalidEvaluation("componentScores", "ComponentScore refs must be unique."));
   }
+  if (new Set(validComponentScores.map((componentScore) => componentScore.componentRef)).size !== validComponentScores.length) {
+    return failedEvaluation(invalidEvaluation("componentScores", "ComponentScore componentRefs must be unique."));
+  }
 
   const limitsValidation = validateEvaluationLimitsValue(value.limits);
   if (!limitsValidation.ok) {
     return limitsValidation;
   }
 
-  const scoreValidation = validateScoreValue(value.score, validComponentScores, limitsValidation.value);
+  const scoreValidation = validateScoreValue(value.score, validComponentScores, limitsValidation.value, value.warnings);
   if (!scoreValidation.ok) {
     return scoreValidation;
   }
@@ -1298,8 +1308,22 @@ function validateEvaluationValue(value: unknown): EvaluationValidation<Evaluatio
     return confidenceValidation;
   }
 
+  const compositionTraceFailure = validateEvaluationCompositionTrace(value as unknown as EvaluationV1);
+  if (compositionTraceFailure !== null) {
+    return failedEvaluation(compositionTraceFailure);
+  }
+
   if (value.status !== statusForScore(scoreValidation.value.overallScore, confidenceValidation.value.value, limitsValidation.value.statusThresholds)) {
     return failedEvaluation(invalidEvaluation("status", "Evaluation status is inconsistent with score, confidence, and thresholds."));
+  }
+
+  const confidenceConsistencyFailure = validateConfidenceConsistency(
+    confidenceValidation.value,
+    validComponentScores,
+    value.warnings,
+  );
+  if (confidenceConsistencyFailure !== null) {
+    return failedEvaluation(confidenceConsistencyFailure);
   }
 
   return validEvaluation(value as unknown as EvaluationV1);
@@ -1340,6 +1364,7 @@ function validateScoreValue(
   value: unknown,
   componentScores: readonly ComponentScoreV1[],
   limits: EvaluationLimitsV1,
+  evaluationWarnings: unknown,
 ): EvaluationValidation<ScoreV1> {
   if (!isRecord(value) || firstUnsupportedKey(value, SCORE_ALLOWED_KEYS) !== null) {
     return failedEvaluation(invalidEvaluation("score", "Score V1 must be closed and structured."));
@@ -1361,15 +1386,32 @@ function validateScoreValue(
     return failedEvaluation(invalidEvaluation("score", "Score V1 envelope is invalid."));
   }
 
-  const componentScoreRefs = new Set(componentScores.map((componentScore) => componentScore.componentScoreRef));
-  if (!value.componentScoreRefs.every((ref) => ref.kind === "component-score" && componentScoreRefs.has(ref.ref))) {
-    return failedEvaluation(invalidEvaluation("score.componentScoreRefs", "Score componentScoreRefs must resolve to component scores."));
+  if (!isEvaluationWarningArray(evaluationWarnings)) {
+    return failedEvaluation(invalidEvaluation("score.warnings", "Score warnings cannot be validated against evaluation warnings."));
+  }
+
+  const expectedComponentScoreRefs = componentScores.map((componentScore) => componentScore.componentScoreRef);
+  const actualComponentScoreRefs = value.componentScoreRefs.map((ref) => ref.ref);
+  if (new Set(actualComponentScoreRefs).size !== actualComponentScoreRefs.length
+    || !value.componentScoreRefs.every((ref) => ref.kind === "component-score")
+    || !sameStringList(actualComponentScoreRefs, expectedComponentScoreRefs)) {
+    return failedEvaluation(invalidEvaluation("score.componentScoreRefs", "Score componentScoreRefs must exactly match component scores."));
   }
 
   const measurementsUsed = value.measurementsUsed as readonly string[];
   const componentMeasurements = uniqueStrings(componentScores.flatMap((componentScore) => componentScore.measurementRefs));
-  if (!componentMeasurements.every((measurementRef) => measurementsUsed.includes(measurementRef))) {
-    return failedEvaluation(invalidEvaluation("score.measurementsUsed", "Score measurementsUsed must include every component measurement."));
+  if (new Set(measurementsUsed).size !== measurementsUsed.length || !sameStringList(measurementsUsed, componentMeasurements)) {
+    return failedEvaluation(invalidEvaluation("score.measurementsUsed", "Score measurementsUsed must exactly match component measurements."));
+  }
+
+  const effectiveWeights = value.effectiveWeights as readonly EffectiveWeightV1[];
+  if (effectiveWeights.length !== componentScores.length
+    || !effectiveWeights.every((weight, index) => (
+      weight.componentRef === componentScores[index]?.componentRef
+      && nearlyEqual(weight.weight, componentScores[index]?.weight ?? Number.NaN)
+      && nearlyEqual(weight.effectiveWeight, componentScores[index]?.effectiveWeight ?? Number.NaN)
+    ))) {
+    return failedEvaluation(invalidEvaluation("score.effectiveWeights", "Score effective weights must exactly match component scores."));
   }
 
   const effectiveWeightTotal = value.effectiveWeights.reduce((total, weight) => total + weight.effectiveWeight, 0);
@@ -1380,6 +1422,10 @@ function validateScoreValue(
   const expectedScore = componentScores.reduce((total, componentScore) => total + componentScore.weightedContribution, 0);
   if (!nearlyEqual(value.overallScore, expectedScore) || value.overallScore < limits.scoreMin || value.overallScore > limits.scoreMax) {
     return failedEvaluation(invalidEvaluation("score.overallScore", "Score overallScore is inconsistent with component contributions."));
+  }
+
+  if (!sameEvaluationWarnings(value.warnings, evaluationWarnings)) {
+    return failedEvaluation(invalidEvaluation("score.warnings", "Score warnings must match evaluation warnings."));
   }
 
   return validEvaluation(value as unknown as ScoreV1);
@@ -1428,6 +1474,79 @@ function validateEvaluationLimitsValue(value: unknown): EvaluationValidation<Eva
   }
 
   return validEvaluation(value as unknown as EvaluationLimitsV1);
+}
+
+function validateMeasurementResultCompositionTrace(
+  compositionRef: string,
+  measurementResult: MeasurementResultV1,
+): CoreResult | null {
+  const compositionRefs = compositionRefsFromMeasurementResult(measurementResult);
+  if (compositionRefs.length === 0) {
+    return incompatibleEvaluationMeasurement("compositionRef", "Evaluation measurement result has no traceable composition source ref.");
+  }
+
+  return compositionRefs.length === 1 && compositionRefs[0] === compositionRef
+    ? null
+    : incompatibleEvaluationMeasurement("compositionRef", "Evaluation compositionRef must match the supplied measurement result composition trace.");
+}
+
+function validateEvaluationCompositionTrace(evaluation: EvaluationV1): CoreResult | null {
+  const compositionRefs = compositionRefsFromEvaluation(evaluation);
+  if (compositionRefs.length === 0) {
+    return invalidEvaluation("compositionRef", "Evaluation V1 must carry a traceable composition source ref.");
+  }
+
+  return compositionRefs.length === 1 && compositionRefs[0] === evaluation.compositionRef
+    ? null
+    : invalidEvaluation("compositionRef", "Evaluation V1 compositionRef is inconsistent with its source refs.");
+}
+
+function validateConfidenceConsistency(
+  confidence: ConfidenceV1,
+  componentScores: readonly ComponentScoreV1[],
+  evaluationWarnings: readonly EvaluationWarningV1[],
+): CoreResult | null {
+  const inputs = confidence.inputs;
+  const calculatedComponents = componentScores.length;
+  const optionalCalculatedComponents = inputs.optionalComponents - inputs.missingOptionalComponents;
+  const calculatedRequiredComponents = calculatedComponents - optionalCalculatedComponents;
+  const expectedAmbiguousMeasurements = componentScores
+    .flatMap((componentScore) => componentScore.warnings)
+    .filter((warning) => warning.code === "AmbiguousMeasurementUsed")
+    .reduce((total, warning) => total + warning.sourceRefs.length, 0);
+  const expectedWarningCount = evaluationWarnings.filter((warning) => warning.code !== "ConfidenceReduced").length;
+  const expectedValue = confidenceValue(confidence.policy, inputs);
+
+  if (inputs.calculatedComponents !== calculatedComponents
+    || inputs.totalComponents !== inputs.requiredComponents + inputs.optionalComponents
+    || inputs.missingOptionalComponents !== inputs.totalComponents - inputs.calculatedComponents
+    || optionalCalculatedComponents < 0
+    || calculatedRequiredComponents < 0
+    || inputs.calculatedRequiredComponents !== calculatedRequiredComponents
+    || inputs.calculatedRequiredComponents > inputs.requiredComponents
+    || inputs.ambiguousMeasurements !== expectedAmbiguousMeasurements
+    || inputs.warningCount !== expectedWarningCount) {
+    return invalidEvaluation("confidence.inputs", "Confidence inputs are inconsistent with the Evaluation V1 content.");
+  }
+
+  if (!nearlyEqual(confidence.value, expectedValue)
+    || confidence.status !== confidenceStatus(confidence.value, confidence.policy)
+    || !sameStringList(confidence.reasons, confidenceReasons(inputs))) {
+    return invalidEvaluation("confidence", "Confidence value, status, or reasons are inconsistent with confidence inputs.");
+  }
+
+  const expectedConfidenceWarnings = confidence.value < 1
+    ? evaluationWarnings.filter((warning) => warning.code === "ConfidenceReduced" && warning.targetRef === confidence.confidenceRef)
+    : [];
+  if ((confidence.value < 1 && expectedConfidenceWarnings.length !== 1)
+    || (confidence.value === 1 && expectedConfidenceWarnings.length !== 0)) {
+    return invalidEvaluation("confidence.warnings", "ConfidenceReduced warnings must match confidence value.");
+  }
+  if (!sameEvaluationWarnings(confidence.warnings, expectedConfidenceWarnings)) {
+    return invalidEvaluation("confidence.warnings", "Confidence warnings are inconsistent with confidence value.");
+  }
+
+  return null;
 }
 
 function evaluationLimits(profile: EvaluationProfileV1): EvaluationLimitsV1 {
@@ -1492,6 +1611,13 @@ function confidenceStatus(value: number, policy: EvaluationConfidencePolicyV1): 
     return "high";
   }
   return value >= policy.mediumThreshold ? "medium" : "low";
+}
+
+function confidenceValue(policy: EvaluationConfidencePolicyV1, inputs: ConfidenceInputsV1): number {
+  return clamp(1
+    - inputs.missingOptionalComponents * policy.optionalMissingPenalty
+    - inputs.ambiguousMeasurements * policy.ambiguousMeasurementPenalty
+    - inputs.warningCount * policy.warningPenalty, 0, 1);
 }
 
 function confidenceReasons(inputs: Omit<ConfidenceInputsV1, "kind">): readonly string[] {
@@ -1563,6 +1689,44 @@ function evaluationWarning(
     targetRef,
     sourceRefs: uniqueSourceRefs(sourceRefs),
   };
+}
+
+function compositionRefsFromMeasurementResult(measurementResult: MeasurementResultV1): readonly string[] {
+  return uniqueStrings([
+    ...compositionRefsFromSourceRefs(measurementResult.sourceRefs),
+    ...compositionRefsFromProvenance(measurementResult.provenance),
+    ...measurementResult.measurements.flatMap((measurement) => [
+      ...compositionRefsFromSourceRefs(measurement.sourceRefs),
+      ...compositionRefsFromProvenance(measurement.provenance),
+    ]),
+  ]);
+}
+
+function compositionRefsFromEvaluation(evaluation: EvaluationV1): readonly string[] {
+  return uniqueStrings([
+    ...compositionRefsFromSourceRefs(evaluation.sourceRefs),
+    ...compositionRefsFromProvenance(evaluation.provenance),
+    ...compositionRefsFromSourceRefs(evaluation.score.sourceRefs),
+    ...compositionRefsFromProvenance(evaluation.score.provenance),
+    ...compositionRefsFromSourceRefs(evaluation.confidence.sourceRefs),
+    ...compositionRefsFromProvenance(evaluation.confidence.provenance),
+    ...evaluation.warnings.flatMap((warning) => compositionRefsFromSourceRefs(warning.sourceRefs)),
+    ...evaluation.score.warnings.flatMap((warning) => compositionRefsFromSourceRefs(warning.sourceRefs)),
+    ...evaluation.confidence.warnings.flatMap((warning) => compositionRefsFromSourceRefs(warning.sourceRefs)),
+    ...evaluation.componentScores.flatMap((componentScore) => [
+      ...compositionRefsFromSourceRefs(componentScore.sourceRefs),
+      ...compositionRefsFromProvenance(componentScore.provenance),
+      ...componentScore.warnings.flatMap((warning) => compositionRefsFromSourceRefs(warning.sourceRefs)),
+    ]),
+  ]);
+}
+
+function compositionRefsFromProvenance(provenance: Provenance): readonly string[] {
+  return compositionRefsFromSourceRefs(provenance.inputRefs);
+}
+
+function compositionRefsFromSourceRefs(sourceRefs: readonly SourceReference[]): readonly string[] {
+  return sourceRefs.filter((sourceRef) => sourceRef.kind === "composition").map((sourceRef) => sourceRef.ref);
 }
 
 function createEvaluationResult<TOutput = unknown>(input: CoreResultInput<TOutput>): CoreResult<TOutput> {
@@ -1679,6 +1843,10 @@ function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
+function sameStringList(actual: readonly string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
+}
+
 function uniqueSourceRefs(values: readonly SourceReference[]): SourceReference[] {
   const seenRefs = new Set<string>();
   const uniqueRefs: SourceReference[] = [];
@@ -1703,6 +1871,22 @@ function uniqueEvaluationWarnings(values: readonly EvaluationWarningV1[]): Evalu
     }
   }
   return uniqueWarnings;
+}
+
+function sameEvaluationWarnings(
+  actual: readonly EvaluationWarningV1[],
+  expected: readonly EvaluationWarningV1[],
+): boolean {
+  return actual.length === expected.length
+    && actual.every((warning, index) => evaluationWarningKey(warning) === evaluationWarningKey(expected[index]));
+}
+
+function evaluationWarningKey(value: EvaluationWarningV1 | undefined): string {
+  if (value === undefined) {
+    return "";
+  }
+
+  return `${value.code}:${value.targetRef}:${value.sourceRefs.map((sourceRef) => `${sourceRef.kind}:${sourceRef.ref}`).join("|")}`;
 }
 
 function clamp(value: number, min: number, max: number): number {
