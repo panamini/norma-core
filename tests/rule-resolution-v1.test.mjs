@@ -62,7 +62,7 @@ function validResolutionOutput() {
 }
 
 test("PR5 exports Rule Resolution V1 vocabulary and diagnostics", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr7");
+  assert.equal(CORE_VERSION, "0.1.0-pr8");
   assert.equal(RULE_RESOLUTION_V1_SCHEMA_VERSION, "rule-resolution-v1");
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("MissingRuleSet"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("MissingRuleDeclaration"));

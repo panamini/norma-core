@@ -83,7 +83,7 @@ function assertInvalidOperationResultShape(resultShape) {
 }
 
 test("core version reflects PR7 measurements model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr7");
+  assert.equal(CORE_VERSION, "0.1.0-pr8");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -165,6 +165,13 @@ test("required and additional PR1 diagnostics are exported", () => {
       "IncompatibleMeasurementGeometry",
       "InvalidMetricPolicy",
       "InvalidTolerancePolicy",
+      "InvalidEvaluationProfileV1",
+      "InvalidEvaluationV1",
+      "MissingEvaluationMeasurement",
+      "UnsupportedEvaluationComponent",
+      "IncompatibleEvaluationMeasurement",
+      "InvalidEvaluationWeights",
+      "InvalidEvaluationThresholds",
     ]),
   );
 });

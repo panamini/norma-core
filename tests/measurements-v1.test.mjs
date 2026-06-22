@@ -223,8 +223,8 @@ function deepFreeze(value) {
   return value;
 }
 
-test("PR7 exports Measurements V1 vocabulary and keeps PR8+ public API absent", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr7");
+test("PR7 exports Measurements V1 vocabulary while PR8 evaluation is public and PR9 comparison is absent", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr8");
   assert.equal(MEASUREMENT_V1_SCHEMA_VERSION, "measurement-v1");
   assert.equal(MEASUREMENT_RESULT_V1_SCHEMA_VERSION, "measurement-result-v1");
   assert.deepEqual(MEASUREMENT_V1_TYPES, [
@@ -250,16 +250,9 @@ test("PR7 exports Measurements V1 vocabulary and keeps PR8+ public API absent", 
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("IncompatibleMeasurementGeometry"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("InvalidMetricPolicy"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("InvalidTolerancePolicy"));
-  for (const forbiddenExport of [
-    "EvaluationProfile",
-    "Evaluation",
-    "ComponentScore",
-    "Score",
-    "evaluateCompositionBasic",
-    "compareCompositionsBasic",
-  ]) {
-    assert.equal(forbiddenExport in core, false, `${forbiddenExport} must remain out of PR7`);
-  }
+  assert.equal(typeof core.evaluateCompositionBasicV1, "function");
+  assert.equal("compareCompositionsBasicV1" in core, false);
+  assert.equal("CandidateRankingV1" in core, false);
 });
 
 test("PR7 consumes canonical PR6 construction without regenerating or mutating it", () => {

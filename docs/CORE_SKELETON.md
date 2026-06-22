@@ -72,11 +72,28 @@ Measurements V1 output is a visible `measurement-result-v1` envelope with closed
 
 Measurements remain calculated facts only: no evaluation, component scoring, score, comparison, decision, explanation, artifact, rendering, UI model, replay runtime, or final `PackLock` behavior is produced.
 
+## PR8 Evaluation Profile and Minimal Scoring V1
+
+PR8 adds deterministic Evaluation V1 on top of validated PR7 measurements. `evaluateCompositionBasicV1` consumes one `MeasurementResultV1`, one explicit `EvaluationProfileV1`, composition/construction/pack/rule-set refs, and an explicit evaluation operation version. It does not regenerate construction, recalculate geometry, rerun measurements, compare candidates, decide winners, explain recommendations, or emit artifacts.
+
+EvaluationProfile V1 is a closed policy object. It declares component definitions, measurement refs, weights, missing-measurement behavior, status thresholds, confidence policy, limits, source refs, and provenance. Weights are explicit finite non-negative values; the evaluator normalizes the calculated component weights so effective weights sum to 1.
+
+Supported component scoring formulas are profile-declared and closed:
+
+- `guide_proximity`: `clamp(1 - abs(normalizedDistance - targetDistance) / tolerance, 0, 1)`.
+- `alignment`: `clamp(1 - abs(normalizedDelta - targetDelta) / tolerance, 0, 1)`.
+- `containment`: explicit profile status map for `inside`, `on_boundary`, `partially_outside`, and `outside`.
+- `overlap_penalty`: `clamp(1 - max(overlapRatioA, overlapRatioB) / tolerance, 0, 1)`.
+- `coverage_match`: `clamp(1 - abs(coverageRatio - target) / tolerance, 0, 1)`.
+- `area_ratio_match`: `clamp(1 - absoluteDelta / tolerance, 0, 1)`.
+
+Overall score is `sum(normalizedScore * effectiveWeight)` across calculated component scores. Confidence is separate from score: `clamp(1 - optionalMissingPenalty * missingOptionalComponents - ambiguousMeasurementPenalty * ambiguousMeasurements - warningPenalty * warningCount, 0, 1)`. Evaluation status is chosen from profile thresholds and becomes `ambiguous` when confidence is below the profile minimum for normal status.
+
 ## Does Not Contain
 
 - Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Evaluation, artifacts, or scoring.
+- Comparison, decisions, explanations, recommendations, artifacts, or PR9+ behavior.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
