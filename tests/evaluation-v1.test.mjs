@@ -474,7 +474,7 @@ function deepFreeze(value) {
 }
 
 test("PR8 exports Evaluation V1 vocabulary while later artifacts are public", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr10");
+  assert.equal(CORE_VERSION, "0.1.0-pr11");
   assert.equal(EVALUATION_PROFILE_V1_SCHEMA_VERSION, "evaluation-profile-v1");
   assert.equal(EVALUATION_V1_SCHEMA_VERSION, "evaluation-v1");
   assert.equal(COMPONENT_SCORE_V1_SCHEMA_VERSION, "component-score-v1");

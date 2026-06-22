@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR10 artifacts model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr10");
+test("core version reflects PR11 run and replay-readiness model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr11");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -189,6 +189,19 @@ test("required and additional PR1 diagnostics are exported", () => {
       "ArtifactSourceMismatch",
       "ArtifactWouldBecomeSourceOfTruth",
       "UnsupportedArtifactOption",
+      "InvalidPackLockV1",
+      "InvalidOperationContextV1",
+      "InvalidRunInputV1",
+      "InvalidRunOutputV1",
+      "InvalidRunV1",
+      "MissingRunSource",
+      "IncompatibleRunDependencies",
+      "InvalidReplayReadinessReportV1",
+      "ArtifactRunRefMismatch",
+      "RunNonReplayable",
+      "ArtifactStale",
+      "MissingOptionalSource",
+      "ReplayReadinessPartial",
     ]),
   );
 });
