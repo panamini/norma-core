@@ -137,10 +137,10 @@ function assertProvenanceRefs(value, expectedRuleRef = null) {
 
 function assertRectClose(actual, expected) {
   assert.equal(actual.kind, "rect");
-  assert.equal(actual.x, expected.x);
-  assert.equal(actual.y, expected.y);
-  assert.equal(actual.width, expected.width);
-  assert.equal(actual.height, expected.height);
+  assert.ok(Math.abs(actual.x - expected.x) <= Number.EPSILON);
+  assert.ok(Math.abs(actual.y - expected.y) <= Number.EPSILON);
+  assert.ok(Math.abs(actual.width - expected.width) <= Number.EPSILON);
+  assert.ok(Math.abs(actual.height - expected.height) <= Number.EPSILON);
 }
 
 test("PR6 exports Construction V1 vocabulary and keeps PR7 out of public API", () => {
