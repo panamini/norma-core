@@ -143,15 +143,16 @@ function assertRectClose(actual, expected) {
   assert.ok(Math.abs(actual.height - expected.height) <= Number.EPSILON);
 }
 
-test("PR6 exports Construction V1 vocabulary and keeps PR7 out of public API", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr6");
+test("PR6 exports Construction V1 vocabulary while PR7 measurements are public", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr7");
   assert.equal(CONSTRUCTION_V1_SCHEMA_VERSION, "construction-v1");
   assert.equal(typeof generateConstructionV1, "function");
   assert.equal(typeof validateConstructionV1, "function");
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("InvalidConstructionV1"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("UnsupportedConstructionRule"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("MissingConstructionInput"));
-  assert.equal("measureConstructionV1" in core, false);
+  assert.equal(typeof core.measureGeometryV1, "function");
+  assert.equal(typeof core.measureAreasV1, "function");
   assert.equal("evaluateConstructionV1" in core, false);
 });
 
