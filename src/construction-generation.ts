@@ -12,7 +12,6 @@ import type {
   SourceReference,
   SurfaceSpace,
 } from "./index.js";
-import { validateGeometryV1 } from "./index.js";
 import type {
   ResolvedRatioRef,
   ResolvedRatioSequenceRef,
@@ -225,9 +224,28 @@ const DEFAULT_RESULT_FIELDS = Object.freeze({
 
 const SOURCE_REFERENCE_ALLOWED_KEYS = ["kind", "ref"] as const;
 const PROVENANCE_ALLOWED_KEYS = ["operationName", "operationVersion", "inputRefs", "source"] as const;
+const COORDINATE_SYSTEM_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "origin",
+  "xAxis",
+  "yAxis",
+  "dimensions",
+  "coordinateScale",
+] as const;
+const METRIC_POLICY_ALLOWED_KEYS = ["kind", "id", "quantity", "unit"] as const;
+const TOLERANCE_POLICY_ALLOWED_KEYS = ["kind", "id", "coordinateTolerance", "metricTolerance"] as const;
 const POINT_ALLOWED_KEYS = ["kind", "x", "y"] as const;
 const SEGMENT_ALLOWED_KEYS = ["kind", "start", "end"] as const;
 const RECT_ALLOWED_KEYS = ["kind", "x", "y", "width", "height"] as const;
+const SURFACE_SPACE_ALLOWED_KEYS = [
+  "kind",
+  "id",
+  "coordinateSystem",
+  "metricPolicy",
+  "tolerancePolicy",
+  "bounds",
+] as const;
 const CONSTRUCTION_ALLOWED_KEYS = [
   "kind",
   "schemaVersion",
@@ -341,13 +359,9 @@ export function generateConstructionV1(
     return missingConstructionInput("constructionInput", "Construction generation requires geometry and Rule Resolution V1 input.") as CoreResult<ConstructionV1>;
   }
 
-  const geometryValidation = validateGeometryV1(geometry);
+  const geometryValidation = validateConstructionSurfaceSpace(geometry);
   if (geometryValidation.status !== "ok" || geometryValidation.output === null) {
     return geometryValidation as unknown as CoreResult<ConstructionV1>;
-  }
-
-  if (geometryValidation.output.kind !== "surface-space") {
-    return missingConstructionInput("geometry.kind", "Construction Generation V1 supports SurfaceSpace input only.") as CoreResult<ConstructionV1>;
   }
 
   const ruleValidation = validateRuleResolutionV1(ruleResolution);
@@ -409,6 +423,62 @@ export function validateConstructionV1(value: unknown): CoreResult<ConstructionV
     ]),
     outputRefs: [{ kind: "construction", ref: validation.value.constructionRef }],
     output: validation.value,
+  });
+}
+
+function validateConstructionSurfaceSpace(geometry: unknown): CoreResult<SurfaceSpace> {
+  if (!isPlainObject(geometry)) {
+    return invalidGeometry("geometry", "Construction Generation V1 requires a structured SurfaceSpace input.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (geometry.kind !== "surface-space") {
+    return missingConstructionInput("geometry.kind", "Construction Generation V1 supports SurfaceSpace input only.") as CoreResult<SurfaceSpace>;
+  }
+
+  const unsupportedField = firstUnsupportedKey(geometry, SURFACE_SPACE_ALLOWED_KEYS);
+  if (unsupportedField !== null) {
+    return unsupportedGeometry(unsupportedField, `SurfaceSpace field is outside Geometry V1: ${unsupportedField}.`) as CoreResult<SurfaceSpace>;
+  }
+
+  const inputRef = nonEmptyString(geometry.id);
+  if (inputRef === null) {
+    return invalidGeometry("id", "SurfaceSpace requires a non-empty id.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (geometry.coordinateSystem === undefined) {
+    return missingCoordinateSystem() as CoreResult<SurfaceSpace>;
+  }
+
+  if (!isCoordinateSystem2D(geometry.coordinateSystem)) {
+    return invalidGeometry("coordinateSystem", "SurfaceSpace requires the Norma canonical 2D coordinate system.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (geometry.coordinateSystem.coordinateScale === "metric") {
+    if (!isMetricPolicy(geometry.metricPolicy)) {
+      return missingMetricPolicy() as CoreResult<SurfaceSpace>;
+    }
+  } else if (geometry.metricPolicy !== undefined && geometry.metricPolicy !== null && !isMetricPolicy(geometry.metricPolicy)) {
+    return invalidGeometry("metricPolicy", "SurfaceSpace metricPolicy is invalid.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (geometry.tolerancePolicy !== undefined && geometry.tolerancePolicy !== null && !isTolerancePolicy(geometry.tolerancePolicy)) {
+    return invalidGeometry("tolerancePolicy", "SurfaceSpace tolerancePolicy is invalid.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (!isRect(geometry.bounds)) {
+    return invalidGeometry("bounds", "SurfaceSpace bounds must be a finite positive rectangle.") as CoreResult<SurfaceSpace>;
+  }
+
+  if (geometry.coordinateSystem.coordinateScale === "normalized" && !normalizedRectInsideSurface(geometry.bounds)) {
+    return invalidGeometry("bounds", "SurfaceSpace normalized bounds must stay inside [0,1].") as CoreResult<SurfaceSpace>;
+  }
+
+  return createConstructionResult({
+    status: "ok",
+    provenance: createConstructionProvenance("core.construction-v1.surface-input.validate", [
+      { kind: "geometry", ref: inputRef },
+    ]),
+    output: geometry as unknown as SurfaceSpace,
   });
 }
 
@@ -1287,6 +1357,58 @@ function missingConstructionInput(targetRef: string, message: string): CoreResul
   });
 }
 
+function invalidGeometry(targetRef: string, message: string): CoreResult {
+  return createConstructionResult({
+    status: "failed",
+    errors: [
+      createConstructionError({
+        code: "InvalidGeometryV1",
+        message,
+        targetRef,
+      }),
+    ],
+  });
+}
+
+function unsupportedGeometry(targetRef: string, message: string): CoreResult {
+  return createConstructionResult({
+    status: "failed",
+    errors: [
+      createConstructionError({
+        code: "UnsupportedGeometryV1",
+        message,
+        targetRef,
+      }),
+    ],
+  });
+}
+
+function missingCoordinateSystem(): CoreResult {
+  return createConstructionResult({
+    status: "failed",
+    errors: [
+      createConstructionError({
+        code: "MissingCoordinateSystem",
+        message: "SurfaceSpace requires an explicit coordinate system.",
+        targetRef: "coordinateSystem",
+      }),
+    ],
+  });
+}
+
+function missingMetricPolicy(): CoreResult {
+  return createConstructionResult({
+    status: "failed",
+    errors: [
+      createConstructionError({
+        code: "MissingMetricPolicy",
+        message: "Metric SurfaceSpace input requires an explicit metric policy.",
+        targetRef: "metricPolicy",
+      }),
+    ],
+  });
+}
+
 function validConstruction<TValue>(value: TValue): ConstructionValidation<TValue> {
   return { ok: true, value };
 }
@@ -1316,6 +1438,36 @@ function isSourceReference(value: unknown): value is SourceReference {
 
 function isSourceReferenceArray(value: unknown): value is readonly SourceReference[] {
   return Array.isArray(value) && value.every(isSourceReference);
+}
+
+function isCoordinateSystem2D(value: unknown): value is SurfaceSpace["coordinateSystem"] {
+  return isRecord(value)
+    && firstUnsupportedKey(value, COORDINATE_SYSTEM_ALLOWED_KEYS) === null
+    && value.kind === "coordinate-system"
+    && nonEmptyString(value.id) !== null
+    && value.origin === "bottom-left"
+    && value.xAxis === "right"
+    && value.yAxis === "up"
+    && value.dimensions === 2
+    && (value.coordinateScale === "normalized" || value.coordinateScale === "metric");
+}
+
+function isMetricPolicy(value: unknown): value is NonNullable<SurfaceSpace["metricPolicy"]> {
+  return isRecord(value)
+    && firstUnsupportedKey(value, METRIC_POLICY_ALLOWED_KEYS) === null
+    && value.kind === "metric-policy"
+    && nonEmptyString(value.id) !== null
+    && value.quantity === "length"
+    && nonEmptyString(value.unit) !== null;
+}
+
+function isTolerancePolicy(value: unknown): value is NonNullable<SurfaceSpace["tolerancePolicy"]> {
+  return isRecord(value)
+    && firstUnsupportedKey(value, TOLERANCE_POLICY_ALLOWED_KEYS) === null
+    && value.kind === "tolerance-policy"
+    && nonEmptyString(value.id) !== null
+    && isNonNegativeFiniteNumber(value.coordinateTolerance)
+    && (value.metricTolerance === undefined || isNonNegativeFiniteNumber(value.metricTolerance));
 }
 
 function isProvenance(value: unknown): value is Provenance {
@@ -1436,6 +1588,10 @@ function isPositiveFiniteNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value > 0;
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0;
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -1454,4 +1610,13 @@ function nonEmptyString(value: unknown): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
