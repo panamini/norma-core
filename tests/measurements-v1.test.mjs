@@ -709,6 +709,192 @@ test("PR7 preserves real provenance and does not fabricate pack lineage for plai
   assert.equal(plainMeasurement.provenance.inputRefs.some((ref) => ref.kind === "rule-declaration"), false);
 });
 
+test("PR7 rejects duplicate geometry refs without overwriting canonical geometry", () => {
+  const surfaceArea = runMeasurements([
+    { kind: "measurement-request", requestRef: "area:surface", measurementType: "area", sourceRef: "surface:unit", metric: "both" },
+  ]);
+  const surfaceMeasurement = byRequest(surfaceArea, "area:surface");
+  assertClose(surfaceMeasurement.result.normalizedArea, 1);
+  assert.equal(surfaceMeasurement.sourceRefs.some((ref) => ref.kind === "geometry" && ref.ref === "surface:unit"), true);
+
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
+      geometryRefs: [
+        { kind: "geometry-ref", geometryRef: "surface:unit", geometry: { kind: "rect", x: 0, y: 0, width: 0.5, height: 0.5 } },
+      ],
+      requests: [
+        { kind: "measurement-request", requestRef: "area:surface", measurementType: "area", sourceRef: "surface:unit", metric: "both" },
+      ],
+    })),
+    "InvalidMeasurementV1",
+  );
+
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
+      geometryRefs: [
+        { kind: "geometry-ref", geometryRef: "rect:dup", geometry: { kind: "rect", x: 0, y: 0, width: 0.5, height: 0.5 } },
+        { kind: "geometry-ref", geometryRef: "rect:dup", geometry: { kind: "rect", x: 0.5, y: 0.5, width: 0.25, height: 0.25 } },
+      ],
+      requests: [
+        { kind: "measurement-request", requestRef: "area:dup", measurementType: "area", sourceRef: "rect:dup", metric: "both" },
+      ],
+    })),
+    "InvalidMeasurementV1",
+  );
+});
+
+test("PR7 binds metric policies to the measured surface", () => {
+  const output = runMeasurements([
+    { kind: "measurement-request", requestRef: "area:side", measurementType: "area", sourceRef: "element:side", metric: "both" },
+  ]);
+  assert.equal(output.metricPolicy.surfaceRef, output.spaceRef);
+
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
+      metricPolicy: { ...measurementMetricPolicy, surfaceRef: "surface:other" },
+      requests: [
+        { kind: "measurement-request", requestRef: "area:side", measurementType: "area", sourceRef: "element:side", metric: "both" },
+      ],
+    })),
+    "InvalidMetricPolicy",
+  );
+
+  assertFailedWithDiagnostic(
+    validateMeasurementV1({
+      ...output.measurements[0],
+      metricPolicy: { ...output.measurements[0].metricPolicy, surfaceRef: "surface:other" },
+    }),
+    "InvalidMetricPolicy",
+  );
+
+  assertFailedWithDiagnostic(
+    validateMeasurementResultV1({
+      ...output,
+      metricPolicy: { ...output.metricPolicy, surfaceRef: "surface:other" },
+    }),
+    "InvalidMetricPolicy",
+  );
+});
+
+test("PR7 honors explicit metric selectors for metric-capable measurements", () => {
+  const output = runMeasurements([
+    {
+      kind: "measurement-request",
+      requestRef: "distance:normalized",
+      measurementType: "distance",
+      sourceRef: "point:origin",
+      targetRef: "point:third",
+      axis: "euclidean",
+      metric: "normalized",
+    },
+    {
+      kind: "measurement-request",
+      requestRef: "area:normalized",
+      measurementType: "area",
+      sourceRef: "element:side",
+      metric: "normalized",
+    },
+    {
+      kind: "measurement-request",
+      requestRef: "area:metric",
+      measurementType: "area",
+      sourceRef: "element:side",
+      metric: "metric",
+    },
+    {
+      kind: "measurement-request",
+      requestRef: "area:both",
+      measurementType: "area",
+      sourceRef: "element:side",
+      metric: "both",
+    },
+  ]);
+
+  const normalizedDistance = byRequest(output, "distance:normalized");
+  assert.equal(normalizedDistance.unit, "normalized");
+  assert.equal(normalizedDistance.result.metricDistance, null);
+  assert.equal(normalizedDistance.result.unit, "normalized");
+
+  const normalizedArea = byRequest(output, "area:normalized");
+  assert.equal(normalizedArea.unit, "normalized");
+  assert.equal(normalizedArea.result.metricArea, null);
+  assert.equal(normalizedArea.result.unit, "normalized");
+
+  const metricArea = byRequest(output, "area:metric");
+  assert.equal(metricArea.unit, "metric");
+  assertClose(metricArea.result.metricArea, (1200 / 3) * (800 / 3));
+  assert.equal(metricArea.result.unit, "px^2");
+
+  const bothArea = byRequest(output, "area:both");
+  assert.equal(bothArea.unit, "mixed");
+  assertClose(bothArea.result.normalizedArea, 1 / 9);
+  assertClose(bothArea.result.metricArea, (1200 / 3) * (800 / 3));
+
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
+      requests: [
+        { kind: "measurement-request", requestRef: "area:bad-metric", measurementType: "area", sourceRef: "element:side", metric: "imperial-ish" },
+      ],
+    })),
+    "UnsupportedMeasurementRequest",
+  );
+});
+
+test("PR7 does not classify partial 1D points as inside a 2D surface", () => {
+  const positionOutput = runMeasurements([
+    {
+      kind: "measurement-request",
+      requestRef: "position:partial-point",
+      measurementType: "position",
+      sourceRef: "point:x-only",
+      metric: "both",
+    },
+    {
+      kind: "measurement-request",
+      requestRef: "position:inside-point",
+      measurementType: "position",
+      sourceRef: "point:origin",
+      metric: "both",
+    },
+    {
+      kind: "measurement-request",
+      requestRef: "position:outside-point",
+      measurementType: "position",
+      sourceRef: "point:outside",
+      metric: "both",
+    },
+  ], {
+    geometryRefs: [
+      ...measurementInput().geometryRefs,
+      { kind: "geometry-ref", geometryRef: "point:x-only", geometry: { kind: "point", x: 2 } },
+    ],
+  });
+
+  assert.equal(byRequest(positionOutput, "position:partial-point").result.containmentStatus, "outside");
+  assert.equal(byRequest(positionOutput, "position:inside-point").result.containmentStatus, "on_boundary");
+  assert.equal(byRequest(positionOutput, "position:outside-point").result.containmentStatus, "outside");
+
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
+      geometryRefs: [
+        ...measurementInput().geometryRefs,
+        { kind: "geometry-ref", geometryRef: "point:x-only", geometry: { kind: "point", x: 2 } },
+      ],
+      requests: [
+        {
+          kind: "measurement-request",
+          requestRef: "containment:partial-point",
+          measurementType: "containment",
+          childRef: "point:x-only",
+          parentRef: "surface:unit",
+          tolerance: { kind: "measurement-tolerance", id: "exact", value: 0 },
+        },
+      ],
+    })),
+    "IncompatibleMeasurementGeometry",
+  );
+});
+
 test("PR7 rejects malformed requests and invalid geometric policies", () => {
   assertFailedWithDiagnostic(
     measureGeometryV1(measurementInput({ metricPolicy: undefined, requests: [] })),
@@ -790,9 +976,27 @@ test("PR7 closed validation rejects malformed output, duplicates, non-finite fac
   const output = runMeasurements([
     { kind: "measurement-request", requestRef: "area:side", measurementType: "area", sourceRef: "element:side", metric: "both" },
   ]);
+  const twoMeasurementOutput = runMeasurements([
+    { kind: "measurement-request", requestRef: "area:side", measurementType: "area", sourceRef: "element:side", metric: "both" },
+    { kind: "measurement-request", requestRef: "area:main", measurementType: "area", sourceRef: "element:main", metric: "both" },
+  ]);
+  const coverageOutput = runMeasurements([
+    {
+      kind: "measurement-request",
+      requestRef: "coverage:partial",
+      measurementType: "coverage",
+      targetRef: "surface:unit",
+      contributorRefs: ["rect:inside"],
+      metric: "both",
+      coveragePolicy: "union-clipped",
+    },
+  ]);
   const validMeasurement = structuredClone(output.measurements[0]);
+  const validCoverage = structuredClone(coverageOutput.measurements[0]);
   assertOk(validateMeasurementV1(validMeasurement));
+  assertOk(validateMeasurementV1(validCoverage));
   assertOk(validateMeasurementResultV1(structuredClone(output)));
+  assertOk(validateMeasurementResultV1(structuredClone(coverageOutput)));
 
   assertFailedWithDiagnostic(validateMeasurementV1({ ...validMeasurement, extra: true }), "InvalidMeasurementV1");
   assertFailedWithDiagnostic(validateMeasurementV1({ ...validMeasurement, measurementRef: "" }), "InvalidMeasurementV1");
@@ -817,6 +1021,18 @@ test("PR7 closed validation rejects malformed output, duplicates, non-finite fac
     measurements: [validMeasurement, validMeasurement],
   }), "InvalidMeasurementV1");
   assertFailedWithDiagnostic(validateMeasurementResultV1({
+    ...twoMeasurementOutput,
+    measurementRefs: [twoMeasurementOutput.measurementRefs[0], twoMeasurementOutput.measurementRefs[0]],
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementResultV1({
+    ...output,
+    measurementRefs: [{ kind: "measurement", ref: "" }],
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementResultV1({
+    ...output,
+    measurementRefs: [{ kind: "measurement", ref: "measurement:unknown" }],
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementResultV1({
     ...output,
     measurements: [{ ...validMeasurement, result: { ...validMeasurement.result, containmentStatus: "good" } }],
   }), "InvalidMeasurementV1");
@@ -827,5 +1043,17 @@ test("PR7 closed validation rejects malformed output, duplicates, non-finite fac
   assertFailedWithDiagnostic(validateMeasurementResultV1({
     ...output,
     artifactRefs: [{ kind: "artifact", ref: "future" }],
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementV1({
+    ...validCoverage,
+    result: { ...validCoverage.result, coveredArea: validCoverage.result.targetArea + EPSILON },
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementV1({
+    ...validCoverage,
+    result: { ...validCoverage.result, uncoveredArea: validCoverage.result.uncoveredArea + 0.01 },
+  }), "InvalidMeasurementV1");
+  assertFailedWithDiagnostic(validateMeasurementV1({
+    ...validCoverage,
+    result: { ...validCoverage.result, coverageRatio: validCoverage.result.coverageRatio + 0.01 },
   }), "InvalidMeasurementV1");
 });
