@@ -227,6 +227,55 @@ test("PR6 derives sequence partition positions without boundary guides", () => {
   assert.equal(new Set(construction.guides.map((guide) => guide.guideRef)).size, construction.guides.length);
 });
 
+test("PR6 merges sequence and ratio-derived positions for the same resolved rule", () => {
+  const resolution = resolveMvp();
+  resolution.ruleRefs = [resolution.ruleRefs[0]];
+  resolution.rules = [structuredClone(resolution.rules[0])];
+  resolution.rules[0].ratioRefs.push({
+    kind: "resolved-ratio-ref",
+    ratioRef: "1/2",
+    normalizedValue: 0.5,
+    sourceRef: {
+      kind: "ratio",
+      ref: "norma.basic-proportions@0.1.0:ratios.1/2",
+    },
+  });
+
+  const construction = generateMvp(canonicalSurface(), resolution).output;
+
+  assert.deepEqual(construction.guides.map((guide) => guide.position), [1 / 3, 0.5, 2 / 3]);
+  assert.ok(construction.guides.some((guide) => guide.sourceRefs.some((ref) => ref.ref.endsWith("ratios.1/2"))));
+});
+
+test("PR6 rejects conflicting declared partition axes before rule-ref suffix fallback", () => {
+  const resolution = resolveMvp();
+  const pattern = resolution.rules[0].partitionPatternRefs[0];
+  resolution.ruleRefs = [resolution.ruleRefs[0]];
+  resolution.rules = [structuredClone(resolution.rules[0])];
+  resolution.rules[0].partitionPatternRefs = [
+    {
+      ...pattern,
+      partitionPatternRef: "thirds-vertical",
+      axis: "vertical",
+      sourceRef: {
+        ...pattern.sourceRef,
+        ref: "norma.basic-proportions@0.1.0:partitionPatterns.thirds-vertical",
+      },
+    },
+    {
+      ...pattern,
+      partitionPatternRef: "thirds-horizontal",
+      axis: "horizontal",
+      sourceRef: {
+        ...pattern.sourceRef,
+        ref: "norma.basic-proportions@0.1.0:partitionPatterns.thirds-horizontal",
+      },
+    },
+  ];
+
+  assertFailedWithDiagnostic(generateConstructionV1(canonicalSurface(), resolution), "UnsupportedConstructionRule");
+});
+
 test("PR6 zones and grid cells form deterministic bottom-left partitions", () => {
   const construction = generateMvp().output;
   const verticalZones = construction.zones.filter((zone) => zone.partitionAxis === "vertical");

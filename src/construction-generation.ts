@@ -538,6 +538,10 @@ function orientationForRule(rule: ResolvedRule): GuideOrientationV1 | null {
     return declaredAxes[0] ?? null;
   }
 
+  if (declaredAxes.length > 1) {
+    return null;
+  }
+
   if (rule.ruleRef.endsWith("-vertical") || rule.ruleRef.endsWith(".vertical") || rule.ruleRef.endsWith(":vertical")) {
     return "vertical";
   }
@@ -550,11 +554,16 @@ function orientationForRule(rule: ResolvedRule): GuideOrientationV1 | null {
 }
 
 function positionsForRule(rule: ResolvedRule): ConstructionValidation<readonly PositionPlan[]> {
+  const positions: PositionPlan[] = [];
+
   if (rule.sequenceRefs.length > 0) {
-    return positionsFromSequences(rule);
+    const sequencePositions = positionsFromSequences(rule);
+    if (!sequencePositions.ok) {
+      return sequencePositions;
+    }
+    positions.push(...sequencePositions.value);
   }
 
-  const positions: PositionPlan[] = [];
   for (const ratio of rule.ratioRefs) {
     if (!isInternalNormalizedValue(ratio.normalizedValue)) {
       return failedConstruction(invalidConstruction("ratioRefs", `Resolved ratio position is outside normalized internal bounds: ${ratio.ratioRef}.`));
