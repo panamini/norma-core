@@ -815,6 +815,7 @@ test("PR11 exports Run and Replay-Readiness V1 vocabulary and keeps replay execu
   assert.deepEqual(RUN_EXECUTION_STATUSES_V1, ["success", "partial", "failed"]);
   assert.deepEqual(REPLAY_READINESS_V1_STATUSES, ["replay_ready", "non_replayable", "stale", "incompatible"]);
   for (const kind of [
+    "operation_mismatch",
     "pack_content_identity_mismatch",
     "coordinate_policy_mismatch",
     "artifact_run_ref_mismatch",
@@ -1018,6 +1019,17 @@ test("RunInput V1 clones structured inputs, rejects artifacts/native objects, an
     ruleSetRef: SURFACE_BASIC_THIRD_GRID_RULE_SET_ID,
     operationContext,
   }), "InvalidRunInputV1");
+  assertFailedWithDiagnostic(createRunInputV1({
+    inputs: [{
+      kind: "run-source-input",
+      inputRef: { kind: "geometry", ref: "surface:unit" },
+      snapshot: { nested: { kind: "artifact", artifactRef: "artifact:hidden" } },
+    }],
+    packLock,
+    orderedRuleRefs: ["surface-thirds-vertical"],
+    ruleSetRef: SURFACE_BASIC_THIRD_GRID_RULE_SET_ID,
+    operationContext,
+  }), "InvalidRunInputV1");
 });
 
 test("Run identity depends on deterministic inputs but not outputs, diagnostics, status, time, or randomness", () => {
@@ -1129,6 +1141,7 @@ test("full PR6-PR10 pipeline creates a replay-ready RunV1 and resolves the artif
     assertOk(validateArtifactV1(structuredClone(artifact)));
   }
   assertOk(validateRunV1(structuredClone(fixture.run), fixture.sourceBundle));
+  assertFailedWithDiagnostic(validateRunV1(structuredClone(fixture.run)), "InvalidRunV1");
 
   const readiness = assessReplayReadinessV1(fixture.run, matchingDependencies(fixture));
   assertOk(readiness);
@@ -1162,6 +1175,31 @@ test("RunOutput V1 enforces category refs, uniqueness, source resolution, and st
     executionStatus: "failed",
     errors: [createCoreError({ code: "InvalidRunV1", message: "Synthetic failure." })],
   }), "InvalidRunOutputV1");
+  assertFailedWithDiagnostic(createRunOutputV1({
+    constructionRefs: [{ kind: "construction", ref: fixture.sources.construction.constructionRef }],
+    executionStatus: "partial",
+    warnings: [{
+      code: "DefinitelyNotADiagnosticCode",
+      severity: "warning",
+      message: "Synthetic unknown diagnostic.",
+      targetRef: "fixture",
+      source: { kind: "test-fixture", ref: "tests/run-replay-readiness-v1.test.mjs" },
+      blocking: false,
+      provenance: null,
+    }],
+  }), "InvalidRunV1");
+  assertFailedWithDiagnostic(createRunOutputV1({
+    executionStatus: "failed",
+    errors: [{
+      code: "InvalidRunV1",
+      severity: "error",
+      message: "Synthetic non-blocking error.",
+      targetRef: "fixture",
+      source: { kind: "test-fixture", ref: "tests/run-replay-readiness-v1.test.mjs" },
+      blocking: false,
+      provenance: null,
+    }],
+  }), "InvalidRunV1");
 
   const unknownOutputRun = structuredClone(fixture.run);
   unknownOutputRun.runOutput.constructionRefs = [{ kind: "construction", ref: "construction:missing" }];
@@ -1193,6 +1231,7 @@ test("static replay-readiness assessment reports deterministic dependency mismat
     ["rule_refs_mismatch", { orderedRuleRefs: [...fixture.run.orderedRuleRefs].reverse() }],
     ["rule_set_ref_mismatch", { ruleSetRef: "rule-set:other" }],
     ["core_version_mismatch", { operationContext: { ...fixture.operationContext, coreVersion: "0.1.0-pr10" } }],
+    ["operation_mismatch", { operationContext: canonicalContext({ operation: "core.other-operation" }) }],
     ["operation_version_mismatch", { operationContext: canonicalContext({ operationVersion: "0.2.0" }) }],
     ["geometry_model_version_mismatch", { operationContext: canonicalContext({ geometryModelVersion: "geometry-v2" }) }],
     ["coordinate_policy_mismatch", { operationContext: canonicalContext({ coordinatePolicy: { ...operationContextInput().coordinatePolicy, normalizedBounds: { kind: "rect", x: 0, y: 0, width: 0.5, height: 1 } } }) }],
@@ -1243,6 +1282,33 @@ test("replay-readiness status precedence handles missing sources, stale artifact
   }));
   assertOk(incompatibleOutranksStale);
   assert.equal(incompatibleOutranksStale.output.status, "incompatible");
+
+  const omittedArtifactEvidence = assessReplayReadinessV1(fixture.run, matchingDependencies(fixture, {
+    artifacts: undefined,
+  }));
+  assertOk(omittedArtifactEvidence);
+  assert.equal(omittedArtifactEvidence.output.status, "non_replayable");
+  assertMismatch(omittedArtifactEvidence, "missing_source");
+
+  const runWithoutArtifactEvidence = createRunV1({
+    operation: OPERATION,
+    operationVersion: OPERATION_VERSION,
+    runInput: fixture.runInput,
+    packLock: fixture.packLock,
+    orderedRuleRefs: fixture.runInput.orderedRuleRefs,
+    ruleSetRef: fixture.runInput.ruleSetRef,
+    operationContext: fixture.operationContext,
+    runOutput: fixture.runOutput,
+  });
+  assertOk(runWithoutArtifactEvidence);
+  assert.equal(runWithoutArtifactEvidence.output.replayReadiness.status, "non_replayable");
+  assert.ok(runWithoutArtifactEvidence.output.replayReadiness.mismatches.every((mismatch) => mismatch.mismatchKind === "missing_source"));
+  assertOk(validateRunV1(structuredClone(runWithoutArtifactEvidence.output)));
+
+  const suppliedLater = assessReplayReadinessV1(runWithoutArtifactEvidence.output, matchingDependencies(fixture));
+  assertOk(suppliedLater);
+  assert.equal(suppliedLater.output.status, "replay_ready");
+  assert.deepEqual(suppliedLater.output.mismatches, []);
 });
 
 test("RunV1 validation rejects forged identity, statuses, readiness evidence, and source misuse", () => {
@@ -1250,6 +1316,7 @@ test("RunV1 validation rejects forged identity, statuses, readiness evidence, an
   const forgedRunRef = structuredClone(fixture.run);
   forgedRunRef.runRef.id = "run:v1:forged";
   assertFailedWithDiagnostic(validateRunV1(forgedRunRef), "InvalidRunV1");
+  assertFailedWithDiagnostic(assessReplayReadinessV1(forgedRunRef, matchingDependencies(fixture)), "InvalidRunV1");
 
   const forgedInput = structuredClone(fixture.run);
   forgedInput.runInput.inputIdentity = "run-input:v1:forged";
@@ -1276,6 +1343,36 @@ test("RunV1 validation rejects forged identity, statuses, readiness evidence, an
   const incompatibleWithoutMismatch = structuredClone(fixture.run);
   incompatibleWithoutMismatch.replayReadiness.status = "incompatible";
   assertFailedWithDiagnostic(validateRunV1(incompatibleWithoutMismatch), "InvalidRunV1");
+
+  const missing = assessReplayReadinessV1(fixture.run, matchingDependencies(fixture, {
+    sourceRefs: fixture.run.runInput.inputRefs.slice(1),
+  }));
+  assertOk(missing);
+  const incompatible = assessReplayReadinessV1(fixture.run, matchingDependencies(fixture, {
+    inputIdentity: "changed",
+  }));
+  assertOk(incompatible);
+  const downgradedPrecedence = structuredClone(fixture.run);
+  downgradedPrecedence.replayReadiness = {
+    kind: "run-replay-readiness",
+    status: "non_replayable",
+    mismatches: [missing.output.mismatches[0], incompatible.output.mismatches[0]],
+    missingSources: missing.output.missingSources,
+    staleArtifactRefs: [],
+  };
+  assertFailedWithDiagnostic(validateRunV1(downgradedPrecedence), "InvalidRunV1");
+
+  const staleFixture = canonicalRunFixture({ artifactOptions: { stale: true } });
+  const forgedStaleReadiness = structuredClone(staleFixture.run);
+  forgedStaleReadiness.replayReadiness = {
+    kind: "run-replay-readiness",
+    status: "replay_ready",
+    mismatches: [],
+    missingSources: [],
+    staleArtifactRefs: [],
+  };
+  forgedStaleReadiness.warnings = [];
+  assertFailedWithDiagnostic(validateRunV1(forgedStaleReadiness, staleFixture.sourceBundle), "InvalidRunV1");
 
   const artifactAsInput = structuredClone(fixture.run);
   artifactAsInput.runInput.inputs[0] = {

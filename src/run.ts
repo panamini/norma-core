@@ -1,4 +1,5 @@
 import {
+  CORE_DIAGNOSTIC_CODES,
   CORE_VERSION,
   createCoreError,
   createCoreWarning,
@@ -54,6 +55,7 @@ export const REPLAY_READINESS_V1_STATUSES = [
 ] as const;
 export const RUN_MISMATCH_KINDS_V1 = [
   "input_identity_mismatch",
+  "operation_mismatch",
   "pack_ref_mismatch",
   "pack_version_mismatch",
   "pack_schema_version_mismatch",
@@ -275,6 +277,10 @@ type RunValidation<TValue> =
 interface ValidSourceRegistry {
   refs: ReadonlySet<string>;
   artifacts: readonly ArtifactV1[];
+}
+
+interface RunValueValidationOptions {
+  allowExternalArtifactEvidence?: boolean;
 }
 
 const RUN_SOURCE_REFERENCE: SourceReference = Object.freeze({
@@ -748,9 +754,7 @@ export function createRunV1(input: unknown): CoreResult<RunV1> {
   }
 
   const sourceMismatches = readinessMismatchesForRunSources(runInput, sourceRegistry?.value);
-  const artifactMismatches = sourceRegistry?.value !== undefined
-    ? readinessMismatchesForArtifacts(runRef, runOutput.artifactRefs, sourceRegistry.value.artifacts)
-    : [];
+  const artifactMismatches = readinessMismatchesForArtifacts(runRef, runOutput.artifactRefs, sourceRegistry?.value.artifacts);
   const replayReadiness = replayReadinessFromMismatches([...sourceMismatches, ...artifactMismatches]);
   const userWarnings = validateDiagnosticsArray(input.warnings ?? [], "warnings", "warning");
   if (!userWarnings.ok) {
@@ -843,37 +847,37 @@ export function validateRunV1(value: unknown, sourceBundle?: unknown): CoreResul
 }
 
 export function assessReplayReadinessV1(run: unknown, dependencies: unknown): CoreResult<ReplayReadinessReportV1> {
-  const runValidation = validateRunV1(run);
-  if (runValidation.status !== "ok" || runValidation.output === null) {
-    return runValidation as unknown as CoreResult<ReplayReadinessReportV1>;
-  }
   if (!isRecord(dependencies)) {
     return invalidReplayReadinessReport("dependencies", "Replay readiness assessment requires an explicit dependency set.") as CoreResult<ReplayReadinessReportV1>;
+  }
+  const runValidation = validateRunValue(run, undefined, { allowExternalArtifactEvidence: true });
+  if (!runValidation.ok) {
+    return runValidation.result as CoreResult<ReplayReadinessReportV1>;
   }
 
   const available = dependencies as ReplayReadinessDependenciesV1;
   const mismatches = [
-    ...compareInputIdentity(runValidation.output, available.inputIdentity),
-    ...comparePackLock(runValidation.output.packLock, available.packLock),
-    ...compareRules(runValidation.output, available.orderedRuleRefs, available.ruleSetRef),
-    ...compareOperationContext(runValidation.output.operationContext, available.operationContext),
-    ...compareSources(runValidation.output.runInput, available.sourceRefs),
-    ...compareArtifacts(runValidation.output.runRef, runValidation.output.runOutput.artifactRefs, available.artifacts),
+    ...compareInputIdentity(runValidation.value, available.inputIdentity),
+    ...comparePackLock(runValidation.value.packLock, available.packLock),
+    ...compareRules(runValidation.value, available.orderedRuleRefs, available.ruleSetRef),
+    ...compareOperationContext(runValidation.value.operationContext, available.operationContext),
+    ...compareSources(runValidation.value.runInput, available.sourceRefs),
+    ...compareArtifacts(runValidation.value.runRef, runValidation.value.runOutput.artifactRefs, available.artifacts),
   ];
   const readiness = replayReadinessFromMismatches(mismatches);
-  const reportRef = reportRefFor(runValidation.output.runRef, readiness);
+  const reportRef = reportRefFor(runValidation.value.runRef, readiness);
   const report: ReplayReadinessReportV1 = {
     kind: "replay-readiness-report",
     schemaVersion: REPLAY_READINESS_REPORT_V1_SCHEMA_VERSION,
     reportRef,
-    runRef: runValidation.output.runRef,
+    runRef: runValidation.value.runRef,
     status: readiness.status,
     mismatches: readiness.mismatches,
     missingSources: readiness.missingSources,
     staleArtifactRefs: readiness.staleArtifactRefs,
     warnings: warningsForReadiness(readiness),
     provenance: createRunProvenance("core.run-v1.assessReplayReadiness", [
-      { kind: "run", ref: runValidation.output.runRef.id },
+      { kind: "run", ref: runValidation.value.runRef.id },
     ]),
   };
 
@@ -1555,7 +1559,11 @@ function validateRunInputLinks(
   return null;
 }
 
-function validateRunValue(value: unknown, sourceRegistry?: ValidSourceRegistry): RunValidation<RunV1> {
+function validateRunValue(
+  value: unknown,
+  sourceRegistry?: ValidSourceRegistry,
+  options: RunValueValidationOptions = {},
+): RunValidation<RunV1> {
   if (!isRecord(value) || firstUnsupportedKey(value, RUN_ALLOWED_KEYS) !== null) {
     return failedRun(invalidRun("run", "Run V1 must be a closed structured object."));
   }
@@ -1609,6 +1617,15 @@ function validateRunValue(value: unknown, sourceRegistry?: ValidSourceRegistry):
   if (!readiness.ok) return readiness;
   const readinessFailure = validateReadinessInvariants(readiness.value, runInput.value);
   if (readinessFailure !== null) return failedRun(readinessFailure);
+  const evidenceFailure = validateReadinessAgainstEvidence(
+    readiness.value,
+    runInput.value,
+    runOutput.value,
+    runRef.value,
+    sourceRegistry,
+    options,
+  );
+  if (evidenceFailure !== null) return failedRun(evidenceFailure);
   const provenance = validateProvenanceValue(value.provenance, "provenance");
   if (!provenance.ok || provenance.value === null) {
     return failedRun(invalidRun("provenance", "Run V1 requires valid provenance."));
@@ -1657,9 +1674,29 @@ function validateRunReplayReadinessValue(value: unknown): RunValidation<RunRepla
 }
 
 function validateReadinessInvariants(readiness: RunReplayReadinessV1, runInput: RunInputV1): CoreResult | null {
+  const expectedStatus = readinessStatusFor(readiness.mismatches);
+  const expectedMissingSources = uniqueSourceRefs(readiness.mismatches
+    .filter((mismatch) => mismatch.mismatchKind === "missing_source")
+    .flatMap((mismatch) => mismatch.sourceRefs));
+  const expectedStaleArtifactRefs = uniqueSourceRefs(readiness.mismatches
+    .filter((mismatch) => mismatch.mismatchKind === "artifact_stale")
+    .flatMap((mismatch) => mismatch.sourceRefs));
+  const missingInputKeys = new Set(missingInputSources(runInput).map(sourceKey));
   const hasBlockingIncompatible = readiness.mismatches.some((mismatch) => mismatch.blocksReplay && mismatch.mismatchKind !== "missing_source" && mismatch.mismatchKind !== "artifact_stale");
   const hasStale = readiness.staleArtifactRefs.length > 0 || readiness.mismatches.some((mismatch) => mismatch.mismatchKind === "artifact_stale");
   const hasMissing = readiness.missingSources.length > 0 || readiness.mismatches.some((mismatch) => mismatch.mismatchKind === "missing_source") || missingInputSources(runInput).length > 0;
+  if (readiness.status !== expectedStatus) {
+    return invalidRun("replayReadiness.status", "Run V1 replayReadiness status must match deterministic mismatch precedence.");
+  }
+  if (stableJson(readiness.missingSources) !== stableJson(expectedMissingSources)) {
+    return invalidRun("replayReadiness.missingSources", "Run V1 missingSources must match missing_source mismatch evidence.");
+  }
+  if (stableJson(readiness.staleArtifactRefs) !== stableJson(expectedStaleArtifactRefs)) {
+    return invalidRun("replayReadiness.staleArtifactRefs", "Run V1 staleArtifactRefs must match artifact_stale mismatch evidence.");
+  }
+  if ([...missingInputKeys].some((missingKey) => !expectedMissingSources.some((ref) => sourceKey(ref) === missingKey))) {
+    return invalidRun("replayReadiness.missingSources", "Run V1 replayReadiness must include missing source evidence for inputs without snapshots or content identities.");
+  }
   if (readiness.status === "replay_ready" && (readiness.mismatches.length > 0 || hasStale || hasMissing)) {
     return invalidRun("replayReadiness", "Run V1 cannot be replay_ready with missing sources, stale artifacts, or mismatches.");
   }
@@ -1671,6 +1708,27 @@ function validateReadinessInvariants(readiness: RunReplayReadinessV1, runInput: 
   }
   if (readiness.status === "incompatible" && !hasBlockingIncompatible) {
     return invalidRun("replayReadiness", "Run V1 incompatible status requires a blocking deterministic dependency mismatch.");
+  }
+  return null;
+}
+
+function validateReadinessAgainstEvidence(
+  readiness: RunReplayReadinessV1,
+  runInput: RunInputV1,
+  runOutput: RunOutputV1,
+  runRef: RunRef,
+  registry?: ValidSourceRegistry,
+  options: RunValueValidationOptions = {},
+): CoreResult | null {
+  if (registry === undefined && options.allowExternalArtifactEvidence === true) {
+    return null;
+  }
+  const expected = replayReadinessFromMismatches([
+    ...readinessMismatchesForRunSources(runInput, registry),
+    ...readinessMismatchesForArtifacts(runRef, runOutput.artifactRefs, registry?.artifacts),
+  ]);
+  if (stableJson(readiness) !== stableJson(expected)) {
+    return invalidRun("replayReadiness", "Run V1 replayReadiness does not match current source and artifact evidence.");
   }
   return null;
 }
@@ -1791,8 +1849,11 @@ function readinessMismatchesForRunSources(runInput: RunInputV1, registry?: Valid
   return sortMismatches(mismatches);
 }
 
-function readinessMismatchesForArtifacts(runRef: RunRef, artifactRefs: readonly SourceReference[], artifacts: readonly ArtifactV1[]): readonly RunMismatchV1[] {
+function readinessMismatchesForArtifacts(runRef: RunRef, artifactRefs: readonly SourceReference[], artifacts?: readonly ArtifactV1[]): readonly RunMismatchV1[] {
   const mismatches: RunMismatchV1[] = [];
+  if (artifacts === undefined) {
+    return artifactRefs.map((artifactRef) => createMismatch("missing_source", `runOutput.artifactRefs.${artifactRef.ref}`, artifactRef.ref, null, "critical", [artifactRef]));
+  }
   for (const artifactRef of artifactRefs) {
     const artifact = artifacts.find((candidate) => candidate.artifactRef === artifactRef.ref);
     if (artifact === undefined) {
@@ -1876,6 +1937,7 @@ function compareOperationContext(expected: OperationContextV1, actual: unknown):
   const actualContext = validation.value;
   const checks: readonly [RunMismatchKindV1, string, unknown, unknown][] = [
     ["core_version_mismatch", "coreVersion", expected.coreVersion, actualContext.coreVersion],
+    ["operation_mismatch", "operation", expected.operation, actualContext.operation],
     ["operation_version_mismatch", "operationVersion", expected.operationVersion, actualContext.operationVersion],
     ["geometry_model_version_mismatch", "geometryModelVersion", expected.geometryModelVersion, actualContext.geometryModelVersion],
     ["coordinate_policy_mismatch", "coordinatePolicy", expected.coordinatePolicy, actualContext.coordinatePolicy],
@@ -1906,7 +1968,9 @@ function compareSources(runInput: RunInputV1, sourceRefs: unknown): readonly Run
 }
 
 function compareArtifacts(runRef: RunRef, artifactRefs: readonly SourceReference[], artifacts: unknown): readonly RunMismatchV1[] {
-  if (artifacts === undefined) return [];
+  if (artifacts === undefined) {
+    return readinessMismatchesForArtifacts(runRef, artifactRefs, undefined);
+  }
   if (!Array.isArray(artifacts)) {
     return artifactRefs.map((ref) => createMismatch("missing_source", `artifacts.${ref.ref}`, ref.ref, null, "critical", [ref]));
   }
@@ -2187,6 +2251,9 @@ function validateDiagnosticsArray(value: unknown, field: string, mode: "warning"
     if (mode === "error" && (diagnostic.severity !== "error" && diagnostic.severity !== "fatal")) {
       return failedRun(invalidRun(field, "Run V1 errors must use error or fatal severity."));
     }
+    if (mode === "error" && diagnostic.blocking !== true) {
+      return failedRun(invalidRun(field, "Run V1 errors must be blocking."));
+    }
     if (mode === "warning" && (diagnostic.severity === "error" || diagnostic.severity === "fatal")) {
       return failedRun(invalidRun(field, "Run V1 warnings cannot use error or fatal severity."));
     }
@@ -2363,7 +2430,7 @@ function isMismatchSeverity(value: unknown): value is RunMismatchSeverityV1 {
 }
 
 function isDiagnosticCode(value: unknown): value is DiagnosticCode {
-  return typeof value === "string";
+  return typeof value === "string" && CORE_DIAGNOSTIC_CODES.includes(value as DiagnosticCode);
 }
 
 function validateStringArray(value: unknown, field: string, options: { allowEmpty: boolean; preserveOrder: boolean }): RunValidation<readonly string[]> {
@@ -2480,9 +2547,21 @@ function isNormalizedRect(value: Record<string, unknown>): boolean {
     && (value.y as number) + (value.height as number) <= 1;
 }
 
-function artifactWouldBecomeSource(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(artifactWouldBecomeSource);
-  return isRecord(value) && value.kind === "artifact";
+function artifactWouldBecomeSource(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return false;
+    seen.add(value);
+    const found = value.some((item) => artifactWouldBecomeSource(item, seen));
+    seen.delete(value);
+    return found;
+  }
+  if (!isRecord(value)) return false;
+  if (value.kind === "artifact") return true;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  const found = Object.values(value).some((child) => artifactWouldBecomeSource(child, seen));
+  seen.delete(value);
+  return found;
 }
 
 function hasExecutableTerm(value: string): boolean {
