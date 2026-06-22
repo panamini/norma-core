@@ -907,6 +907,23 @@ test("Artifacts reject source-of-truth misuse, mismatched source chains, bad opt
     "ArtifactSourceMismatch",
   );
 
+  const unrelatedEvaluation = evaluate(
+    sources.measurementResultA,
+    basicProfile(sources.measurementResultA, { profileRef: "evaluation-profile:other" }),
+    { compositionRef: "composition:A" },
+  );
+  assert.notEqual(unrelatedEvaluation.evaluationRef, sources.evaluationA.evaluationRef);
+  assertFailedWithDiagnostic(
+    createEvaluationReportArtifactV1({
+      kind: "artifact-request",
+      schemaVersion: "artifact-request-v1",
+      sources: { ...sources, evaluation: unrelatedEvaluation },
+      options: reportOptions(),
+      runRef: RUN_REF,
+    }),
+    "ArtifactSourceMismatch",
+  );
+
   assertFailedWithDiagnostic(
     createStructuredResultArtifactV1({
       kind: "artifact-request",
@@ -931,6 +948,58 @@ test("Artifacts reject source-of-truth misuse, mismatched source chains, bad opt
 
   assertFailedWithDiagnostic(
     validateArtifactV1({ ...structured.output, extra: true }),
+    "InvalidArtifactV1",
+  );
+
+  const report = createEvaluationReportArtifactV1({
+    kind: "artifact-request",
+    schemaVersion: "artifact-request-v1",
+    sources,
+    options: reportOptions(),
+    runRef: RUN_REF,
+  });
+  assertOk(report);
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...report.output,
+      payload: {
+        ...report.output.payload,
+        evaluation: { kind: "forged-evaluation-report-evaluation", evaluationRef: sources.evaluationA.evaluationRef },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...report.output,
+      payload: {
+        ...report.output.payload,
+        comparison: { kind: "evaluation-report-comparison", comparisonRef: sources.comparison.comparisonRef },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...report.output,
+      payload: {
+        ...report.output.payload,
+        decision: { kind: "evaluation-report-decision", decisionRef: sources.decision.decisionRef },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...report.output,
+      payload: {
+        ...report.output.payload,
+        structuredExplanation: {
+          kind: "evaluation-report-structured-explanation",
+          explanationRef: sources.structuredExplanation.explanationRef,
+        },
+      },
+    }),
     "InvalidArtifactV1",
   );
 });
