@@ -121,6 +121,39 @@ test("PR5 validates resolved rule resolution output shape", () => {
   );
 });
 
+test("PR5 validation uses the canonical rule-resolution identity", () => {
+  const resolution = resolveRuleSetV1(BASIC_PROPORTIONS_PACK, SURFACE_BASIC_THIRD_GRID_RULE_SET_ID);
+  assertOk(resolution);
+
+  const canonicalRef = `${resolution.output.packRef}:${resolution.output.ruleSetRef}`;
+  const resolvedIdentity = resolution.outputRefs.find((ref) => ref.kind === "rule-resolution");
+  assert.deepEqual(resolvedIdentity, { kind: "rule-resolution", ref: canonicalRef });
+
+  const validation = validateRuleResolutionV1(structuredClone(resolution.output));
+  assertOk(validation);
+
+  const validationIdentity = validation.outputRefs.find((ref) => ref.kind === "rule-resolution");
+  const validationProvenanceIdentity = validation.provenance.inputRefs.find((ref) => ref.kind === "rule-resolution");
+
+  assert.deepEqual(validationIdentity, { kind: "rule-resolution", ref: canonicalRef });
+  assert.deepEqual(validationProvenanceIdentity, { kind: "rule-resolution", ref: canonicalRef });
+  assert.deepEqual(validationIdentity, resolvedIdentity);
+});
+
+test("PR5 rejects empty IDs in resolved rule reference arrays", () => {
+  const emptyRuleRefOutput = validResolutionOutput();
+  emptyRuleRefOutput.ruleRefs = [""];
+  assertFailedWithDiagnostic(validateRuleResolutionV1(emptyRuleRefOutput), "InvalidRuleResolutionV1");
+
+  const emptyPatternRatioRefOutput = validResolutionOutput();
+  emptyPatternRatioRefOutput.rules[0].partitionPatternRefs[0].ratioRefs = [""];
+  assertFailedWithDiagnostic(validateRuleResolutionV1(emptyPatternRatioRefOutput), "InvalidRuleResolutionV1");
+
+  const validMvpResolution = resolveRuleSetV1(BASIC_PROPORTIONS_PACK, SURFACE_BASIC_THIRD_GRID_RULE_SET_ID);
+  assertOk(validMvpResolution);
+  assertOk(validateRuleResolutionV1(validMvpResolution.output));
+});
+
 test("PR5 rejects malformed nested resolved ratio refs", () => {
   const output = validResolutionOutput();
 
