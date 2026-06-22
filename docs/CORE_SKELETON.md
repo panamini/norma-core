@@ -64,11 +64,19 @@ Construction V1 output is a visible `construction-v1` envelope with input, pack,
 
 `validateConstructionV1` validates the closed output shape, nested geometry, unique deterministic refs, trace coverage, empty future-output refs, and minimum provenance for every derived object.
 
+## PR7 Measurements V1
+
+PR7 adds deterministic Measurements V1 on top of Geometry V1 and Construction V1. `measureGeometryV1` consumes explicit structured measurement requests over validated surface, composition, construction, and declared geometry refs. `measureAreasV1` is a small area-only helper that expands explicit source refs into area requests.
+
+Measurements V1 output is a visible `measurement-result-v1` envelope with closed nested `measurement-v1` facts for distance, position, alignment, angle, area, ratio, containment, overlap, coverage, directional relation, and surface hierarchy. Measurement facts distinguish normalized, metric, dimensionless, and radian units, require explicit metric/tolerance policies where they affect semantics, preserve source geometry and construction lineage, and keep PR8+ refs empty.
+
+Measurements remain calculated facts only: no evaluation, component scoring, score, comparison, decision, explanation, artifact, rendering, UI model, replay runtime, or final `PackLock` behavior is produced.
+
 ## Does Not Contain
 
-- General geometry calculations beyond deterministic Construction V1.
+- Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Measurements, evaluation, artifacts, or scoring.
+- Evaluation, artifacts, or scoring.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

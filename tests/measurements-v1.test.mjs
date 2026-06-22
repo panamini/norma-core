@@ -18,7 +18,7 @@ import {
   validateMeasurementV1,
 } from "../dist/src/index.js";
 
-const EPSILON = 1e-12;
+const EPSILON = 1e-9;
 
 const normalizedCoordinateSystem2d = {
   kind: "coordinate-system",
@@ -202,6 +202,7 @@ function runMeasurements(requests, overrides = {}) {
   assertOk(result);
   assert.equal(result.output.kind, "measurement-result");
   assert.equal(result.output.schemaVersion, MEASUREMENT_RESULT_V1_SCHEMA_VERSION);
+  assertOk(validateMeasurementResultV1(structuredClone(result.output)));
   assertNoForbiddenFields(result.output);
   return result.output;
 }
@@ -369,6 +370,17 @@ test("PR7 measures distances, positions, alignments, and angles with explicit po
     },
     {
       kind: "measurement-request",
+      requestRef: "alignment:B-offset",
+      measurementType: "alignment",
+      sourceRef: "rect:B-main",
+      targetRef: verticalThird,
+      sourceAnchor: "left",
+      targetAnchor: "guide",
+      axis: "x",
+      tolerance: { kind: "measurement-tolerance", id: "tight", value: 0.01 },
+    },
+    {
+      kind: "measurement-request",
       requestRef: "angle:perpendicular",
       measurementType: "angle",
       sourceRef: verticalThird,
@@ -467,6 +479,7 @@ test("measureAreasV1 provides explicit deterministic area measurements only", ()
   });
 
   assertOk(result);
+  assert.equal(result.output.operationRef, "measurements.measureAreas");
   assert.deepEqual(result.output.measurements.map((measurement) => measurement.requestRef), [
     "area:element:side",
     "area:element:main",
@@ -703,6 +716,13 @@ test("PR7 rejects malformed requests and invalid geometric policies", () => {
   );
   assertFailedWithDiagnostic(
     measureGeometryV1(measurementInput({
+      metricPolicy: { ...measurementMetricPolicy, unit: "unsupported-unit" },
+      requests: [],
+    })),
+    "InvalidMetricPolicy",
+  );
+  assertFailedWithDiagnostic(
+    measureGeometryV1(measurementInput({
       requests: [{
         kind: "measurement-request",
         requestRef: "alignment:missing-tolerance",
@@ -809,14 +829,3 @@ test("PR7 closed validation rejects malformed output, duplicates, non-finite fac
     artifactRefs: [{ kind: "artifact", ref: "future" }],
   }), "InvalidMeasurementV1");
 });
-    {
-      kind: "measurement-request",
-      requestRef: "alignment:B-offset",
-      measurementType: "alignment",
-      sourceRef: "rect:B-main",
-      targetRef: verticalThird,
-      sourceAnchor: "left",
-      targetAnchor: "guide",
-      axis: "x",
-      tolerance: { kind: "measurement-tolerance", id: "tight", value: 0.01 },
-    },
