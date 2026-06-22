@@ -89,11 +89,19 @@ Supported component scoring formulas are profile-declared and closed:
 
 Overall score is `sum(normalizedScore * effectiveWeight)` across calculated component scores. Confidence is separate from score: `clamp(1 - optionalMissingPenalty * missingOptionalComponents - ambiguousMeasurementPenalty * ambiguousMeasurements - warningPenalty * warningCount, 0, 1)`. Evaluation status is chosen from profile thresholds and becomes `ambiguous` when confidence is below the profile minimum for normal status.
 
+## PR9 Comparison, Decision, and Structured Explanation V1
+
+PR9 adds deterministic two-evaluation comparison on top of validated PR8 Evaluation V1 outputs. `compareCompositionsBasicV1` consumes exactly two validated evaluations, an explicit closed comparison policy, and an explicit comparison operation version. It does not rerun measurements, recalculate scores, read raw geometry, rank candidate sets, recommend a composition, or emit artifacts.
+
+Comparison V1 first checks shared evaluation context before score facts can influence status. The comparable context currently includes evaluation schema/operation refs, profile ref, pack ref, rule-set ref, construction ref, score/confidence schema refs, score/evaluation limits, confidence policy, status thresholds, missing-measurement policy, and weight-normalization identity. Candidate-specific refs such as composition, measurement result, evaluation, score, and component score refs may differ.
+
+Status precedence is deterministic: malformed inputs fail; context mismatches return `non_comparable`; ambiguous evaluation status or confidence below policy returns `ambiguous`; `absoluteScoreDelta <= tieTolerance` returns `tie`; otherwise positive score delta returns `a_closer` and negative score delta returns `b_closer`. Decision V1 only selects an evaluation/composition for `a_closer` or `b_closer`. StructuredExplanation V1 is source-backed and uses closed claim codes and template summaries only.
+
 ## Does Not Contain
 
 - Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Comparison, decisions, explanations, recommendations, artifacts, or PR9+ behavior.
+- Recommendations, optimizations, creative corrections, artifacts, or PR10+ behavior.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

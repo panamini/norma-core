@@ -61,7 +61,7 @@ function clonePack(overrides = {}) {
 }
 
 test("PR4 exports ratio pack vocabulary, diagnostics, and version", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr8");
+  assert.equal(CORE_VERSION, "0.1.0-pr9");
   assert.equal(RATIO_PACK_V1_SCHEMA_VERSION, "ratio-pack-v1");
   assert.equal(BASIC_PROPORTIONS_PACK_ID, "norma.basic-proportions");
   assert.equal(BASIC_PROPORTIONS_PACK_VERSION, "0.1.0");
