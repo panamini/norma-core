@@ -375,6 +375,7 @@ interface AnchorPoint {
 const MEASUREMENT_OPERATION_VERSION = "0.1.0";
 const MEASURE_GEOMETRY_OPERATION_REF = "measurements.measureGeometry";
 const MEASURE_AREAS_OPERATION_REF = "measurements.measureAreas";
+const EPSILON = 1e-9;
 
 const MEASUREMENT_SOURCE_REFERENCE: SourceReference = Object.freeze({
   kind: "core",
@@ -835,6 +836,9 @@ function validateMeasurementInput(input: unknown): MeasurementValidation<Measure
   if (!surfaceValidation.ok) {
     return surfaceValidation;
   }
+  if (metricPolicyValidation.value.surfaceRef !== surfaceValidation.value.id) {
+    return failedMeasurement(invalidMetricPolicy("metricPolicy.surfaceRef", "Metric policy surfaceRef must match the measured surface."));
+  }
 
   const compositionValidation = validateOptionalComposition(input.composition);
   if (!compositionValidation.ok) {
@@ -1024,6 +1028,9 @@ function buildGeometryRegistry(
       if (!parsed.ok) {
         return parsed;
       }
+      if (entries.has(parsed.value.ref)) {
+        return failedMeasurement(invalidMeasurement("geometryRefs", `Duplicate measurement geometry ref: ${parsed.value.ref}.`));
+      }
       entries.set(parsed.value.ref, parsed.value);
     }
   }
@@ -1205,6 +1212,10 @@ function measureDistance(context: MeasurementContext, request: Record<string, un
   if (!isDistanceAxis(axis)) {
     return failedBuild(unsupportedMeasurementRequest("axis", "Distance axis must be horizontal, vertical, or euclidean."));
   }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
+  }
 
   const source = context.geometryByRef.get(sourceRef);
   const target = context.geometryByRef.get(targetRef);
@@ -1228,12 +1239,12 @@ function measureDistance(context: MeasurementContext, request: Record<string, un
     targetAnchor: stringOrNull(request.targetAnchor),
     axis,
     normalizedDistance: distance.value.normalizedDistance,
-    metricDistance,
-    unit: context.metricPolicy.unit,
+    metricDistance: metricNumber(metricRequest.value, metricDistance),
+    unit: metricLengthUnit(context, metricRequest.value),
     signed: false,
   };
 
-  return measured(context, requestRef, "distance", [source, target], "mixed", result, null, []);
+  return measured(context, requestRef, "distance", [source, target], measurementUnit(metricRequest.value), result, null, []);
 }
 
 function axisDistance(
@@ -1289,6 +1300,10 @@ function measurePosition(context: MeasurementContext, request: Record<string, un
   if (sourceRef === null) {
     return failedBuild(missingMeasurementInput("position", "Position measurement requires sourceRef."));
   }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
+  }
 
   const source = context.geometryByRef.get(sourceRef);
   if (source === undefined) {
@@ -1305,12 +1320,12 @@ function measurePosition(context: MeasurementContext, request: Record<string, un
     sourceRef,
     sourceAnchor: stringOrNull(request.sourceAnchor),
     normalizedPosition,
-    metricPosition: metricPoint(normalizedPosition, context.metricPolicy),
+    metricPosition: metricPointForRequest(normalizedPosition, context.metricPolicy, metricRequest.value),
     containmentStatus: positionContainmentStatus(normalizedPosition, context.surface.bounds),
     parentRef: context.surface.id,
   };
 
-  return measured(context, requestRef, "position", [source], "mixed", result, null, []);
+  return measured(context, requestRef, "position", [source], measurementUnit(metricRequest.value), result, null, []);
 }
 
 function measureAlignment(context: MeasurementContext, request: Record<string, unknown>): MeasurementBuild {
@@ -1444,6 +1459,10 @@ function measureArea(context: MeasurementContext, request: Record<string, unknow
   if (sourceRef === null) {
     return failedBuild(missingMeasurementInput("area", "Area measurement requires sourceRef."));
   }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
+  }
 
   const source = context.geometryByRef.get(sourceRef);
   if (source === undefined) {
@@ -1460,12 +1479,12 @@ function measureArea(context: MeasurementContext, request: Record<string, unknow
     sourceRef,
     parentRef: context.surface.id,
     normalizedArea: area.value.normalizedArea,
-    metricArea: area.value.metricArea,
-    unit: `${context.metricPolicy.unit}^2`,
+    metricArea: metricNumber(metricRequest.value, area.value.metricArea),
+    unit: metricAreaUnit(context, metricRequest.value),
     normalizationBasis: "surface",
   };
 
-  return measured(context, requestRef, "area", [source], "mixed", result, null, []);
+  return measured(context, requestRef, "area", [source], measurementUnit(metricRequest.value), result, null, []);
 }
 
 function measureRatio(context: MeasurementContext, request: Record<string, unknown>): MeasurementBuild {
@@ -1550,6 +1569,9 @@ function measureContainment(context: MeasurementContext, request: Record<string,
   if (parentRect === null) {
     return failedBuild(incompatibleGeometry("containment", "Containment parent must be rectangular."));
   }
+  if (child.shape.shape === "point" && child.shape.point.y === undefined) {
+    return failedBuild(incompatibleGeometry("containment", "Containment requires a two-dimensional point."));
+  }
 
   const status = containmentStatus(child, parentRect, tolerance.value.value);
   const result: ContainmentResultV1 = {
@@ -1575,6 +1597,10 @@ function measureOverlap(context: MeasurementContext, request: Record<string, unk
   if (sourceRef === null || targetRef === null) {
     return failedBuild(missingMeasurementInput("overlap", "Overlap requires sourceRef and targetRef."));
   }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
+  }
 
   const source = context.geometryByRef.get(sourceRef);
   const target = context.geometryByRef.get(targetRef);
@@ -1597,13 +1623,13 @@ function measureOverlap(context: MeasurementContext, request: Record<string, unk
     overlapStatus: status,
     intersectionBounds: intersectionArea > 0 ? intersection : null,
     normalizedOverlapArea: intersectionArea,
-    metricOverlapArea: intersectionArea * metricAreaScale(context.metricPolicy),
+    metricOverlapArea: metricNumber(metricRequest.value, intersectionArea * metricAreaScale(context.metricPolicy)),
     overlapRatioA: clamp(intersectionArea / rectArea(sourceRect), 0, 1),
     overlapRatioB: clamp(intersectionArea / rectArea(targetRect), 0, 1),
     normalizationBasis: "surface",
   };
 
-  return measured(context, requestRef, "overlap", [source, target], "mixed", result, null, []);
+  return measured(context, requestRef, "overlap", [source, target], measurementUnit(metricRequest.value), result, null, []);
 }
 
 function measureCoverage(context: MeasurementContext, request: Record<string, unknown>): MeasurementBuild {
@@ -1622,6 +1648,10 @@ function measureCoverage(context: MeasurementContext, request: Record<string, un
   }
   if (!Array.isArray(request.contributorRefs) || !request.contributorRefs.every(isNonEmptyString) || request.contributorRefs.length === 0) {
     return failedBuild(missingMeasurementInput("contributorRefs", "Coverage requires at least one contributor ref."));
+  }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
   }
 
   const target = context.geometryByRef.get(targetRef);
@@ -1661,14 +1691,14 @@ function measureCoverage(context: MeasurementContext, request: Record<string, un
     coveredArea,
     uncoveredArea,
     coverageRatio: coveredArea / targetArea,
-    metricTargetArea: targetArea * metricAreaScale(context.metricPolicy),
-    metricCoveredArea: coveredArea * metricAreaScale(context.metricPolicy),
-    metricUncoveredArea: uncoveredArea * metricAreaScale(context.metricPolicy),
-    unit: `${context.metricPolicy.unit}^2`,
+    metricTargetArea: metricNumber(metricRequest.value, targetArea * metricAreaScale(context.metricPolicy)),
+    metricCoveredArea: metricNumber(metricRequest.value, coveredArea * metricAreaScale(context.metricPolicy)),
+    metricUncoveredArea: metricNumber(metricRequest.value, uncoveredArea * metricAreaScale(context.metricPolicy)),
+    unit: metricAreaUnit(context, metricRequest.value),
     overlapPolicy: "union-clipped",
   };
 
-  return measured(context, requestRef, "coverage", [target, ...contributors], "mixed", result, null, uniqueStrings(warnings).sort());
+  return measured(context, requestRef, "coverage", [target, ...contributors], measurementUnit(metricRequest.value), result, null, uniqueStrings(warnings).sort());
 }
 
 function measureDirectionalRelation(context: MeasurementContext, request: Record<string, unknown>): MeasurementBuild {
@@ -1732,9 +1762,13 @@ function measureSurfaceHierarchy(context: MeasurementContext, request: Record<st
   if (!Array.isArray(request.sourceRefs) || !request.sourceRefs.every(isNonEmptyString) || request.sourceRefs.length === 0) {
     return failedBuild(missingMeasurementInput("sourceRefs", "Surface hierarchy requires explicit sourceRefs."));
   }
+  const metricRequest = parseMetricRequest(request.metric);
+  if (!metricRequest.ok) {
+    return failedBuild(metricRequest.result);
+  }
 
   const sources: ResolvedGeometry[] = [];
-  const areas: { sourceRef: string; normalizedArea: number; metricArea: number }[] = [];
+  const areas: { sourceRef: string; normalizedArea: number; metricArea: number | null }[] = [];
   for (const sourceRef of request.sourceRefs) {
     const source = context.geometryByRef.get(sourceRef);
     if (source === undefined) {
@@ -1748,7 +1782,7 @@ function measureSurfaceHierarchy(context: MeasurementContext, request: Record<st
     areas.push({
       sourceRef,
       normalizedArea: area.value.normalizedArea,
-      metricArea: area.value.metricArea,
+      metricArea: metricNumber(metricRequest.value, area.value.metricArea),
     });
   }
 
@@ -1799,7 +1833,7 @@ function measureSurfaceHierarchy(context: MeasurementContext, request: Record<st
     tieGroups,
   };
 
-  return measured(context, requestRef, "surface-hierarchy", sources, "mixed", result, tolerance.value, []);
+  return measured(context, requestRef, "surface-hierarchy", sources, measurementUnit(metricRequest.value), result, tolerance.value, []);
 }
 
 function measured<TType extends MeasurementTypeV1, TResult extends MeasurementPayloadV1>(
@@ -1884,6 +1918,9 @@ function validateMeasurementValue(value: unknown): MeasurementValidation<Measure
   if (!metricPolicyValidation.ok) {
     return metricPolicyValidation as MeasurementValidation<MeasurementV1>;
   }
+  if (metricPolicyValidation.value.surfaceRef !== value.spaceRef) {
+    return failedMeasurement(invalidMetricPolicy("metricPolicy.surfaceRef", "Measurement metric policy surfaceRef must match the measurement spaceRef."));
+  }
 
   if (value.tolerance !== null && !isMeasurementTolerance(value.tolerance)) {
     return failedMeasurement(invalidMeasurement("tolerance", "Measurement tolerance is invalid."));
@@ -1929,6 +1966,9 @@ function validateMeasurementResultValue(value: unknown): MeasurementValidation<M
   if (!metricPolicyValidation.ok) {
     return metricPolicyValidation as MeasurementValidation<MeasurementResultV1>;
   }
+  if (metricPolicyValidation.value.surfaceRef !== value.spaceRef) {
+    return failedMeasurement(invalidMetricPolicy("metricPolicy.surfaceRef", "MeasurementResult metric policy surfaceRef must match the result spaceRef."));
+  }
 
   const measurementRefs = new Set<string>();
   for (const measurement of value.measurements) {
@@ -1943,6 +1983,7 @@ function validateMeasurementResultValue(value: unknown): MeasurementValidation<M
   }
 
   if (value.measurementRefs.length !== value.measurements.length
+    || new Set(value.measurementRefs.map((ref) => ref.ref)).size !== value.measurementRefs.length
     || !value.measurementRefs.every((ref) => ref.kind === "measurement" && measurementRefs.has(ref.ref))) {
     return failedMeasurement(invalidMeasurement("measurementRefs", "MeasurementResult refs must match nested measurements."));
   }
@@ -2071,6 +2112,9 @@ function isMeasurementPayload(type: MeasurementTypeV1, value: unknown): boolean 
       && isNonNegativeFiniteNumber(value.uncoveredArea)
       && isNonNegativeFiniteNumber(value.coverageRatio)
       && value.coverageRatio <= 1
+      && value.coveredArea <= value.targetArea + EPSILON
+      && nearlyEqual(value.uncoveredArea, Math.max(0, value.targetArea - value.coveredArea))
+      && nearlyEqual(value.coverageRatio, value.coveredArea / value.targetArea)
       && isNullableNonNegativeFiniteNumber(value.metricTargetArea)
       && isNullableNonNegativeFiniteNumber(value.metricCoveredArea)
       && isNullableNonNegativeFiniteNumber(value.metricUncoveredArea)
@@ -2109,6 +2153,16 @@ function validateRequestShape(request: Record<string, unknown>, allowedKeys: rea
   }
 
   return null;
+}
+
+function parseMetricRequest(value: unknown): MeasurementValidation<MeasurementMetricRequestV1> {
+  if (value === undefined) {
+    return validMeasurement("both");
+  }
+  if (value === "normalized" || value === "metric" || value === "both") {
+    return validMeasurement(value);
+  }
+  return failedMeasurement(unsupportedMeasurementRequest("metric", "Measurement metric must be normalized, metric, or both."));
 }
 
 function validateMetricPolicyValue(value: unknown): MeasurementValidation<MeasurementMetricPolicyV1> {
@@ -2279,7 +2333,7 @@ function metricPoint(point: MeasurementPointV1, metricPolicy: MeasurementMetricP
 
 function positionContainmentStatus(point: MeasurementPointV1, parent: Rect): PositionContainmentStatusV1 {
   if (point.x === null || point.y === null) {
-    return "inside";
+    return "outside";
   }
 
   const left = parent.x;
@@ -2679,12 +2733,46 @@ function metricAreaScale(metricPolicy: MeasurementMetricPolicyV1): number {
   return metricPolicy.width * metricPolicy.height;
 }
 
+function measurementUnit(metricRequest: MeasurementMetricRequestV1): MeasurementUnitV1 {
+  if (metricRequest === "normalized") {
+    return "normalized";
+  }
+  if (metricRequest === "metric") {
+    return "metric";
+  }
+  return "mixed";
+}
+
+function metricNumber(metricRequest: MeasurementMetricRequestV1, value: number): number | null {
+  return metricRequest === "normalized" ? null : value;
+}
+
+function metricPointForRequest(
+  point: MeasurementPointV1,
+  metricPolicy: MeasurementMetricPolicyV1,
+  metricRequest: MeasurementMetricRequestV1,
+): MeasurementPointV1 | null {
+  return metricRequest === "normalized" ? null : metricPoint(point, metricPolicy);
+}
+
+function metricLengthUnit(context: MeasurementContext, metricRequest: MeasurementMetricRequestV1): string {
+  return metricRequest === "normalized" ? "normalized" : context.metricPolicy.unit;
+}
+
+function metricAreaUnit(context: MeasurementContext, metricRequest: MeasurementMetricRequestV1): string {
+  return metricRequest === "normalized" ? "normalized" : `${context.metricPolicy.unit}^2`;
+}
+
 function rectArea(rect: Rect): number {
   return rect.width * rect.height;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function nearlyEqual(actual: number, expected: number): boolean {
+  return Math.abs(actual - expected) <= EPSILON;
 }
 
 function stringOrNull(value: unknown): string | null {
