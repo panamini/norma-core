@@ -56,11 +56,19 @@ Rule Resolution V1 output is a visible `rule-resolution-v1` envelope with proven
 
 `validateRuleResolutionV1` validates the resolved envelope shape and rejects unsupported output-looking fields so rule resolution cannot silently broaden into construction or evaluation.
 
+## PR6 Construction Generation V1
+
+PR6 adds deterministic Construction Generation V1 on top of validated `SurfaceSpace` geometry and PR5 `RuleResolutionV1` output. `generateConstructionV1` consumes resolved rule data instead of reinterpreting raw pack declarations, derives guides, zones, a simple grid when both partition axes are authorized, supported guide intersections, and a closed construction trace.
+
+Construction V1 output is a visible `construction-v1` envelope with input, pack, rule, operation, source-reference, and object-level provenance. It remains derived geometry only: no measurements, scores, decisions, artifacts, rendering, UI model, replay runtime, final `PackLock`, or PR7 behavior are produced.
+
+`validateConstructionV1` validates the closed output shape, nested geometry, unique deterministic refs, trace coverage, empty future-output refs, and minimum provenance for every derived object.
+
 ## Does Not Contain
 
-- Geometry calculations.
+- General geometry calculations beyond deterministic Construction V1.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Construction, measurements, evaluation, artifacts, or scoring.
+- Measurements, evaluation, artifacts, or scoring.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

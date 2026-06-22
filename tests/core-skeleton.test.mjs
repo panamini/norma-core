@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR5 rule resolution model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr5");
+test("core version reflects PR6 construction generation model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr6");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -156,6 +156,9 @@ test("required and additional PR1 diagnostics are exported", () => {
       "MissingRuleDeclaration",
       "InvalidRuleResolutionV1",
       "UnsupportedRuleDeclaration",
+      "InvalidConstructionV1",
+      "UnsupportedConstructionRule",
+      "MissingConstructionInput",
     ]),
   );
 });
