@@ -223,8 +223,8 @@ function deepFreeze(value) {
   return value;
 }
 
-test("PR7 exports Measurements V1 vocabulary while PR8 evaluation is public and PR9 comparison is absent", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr8");
+test("PR7 exports Measurements V1 vocabulary while PR8 evaluation and PR9 comparison are public", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr9");
   assert.equal(MEASUREMENT_V1_SCHEMA_VERSION, "measurement-v1");
   assert.equal(MEASUREMENT_RESULT_V1_SCHEMA_VERSION, "measurement-result-v1");
   assert.deepEqual(MEASUREMENT_V1_TYPES, [
@@ -251,7 +251,7 @@ test("PR7 exports Measurements V1 vocabulary while PR8 evaluation is public and 
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("InvalidMetricPolicy"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("InvalidTolerancePolicy"));
   assert.equal(typeof core.evaluateCompositionBasicV1, "function");
-  assert.equal("compareCompositionsBasicV1" in core, false);
+  assert.equal(typeof core.compareCompositionsBasicV1, "function");
   assert.equal("CandidateRankingV1" in core, false);
 });
 
