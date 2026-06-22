@@ -804,6 +804,11 @@ function validateComparisonValue(value: unknown): ComparisonValidation<Compariso
     return failedComparison(invalidComparison("contextRefs", "Comparison shared profile or pack refs are inconsistent with context checks."));
   }
 
+  if (comparison.decisionRef !== `${comparison.comparisonRef}:decision`
+    || comparison.explanationRef !== `${comparison.comparisonRef}:explanation`) {
+    return failedComparison(invalidComparison("derivedRefs", "Comparison derived decision and explanation refs must match the comparison ref."));
+  }
+
   return validComparison(comparison);
 }
 
@@ -833,6 +838,19 @@ function validateDecisionValue(value: unknown, comparison?: ComparisonV1): Compa
   }
 
   const decision = value as unknown as DecisionV1;
+  if (!decision.sourceEvaluationRefs.every((ref) => ref.kind === "evaluation")
+    || !decision.sourceScoreRefs.every((ref) => ref.kind === "score")
+    || (decision.selectedEvaluationRef !== null
+      && !decision.sourceEvaluationRefs.some((ref) => ref.ref === decision.selectedEvaluationRef))
+    || !sourceRefsContainAll(decision.sourceRefs, [
+      { kind: "comparison", ref: decision.comparisonRef },
+      ...decision.sourceEvaluationRefs,
+      ...decision.sourceScoreRefs,
+      { kind: "comparison-policy", ref: decision.policyRef },
+    ])) {
+    return failedComparison(invalidDecision("sourceRefs", "Decision V1 source refs must back its evaluation, score, comparison, and policy refs."));
+  }
+
   if (!decisionSelectionIsInternallyValid(decision)) {
     return failedComparison(invalidDecision("selection", "Decision V1 selection is inconsistent with status."));
   }
@@ -851,10 +869,14 @@ function validateDecisionValue(value: unknown, comparison?: ComparisonV1): Compa
 
     const expectedEvaluationRefs = [comparison.evaluationARef, comparison.evaluationBRef];
     const actualEvaluationRefs = decision.sourceEvaluationRefs.map((ref) => ref.ref);
-    if (!decision.sourceEvaluationRefs.every((ref) => ref.kind === "evaluation")
-      || !sameStringList(actualEvaluationRefs, expectedEvaluationRefs)
+    const comparisonScoreRefs = comparison.sourceRefs.filter((ref) => ref.kind === "score").map((ref) => ref.ref);
+    const actualScoreRefs = decision.sourceScoreRefs.map((ref) => ref.ref);
+    if (!sameStringList(actualEvaluationRefs, expectedEvaluationRefs)
       || (decision.selectedEvaluationRef !== null && !expectedEvaluationRefs.includes(decision.selectedEvaluationRef))) {
       return failedComparison(invalidDecision("sourceEvaluationRefs", "Decision V1 evaluation refs must match the comparison."));
+    }
+    if (!actualScoreRefs.every((ref) => comparisonScoreRefs.includes(ref))) {
+      return failedComparison(invalidDecision("sourceScoreRefs", "Decision V1 score refs must be backed by the comparison."));
     }
   }
 
@@ -889,6 +911,10 @@ function validateStructuredExplanationValue(
   }
 
   const explanation = value as unknown as StructuredExplanationV1;
+  if (!sameSourceRefs(explanation.factRefs, explanation.sourceRefs)) {
+    return failedComparison(invalidStructuredExplanation("factRefs", "StructuredExplanation V1 fact refs must match its source refs."));
+  }
+
   if (explanation.claimCode !== claimCodeForStatus(explanation.facts.status)) {
     return failedComparison(invalidStructuredExplanation("claimCode", "StructuredExplanation V1 claim code is inconsistent with status."));
   }
@@ -897,6 +923,7 @@ function validateStructuredExplanationValue(
     if (explanation.explanationRef !== comparison.explanationRef
       || explanation.comparisonRef !== comparison.comparisonRef
       || explanation.facts.status !== comparison.status
+      || explanation.summary !== summaryForStatus(comparison)
       || !sameComparisonLimits(explanation.limits, comparison.limits)
       || !factsMatchComparison(explanation.facts, comparison)) {
       return failedComparison(invalidStructuredExplanation("facts", "StructuredExplanation V1 facts must match the source comparison."));
@@ -908,6 +935,13 @@ function validateStructuredExplanationValue(
       || explanation.facts.selectedEvaluationRef !== decision.selectedEvaluationRef
       || explanation.facts.selectedCompositionRef !== decision.selectedCompositionRef) {
       return failedComparison(invalidStructuredExplanation("decisionRef", "StructuredExplanation V1 decision refs must match the source decision."));
+    }
+  }
+
+  if (comparison !== undefined && decision !== undefined) {
+    const expectedSourceRefs = expectedStructuredExplanationSourceRefs(comparison, decision);
+    if (!sameSourceRefs(explanation.sourceRefs, expectedSourceRefs)) {
+      return failedComparison(invalidStructuredExplanation("sourceRefs", "StructuredExplanation V1 source refs must match the source comparison and decision."));
     }
   }
 
@@ -1312,6 +1346,37 @@ function sameContextChecks(
 ): boolean {
   return actual.length === expected.length
     && actual.every((check, index) => contextCheckKey(check) === contextCheckKey(expected[index]));
+}
+
+function sameSourceRefs(actual: readonly SourceReference[], expected: readonly SourceReference[]): boolean {
+  return actual.length === expected.length
+    && actual.every((sourceRef, index) => sourceRefKey(sourceRef) === sourceRefKey(expected[index]));
+}
+
+function sourceRefsContainAll(actual: readonly SourceReference[], expected: readonly SourceReference[]): boolean {
+  const actualKeys = new Set(actual.map(sourceRefKey));
+  return expected.every((sourceRef) => actualKeys.has(sourceRefKey(sourceRef)));
+}
+
+function expectedStructuredExplanationSourceRefs(
+  comparison: ComparisonV1,
+  decision: DecisionV1,
+): SourceReference[] {
+  return uniqueSourceRefs([
+    { kind: "comparison", ref: comparison.comparisonRef },
+    { kind: "decision", ref: decision.decisionRef },
+    { kind: "evaluation", ref: comparison.evaluationARef },
+    { kind: "evaluation", ref: comparison.evaluationBRef },
+    ...decision.sourceScoreRefs,
+    { kind: "comparison-policy", ref: comparison.policyRef },
+  ]);
+}
+
+function sourceRefKey(value: SourceReference | undefined): string {
+  if (value === undefined) {
+    return "";
+  }
+  return `${value.kind}:${value.ref}`;
 }
 
 function comparisonWarningKey(value: ComparisonWarningV1 | undefined): string {
