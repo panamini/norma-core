@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR9 comparison model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+test("core version reflects PR10 artifacts model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -184,6 +184,11 @@ test("required and additional PR1 diagnostics are exported", () => {
       "EvaluationAmbiguous",
       "TiedWithinTolerance",
       "ContextMismatch",
+      "InvalidArtifactV1",
+      "MissingArtifactSource",
+      "ArtifactSourceMismatch",
+      "ArtifactWouldBecomeSourceOfTruth",
+      "UnsupportedArtifactOption",
     ]),
   );
 });
@@ -282,6 +287,7 @@ test("PR2 operation registry exposes only conceptual V1 stub operations", () => 
     "core.measureConstruction@0.1.0",
     "core.evaluateComposition@0.1.0",
     "core.compareEvaluations@0.1.0",
+    "core.createArtifact@0.1.0",
   ]);
 
   for (const operation of Object.values(core.CORE_OPERATION_REGISTRY)) {

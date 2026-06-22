@@ -473,8 +473,8 @@ function deepFreeze(value) {
   return value;
 }
 
-test("PR8 exports Evaluation V1 vocabulary and keeps PR10 APIs absent", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+test("PR8 exports Evaluation V1 vocabulary while later artifacts are public", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
   assert.equal(EVALUATION_PROFILE_V1_SCHEMA_VERSION, "evaluation-profile-v1");
   assert.equal(EVALUATION_V1_SCHEMA_VERSION, "evaluation-v1");
   assert.equal(COMPONENT_SCORE_V1_SCHEMA_VERSION, "component-score-v1");
@@ -506,7 +506,6 @@ test("PR8 exports Evaluation V1 vocabulary and keeps PR10 APIs absent", () => {
     "CandidateRankingV1",
     "CandidateSetV1",
     "RecommendationV1",
-    "ArtifactV1",
     "renderComparisonArtifactV1",
   ]) {
     assert.equal(forbiddenExport in core, false, `${forbiddenExport} must remain out of PR9`);

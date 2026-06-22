@@ -224,7 +224,7 @@ function deepFreeze(value) {
 }
 
 test("PR7 exports Measurements V1 vocabulary while PR8 evaluation and PR9 comparison are public", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
   assert.equal(MEASUREMENT_V1_SCHEMA_VERSION, "measurement-v1");
   assert.equal(MEASUREMENT_RESULT_V1_SCHEMA_VERSION, "measurement-result-v1");
   assert.deepEqual(MEASUREMENT_V1_TYPES, [

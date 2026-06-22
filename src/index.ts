@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr9";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr10";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -77,6 +77,11 @@ export const CORE_DIAGNOSTIC_CODES = [
   "EvaluationAmbiguous",
   "TiedWithinTolerance",
   "ContextMismatch",
+  "InvalidArtifactV1",
+  "MissingArtifactSource",
+  "ArtifactSourceMismatch",
+  "ArtifactWouldBecomeSourceOfTruth",
+  "UnsupportedArtifactOption",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -448,6 +453,7 @@ const CORE_V1_CONCEPTUAL_OPERATIONS = [
   Object.freeze({ name: "core.measureConstruction", version: "0.1.0", status: "stub" }),
   Object.freeze({ name: "core.evaluateComposition", version: "0.1.0", status: "stub" }),
   Object.freeze({ name: "core.compareEvaluations", version: "0.1.0", status: "stub" }),
+  Object.freeze({ name: "core.createArtifact", version: "0.1.0", status: "stub" }),
 ] as const satisfies readonly OperationDefinition[];
 
 export const EMPTY_OPERATION_REGISTRY: OperationRegistry = Object.freeze({});
@@ -2275,3 +2281,4 @@ export * from "./construction-generation.js";
 export * from "./measurements.js";
 export * from "./evaluation.js";
 export * from "./comparison.js";
+export * from "./artifacts.js";

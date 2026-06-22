@@ -509,8 +509,8 @@ function deepFreeze(value) {
   return value;
 }
 
-test("PR9 exports Comparison, Decision, and Structured Explanation V1 without PR10 scope", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr9");
+test("PR9 exports Comparison, Decision, and Structured Explanation V1 while PR10 artifacts are public", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr10");
   assert.equal(COMPARISON_POLICY_V1_SCHEMA_VERSION, "comparison-policy-v1");
   assert.equal(COMPARISON_V1_SCHEMA_VERSION, "comparison-v1");
   assert.equal(DECISION_V1_SCHEMA_VERSION, "decision-v1");
@@ -536,7 +536,6 @@ test("PR9 exports Comparison, Decision, and Structured Explanation V1 without PR
     "CandidateRankingV1",
     "CandidateSetV1",
     "RecommendationV1",
-    "ArtifactV1",
     "renderComparisonArtifactV1",
     "optimizeCompositionV1",
   ]) {
