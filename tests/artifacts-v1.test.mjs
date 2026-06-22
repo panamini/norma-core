@@ -950,6 +950,16 @@ test("Artifacts reject source-of-truth misuse, mismatched source chains, bad opt
     validateArtifactV1({ ...structured.output, extra: true }),
     "InvalidArtifactV1",
   );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...structured.output,
+      payload: {
+        ...structured.output.payload,
+        construction: { kind: "construction", schemaVersion: "construction-v1" },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
 
   const report = createEvaluationReportArtifactV1({
     kind: "artifact-request",
@@ -998,6 +1008,64 @@ test("Artifacts reject source-of-truth misuse, mismatched source chains, bad opt
           kind: "evaluation-report-structured-explanation",
           explanationRef: sources.structuredExplanation.explanationRef,
         },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+
+  const explanation = createExplanationArtifactV1({
+    kind: "artifact-request",
+    schemaVersion: "artifact-request-v1",
+    sources,
+    options: explanationOptions(),
+    runRef: RUN_REF,
+  });
+  assertOk(explanation);
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...explanation.output,
+      payload: {
+        ...explanation.output.payload,
+        facts: { kind: "structured-explanation-facts" },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...explanation.output,
+      payload: {
+        ...explanation.output.payload,
+        structuredExplanation: { kind: "structured-explanation", explanationRef: sources.structuredExplanation.explanationRef },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+
+  const visual = createSimpleVisualArtifactV1({
+    kind: "artifact-request",
+    schemaVersion: "artifact-request-v1",
+    sources,
+    options: visualOptions(),
+    runRef: RUN_REF,
+  });
+  assertOk(visual);
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...visual.output,
+      payload: {
+        ...visual.output.payload,
+        coordinateMapping: { kind: "coordinate-mapping" },
+      },
+    }),
+    "InvalidArtifactV1",
+  );
+  assertFailedWithDiagnostic(
+    validateArtifactV1({
+      ...visual.output,
+      payload: {
+        ...visual.output.payload,
+        viewport: { kind: "svg-viewport", width: 300, height: 200, padding: 10, drawableWidth: 1, drawableHeight: 180 },
       },
     }),
     "InvalidArtifactV1",

@@ -20,8 +20,14 @@ import type { EvaluationV1 } from "./evaluation.js";
 import { validateEvaluationV1 } from "./evaluation.js";
 import type { MeasurementResultV1 } from "./measurements.js";
 import { validateMeasurementResultV1 } from "./measurements.js";
-import type { ComparisonV1, DecisionV1, StructuredExplanationV1 } from "./comparison.js";
-import { validateComparisonV1, validateDecisionV1, validateStructuredExplanationV1 } from "./comparison.js";
+import type { ComparisonStatusV1, ComparisonV1, DecisionV1, StructuredExplanationClaimCodeV1, StructuredExplanationV1 } from "./comparison.js";
+import {
+  COMPARISON_V1_STATUSES,
+  STRUCTURED_EXPLANATION_V1_CLAIM_CODES,
+  validateComparisonV1,
+  validateDecisionV1,
+  validateStructuredExplanationV1,
+} from "./comparison.js";
 
 export const ARTIFACT_V1_SCHEMA_VERSION = "artifact-v1" as const;
 export const ARTIFACT_SOURCE_BUNDLE_V1_SCHEMA_VERSION = "artifact-source-bundle-v1" as const;
@@ -572,6 +578,52 @@ const SUMMARY_PAYLOAD_ALLOWED_KEYS = [
   "constructionWarnings",
 ] as const;
 const REPORT_PAYLOAD_ALLOWED_KEYS = ["kind", "evaluation", "comparison", "decision", "structuredExplanation", "humanSummary"] as const;
+const REPORT_EVALUATION_ALLOWED_KEYS = [
+  "kind",
+  "evaluationRef",
+  "measurementResultRef",
+  "compositionRef",
+  "constructionRef",
+  "profileRef",
+  "packRef",
+  "ruleSetRef",
+  "overallScore",
+  "confidence",
+  "confidenceStatus",
+  "status",
+  "componentScores",
+  "sourceMeasurementRefs",
+  "warnings",
+  "limits",
+] as const;
+const REPORT_COMPONENT_SCORE_ALLOWED_KEYS = [
+  "kind",
+  "componentRef",
+  "componentType",
+  "normalizedScore",
+  "effectiveWeight",
+  "weightedContribution",
+  "measurementRefs",
+] as const;
+const REPORT_COMPARISON_ALLOWED_KEYS = [
+  "kind",
+  "comparisonRef",
+  "status",
+  "scoreA",
+  "scoreB",
+  "signedScoreDelta",
+  "absoluteScoreDelta",
+  "confidenceA",
+  "confidenceB",
+] as const;
+const REPORT_DECISION_ALLOWED_KEYS = [
+  "kind",
+  "decisionRef",
+  "status",
+  "selectedEvaluationRef",
+  "selectedCompositionRef",
+] as const;
+const REPORT_STRUCTURED_EXPLANATION_ALLOWED_KEYS = ["kind", "explanationRef", "claimCode", "facts", "warningCodes"] as const;
 const EXPLANATION_PAYLOAD_ALLOWED_KEYS = [
   "kind",
   "explanationRef",
@@ -584,9 +636,40 @@ const EXPLANATION_PAYLOAD_ALLOWED_KEYS = [
   "summary",
   "structuredExplanation",
 ] as const;
+const STRUCTURED_EXPLANATION_FACTS_ALLOWED_KEYS = [
+  "kind",
+  "status",
+  "scoreA",
+  "scoreB",
+  "signedScoreDelta",
+  "absoluteScoreDelta",
+  "tieTolerance",
+  "confidenceA",
+  "confidenceB",
+  "selectedEvaluationRef",
+  "selectedCompositionRef",
+  "contextMismatches",
+  "warningCodes",
+] as const;
+const COMPARISON_CONTEXT_CHECK_ALLOWED_KEYS = ["kind", "field", "aValue", "bValue", "matches"] as const;
+const COMPARISON_LIMITS_ALLOWED_KEYS = ["kind", "tieTolerance", "minimumConfidence", "ambiguousEvaluationPolicy", "statusPrecedence"] as const;
 const VISUAL_PAYLOAD_ALLOWED_KEYS = ["kind", "format", "mediaType", "styleVersion", "coordinateMapping", "viewport", "svg"] as const;
+const VISUAL_COORDINATE_MAPPING_ALLOWED_KEYS = ["kind", "sourceCoordinateSystem", "targetCoordinateSystem", "normalizedPoint", "normalizedRect"] as const;
+const VISUAL_VIEWPORT_ALLOWED_KEYS = ["kind", "width", "height", "padding", "drawableWidth", "drawableHeight"] as const;
+const CONSTRUCTION_GUIDE_SUMMARY_ALLOWED_KEYS = ["kind", "guideRef", "orientation", "position", "segment"] as const;
+const CONSTRUCTION_ZONE_SUMMARY_ALLOWED_KEYS = ["kind", "zoneRef", "partitionAxis", "bounds", "boundingGuideRefs"] as const;
+const CONSTRUCTION_GRID_SUMMARY_ALLOWED_KEYS = ["kind", "gridRef", "rowCount", "columnCount", "cellRefs"] as const;
+const CONSTRUCTION_INTERSECTION_SUMMARY_ALLOWED_KEYS = ["kind", "intersectionRef", "point", "sourceGeometryRefs"] as const;
+const CONSTRUCTION_TRACE_SUMMARY_ALLOWED_KEYS = ["kind", "operationRefs", "createdObjectRefs", "warnings"] as const;
+const POINT_ALLOWED_KEYS = ["kind", "x", "y"] as const;
+const SEGMENT_ALLOWED_KEYS = ["kind", "start", "end"] as const;
+const RECT_ALLOWED_KEYS = ["kind", "x", "y", "width", "height"] as const;
 const FORBIDDEN_ARTIFACT_SOURCE_KINDS = ["artifact", "structured-result-artifact", "construction-summary-artifact", "evaluation-report-artifact", "explanation-artifact", "simple-visual-artifact"] as const;
 const FORBIDDEN_HUMAN_TERMS = ["better", "best", "beautiful", "aesthetically superior", "recommended", "winner", "authorintent", "optimize"] as const;
+const EVALUATION_STATUS_VALUES = ["match", "near_match", "weak_match", "no_match", "ambiguous"] as const;
+const CONFIDENCE_STATUS_VALUES = ["high", "medium", "low"] as const;
+const NORMALIZED_POINT_MAPPING = "svgX=padding+x*drawableWidth;svgY=padding+(1-y)*drawableHeight";
+const NORMALIZED_RECT_MAPPING = "svgX=padding+x*drawableWidth;svgY=padding+(1-y-height)*drawableHeight";
 
 export function createStructuredResultArtifactV1(input: unknown): CoreResult<StructuredResultArtifactV1> {
   const request = validateArtifactRequest(input, "structured-result", validateStructuredOptions);
@@ -962,6 +1045,11 @@ function validateSourceConsistency(sources: ValidArtifactSources): CoreResult | 
     }
   }
   if (sources.comparison !== undefined) {
+    if (sources.evaluation !== undefined
+      && sources.comparison.evaluationARef !== sources.evaluation.evaluationRef
+      && sources.comparison.evaluationBRef !== sources.evaluation.evaluationRef) {
+      return sourceMismatch("evaluation.evaluationRef", "Singular EvaluationV1 must be one of the supplied ComparisonV1 evaluations.");
+    }
     if (sources.evaluationA !== undefined && sources.comparison.evaluationARef !== sources.evaluationA.evaluationRef) {
       return sourceMismatch("comparison.evaluationARef", "ComparisonV1 must match supplied evaluationA.");
     }
@@ -1148,6 +1236,24 @@ function validateStructuredPayload(payload: StructuredResultArtifactPayloadV1): 
     || !isSourceReferenceArray(payload.omittedSourceRefs)) {
     return invalidArtifact("payload", "StructuredResultArtifact payload is invalid.");
   }
+  if (payload.construction !== null && !isConstructionProjection(payload.construction)) {
+    return invalidArtifact("payload.construction", "StructuredResultArtifact construction projection is invalid.");
+  }
+  if (!payload.measurementResults.every(isMeasurementProjection)) {
+    return invalidArtifact("payload.measurementResults", "StructuredResultArtifact measurement projections are invalid.");
+  }
+  if (!payload.evaluations.every(isEvaluationProjection)) {
+    return invalidArtifact("payload.evaluations", "StructuredResultArtifact evaluation projections are invalid.");
+  }
+  if (payload.comparison !== null && !isComparisonProjection(payload.comparison)) {
+    return invalidArtifact("payload.comparison", "StructuredResultArtifact comparison projection is invalid.");
+  }
+  if (payload.decision !== null && !isDecisionProjection(payload.decision)) {
+    return invalidArtifact("payload.decision", "StructuredResultArtifact decision projection is invalid.");
+  }
+  if (payload.structuredExplanation !== null && !isStructuredSourceExplanationProjection(payload.structuredExplanation)) {
+    return invalidArtifact("payload.structuredExplanation", "StructuredResultArtifact explanation projection is invalid.");
+  }
   return null;
 }
 
@@ -1191,6 +1297,13 @@ function validateSummaryPayload(payload: ConstructionSummaryArtifactPayloadV1): 
   if (payload.cellCount !== payload.cellRefs.length || !sameStringList(payload.cellRefs, gridCellRefs)) {
     return invalidArtifact("payload.cellCount", "Construction summary cell refs must match grid cell refs.");
   }
+  if (!payload.guides.every(isConstructionGuideSummary)
+    || !payload.zones.every(isConstructionZoneSummary)
+    || !payload.grids.every(isConstructionGridSummary)
+    || !payload.intersections.every(isConstructionIntersectionSummary)
+    || !(payload.traceSummary === null || isConstructionTraceSummary(payload.traceSummary))) {
+    return invalidArtifact("payload", "ConstructionSummaryArtifact nested payload is invalid.");
+  }
   return null;
 }
 
@@ -1204,6 +1317,18 @@ function validateReportPayload(payload: EvaluationReportArtifactPayloadV1): Core
     || !(payload.structuredExplanation === null || isRecord(payload.structuredExplanation))
     || !(payload.humanSummary === null || isNonEmptyString(payload.humanSummary))) {
     return invalidArtifact("payload", "EvaluationReportArtifact payload is invalid.");
+  }
+  if (!isReportEvaluationProjection(payload.evaluation)) {
+    return invalidArtifact("payload.evaluation", "EvaluationReportArtifact evaluation projection is invalid.");
+  }
+  if (payload.comparison !== null && !isReportComparisonProjection(payload.comparison)) {
+    return invalidArtifact("payload.comparison", "EvaluationReportArtifact comparison projection is invalid.");
+  }
+  if (payload.decision !== null && !isReportDecisionProjection(payload.decision)) {
+    return invalidArtifact("payload.decision", "EvaluationReportArtifact decision projection is invalid.");
+  }
+  if (payload.structuredExplanation !== null && !isReportStructuredExplanationProjection(payload.structuredExplanation)) {
+    return invalidArtifact("payload.structuredExplanation", "EvaluationReportArtifact explanation projection is invalid.");
   }
   if (payload.humanSummary !== null && containsForbiddenHumanTerm(payload.humanSummary)) {
     return invalidArtifact("payload.humanSummary", "Evaluation report summary contains unsupported claim language.");
@@ -1225,6 +1350,11 @@ function validateExplanationPayload(payload: ExplanationArtifactPayloadV1): Core
     || !(payload.structuredExplanation === null || isRecord(payload.structuredExplanation))) {
     return invalidArtifact("payload", "ExplanationArtifact payload is invalid.");
   }
+  if (!isStructuredExplanationFactsProjection(payload.facts)
+    || !(payload.limits === null || isComparisonLimitsProjection(payload.limits))
+    || !(payload.structuredExplanation === null || isStructuredExplanationProjection(payload.structuredExplanation))) {
+    return invalidArtifact("payload", "ExplanationArtifact nested payload is invalid.");
+  }
   if (payload.summary !== null && containsForbiddenHumanTerm(payload.summary)) {
     return invalidArtifact("payload.summary", "Explanation summary contains unsupported claim language.");
   }
@@ -1243,6 +1373,9 @@ function validateVisualPayload(payload: SimpleVisualArtifactPayloadV1): CoreResu
     || !isNonEmptyString(payload.svg)) {
     return invalidArtifact("payload", "SimpleVisualArtifact payload is invalid.");
   }
+  if (!isVisualCoordinateMapping(payload.coordinateMapping) || !isVisualViewport(payload.viewport)) {
+    return invalidArtifact("payload", "SimpleVisualArtifact coordinate mapping or viewport is invalid.");
+  }
   if (/<script\b/i.test(payload.svg)
     || /\son[a-z]+\s*=/i.test(payload.svg)
     || /<foreignObject\b/i.test(payload.svg)
@@ -1251,6 +1384,224 @@ function validateVisualPayload(payload: SimpleVisualArtifactPayloadV1): CoreResu
     return invalidArtifact("payload.svg", "SimpleVisualArtifact SVG contains forbidden active or external content.");
   }
   return null;
+}
+
+function isConstructionProjection(value: unknown): boolean {
+  return isSourceProjection(value, "construction", "constructionRef");
+}
+
+function isMeasurementProjection(value: unknown): boolean {
+  return isSourceProjection(value, "measurement-result", "measurementResultRef");
+}
+
+function isEvaluationProjection(value: unknown): boolean {
+  return isSourceProjection(value, "evaluation", "evaluationRef");
+}
+
+function isComparisonProjection(value: unknown): boolean {
+  return isSourceProjection(value, "comparison", "comparisonRef");
+}
+
+function isDecisionProjection(value: unknown): boolean {
+  return isSourceProjection(value, "decision", "decisionRef");
+}
+
+function isStructuredSourceExplanationProjection(value: unknown): boolean {
+  return isSourceProjection(value, "structured-explanation", "explanationRef");
+}
+
+function isSourceProjection(value: unknown, kind: string, refKey: string): boolean {
+  return isRecord(value)
+    && value.kind === kind
+    && isNonEmptyString(value.schemaVersion)
+    && isNonEmptyString(value[refKey])
+    && !artifactWouldBecomeSource(value);
+}
+
+function isStructuredExplanationProjection(value: unknown, comparison?: ComparisonV1, decision?: DecisionV1): boolean {
+  const validation = validateStructuredExplanationV1(value, comparison, decision);
+  return validation.status === "ok" && validation.output !== null;
+}
+
+function isConstructionGuideSummary(value: unknown): value is ConstructionGuideSummaryV1 {
+  return isRecord(value)
+    && firstUnsupportedKey(value, CONSTRUCTION_GUIDE_SUMMARY_ALLOWED_KEYS) === null
+    && value.kind === "construction-guide-summary"
+    && isNonEmptyString(value.guideRef)
+    && (value.orientation === "vertical" || value.orientation === "horizontal")
+    && isFiniteNumber(value.position)
+    && isSegment(value.segment);
+}
+
+function isConstructionZoneSummary(value: unknown): value is ConstructionZoneSummaryV1 {
+  return isRecord(value)
+    && firstUnsupportedKey(value, CONSTRUCTION_ZONE_SUMMARY_ALLOWED_KEYS) === null
+    && value.kind === "construction-zone-summary"
+    && isNonEmptyString(value.zoneRef)
+    && (value.partitionAxis === "vertical" || value.partitionAxis === "horizontal")
+    && isRect(value.bounds)
+    && isStringArray(value.boundingGuideRefs);
+}
+
+function isConstructionGridSummary(value: unknown): value is ConstructionGridSummaryV1 {
+  return isRecord(value)
+    && firstUnsupportedKey(value, CONSTRUCTION_GRID_SUMMARY_ALLOWED_KEYS) === null
+    && value.kind === "construction-grid-summary"
+    && isNonEmptyString(value.gridRef)
+    && isNonNegativeInteger(value.rowCount)
+    && isNonNegativeInteger(value.columnCount)
+    && isStringArray(value.cellRefs);
+}
+
+function isConstructionIntersectionSummary(value: unknown): value is ConstructionIntersectionSummaryV1 {
+  return isRecord(value)
+    && firstUnsupportedKey(value, CONSTRUCTION_INTERSECTION_SUMMARY_ALLOWED_KEYS) === null
+    && value.kind === "construction-intersection-summary"
+    && isNonEmptyString(value.intersectionRef)
+    && isPoint(value.point)
+    && isStringArray(value.sourceGeometryRefs);
+}
+
+function isConstructionTraceSummary(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, CONSTRUCTION_TRACE_SUMMARY_ALLOWED_KEYS) === null
+    && value.kind === "construction-trace-summary"
+    && isStringArray(value.operationRefs)
+    && isStringArray(value.createdObjectRefs)
+    && isStringArray(value.warnings);
+}
+
+function isReportEvaluationProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, REPORT_EVALUATION_ALLOWED_KEYS) === null
+    && value.kind === "evaluation-report-evaluation"
+    && isNonEmptyString(value.evaluationRef)
+    && isNonEmptyString(value.measurementResultRef)
+    && isNonEmptyString(value.compositionRef)
+    && isNullableNonEmptyString(value.constructionRef)
+    && isNonEmptyString(value.profileRef)
+    && isNonEmptyString(value.packRef)
+    && isNullableNonEmptyString(value.ruleSetRef)
+    && isNormalizedFiniteNumber(value.overallScore)
+    && isNormalizedFiniteNumber(value.confidence)
+    && isConfidenceStatus(value.confidenceStatus)
+    && isEvaluationStatus(value.status)
+    && Array.isArray(value.componentScores)
+    && value.componentScores.every(isReportComponentScoreProjection)
+    && isSourceReferenceArray(value.sourceMeasurementRefs)
+    && Array.isArray(value.warnings)
+    && value.warnings.every(isRecord)
+    && (value.limits === null || isRecord(value.limits));
+}
+
+function isReportComponentScoreProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, REPORT_COMPONENT_SCORE_ALLOWED_KEYS) === null
+    && value.kind === "evaluation-report-component-score"
+    && isNonEmptyString(value.componentRef)
+    && isNonEmptyString(value.componentType)
+    && isNormalizedFiniteNumber(value.normalizedScore)
+    && isNonNegativeFiniteNumber(value.effectiveWeight)
+    && isNonNegativeFiniteNumber(value.weightedContribution)
+    && isStringArray(value.measurementRefs);
+}
+
+function isReportComparisonProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, REPORT_COMPARISON_ALLOWED_KEYS) === null
+    && value.kind === "evaluation-report-comparison"
+    && isNonEmptyString(value.comparisonRef)
+    && isComparisonStatus(value.status)
+    && isNormalizedFiniteNumber(value.scoreA)
+    && isNormalizedFiniteNumber(value.scoreB)
+    && isFiniteNumber(value.signedScoreDelta)
+    && isNonNegativeFiniteNumber(value.absoluteScoreDelta)
+    && isNormalizedFiniteNumber(value.confidenceA)
+    && isNormalizedFiniteNumber(value.confidenceB);
+}
+
+function isReportDecisionProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, REPORT_DECISION_ALLOWED_KEYS) === null
+    && value.kind === "evaluation-report-decision"
+    && isNonEmptyString(value.decisionRef)
+    && isComparisonStatus(value.status)
+    && isNullableNonEmptyString(value.selectedEvaluationRef)
+    && isNullableNonEmptyString(value.selectedCompositionRef);
+}
+
+function isReportStructuredExplanationProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, REPORT_STRUCTURED_EXPLANATION_ALLOWED_KEYS) === null
+    && value.kind === "evaluation-report-structured-explanation"
+    && isNonEmptyString(value.explanationRef)
+    && isStructuredExplanationClaimCode(value.claimCode)
+    && isStructuredExplanationFactsProjection(value.facts)
+    && isStringArray(value.warningCodes);
+}
+
+function isStructuredExplanationFactsProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, STRUCTURED_EXPLANATION_FACTS_ALLOWED_KEYS) === null
+    && value.kind === "structured-explanation-facts"
+    && isComparisonStatus(value.status)
+    && isNormalizedFiniteNumber(value.scoreA)
+    && isNormalizedFiniteNumber(value.scoreB)
+    && isFiniteNumber(value.signedScoreDelta)
+    && isNonNegativeFiniteNumber(value.absoluteScoreDelta)
+    && isNonNegativeFiniteNumber(value.tieTolerance)
+    && isNormalizedFiniteNumber(value.confidenceA)
+    && isNormalizedFiniteNumber(value.confidenceB)
+    && isNullableNonEmptyString(value.selectedEvaluationRef)
+    && isNullableNonEmptyString(value.selectedCompositionRef)
+    && Array.isArray(value.contextMismatches)
+    && value.contextMismatches.every(isComparisonContextCheck)
+    && isStringArray(value.warningCodes);
+}
+
+function isComparisonContextCheck(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, COMPARISON_CONTEXT_CHECK_ALLOWED_KEYS) === null
+    && value.kind === "comparison-context-check"
+    && isNonEmptyString(value.field)
+    && isNullableNonEmptyString(value.aValue)
+    && isNullableNonEmptyString(value.bValue)
+    && typeof value.matches === "boolean";
+}
+
+function isComparisonLimitsProjection(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, COMPARISON_LIMITS_ALLOWED_KEYS) === null
+    && value.kind === "comparison-limits"
+    && isNonNegativeFiniteNumber(value.tieTolerance)
+    && isNormalizedFiniteNumber(value.minimumConfidence)
+    && value.ambiguousEvaluationPolicy === "do_not_select"
+    && Array.isArray(value.statusPrecedence)
+    && value.statusPrecedence.length === COMPARISON_V1_STATUSES.length
+    && value.statusPrecedence.every(isComparisonStatus);
+}
+
+function isVisualCoordinateMapping(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, VISUAL_COORDINATE_MAPPING_ALLOWED_KEYS) === null
+    && value.kind === "coordinate-mapping"
+    && value.sourceCoordinateSystem === "norma-bottom-left-normalized"
+    && value.targetCoordinateSystem === "svg-top-left"
+    && value.normalizedPoint === NORMALIZED_POINT_MAPPING
+    && value.normalizedRect === NORMALIZED_RECT_MAPPING;
+}
+
+function isVisualViewport(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, VISUAL_VIEWPORT_ALLOWED_KEYS) === null
+    && value.kind === "svg-viewport"
+    && isPositiveFiniteNumber(value.width)
+    && isPositiveFiniteNumber(value.height)
+    && isNonNegativeFiniteNumber(value.padding)
+    && isPositiveFiniteNumber(value.drawableWidth)
+    && isPositiveFiniteNumber(value.drawableHeight)
+    && numbersEqual(value.drawableWidth, value.width - value.padding * 2)
+    && numbersEqual(value.drawableHeight, value.height - value.padding * 2);
 }
 
 function validateStructuredOptions(value: unknown): ArtifactValidation<StructuredResultArtifactOptionsV1> {
@@ -1624,8 +1975,8 @@ function simpleVisualPayload(
     kind: "coordinate-mapping" as const,
     sourceCoordinateSystem: "norma-bottom-left-normalized" as const,
     targetCoordinateSystem: "svg-top-left" as const,
-    normalizedPoint: "svgX=padding+x*drawableWidth;svgY=padding+(1-y)*drawableHeight",
-    normalizedRect: "svgX=padding+x*drawableWidth;svgY=padding+(1-y-height)*drawableHeight",
+    normalizedPoint: NORMALIZED_POINT_MAPPING,
+    normalizedRect: NORMALIZED_RECT_MAPPING,
   };
   const parts: string[] = [
     `<svg height="${formatDeterministicNumber(height, 0)}" viewBox="0 0 ${formatDeterministicNumber(width, 0)} ${formatDeterministicNumber(height, 0)}" width="${formatDeterministicNumber(width, 0)}" xmlns="http://www.w3.org/2000/svg">`,
@@ -2142,6 +2493,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isNullableNonEmptyString(value: unknown): value is string | null {
+  return value === null || isNonEmptyString(value);
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every(isNonEmptyString);
 }
@@ -2154,12 +2509,66 @@ function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+function isNormalizedFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
 function isNonNegativeInteger(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 0;
+}
+
+function isEvaluationStatus(value: unknown): boolean {
+  return typeof value === "string" && EVALUATION_STATUS_VALUES.includes(value as (typeof EVALUATION_STATUS_VALUES)[number]);
+}
+
+function isConfidenceStatus(value: unknown): boolean {
+  return typeof value === "string" && CONFIDENCE_STATUS_VALUES.includes(value as (typeof CONFIDENCE_STATUS_VALUES)[number]);
+}
+
+function isComparisonStatus(value: unknown): value is ComparisonStatusV1 {
+  return typeof value === "string" && COMPARISON_V1_STATUSES.includes(value as ComparisonStatusV1);
+}
+
+function isStructuredExplanationClaimCode(value: unknown): value is StructuredExplanationClaimCodeV1 {
+  return typeof value === "string" && STRUCTURED_EXPLANATION_V1_CLAIM_CODES.includes(value as StructuredExplanationClaimCodeV1);
+}
+
+function isPoint(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, POINT_ALLOWED_KEYS) === null
+    && value.kind === "point"
+    && isFiniteNumber(value.x)
+    && (value.y === undefined || isFiniteNumber(value.y));
+}
+
+function isSegment(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, SEGMENT_ALLOWED_KEYS) === null
+    && value.kind === "segment"
+    && isPoint(value.start)
+    && isPoint(value.end);
+}
+
+function isRect(value: unknown): boolean {
+  return isRecord(value)
+    && firstUnsupportedKey(value, RECT_ALLOWED_KEYS) === null
+    && value.kind === "rect"
+    && isFiniteNumber(value.x)
+    && isFiniteNumber(value.y)
+    && isNonNegativeFiniteNumber(value.width)
+    && isNonNegativeFiniteNumber(value.height);
+}
+
+function numbersEqual(actual: number, expected: number): boolean {
+  return Math.abs(actual - expected) <= 1e-9;
 }
 
 function isSourceReference(value: unknown): value is SourceReference {
