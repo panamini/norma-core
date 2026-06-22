@@ -84,8 +84,11 @@ function assertStructuredResult(result) {
 
 function assertOk(result) {
   assertStructuredResult(result);
-  assert.equal(result.status, "ok");
-  assert.equal(result.errors.length, 0);
+  const diagnostics = [...result.errors, ...result.warnings]
+    .map((diagnostic) => `${diagnostic.code}:${diagnostic.targetRef}:${diagnostic.message}`)
+    .join(", ");
+  assert.equal(result.status, "ok", diagnostics);
+  assert.equal(result.errors.length, 0, diagnostics);
   assert.ok(result.output);
 }
 
@@ -666,7 +669,7 @@ test("StructuredResultArtifactV1 copies requested PR6-PR9 sources deterministica
     artifact.sourceRefs.map((ref) => `${ref.kind}:${ref.ref}`),
     [
       "geometry:surface:unit",
-      "construction:construction:surface:unit:norma.basic-proportions@0.1.0:surface-basic-third-grid",
+      `construction:${sources.construction.constructionRef}`,
       "composition:composition:A",
       "composition:composition:B",
       "measurement-result:measurement-result:A",

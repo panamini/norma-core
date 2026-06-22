@@ -97,11 +97,19 @@ Comparison V1 first checks shared evaluation context before score facts can infl
 
 Status precedence is deterministic: malformed inputs fail; context mismatches return `non_comparable`; ambiguous evaluation status or confidence below policy returns `ambiguous`; `absoluteScoreDelta <= tieTolerance` returns `tie`; otherwise positive score delta returns `a_closer` and negative score delta returns `b_closer`. Decision V1 only selects an evaluation/composition for `a_closer` or `b_closer`. StructuredExplanation V1 is source-backed and uses closed claim codes and template summaries only.
 
+## PR10 Artifacts V1
+
+PR10 adds deterministic artifact projections over accepted PR6-PR9 source objects. `createStructuredResultArtifactV1`, `createConstructionSummaryArtifactV1`, `createEvaluationReportArtifactV1`, `createExplanationArtifactV1`, and `createSimpleVisualArtifactV1` consume validated source bundles and explicit options, then emit closed `artifact-v1` envelopes with source refs, artifact refs, status, runRef, warnings, losses, stale evidence, provenance, and payload.
+
+Artifact statuses are `current`, `lossy`, `stale`, and `non_replayable`, with deterministic precedence: stale, non-replayable, lossy, current. Source-aware `validateArtifactV1` can recreate the expected projection from supplied sources and reject forged counts, scores, decisions, explanation claims, SVG metadata, source refs, and status evidence.
+
+Artifacts are projections only. They do not create geometry, measure facts, recalculate scores, change comparison/decision outcomes, invent explanations, implement replay, or make JSON/SVG output acceptable as PR6-PR9 source truth. `ArtifactWouldBecomeSourceOfTruth` protects that boundary.
+
 ## Does Not Contain
 
 - Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Recommendations, optimizations, creative corrections, artifacts, or PR10+ behavior.
+- Recommendations, optimizations, creative corrections, replay runtime, or PR11+ behavior.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.
