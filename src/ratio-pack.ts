@@ -61,8 +61,8 @@ export interface PartitionPattern {
 export interface RuleDeclaration {
   kind: "rule-declaration";
   id: string;
-  type: "surface.partition-line";
-  target: "surface";
+  type: string;
+  target: string;
   ratioRefs?: readonly string[];
   sequenceRefs?: readonly string[];
   partitionPatternRefs?: readonly string[];
@@ -711,6 +711,11 @@ function validateRuleDeclarations(
     }
 
     const ratioRefs = declaration.ratioRefs ?? [];
+    const duplicateRatioRef = firstDuplicate(ratioRefs);
+    if (duplicateRatioRef !== null) {
+      return failedRatioPack(invalidRatioPack(`ruleDeclarations.${declaration.id}.ratioRefs`, `Rule declaration ratioRef is declared more than once: ${duplicateRatioRef}.`));
+    }
+
     const missingRatioRef = firstMissingRef(ratioRefs, ratioIds);
     if (missingRatioRef !== null) {
       return failedRatioPack(missingRatioReference(`ruleDeclarations.${declaration.id}.ratioRefs`, `Rule declaration references an absent ratio: ${missingRatioRef}.`));
@@ -731,8 +736,8 @@ function validateRuleDeclarations(
     declarations.push({
       kind: "rule-declaration",
       id: declaration.id,
-      type: "surface.partition-line",
-      target: "surface",
+      type: declaration.type,
+      target: declaration.target,
       ...(declaration.ratioRefs !== undefined ? { ratioRefs: declaration.ratioRefs } : {}),
       ...(declaration.sequenceRefs !== undefined ? { sequenceRefs: declaration.sequenceRefs } : {}),
       ...(declaration.partitionPatternRefs !== undefined ? { partitionPatternRefs: declaration.partitionPatternRefs } : {}),
@@ -1054,8 +1059,8 @@ function isRuleDeclarationRecord(value: unknown): value is RuleDeclaration {
   return isRecord(value)
     && value.kind === "rule-declaration"
     && hasNonEmptyString(value, "id")
-    && value.type === "surface.partition-line"
-    && value.target === "surface"
+    && hasNonEmptyString(value, "type")
+    && hasNonEmptyString(value, "target")
     && hasOptionalStringArray(value, "ratioRefs")
     && hasOptionalStringArray(value, "sequenceRefs")
     && hasOptionalStringArray(value, "partitionPatternRefs")

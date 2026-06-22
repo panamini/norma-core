@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR4 ratio pack model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr4");
+test("core version reflects PR5 rule resolution model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr5");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -152,6 +152,10 @@ test("required and additional PR1 diagnostics are exported", () => {
       "InvalidRatioSequence",
       "MissingRatioReference",
       "UnsupportedRatioPackClaim",
+      "MissingRuleSet",
+      "MissingRuleDeclaration",
+      "InvalidRuleResolutionV1",
+      "UnsupportedRuleDeclaration",
     ]),
   );
 });

@@ -61,7 +61,7 @@ function clonePack(overrides = {}) {
 }
 
 test("PR4 exports ratio pack vocabulary, diagnostics, and version", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr4");
+  assert.equal(CORE_VERSION, "0.1.0-pr5");
   assert.equal(RATIO_PACK_V1_SCHEMA_VERSION, "ratio-pack-v1");
   assert.equal(BASIC_PROPORTIONS_PACK_ID, "norma.basic-proportions");
   assert.equal(BASIC_PROPORTIONS_PACK_VERSION, "0.1.0");
@@ -320,6 +320,20 @@ test("PR4 rejects rule declarations that reference absent ratios", () => {
   });
 
   assertFailedWithDiagnostic(validateRatioPackV1(badRuleDeclaration), "MissingRatioReference");
+});
+
+test("PR5 rejects duplicate ratio refs inside one rule declaration", () => {
+  const duplicateRuleRatioRef = clonePack({
+    ruleDeclarations: [
+      {
+        ...structuredClone(BASIC_PROPORTIONS_PACK.ruleDeclarations[0]),
+        ratioRefs: ["1/3", "1/3"],
+      },
+    ],
+  });
+
+  assertFailedWithDiagnostic(validateRatioPackV1(duplicateRuleRatioRef), "InvalidRatioPackV1");
+  assertOk(validateRatioPackV1(BASIC_PROPORTIONS_PACK));
 });
 
 test("PR4 rejects beauty and UI preset claims", () => {
