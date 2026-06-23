@@ -1,6 +1,18 @@
+import {
+  createCanonicalMvpDemoInputV1,
+  runMvpDemoV1,
+} from "../index.js";
+import type {
+  CoreError,
+  CoreWarning,
+  MvpDemoEvaluationSummaryV1,
+  MvpDemoResultV1,
+} from "../index.js";
+
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_NAME = "norma-core-mcp-stdio";
 export const MCP_SERVER_VERSION = "0.1.0-pr4";
+export const MCP_RUN_MVP_DEMO_TOOL_NAME = "norma.runMvpDemoV1";
 
 export const MCP_STDIO_MAX_REQUEST_BYTES = 524_288;
 export const MCP_STDIO_MAX_JSON_DEPTH = 64;
@@ -40,7 +52,9 @@ interface InitializeResponse {
   readonly jsonrpc: "2.0";
   readonly result: {
     readonly protocolVersion: typeof MCP_PROTOCOL_VERSION;
-    readonly capabilities: Record<string, never>;
+    readonly capabilities: {
+      readonly tools: Record<string, never>;
+    };
     readonly serverInfo: {
       readonly name: typeof MCP_SERVER_NAME;
       readonly version: typeof MCP_SERVER_VERSION;
@@ -49,11 +63,109 @@ interface InitializeResponse {
   readonly id: JsonRpcId;
 }
 
+interface ToolsListResponse {
+  readonly jsonrpc: "2.0";
+  readonly result: {
+    readonly tools: readonly McpToolDefinition[];
+  };
+  readonly id: JsonRpcId;
+}
+
+interface ToolsCallResponse {
+  readonly jsonrpc: "2.0";
+  readonly result: {
+    readonly content: readonly [
+      {
+        readonly type: "text";
+        readonly text: string;
+      },
+    ];
+    readonly structuredContent: MvpDemoToolOutputV1 | MvpDemoToolFailureOutputV1;
+    readonly isError: boolean;
+  };
+  readonly id: JsonRpcId;
+}
+
+interface McpToolDefinition {
+  readonly name: typeof MCP_RUN_MVP_DEMO_TOOL_NAME;
+  readonly description: string;
+  readonly inputSchema: {
+    readonly type: "object";
+    readonly additionalProperties: false;
+    readonly properties: {
+      readonly input: {
+        readonly type: "object";
+        readonly description: string;
+      };
+    };
+  };
+}
+
+interface MvpDemoToolOutputV1 {
+  readonly status: "ok";
+  readonly runRef: string;
+  readonly measurementCounts: MvpDemoResultV1["summary"]["measurementCounts"];
+  readonly evaluations: {
+    readonly a: MvpDemoEvaluationSummaryV1;
+    readonly b: MvpDemoEvaluationSummaryV1;
+  };
+  readonly comparison: {
+    readonly comparisonRef: string;
+    readonly status: MvpDemoResultV1["comparison"]["status"];
+    readonly scoreA: number;
+    readonly scoreB: number;
+    readonly signedScoreDelta: number;
+    readonly absoluteScoreDelta: number;
+    readonly confidenceA: number;
+    readonly confidenceB: number;
+    readonly selectedCompositionRef: string | null;
+  };
+  readonly decision: {
+    readonly decisionRef: string;
+    readonly status: MvpDemoResultV1["decision"]["status"];
+    readonly selectedEvaluationRef: string | null;
+    readonly selectedCompositionRef: string | null;
+  };
+  readonly replayReadiness: {
+    readonly reportRef: string;
+    readonly status: MvpDemoResultV1["replayReadinessReport"]["status"];
+    readonly mismatchCount: number;
+    readonly missingSourceCount: number;
+    readonly staleArtifactRefCount: number;
+  };
+}
+
+interface MvpDemoToolFailureOutputV1 {
+  readonly status: "failed";
+  readonly diagnostics: readonly MvpDemoToolDiagnosticV1[];
+}
+
+interface MvpDemoToolDiagnosticV1 {
+  readonly code: string;
+  readonly message: string;
+  readonly targetRef: string | null;
+}
+
 interface JsonTraversalStackItem {
   readonly value: unknown;
   readonly depth: number;
   readonly ancestors: readonly object[];
 }
+
+const RUN_MVP_DEMO_TOOL_DEFINITION = {
+  name: MCP_RUN_MVP_DEMO_TOOL_NAME,
+  description: "Run the existing deterministic Norma Core MVP demo and return a compact structured result.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      input: {
+        type: "object",
+        description: "Optional MvpDemoInputV1. Omit to use the canonical MVP demo input.",
+      },
+    },
+  },
+} as const satisfies McpToolDefinition;
 
 const requestEncoder = new TextEncoder();
 
@@ -66,7 +178,9 @@ export function handleMcpJsonRpcMessage(rawLine: string): string | null {
   }
 }
 
-export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | JsonRpcErrorResponse | null {
+export function handleMcpJsonRpcRequest(
+  message: unknown,
+): InitializeResponse | ToolsListResponse | ToolsCallResponse | JsonRpcErrorResponse | null {
   const id = safeJsonRpcId(message);
 
   try {
@@ -95,7 +209,9 @@ export function createMcpInputError(
   };
 }
 
-function handleRawJsonRpcLine(rawLine: string): InitializeResponse | JsonRpcErrorResponse | null {
+function handleRawJsonRpcLine(
+  rawLine: string,
+): InitializeResponse | ToolsListResponse | ToolsCallResponse | JsonRpcErrorResponse | null {
   const normalizedLine = rawLine.replace(/\r$/, "");
   if (requestEncoder.encode(normalizedLine).length > MCP_STDIO_MAX_REQUEST_BYTES) {
     return createMcpInputError(null, -32000, "Request too large", "MCP_TOO_LARGE");
@@ -114,7 +230,7 @@ function handleRawJsonRpcLine(rawLine: string): InitializeResponse | JsonRpcErro
 function handleValidatedJsonRpcRequest(
   message: unknown,
   id: JsonRpcId | null,
-): InitializeResponse | JsonRpcErrorResponse | null {
+): InitializeResponse | ToolsListResponse | ToolsCallResponse | JsonRpcErrorResponse | null {
   if (!isJsonRpcRecord(message)) {
     return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
   }
@@ -140,6 +256,16 @@ function handleValidatedJsonRpcRequest(
       : createMcpInputError(requestId, -32602, "Invalid params", "MCP_INVALID_INPUT");
   }
 
+  if (message.method === "tools/list") {
+    return isValidToolsListParams(message.params)
+      ? createToolsListResult(requestId)
+      : createMcpInputError(requestId, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  if (message.method === "tools/call") {
+    return createToolsCallResult(message.params, requestId);
+  }
+
   return createMcpInputError(requestId, -32601, "Method not found", "MCP_METHOD_NOT_FOUND");
 }
 
@@ -148,13 +274,124 @@ function createInitializeResult(id: JsonRpcId): InitializeResponse {
     jsonrpc: "2.0",
     result: {
       protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
+      capabilities: {
+        tools: {},
+      },
       serverInfo: {
         name: MCP_SERVER_NAME,
         version: MCP_SERVER_VERSION,
       },
     },
     id,
+  };
+}
+
+function createToolsListResult(id: JsonRpcId): ToolsListResponse {
+  return {
+    jsonrpc: "2.0",
+    result: {
+      tools: [RUN_MVP_DEMO_TOOL_DEFINITION],
+    },
+    id,
+  };
+}
+
+function createToolsCallResult(params: unknown, id: JsonRpcId): ToolsCallResponse | JsonRpcErrorResponse {
+  if (!isValidToolsCallParams(params)) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  if (params.name !== MCP_RUN_MVP_DEMO_TOOL_NAME) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  const args = params.arguments;
+  if (args !== undefined && !isJsonRpcRecord(args)) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  const inputArgs = args ?? {};
+  if (Object.keys(inputArgs).some((key) => key !== "input")) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  const input = Object.hasOwn(inputArgs, "input") ? inputArgs.input : createCanonicalMvpDemoInputV1();
+  const demoResult = runMvpDemoV1(input);
+  const structuredContent = demoResult.status === "ok" && demoResult.output !== null
+    ? compactMvpDemoToolOutput(demoResult.output)
+    : compactMvpDemoToolFailureOutput(demoResult.errors, demoResult.warnings);
+
+  return {
+    jsonrpc: "2.0",
+    result: {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent),
+        },
+      ],
+      structuredContent,
+      isError: structuredContent.status !== "ok",
+    },
+    id,
+  };
+}
+
+function isValidToolsListParams(params: unknown): boolean {
+  return params === undefined || (isJsonRpcRecord(params) && Object.keys(params).length === 0);
+}
+
+function isValidToolsCallParams(params: unknown): params is {
+  readonly name: string;
+  readonly arguments?: unknown;
+} {
+  return isJsonRpcRecord(params) && typeof params.name === "string";
+}
+
+function compactMvpDemoToolOutput(result: MvpDemoResultV1): MvpDemoToolOutputV1 {
+  return {
+    status: "ok",
+    runRef: result.run.runRef.id,
+    measurementCounts: result.summary.measurementCounts,
+    evaluations: result.summary.evaluationSummaries,
+    comparison: {
+      comparisonRef: result.comparison.comparisonRef,
+      status: result.comparison.status,
+      scoreA: result.comparison.scoreA,
+      scoreB: result.comparison.scoreB,
+      signedScoreDelta: result.comparison.signedScoreDelta,
+      absoluteScoreDelta: result.comparison.absoluteScoreDelta,
+      confidenceA: result.comparison.confidenceA,
+      confidenceB: result.comparison.confidenceB,
+      selectedCompositionRef: result.comparison.selectedCompositionRef,
+    },
+    decision: {
+      decisionRef: result.decision.decisionRef,
+      status: result.decision.status,
+      selectedEvaluationRef: result.decision.selectedEvaluationRef,
+      selectedCompositionRef: result.decision.selectedCompositionRef,
+    },
+    replayReadiness: {
+      reportRef: result.replayReadinessReport.reportRef,
+      status: result.replayReadinessReport.status,
+      mismatchCount: result.replayReadinessReport.mismatches.length,
+      missingSourceCount: result.replayReadinessReport.missingSources.length,
+      staleArtifactRefCount: result.replayReadinessReport.staleArtifactRefs.length,
+    },
+  };
+}
+
+function compactMvpDemoToolFailureOutput(
+  errors: readonly CoreError[],
+  warnings: readonly CoreWarning[],
+): MvpDemoToolFailureOutputV1 {
+  return {
+    status: "failed",
+    diagnostics: [...errors, ...warnings].map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      targetRef: diagnostic.targetRef,
+    })),
   };
 }
 
