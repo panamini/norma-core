@@ -102,19 +102,13 @@ test("PR5 tools/call returns compact canonical MVP demo output", () => {
   assert.equal("trace" in toolOutput, false);
 });
 
-test("PR5 tools/call accepts optional structured MVP demo input", () => {
-  const input = createCanonicalMvpDemoInputV1();
-  input.compositions.a.id = "composition:custom-a";
-  input.compositions.b.id = "composition:custom-b";
+test("PR5 tools/call explicit canonical input matches omitted-input output", () => {
+  const omittedInputResponse = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo-omitted"));
+  const explicitInputResponse = parseRequiredResponse(
+    validRunMvpDemoToolCallRequest("run-demo-explicit", createCanonicalMvpDemoInputV1()),
+  );
 
-  const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-custom-demo", input));
-  const toolOutput = assertOkToolCallResponse(response);
-
-  assert.deepEqual(toolOutput, expectedToolOutputFromRun(input));
-  assert.equal(toolOutput.evaluations.a.compositionRef, "composition:custom-a");
-  assert.equal(toolOutput.evaluations.b.compositionRef, "composition:custom-b");
-  assert.equal(toolOutput.comparison.selectedCompositionRef, "composition:custom-a");
-  assert.equal(toolOutput.decision.selectedCompositionRef, "composition:custom-a");
+  assert.deepEqual(assertOkToolCallResponse(explicitInputResponse), assertOkToolCallResponse(omittedInputResponse));
 });
 
 test("PR5 MCP canonical output matches CLI result.json compact projection", async () => {
