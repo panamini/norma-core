@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -21,8 +23,9 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
+const demoCliPath = join(repoRoot, "bin", "norma-core-mvp-demo.mjs");
 
-test("PR4 initialize response preserves transport metadata and advertises PR5 tools", () => {
+test("PR5 initialize response preserves transport metadata and advertises tools", () => {
   const response = parseRequiredResponse(validInitializeRequest("init-1"));
 
   assert.deepEqual(response, {
@@ -34,13 +37,13 @@ test("PR4 initialize response preserves transport metadata and advertises PR5 to
       },
       serverInfo: {
         name: "norma-core-mcp-stdio",
-        version: "0.1.0-pr4",
+        version: "0.1.0-pr5",
       },
     },
     id: "init-1",
   });
   assert.equal(MCP_SERVER_NAME, "norma-core-mcp-stdio");
-  assert.equal(MCP_SERVER_VERSION, "0.1.0-pr4");
+  assert.equal(MCP_SERVER_VERSION, "0.1.0-pr5");
 });
 
 test("PR4 initialize requires valid MCP params and preserves request id on invalid params", () => {
@@ -88,7 +91,7 @@ test("PR5 tools/list exposes only norma.runMvpDemoV1", () => {
 test("PR5 tools/call returns compact canonical MVP demo output", () => {
   const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo"));
   const toolOutput = assertOkToolCallResponse(response);
-  const expected = expectedToolOutputFromCanonicalRun();
+  const expected = expectedToolOutputFromRun();
 
   assert.deepEqual(toolOutput, expected);
   assert.deepEqual(toolOutput.measurementCounts, { a: 6, b: 6 });
@@ -97,6 +100,37 @@ test("PR5 tools/call returns compact canonical MVP demo output", () => {
   assert.equal("surface" in toolOutput, false);
   assert.equal("artifacts" in toolOutput, false);
   assert.equal("trace" in toolOutput, false);
+});
+
+test("PR5 tools/call accepts optional structured MVP demo input", () => {
+  const input = createCanonicalMvpDemoInputV1();
+  input.compositions.a.id = "composition:custom-a";
+  input.compositions.b.id = "composition:custom-b";
+
+  const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-custom-demo", input));
+  const toolOutput = assertOkToolCallResponse(response);
+
+  assert.deepEqual(toolOutput, expectedToolOutputFromRun(input));
+  assert.equal(toolOutput.evaluations.a.compositionRef, "composition:custom-a");
+  assert.equal(toolOutput.evaluations.b.compositionRef, "composition:custom-b");
+  assert.equal(toolOutput.comparison.selectedCompositionRef, "composition:custom-a");
+  assert.equal(toolOutput.decision.selectedCompositionRef, "composition:custom-a");
+});
+
+test("PR5 MCP canonical output matches CLI result.json compact projection", async () => {
+  const outDir = await mkdtemp(join(tmpdir(), "norma-mcp-cli-parity-"));
+  try {
+    const cli = runDemoCli(["--out", outDir]);
+    assert.equal(cli.status, 0, cli.stderr || cli.stdout);
+    assert.match(cli.stdout, /NORMA_MVP_PROOF_PASS run:run:v1:[a-f0-9]+ measurements:6\/6 report:report\.html/);
+
+    const cliResult = JSON.parse(await readFile(join(outDir, "result.json"), "utf8"));
+    const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo-parity"));
+
+    assert.deepEqual(assertOkToolCallResponse(response), compactToolOutputFromMvpResult(cliResult));
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
 });
 
 test("PR5 stdio initialize, tools/list, and tools/call succeed in sequence", () => {
@@ -118,7 +152,7 @@ test("PR5 stdio initialize, tools/list, and tools/call succeed in sequence", () 
   assert.equal(lines.length, 3);
   assert.deepEqual(lines[0].result.capabilities, { tools: {} });
   assert.deepEqual(lines[1].result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
-  assert.deepEqual(assertOkToolCallResponse(lines[2]), expectedToolOutputFromCanonicalRun());
+  assert.deepEqual(assertOkToolCallResponse(lines[2]), expectedToolOutputFromRun());
 });
 
 test("PR4 invalid JSON returns JSON-RPC parse error with null id", () => {
@@ -298,39 +332,42 @@ function assertOkToolCallResponse(response) {
   return response.result.structuredContent;
 }
 
-function expectedToolOutputFromCanonicalRun() {
-  const result = runMvpDemoV1(createCanonicalMvpDemoInputV1());
+function expectedToolOutputFromRun(input = createCanonicalMvpDemoInputV1()) {
+  const result = runMvpDemoV1(input);
   assert.equal(result.status, "ok");
   assert.ok(result.output);
+  return compactToolOutputFromMvpResult(result.output);
+}
 
+function compactToolOutputFromMvpResult(result) {
   return {
     status: "ok",
-    runRef: result.output.run.runRef.id,
-    measurementCounts: result.output.summary.measurementCounts,
-    evaluations: result.output.summary.evaluationSummaries,
+    runRef: result.run.runRef.id,
+    measurementCounts: result.summary.measurementCounts,
+    evaluations: result.summary.evaluationSummaries,
     comparison: {
-      comparisonRef: result.output.comparison.comparisonRef,
-      status: result.output.comparison.status,
-      scoreA: result.output.comparison.scoreA,
-      scoreB: result.output.comparison.scoreB,
-      signedScoreDelta: result.output.comparison.signedScoreDelta,
-      absoluteScoreDelta: result.output.comparison.absoluteScoreDelta,
-      confidenceA: result.output.comparison.confidenceA,
-      confidenceB: result.output.comparison.confidenceB,
-      selectedCompositionRef: result.output.comparison.selectedCompositionRef,
+      comparisonRef: result.comparison.comparisonRef,
+      status: result.comparison.status,
+      scoreA: result.comparison.scoreA,
+      scoreB: result.comparison.scoreB,
+      signedScoreDelta: result.comparison.signedScoreDelta,
+      absoluteScoreDelta: result.comparison.absoluteScoreDelta,
+      confidenceA: result.comparison.confidenceA,
+      confidenceB: result.comparison.confidenceB,
+      selectedCompositionRef: result.comparison.selectedCompositionRef,
     },
     decision: {
-      decisionRef: result.output.decision.decisionRef,
-      status: result.output.decision.status,
-      selectedEvaluationRef: result.output.decision.selectedEvaluationRef,
-      selectedCompositionRef: result.output.decision.selectedCompositionRef,
+      decisionRef: result.decision.decisionRef,
+      status: result.decision.status,
+      selectedEvaluationRef: result.decision.selectedEvaluationRef,
+      selectedCompositionRef: result.decision.selectedCompositionRef,
     },
     replayReadiness: {
-      reportRef: result.output.replayReadinessReport.reportRef,
-      status: result.output.replayReadinessReport.status,
-      mismatchCount: result.output.replayReadinessReport.mismatches.length,
-      missingSourceCount: result.output.replayReadinessReport.missingSources.length,
-      staleArtifactRefCount: result.output.replayReadinessReport.staleArtifactRefs.length,
+      reportRef: result.replayReadinessReport.reportRef,
+      status: result.replayReadinessReport.status,
+      mismatchCount: result.replayReadinessReport.mismatches.length,
+      missingSourceCount: result.replayReadinessReport.missingSources.length,
+      staleArtifactRefCount: result.replayReadinessReport.staleArtifactRefs.length,
     },
   };
 }
@@ -345,6 +382,15 @@ function runStdioServerRawInput(input) {
     encoding: "utf8",
     input,
     maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function runDemoCli(args) {
+  return spawnSync(process.execPath, [demoCliPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
   });
 }
 

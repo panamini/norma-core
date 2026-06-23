@@ -11,7 +11,7 @@ import type {
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_NAME = "norma-core-mcp-stdio";
-export const MCP_SERVER_VERSION = "0.1.0-pr4";
+export const MCP_SERVER_VERSION = "0.1.0-pr5";
 export const MCP_RUN_MVP_DEMO_TOOL_NAME = "norma.runMvpDemoV1";
 
 export const MCP_STDIO_MAX_REQUEST_BYTES = 524_288;
