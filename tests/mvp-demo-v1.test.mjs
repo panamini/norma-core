@@ -308,6 +308,20 @@ test("trace order, refs, run identity, replay evidence, and determinism are stab
   assert.equal(allTraceOutputRefs(first.output).includes(`artifact:${first.output.artifacts.simpleVisual.artifactRef}`), true);
   assert.equal(first.output.run.runRef.id, first.output.initialRunRef.id);
   assert.equal(first.output.artifacts.simpleVisual.payload.svg, second.output.artifacts.simpleVisual.payload.svg);
+
+  const profileChangedInput = createCanonicalMvpDemoInputV1();
+  profileChangedInput.evaluationProfiles.a.statusThresholds.match = 0.95;
+  const profileChanged = runMvpDemoV1(profileChangedInput);
+  assertOk(profileChanged);
+  assert.notEqual(profileChanged.output.run.runRef.id, first.output.run.runRef.id);
+  assert.notDeepEqual(profileChanged.output.evaluationA, first.output.evaluationA);
+
+  const artifactChangedInput = createCanonicalMvpDemoInputV1();
+  artifactChangedInput.artifactOptions.simpleVisual.viewportWidth = 320;
+  const artifactChanged = runMvpDemoV1(artifactChangedInput);
+  assertOk(artifactChanged);
+  assert.notEqual(artifactChanged.output.run.runRef.id, first.output.run.runRef.id);
+  assert.notEqual(artifactChanged.output.artifacts.simpleVisual.artifactRef, first.output.artifacts.simpleVisual.artifactRef);
 });
 
 test("input validation rejects mandatory controlled dependency failures", () => {
@@ -347,6 +361,11 @@ test("input validation rejects mandatory controlled dependency failures", () => 
   const artifactAsInput = createCanonicalMvpDemoInputV1();
   artifactAsInput.suppliedArtifact = { kind: "artifact", artifactRef: "artifact:bad" };
   assertFailedWithDiagnostic(validateMvpDemoInputV1(artifactAsInput), "ArtifactWouldBecomeSourceOfTruth");
+
+  const nonFiniteMetric = createCanonicalMvpDemoInputV1();
+  nonFiniteMetric.metricPolicy.width = Number.POSITIVE_INFINITY;
+  assertFailedWithDiagnostic(validateMvpDemoInputV1(nonFiniteMetric), "InvalidMvpDemoInputV1");
+  assertFailedWithDiagnostic(runMvpDemoV1(nonFiniteMetric), "InvalidMvpDemoInputV1");
 });
 
 test("non-comparable context is represented without selecting or recommending a candidate", () => {
@@ -401,6 +420,15 @@ test("source-aware result validation rejects forged outputs and visual artifacts
     {
       ...result,
       trace: { ...result.trace, entries: result.trace.entries.slice(0, -1) },
+    },
+    {
+      ...result,
+      trace: {
+        ...result.trace,
+        entries: result.trace.entries.map((entry, index) => index === 0
+          ? { ...entry, outputRefs: [...entry.outputRefs, entry.outputRefs[0]] }
+          : entry),
+      },
     },
     {
       ...result,

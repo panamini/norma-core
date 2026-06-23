@@ -665,6 +665,7 @@ export function runMvpDemoV1(input: unknown = createCanonicalMvpDemoInputV1()): 
         kind: "run-source-input",
         inputRef: { kind: "geometry", ref: demoInput.surface.id },
         snapshot: demoInput.surface,
+        contentIdentity: contentIdentityForDemoInput(demoInput),
       },
       {
         kind: "run-source-input",
@@ -857,6 +858,9 @@ export function validateMvpDemoResultV1(value: unknown): CoreResult<MvpDemoResul
 function validateMvpDemoInputValue(input: unknown): MvpValidation<MvpDemoInputV1> {
   if (!isRecord(input)) {
     return failedValidation(invalidMvpDemoInput("input", "MVP demo input must be a structured object."));
+  }
+  if (containsNonFiniteNumber(input)) {
+    return failedValidation(invalidMvpDemoInput("input", "MVP demo input cannot contain non-finite numbers."));
   }
   if (containsArtifactObject(input)) {
     return failedValidation(artifactWouldBecomeSource("input", "Artifacts cannot be supplied as MVP demo source input."));
@@ -1900,6 +1904,9 @@ function validateTrace(result: MvpDemoResultV1): boolean {
         return false;
       }
     }
+    if (hasDuplicateSourceRefs(entry.outputRefs)) {
+      return false;
+    }
   }
   return true;
 }
@@ -2008,6 +2015,19 @@ function containsArtifactObject(value: unknown): boolean {
     .some(([, child]) => containsArtifactObject(child));
 }
 
+function containsNonFiniteNumber(value: unknown): boolean {
+  if (typeof value === "number") {
+    return !Number.isFinite(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsNonFiniteNumber);
+  }
+  if (!isRecord(value)) {
+    return false;
+  }
+  return Object.values(value).some(containsNonFiniteNumber);
+}
+
 function containsForbiddenClaim(result: MvpDemoResultV1): boolean {
   const serialized = JSON.stringify(result).toLowerCase();
   return [
@@ -2037,6 +2057,10 @@ function uniqueSourceRefs(refs: readonly SourceReference[]): readonly SourceRefe
     }
   }
   return unique;
+}
+
+function hasDuplicateSourceRefs(refs: readonly SourceReference[]): boolean {
+  return new Set(refs.map(sourceKey)).size !== refs.length;
 }
 
 function sourceKey(ref: SourceReference): string {
