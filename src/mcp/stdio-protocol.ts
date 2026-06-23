@@ -6,17 +6,34 @@ export const MCP_STDIO_MAX_REQUEST_BYTES = 524_288;
 export const MCP_STDIO_MAX_JSON_DEPTH = 64;
 export const MCP_STDIO_MAX_STRING_LENGTH = 65_536;
 
-export type McpInputErrorCode = "MCP_INPUT_TOO_DEEP" | "MCP_INVALID_INPUT" | "MCP_TOO_LARGE";
+export type McpNormaErrorCode =
+  | "MCP_INPUT_TOO_DEEP"
+  | "MCP_INTERNAL_ERROR"
+  | "MCP_INVALID_INPUT"
+  | "MCP_METHOD_NOT_FOUND"
+  | "MCP_STRING_TOO_LONG"
+  | "MCP_TOO_LARGE";
 
 type JsonRpcId = string | number;
+type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603 | -32000;
+type JsonRpcErrorMessage =
+  | "Internal error"
+  | "Invalid params"
+  | "Invalid Request"
+  | "Method not found"
+  | "Parse error"
+  | "Request too large";
 
-interface McpInputErrorResponse {
+interface JsonRpcErrorResponse {
   readonly jsonrpc: "2.0";
   readonly error: {
-    readonly code: McpInputErrorCode;
-    readonly message: string;
+    readonly code: JsonRpcErrorCode;
+    readonly message: JsonRpcErrorMessage;
+    readonly data: {
+      readonly normaCode: McpNormaErrorCode;
+    };
   };
-  readonly id: null;
+  readonly id: JsonRpcId | null;
 }
 
 interface InitializeResponse {
@@ -28,14 +45,6 @@ interface InitializeResponse {
       readonly name: typeof MCP_SERVER_NAME;
       readonly version: typeof MCP_SERVER_VERSION;
     };
-  };
-  readonly id: JsonRpcId;
-}
-
-interface ToolsListResponse {
-  readonly jsonrpc: "2.0";
-  readonly result: {
-    readonly tools: readonly [];
   };
   readonly id: JsonRpcId;
 }
@@ -53,47 +62,50 @@ export function handleMcpJsonRpcMessage(rawLine: string): string | null {
     const response = handleRawJsonRpcLine(rawLine);
     return response === null ? null : JSON.stringify(response);
   } catch {
-    return JSON.stringify(createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid."));
+    return JSON.stringify(createMcpInputError(null, -32603, "Internal error", "MCP_INTERNAL_ERROR"));
   }
 }
 
-export function handleMcpJsonRpcRequest(
-  message: unknown,
-): InitializeResponse | ToolsListResponse | McpInputErrorResponse | null {
-  const limitFailure = jsonValueLimitFailure(message);
-  if (limitFailure !== null) {
-    return limitFailure;
-  }
+export function handleMcpJsonRpcRequest(message: unknown): InitializeResponse | JsonRpcErrorResponse | null {
+  const id = safeJsonRpcId(message);
 
   try {
-    return handleValidatedJsonRpcRequest(message);
+    return handleValidatedJsonRpcRequest(message, id);
   } catch {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(id, -32603, "Internal error", "MCP_INTERNAL_ERROR");
   }
 }
 
-export function createMcpInputError(code: McpInputErrorCode, message: string): McpInputErrorResponse {
+export function createMcpInputError(
+  id: JsonRpcId | null,
+  code: JsonRpcErrorCode,
+  message: JsonRpcErrorMessage,
+  normaCode: McpNormaErrorCode,
+): JsonRpcErrorResponse {
   return {
     jsonrpc: "2.0",
     error: {
       code,
       message,
+      data: {
+        normaCode,
+      },
     },
-    id: null,
+    id,
   };
 }
 
-function handleRawJsonRpcLine(rawLine: string): InitializeResponse | ToolsListResponse | McpInputErrorResponse | null {
+function handleRawJsonRpcLine(rawLine: string): InitializeResponse | JsonRpcErrorResponse | null {
   const normalizedLine = rawLine.replace(/\r$/, "");
   if (requestEncoder.encode(normalizedLine).length > MCP_STDIO_MAX_REQUEST_BYTES) {
-    return createMcpInputError("MCP_TOO_LARGE", "MCP request payload exceeds maximum size.");
+    return createMcpInputError(null, -32000, "Request too large", "MCP_TOO_LARGE");
   }
 
   let message: unknown;
   try {
     message = JSON.parse(normalizedLine);
   } catch {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(null, -32700, "Parse error", "MCP_INVALID_INPUT");
   }
 
   return handleMcpJsonRpcRequest(message);
@@ -101,35 +113,34 @@ function handleRawJsonRpcLine(rawLine: string): InitializeResponse | ToolsListRe
 
 function handleValidatedJsonRpcRequest(
   message: unknown,
-): InitializeResponse | ToolsListResponse | McpInputErrorResponse | null {
+  id: JsonRpcId | null,
+): InitializeResponse | JsonRpcErrorResponse | null {
   if (!isJsonRpcRecord(message)) {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
   }
 
-  const hasId = Object.hasOwn(message, "id");
-  if (!hasId) {
-    return isJsonRpcNotification(message) ? null : createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+  if (!Object.hasOwn(message, "id") || !isJsonRpcId(message.id)) {
+    return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
   }
 
-  if (!isJsonRpcId(message.id)) {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
-  }
+  const requestId = message.id;
 
   if (message.jsonrpc !== "2.0" || typeof message.method !== "string" || message.method.length === 0) {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(requestId, -32600, "Invalid Request", "MCP_INVALID_INPUT");
+  }
+
+  const limitFailure = jsonValueLimitFailure(message, requestId);
+  if (limitFailure !== null) {
+    return limitFailure;
   }
 
   if (message.method === "initialize") {
-    return createInitializeResult(message.id);
+    return isValidInitializeParams(message.params)
+      ? createInitializeResult(requestId)
+      : createMcpInputError(requestId, -32602, "Invalid params", "MCP_INVALID_INPUT");
   }
 
-  if (message.method === "tools/list") {
-    return isValidToolsListParams(message.params, Object.hasOwn(message, "params"))
-      ? createToolsListResult(message.id)
-      : createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
-  }
-
-  return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+  return createMcpInputError(requestId, -32601, "Method not found", "MCP_METHOD_NOT_FOUND");
 }
 
 function createInitializeResult(id: JsonRpcId): InitializeResponse {
@@ -147,34 +158,23 @@ function createInitializeResult(id: JsonRpcId): InitializeResponse {
   };
 }
 
-function createToolsListResult(id: JsonRpcId): ToolsListResponse {
-  return {
-    jsonrpc: "2.0",
-    result: {
-      tools: [],
-    },
-    id,
-  };
-}
-
-function isJsonRpcNotification(message: Record<string, unknown>): boolean {
-  return message.jsonrpc === "2.0" && typeof message.method === "string" && message.method.length > 0;
-}
-
-function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
-  if (!hasParams) {
-    return true;
-  }
-
+function isValidInitializeParams(params: unknown): boolean {
   if (!isJsonRpcRecord(params)) {
     return false;
   }
 
-  const keys = Object.keys(params);
-  return keys.length === 0 || (keys.length === 1 && keys[0] === "cursor" && typeof params.cursor === "string");
+  if (params.protocolVersion !== MCP_PROTOCOL_VERSION || !isJsonRpcRecord(params.capabilities)) {
+    return false;
+  }
+
+  if (!isJsonRpcRecord(params.clientInfo)) {
+    return false;
+  }
+
+  return typeof params.clientInfo.name === "string" && typeof params.clientInfo.version === "string";
 }
 
-function jsonValueLimitFailure(value: unknown): McpInputErrorResponse | null {
+function jsonValueLimitFailure(value: unknown, id: JsonRpcId): JsonRpcErrorResponse | null {
   const stack: JsonTraversalStackItem[] = [
     {
       value,
@@ -189,7 +189,7 @@ function jsonValueLimitFailure(value: unknown): McpInputErrorResponse | null {
       break;
     }
 
-    const failure = validateJsonStackItem(item, stack);
+    const failure = validateJsonStackItem(item, id, stack);
     if (failure !== null) {
       return failure;
     }
@@ -200,42 +200,48 @@ function jsonValueLimitFailure(value: unknown): McpInputErrorResponse | null {
 
 function validateJsonStackItem(
   item: JsonTraversalStackItem,
+  id: JsonRpcId,
   stack: JsonTraversalStackItem[],
-): McpInputErrorResponse | null {
+): JsonRpcErrorResponse | null {
   if (item.depth > MCP_STDIO_MAX_JSON_DEPTH) {
-    return createMcpInputError("MCP_INPUT_TOO_DEEP", "MCP request JSON exceeds maximum depth.");
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INPUT_TOO_DEEP");
   }
 
   if (isJsonScalar(item.value)) {
-    return isBoundedJsonScalar(item.value) ? null : createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return scalarLimitFailure(item.value, id);
   }
 
-  return pushJsonCompositeChildren(item, stack);
+  return pushJsonCompositeChildren(item, id, stack);
+}
+
+function scalarLimitFailure(value: unknown, id: JsonRpcId): JsonRpcErrorResponse | null {
+  if (typeof value === "string" && value.length > MCP_STDIO_MAX_STRING_LENGTH) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_STRING_TOO_LONG");
+  }
+
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
+  }
+
+  return isJsonScalarValue(value) ? null : createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
 }
 
 function isJsonScalar(value: unknown): boolean {
   return value === null || typeof value !== "object";
 }
 
-function isBoundedJsonScalar(value: unknown): boolean {
-  if (typeof value === "string") {
-    return value.length <= MCP_STDIO_MAX_STRING_LENGTH;
-  }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value);
-  }
-
-  return value === null || typeof value === "boolean";
+function isJsonScalarValue(value: unknown): boolean {
+  return value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string";
 }
 
 function pushJsonCompositeChildren(
   item: JsonTraversalStackItem,
+  id: JsonRpcId,
   stack: JsonTraversalStackItem[],
-): McpInputErrorResponse | null {
+): JsonRpcErrorResponse | null {
   const value = item.value as object;
   if (item.ancestors.includes(value)) {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
   }
 
   const ancestors = [...item.ancestors, value];
@@ -245,10 +251,10 @@ function pushJsonCompositeChildren(
   }
 
   if (!isPlainJsonRecord(value)) {
-    return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    return createMcpInputError(id, -32602, "Invalid params", "MCP_INVALID_INPUT");
   }
 
-  return pushJsonRecordEntries(value, item.depth + 1, ancestors, stack);
+  return pushJsonRecordEntries(value, item.depth + 1, ancestors, id, stack);
 }
 
 function pushJsonArrayItems(
@@ -270,13 +276,14 @@ function pushJsonRecordEntries(
   value: object,
   depth: number,
   ancestors: readonly object[],
+  id: JsonRpcId,
   stack: JsonTraversalStackItem[],
-): McpInputErrorResponse | null {
+): JsonRpcErrorResponse | null {
   const entries = Object.entries(value);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const [key, nestedValue] = entries[index] as [string, unknown];
     if (key.length > MCP_STDIO_MAX_STRING_LENGTH) {
-      return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
+      return createMcpInputError(id, -32602, "Invalid params", "MCP_STRING_TOO_LONG");
     }
 
     stack.push({
@@ -289,10 +296,18 @@ function pushJsonRecordEntries(
   return null;
 }
 
+function safeJsonRpcId(message: unknown): JsonRpcId | null {
+  if (!isJsonRpcRecord(message) || !Object.hasOwn(message, "id")) {
+    return null;
+  }
+
+  return isJsonRpcId(message.id) ? message.id : null;
+}
+
 function isJsonRpcId(value: unknown): value is JsonRpcId {
   return (
     (typeof value === "string" && value.length <= MCP_STDIO_MAX_STRING_LENGTH) ||
-    (typeof value === "number" && Number.isFinite(value))
+    (typeof value === "number" && Number.isSafeInteger(value))
   );
 }
 

@@ -17,22 +17,10 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 
-test("PR4 initialize succeeds and exposes no runtime tools", () => {
-  const initializeResponse = parseRequiredResponse({
-    jsonrpc: "2.0",
-    id: "init-1",
-    method: "initialize",
-    params: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: {
-        name: "test-client",
-        version: "0.0.0",
-      },
-    },
-  });
+test("PR4 initialize response is transport-only with empty capabilities", () => {
+  const response = parseRequiredResponse(validInitializeRequest("init-1"));
 
-  assert.deepEqual(initializeResponse, {
+  assert.deepEqual(response, {
     jsonrpc: "2.0",
     result: {
       protocolVersion: "2025-06-18",
@@ -46,143 +34,185 @@ test("PR4 initialize succeeds and exposes no runtime tools", () => {
   });
   assert.equal(MCP_SERVER_NAME, "norma-core-mcp-stdio");
   assert.equal(MCP_SERVER_VERSION, "0.1.0-pr4");
+});
 
-  const toolsListResponse = parseRequiredResponse({
+test("PR4 initialize requires valid MCP params and preserves request id on invalid params", () => {
+  const response = parseRequiredResponse({
     jsonrpc: "2.0",
-    id: "tools-1",
+    id: "bare-init",
+    method: "initialize",
+  });
+
+  assert.deepEqual(response, errorResponse("bare-init", -32602, "Invalid params", "MCP_INVALID_INPUT"));
+});
+
+test("PR4 JSON-RPC ids accept safe integers and reject decimal or null ids", () => {
+  const integerResponse = parseRequiredResponse(validInitializeRequest(42));
+  assert.equal(integerResponse.id, 42);
+  assert.equal(integerResponse.result.protocolVersion, "2025-06-18");
+
+  const decimalResponse = parseRequiredResponse({
+    ...validInitializeRequest(1.5),
+    id: 1.5,
+  });
+  assert.deepEqual(decimalResponse, errorResponse(null, -32600, "Invalid Request", "MCP_INVALID_INPUT"));
+
+  const nullResponse = parseRequiredResponse({
+    ...validInitializeRequest(null),
+    id: null,
+  });
+  assert.deepEqual(nullResponse, errorResponse(null, -32600, "Invalid Request", "MCP_INVALID_INPUT"));
+});
+
+test("PR4 transport-only server does not expose tools/list", () => {
+  const response = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "tools-list",
     method: "tools/list",
   });
 
-  assert.deepEqual(toolsListResponse, {
-    jsonrpc: "2.0",
-    result: {
-      tools: [],
-    },
-    id: "tools-1",
-  });
+  assert.deepEqual(response, errorResponse("tools-list", -32601, "Method not found", "MCP_METHOD_NOT_FOUND"));
 });
 
-test("PR4 malformed JSON returns the structured MCP_INVALID_INPUT contract", () => {
-  assert.deepEqual(parseRawResponse("{ invalid json"), {
-    jsonrpc: "2.0",
-    error: {
-      code: "MCP_INVALID_INPUT",
-      message: "MCP request is invalid.",
-    },
-    id: null,
-  });
-});
-
-test("PR4 excessive depth returns MCP_INPUT_TOO_DEEP without stack leakage", () => {
-  const rawResponse = handleMcpJsonRpcMessage(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      id: "depth-2000",
-      method: "tools/list",
-      params: nestedObject(2_000),
-    }),
+test("PR4 invalid JSON returns JSON-RPC parse error with null id", () => {
+  assert.deepEqual(
+    parseRawResponse("{ invalid json"),
+    errorResponse(null, -32700, "Parse error", "MCP_INVALID_INPUT"),
   );
-
-  assert.notEqual(rawResponse, null);
-  assert.doesNotMatch(rawResponse, /RangeError|Maximum call stack|file:\/\/|\/dist\/|\/src\/|\bat\s+/);
-  assert.deepEqual(JSON.parse(rawResponse), {
-    jsonrpc: "2.0",
-    error: {
-      code: "MCP_INPUT_TOO_DEEP",
-      message: "MCP request JSON exceeds maximum depth.",
-    },
-    id: null,
-  });
 });
 
-test("PR4 excessive string length returns MCP_INVALID_INPUT", () => {
+test("PR4 excessive depth returns Invalid params with preserved id and Norma label", () => {
+  const response = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "depth-2000",
+    method: "initialize",
+    params: {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: nestedObject(2_000),
+    },
+  });
+
+  assert.deepEqual(response, errorResponse("depth-2000", -32602, "Invalid params", "MCP_INPUT_TOO_DEEP"));
+});
+
+test("PR4 excessive string length returns Invalid params with preserved id and Norma label", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
     id: "string-over-limit",
-    method: "tools/list",
+    method: "initialize",
     params: {
-      cursor: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: {
+        name: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+        version: "0.0.0",
+      },
     },
   });
 
-  assert.deepEqual(response, {
-    jsonrpc: "2.0",
-    error: {
-      code: "MCP_INVALID_INPUT",
-      message: "MCP request is invalid.",
-    },
-    id: null,
-  });
+  assert.deepEqual(response, errorResponse("string-over-limit", -32602, "Invalid params", "MCP_STRING_TOO_LONG"));
 });
 
-test("PR4 raw payload over the byte limit returns MCP_TOO_LARGE", () => {
-  const response = parseRawResponse(rawToolsListWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES + 1));
+test("PR4 raw payload over the byte limit returns request-too-large with null id", () => {
+  const response = parseRawResponse(rawInitializeWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES + 1));
 
-  assert.deepEqual(response, {
-    jsonrpc: "2.0",
-    error: {
-      code: "MCP_TOO_LARGE",
-      message: "MCP request payload exceeds maximum size.",
-    },
-    id: null,
-  });
+  assert.deepEqual(response, errorResponse(null, -32000, "Request too large", "MCP_TOO_LARGE"));
 });
 
-test("PR4 raw payload limit normalizes a trailing CR from CRLF input", () => {
-  const response = parseRawResponse(`${rawToolsListWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES)}\r`);
+test("PR4 stdio wrapper normalizes CRLF at the raw byte limit", () => {
+  const rawLimitLine = rawInitializeWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES);
+  const result = runStdioServerRawInput(`${rawLimitLine}\r\n${JSON.stringify(validInitializeRequest("after-crlf"))}\n`);
 
-  assert.deepEqual(response, {
-    jsonrpc: "2.0",
-    error: {
-      code: "MCP_INVALID_INPUT",
-      message: "MCP request is invalid.",
-    },
-    id: null,
-  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = parseStdoutLines(result.stdout);
+  assert.equal(lines.length, 2);
+  assert.deepEqual(lines[0], errorResponse("raw-byte-limit", -32602, "Invalid params", "MCP_STRING_TOO_LONG"));
+  assert.equal(lines[1].id, "after-crlf");
+  assert.deepEqual(lines[1].result.capabilities, {});
 });
 
 test("PR4 stdio process survives malformed, deep, long, and oversized input before valid initialize", () => {
-  const validRequest = {
-    jsonrpc: "2.0",
-    id: "after-failures",
-    method: "initialize",
-  };
   const result = runStdioServerRawLines([
     "{ invalid json",
     JSON.stringify({
       jsonrpc: "2.0",
       id: "depth-2000",
-      method: "tools/list",
-      params: nestedObject(2_000),
+      method: "initialize",
+      params: {
+        protocolVersion: MCP_PROTOCOL_VERSION,
+        capabilities: {},
+        clientInfo: nestedObject(2_000),
+      },
     }),
     JSON.stringify({
       jsonrpc: "2.0",
       id: "string-over-limit",
-      method: "tools/list",
+      method: "initialize",
       params: {
-        cursor: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+        protocolVersion: MCP_PROTOCOL_VERSION,
+        capabilities: {},
+        clientInfo: {
+          name: "x".repeat(MCP_STDIO_MAX_STRING_LENGTH + 1),
+          version: "0.0.0",
+        },
       },
     }),
-    rawToolsListWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES + 1),
-    JSON.stringify(validRequest),
+    rawInitializeWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES + 1),
+    JSON.stringify(validInitializeRequest("after-failures")),
   ]);
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.stderr, "");
-  assert.doesNotMatch(result.stdout, /RangeError|Maximum call stack|file:\/\/|\/Volumes\/|\/Users\/|\/dist\/|\/src\/|\bat\s+/);
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
 
-  const lines = result.stdout.trimEnd().split("\n");
+  const lines = parseStdoutLines(result.stdout);
   assert.equal(lines.length, 5);
-  assert.deepEqual(
-    lines.slice(0, 4).map((line) => JSON.parse(line).error.code),
-    ["MCP_INVALID_INPUT", "MCP_INPUT_TOO_DEEP", "MCP_INVALID_INPUT", "MCP_TOO_LARGE"],
-  );
+  assert.deepEqual(lines.slice(0, 4), [
+    errorResponse(null, -32700, "Parse error", "MCP_INVALID_INPUT"),
+    errorResponse("depth-2000", -32602, "Invalid params", "MCP_INPUT_TOO_DEEP"),
+    errorResponse("string-over-limit", -32602, "Invalid params", "MCP_STRING_TOO_LONG"),
+    errorResponse(null, -32000, "Request too large", "MCP_TOO_LARGE"),
+  ]);
 
-  const recovered = JSON.parse(lines[4]);
-  assert.equal(recovered.jsonrpc, "2.0");
-  assert.equal(recovered.id, "after-failures");
-  assert.equal(recovered.result.protocolVersion, "2025-06-18");
+  assert.equal(lines[4].jsonrpc, "2.0");
+  assert.equal(lines[4].id, "after-failures");
+  assert.equal(lines[4].result.protocolVersion, "2025-06-18");
+  assert.deepEqual(lines[4].result.capabilities, {});
 });
+
+function validInitializeRequest(id) {
+  return {
+    jsonrpc: "2.0",
+    id,
+    method: "initialize",
+    params: {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: {
+        name: "test-client",
+        version: "0.0.0",
+      },
+    },
+  };
+}
+
+function errorResponse(id, code, message, normaCode) {
+  return {
+    jsonrpc: "2.0",
+    error: {
+      code,
+      message,
+      data: {
+        normaCode,
+      },
+    },
+    id,
+  };
+}
 
 function parseRequiredResponse(message) {
   return parseRawResponse(JSON.stringify(message));
@@ -195,17 +225,28 @@ function parseRawResponse(rawLine) {
   return JSON.parse(response);
 }
 
+function parseStdoutLines(stdout) {
+  return stdout.trimEnd().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+}
+
 function runStdioServerRawLines(rawLines) {
+  return runStdioServerRawInput(`${rawLines.join("\n")}\n`);
+}
+
+function runStdioServerRawInput(input) {
   return spawnSync(process.execPath, [wrapperPath], {
     cwd: repoRoot,
     encoding: "utf8",
-    input: `${rawLines.join("\n")}\n`,
+    input,
     maxBuffer: 64 * 1024 * 1024,
   });
 }
 
 function nestedObject(depth) {
-  let value = "leaf";
+  let value = {
+    name: "test-client",
+    version: "0.0.0",
+  };
   for (let index = 0; index < depth; index += 1) {
     value = {
       next: value,
@@ -214,21 +255,20 @@ function nestedObject(depth) {
   return value;
 }
 
-function rawToolsListWithTargetBytes(targetBytes) {
-  const request = {
-    jsonrpc: "2.0",
-    id: "raw-over-limit",
-    method: "tools/list",
-    params: {
-      cursor: "",
-    },
-  };
+function rawInitializeWithTargetBytes(targetBytes) {
+  const request = validInitializeRequest("raw-byte-limit");
+  request.params.clientInfo.name = "";
+
   const overhead = Buffer.byteLength(JSON.stringify(request), "utf8");
   const payloadBytes = targetBytes - overhead;
   assert.ok(payloadBytes >= 0);
 
-  request.params.cursor = "x".repeat(payloadBytes);
+  request.params.clientInfo.name = "x".repeat(payloadBytes);
   const rawLine = JSON.stringify(request);
   assert.equal(Buffer.byteLength(rawLine, "utf8"), targetBytes);
   return rawLine;
+}
+
+function assertNoDiagnosticLeak(text) {
+  assert.doesNotMatch(text, /RangeError|Maximum call stack|file:\/\/|\/Volumes\/|\/Users\/|\/dist\/|\/src\/|\bat\s+/);
 }

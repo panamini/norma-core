@@ -18,7 +18,7 @@ process.stdin.on("data", (chunk) => {
 
 process.stdin.on("end", () => {
   if (droppingOversizedLine) {
-    writeError("MCP_TOO_LARGE", "MCP request payload exceeds maximum size.");
+    writeError(null, -32000, "Request too large", "MCP_TOO_LARGE");
   } else if (pending !== "") {
     processLine(pending.replace(/\r$/, ""));
   }
@@ -27,7 +27,7 @@ process.stdin.on("end", () => {
 });
 
 process.stdin.on("error", () => {
-  writeError("MCP_INVALID_INPUT", "MCP request is invalid.");
+  writeError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
 });
 
 function processChunk(chunk) {
@@ -76,7 +76,7 @@ function normalizedPendingBytesAfterAppend(segment) {
 
 function flushPendingLine() {
   if (droppingOversizedLine) {
-    writeError("MCP_TOO_LARGE", "MCP request payload exceeds maximum size.");
+    writeError(null, -32000, "Request too large", "MCP_TOO_LARGE");
     resetPendingLine();
     return;
   }
@@ -104,10 +104,10 @@ function processLine(rawLine) {
       process.stdout.write(`${response}\n`);
     }
   } catch {
-    writeError("MCP_INVALID_INPUT", "MCP request is invalid.");
+    writeError(null, -32603, "Internal error", "MCP_INTERNAL_ERROR");
   }
 }
 
-function writeError(code, message) {
-  process.stdout.write(`${JSON.stringify(createMcpInputError(code, message))}\n`);
+function writeError(id, code, message, normaCode) {
+  process.stdout.write(`${JSON.stringify(createMcpInputError(id, code, message, normaCode))}\n`);
 }
