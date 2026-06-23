@@ -1,39 +1,49 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
   MCP_PROTOCOL_VERSION,
+  MCP_RUN_MVP_DEMO_TOOL_NAME,
   MCP_SERVER_NAME,
   MCP_SERVER_VERSION,
   MCP_STDIO_MAX_REQUEST_BYTES,
   MCP_STDIO_MAX_STRING_LENGTH,
   handleMcpJsonRpcMessage,
 } from "../dist/src/mcp/stdio-protocol.js";
+import {
+  createCanonicalMvpDemoInputV1,
+  runMvpDemoV1,
+} from "../dist/src/index.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
+const demoCliPath = join(repoRoot, "bin", "norma-core-mvp-demo.mjs");
 
-test("PR4 initialize response is transport-only with empty capabilities", () => {
+test("PR5 initialize response preserves transport metadata and advertises tools", () => {
   const response = parseRequiredResponse(validInitializeRequest("init-1"));
 
   assert.deepEqual(response, {
     jsonrpc: "2.0",
     result: {
       protocolVersion: "2025-06-18",
-      capabilities: {},
+      capabilities: {
+        tools: {},
+      },
       serverInfo: {
         name: "norma-core-mcp-stdio",
-        version: "0.1.0-pr4",
+        version: "0.1.0-pr5",
       },
     },
     id: "init-1",
   });
   assert.equal(MCP_SERVER_NAME, "norma-core-mcp-stdio");
-  assert.equal(MCP_SERVER_VERSION, "0.1.0-pr4");
+  assert.equal(MCP_SERVER_VERSION, "0.1.0-pr5");
 });
 
 test("PR4 initialize requires valid MCP params and preserves request id on invalid params", () => {
@@ -64,14 +74,79 @@ test("PR4 JSON-RPC ids accept safe integers and reject decimal or null ids", () 
   assert.deepEqual(nullResponse, errorResponse(null, -32600, "Invalid Request", "MCP_INVALID_INPUT"));
 });
 
-test("PR4 transport-only server does not expose tools/list", () => {
+test("PR5 tools/list exposes only norma.runMvpDemoV1", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
     id: "tools-list",
     method: "tools/list",
   });
 
-  assert.deepEqual(response, errorResponse("tools-list", -32601, "Method not found", "MCP_METHOD_NOT_FOUND"));
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.id, "tools-list");
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
+  assert.equal(response.result.tools[0].inputSchema.properties.input.type, "object");
+  assert.equal(response.result.tools[0].inputSchema.additionalProperties, false);
+});
+
+test("PR5 tools/call returns compact canonical MVP demo output", () => {
+  const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo"));
+  const toolOutput = assertOkToolCallResponse(response);
+  const expected = expectedToolOutputFromRun();
+
+  assert.deepEqual(toolOutput, expected);
+  assert.deepEqual(toolOutput.measurementCounts, { a: 6, b: 6 });
+  assert.equal(toolOutput.status, "ok");
+  assert.equal(toolOutput.replayReadiness.status, expected.replayReadiness.status);
+  assert.equal("surface" in toolOutput, false);
+  assert.equal("artifacts" in toolOutput, false);
+  assert.equal("trace" in toolOutput, false);
+});
+
+test("PR5 tools/call explicit canonical input matches omitted-input output", () => {
+  const omittedInputResponse = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo-omitted"));
+  const explicitInputResponse = parseRequiredResponse(
+    validRunMvpDemoToolCallRequest("run-demo-explicit", createCanonicalMvpDemoInputV1()),
+  );
+
+  assert.deepEqual(assertOkToolCallResponse(explicitInputResponse), assertOkToolCallResponse(omittedInputResponse));
+});
+
+test("PR5 MCP canonical output matches CLI result.json compact projection", async () => {
+  const outDir = await mkdtemp(join(tmpdir(), "norma-mcp-cli-parity-"));
+  try {
+    const cli = runDemoCli(["--out", outDir]);
+    assert.equal(cli.status, 0, cli.stderr || cli.stdout);
+    assert.match(cli.stdout, /NORMA_MVP_PROOF_PASS run:run:v1:[a-f0-9]+ measurements:6\/6 report:report\.html/);
+
+    const cliResult = JSON.parse(await readFile(join(outDir, "result.json"), "utf8"));
+    const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo-parity"));
+
+    assert.deepEqual(assertOkToolCallResponse(response), compactToolOutputFromMvpResult(cliResult));
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
+test("PR5 stdio initialize, tools/list, and tools/call succeed in sequence", () => {
+  const result = runStdioServerRawLines([
+    JSON.stringify(validInitializeRequest("stdio-init")),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: "stdio-list",
+      method: "tools/list",
+    }),
+    JSON.stringify(validRunMvpDemoToolCallRequest("stdio-run")),
+  ]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = parseStdoutLines(result.stdout);
+  assert.equal(lines.length, 3);
+  assert.deepEqual(lines[0].result.capabilities, { tools: {} });
+  assert.deepEqual(lines[1].result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
+  assert.deepEqual(assertOkToolCallResponse(lines[2]), expectedToolOutputFromRun());
 });
 
 test("PR4 invalid JSON returns JSON-RPC parse error with null id", () => {
@@ -132,7 +207,7 @@ test("PR4 stdio wrapper normalizes CRLF at the raw byte limit", () => {
   assert.equal(lines.length, 2);
   assert.deepEqual(lines[0], errorResponse("raw-byte-limit", -32602, "Invalid params", "MCP_STRING_TOO_LONG"));
   assert.equal(lines[1].id, "after-crlf");
-  assert.deepEqual(lines[1].result.capabilities, {});
+  assert.deepEqual(lines[1].result.capabilities, { tools: {} });
 });
 
 test("PR4 stdio process survives malformed, deep, long, and oversized input before valid initialize", () => {
@@ -181,7 +256,7 @@ test("PR4 stdio process survives malformed, deep, long, and oversized input befo
   assert.equal(lines[4].jsonrpc, "2.0");
   assert.equal(lines[4].id, "after-failures");
   assert.equal(lines[4].result.protocolVersion, "2025-06-18");
-  assert.deepEqual(lines[4].result.capabilities, {});
+  assert.deepEqual(lines[4].result.capabilities, { tools: {} });
 });
 
 function validInitializeRequest(id) {
@@ -196,6 +271,19 @@ function validInitializeRequest(id) {
         name: "test-client",
         version: "0.0.0",
       },
+    },
+  };
+}
+
+function validRunMvpDemoToolCallRequest(id, input = undefined) {
+  const args = input === undefined ? {} : { input };
+  return {
+    jsonrpc: "2.0",
+    id,
+    method: "tools/call",
+    params: {
+      name: MCP_RUN_MVP_DEMO_TOOL_NAME,
+      arguments: args,
     },
   };
 }
@@ -229,6 +317,55 @@ function parseStdoutLines(stdout) {
   return stdout.trimEnd().split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 
+function assertOkToolCallResponse(response) {
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.result.isError, false);
+  assert.equal(response.result.content.length, 1);
+  assert.equal(response.result.content[0].type, "text");
+  assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
+  return response.result.structuredContent;
+}
+
+function expectedToolOutputFromRun(input = createCanonicalMvpDemoInputV1()) {
+  const result = runMvpDemoV1(input);
+  assert.equal(result.status, "ok");
+  assert.ok(result.output);
+  return compactToolOutputFromMvpResult(result.output);
+}
+
+function compactToolOutputFromMvpResult(result) {
+  return {
+    status: "ok",
+    runRef: result.run.runRef.id,
+    measurementCounts: result.summary.measurementCounts,
+    evaluations: result.summary.evaluationSummaries,
+    comparison: {
+      comparisonRef: result.comparison.comparisonRef,
+      status: result.comparison.status,
+      scoreA: result.comparison.scoreA,
+      scoreB: result.comparison.scoreB,
+      signedScoreDelta: result.comparison.signedScoreDelta,
+      absoluteScoreDelta: result.comparison.absoluteScoreDelta,
+      confidenceA: result.comparison.confidenceA,
+      confidenceB: result.comparison.confidenceB,
+      selectedCompositionRef: result.comparison.selectedCompositionRef,
+    },
+    decision: {
+      decisionRef: result.decision.decisionRef,
+      status: result.decision.status,
+      selectedEvaluationRef: result.decision.selectedEvaluationRef,
+      selectedCompositionRef: result.decision.selectedCompositionRef,
+    },
+    replayReadiness: {
+      reportRef: result.replayReadinessReport.reportRef,
+      status: result.replayReadinessReport.status,
+      mismatchCount: result.replayReadinessReport.mismatches.length,
+      missingSourceCount: result.replayReadinessReport.missingSources.length,
+      staleArtifactRefCount: result.replayReadinessReport.staleArtifactRefs.length,
+    },
+  };
+}
+
 function runStdioServerRawLines(rawLines) {
   return runStdioServerRawInput(`${rawLines.join("\n")}\n`);
 }
@@ -239,6 +376,15 @@ function runStdioServerRawInput(input) {
     encoding: "utf8",
     input,
     maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function runDemoCli(args) {
+  return spawnSync(process.execPath, [demoCliPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
