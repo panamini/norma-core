@@ -736,6 +736,119 @@ test("PR7 rejects duplicate geometry refs without overwriting canonical geometry
   );
 });
 
+test("Post-MVP PR2 rejects duplicate composition source IDs before measurement execution", () => {
+  const duplicateComposition = {
+    ...compositionA(),
+    id: "composition:duplicate-source-ids",
+    elements: [
+      {
+        kind: "element",
+        id: "element:duplicate",
+        geometry: { kind: "rect", x: 0, y: 0, width: 0.25, height: 0.25 },
+      },
+      {
+        kind: "element",
+        id: "element:duplicate",
+        geometry: { kind: "rect", x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+      },
+    ],
+  };
+
+  const validation = core.validateGeometryV1(duplicateComposition);
+  assertFailedWithDiagnostic(validation, "InvalidGeometryV1");
+  assert.equal(validation.errors[0].targetRef, "elements.1.id");
+  assert.equal(
+    validation.errors[0].message,
+    "Duplicate geometry source id in Composition2D: element:duplicate; first occurrence at elements.0.id.",
+  );
+
+  const result = measureGeometryV1(measurementInput({
+    construction: null,
+    composition: duplicateComposition,
+    geometryRefs: [],
+    requests: [
+      {
+        kind: "measurement-request",
+        requestRef: "area:duplicate",
+        measurementType: "area",
+        sourceRef: "element:duplicate",
+        metric: "normalized",
+      },
+    ],
+  }));
+
+  assertFailedWithDiagnostic(result, "IncompatibleMeasurementGeometry");
+  assert.equal(result.errors[0].targetRef, "composition.elements.1.id");
+  assert.equal(
+    result.errors[0].message,
+    "Duplicate geometry source id in Composition2D: element:duplicate; first occurrence at composition.elements.0.id.",
+  );
+  assert.equal(result.output, null);
+  assert.deepEqual(result.outputRefs, []);
+
+  const measuredSurfaceCollision = measureGeometryV1(measurementInput({
+    construction: null,
+    surface: canonicalSurface({ id: "surface:measured" }),
+    composition: {
+      ...compositionA(),
+      surface: canonicalSurface({ id: "surface:composition" }),
+      elements: [
+        {
+          kind: "element",
+          id: "surface:measured",
+          geometry: { kind: "rect", x: 0, y: 0, width: 0.25, height: 0.25 },
+        },
+      ],
+    },
+    metricPolicy: { ...measurementMetricPolicy, surfaceRef: "surface:measured" },
+    geometryRefs: [],
+    requests: [
+      {
+        kind: "measurement-request",
+        requestRef: "area:measured-surface",
+        measurementType: "area",
+        sourceRef: "surface:measured",
+        metric: "normalized",
+      },
+    ],
+  }));
+
+  assertFailedWithDiagnostic(measuredSurfaceCollision, "IncompatibleMeasurementGeometry");
+  assert.equal(measuredSurfaceCollision.errors[0].targetRef, "composition.elements.0.id");
+  assert.equal(
+    measuredSurfaceCollision.errors[0].message,
+    "Duplicate geometry source id in Composition2D: surface:measured; first occurrence at surface.id.",
+  );
+  assert.equal(measuredSurfaceCollision.output, null);
+  assert.deepEqual(measuredSurfaceCollision.outputRefs, []);
+
+  const uniqueComposition = {
+    ...duplicateComposition,
+    elements: [
+      { ...duplicateComposition.elements[0], id: "element:first" },
+      { ...duplicateComposition.elements[1], id: "element:second" },
+    ],
+  };
+  const uniqueResult = measureGeometryV1(measurementInput({
+    construction: null,
+    composition: uniqueComposition,
+    geometryRefs: [],
+    requests: [
+      {
+        kind: "measurement-request",
+        requestRef: "area:first",
+        measurementType: "area",
+        sourceRef: "element:first",
+        metric: "normalized",
+      },
+    ],
+  }));
+
+  assertOk(uniqueResult);
+  assert.equal(uniqueResult.output.measurements[0].measurementRef, "measurement-result:canonical:area:first");
+  assertClose(uniqueResult.output.measurements[0].result.normalizedArea, 0.0625);
+});
+
 test("PR7 binds metric policies to the measured surface", () => {
   const output = runMeasurements([
     { kind: "measurement-request", requestRef: "area:side", measurementType: "area", sourceRef: "element:side", metric: "both" },
