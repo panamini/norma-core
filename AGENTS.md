@@ -64,6 +64,23 @@ Do not mutate `norma-core-wiki` unless the task is explicitly memory/wiki update
 - Use the narrowest command that can prove or disprove the current hypothesis.
 - Do not run broad or destructive commands unless the task explicitly requires them.
 
+## Norma Orchestrator
+
+Use the repo-local Skill at `.agents/skills/norma-orchestrator/` for non-trivial
+planning, implementation, validation, or review work that needs wiki context.
+
+Entry points:
+
+- `npm run orchestrator:doctor`
+- `npm run orchestrator:context -- --task "<task>"`
+- `npm run orchestrator:validate -- --changed "<path[,path]>" --dry-run`
+- `npm run orchestrator:run -- --task "<task>" --changed "<path[,path]>" --dry-run`
+
+The orchestrator is a TypeScript/Node tooling layer under `tools/orchestrator/`.
+It must keep `norma-core-wiki` read-only by default, treat generated context as
+disposable evidence, and write run artifacts only under ignored `.orchestrator/`
+paths.
+
 ## Codebase Authority
 
 Assume the following are non-authoritative by default unless current call sites prove otherwise:

@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+.orchestrator/config.json
+.orchestrator/run.lock
+.orchestrator/runs/
+.orchestrator/generated/

@@ -1,0 +1,54 @@
+{
+  "wikiPath": null,
+  "pinnedWikiNotes": [
+    "wiki/tech/core-interface-boundary.md",
+    "wiki/strategy/mvp-pr-roadmap.md",
+    "wiki/meta/pr0-governance-checklist.md"
+  ],
+  "excludedPaths": [
+    ".git",
+    ".obsidian",
+    "node_modules",
+    "trash",
+    ".orchestrator",
+    "generated",
+    "cache"
+  ],
+  "contextLimits": {
+    "maxNotes": 8,
+    "maxCharacters": 24000,
+    "maxDepth": 1
+  },
+  "validationCommands": [
+    {
+      "name": "orchestrator-build",
+      "command": "npm",
+      "args": ["run", "build"],
+      "required": true,
+      "timeoutMs": 120000,
+      "categories": ["orchestrator", "shared", "schema", "application"]
+    },
+    {
+      "name": "orchestrator-tests",
+      "command": "npm",
+      "args": ["run", "test:orchestrator"],
+      "required": true,
+      "timeoutMs": 120000,
+      "categories": ["orchestrator"]
+    },
+    {
+      "name": "core-check",
+      "command": "npm",
+      "args": ["run", "check"],
+      "required": true,
+      "timeoutMs": 120000,
+      "categories": ["shared", "schema", "application"]
+    }
+  ],
+  "worktreeAdapter": null,
+  "roleModels": {},
+  "maxRepairAttempts": 1,
+  "autoPr": {
+    "enabled": false
+  }
+}
