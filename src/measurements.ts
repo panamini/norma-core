@@ -844,6 +844,12 @@ function validateMeasurementInput(input: unknown): MeasurementValidation<Measure
   if (!compositionValidation.ok) {
     return compositionValidation;
   }
+  if (compositionValidation.value !== null) {
+    const sourceIdFailure = validateCompositionSourceIds(surfaceValidation.value, compositionValidation.value.elements, "surface.id");
+    if (sourceIdFailure !== null) {
+      return failedMeasurement(sourceIdFailure);
+    }
+  }
 
   const constructionValidation = validateOptionalConstruction(input.construction);
   if (!constructionValidation.ok) {
@@ -965,6 +971,11 @@ function validateMeasurementComposition(value: unknown): MeasurementValidation<C
     return failedMeasurement(incompatibleGeometry("composition.elements", "Composition2D elements must be rectangular Geometry V1 elements."));
   }
 
+  const sourceIdFailure = validateCompositionSourceIds(surfaceValidation.value, value.elements);
+  if (sourceIdFailure !== null) {
+    return failedMeasurement(sourceIdFailure);
+  }
+
   if (value.anchors !== undefined && (!Array.isArray(value.anchors) || !value.anchors.every(isMeasurementAnchor))) {
     return failedMeasurement(incompatibleGeometry("composition.anchors", "Composition2D anchors are invalid."));
   }
@@ -1036,6 +1047,28 @@ function buildGeometryRegistry(
   }
 
   return validMeasurement(entries);
+}
+
+function validateCompositionSourceIds(
+  surface: SurfaceSpace,
+  elements: readonly Element[],
+  surfaceTargetRef = "composition.surface.id",
+): CoreResult | null {
+  const seenSourceIds = new Map<string, string>([[surface.id, surfaceTargetRef]]);
+
+  for (const [index, element] of elements.entries()) {
+    const targetRef = `composition.elements.${index}.id`;
+    const firstTargetRef = seenSourceIds.get(element.id);
+    if (firstTargetRef !== undefined) {
+      return incompatibleGeometry(
+        targetRef,
+        `Duplicate geometry source id in Composition2D: ${element.id}; first occurrence at ${firstTargetRef}.`,
+      );
+    }
+    seenSourceIds.set(element.id, targetRef);
+  }
+
+  return null;
 }
 
 function addConstructionEntries(entries: Map<string, ResolvedGeometry>, construction: ConstructionV1): void {

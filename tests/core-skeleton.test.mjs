@@ -933,6 +933,67 @@ test("PR3 composition requires rectangular element geometry and preserves order"
   assertGeometryFailed(invalidElement, "InvalidGeometryV1");
 });
 
+test("Post-MVP PR2 rejects duplicate geometry source IDs in a Composition2D scope", () => {
+  const duplicateSiblingElements = validComposition({
+    elements: [
+      {
+        kind: "element",
+        id: "element:duplicate",
+        geometry: { kind: "rect", x: 0, y: 0, width: 300, height: 800 },
+      },
+      {
+        kind: "element",
+        id: "element:duplicate",
+        geometry: { kind: "rect", x: 300, y: 0, width: 300, height: 800 },
+      },
+    ],
+  });
+
+  const first = core.validateGeometryV1(duplicateSiblingElements);
+  const second = core.validateGeometryV1(structuredClone(duplicateSiblingElements));
+
+  assertGeometryFailed(first, "InvalidGeometryV1");
+  assert.deepEqual(first.errors, second.errors);
+  assert.equal(first.errors[0].targetRef, "elements.1.id");
+  assert.equal(
+    first.errors[0].message,
+    "Duplicate geometry source id in Composition2D: element:duplicate; first occurrence at elements.0.id.",
+  );
+
+  assertGeometryOk(core.validateGeometryV1(validComposition({
+    elements: [
+      {
+        kind: "element",
+        id: "element:left",
+        geometry: { kind: "rect", x: 0, y: 0, width: 300, height: 800 },
+      },
+      {
+        kind: "element",
+        id: "element:right",
+        geometry: { kind: "rect", x: 300, y: 0, width: 300, height: 800 },
+      },
+    ],
+  })));
+
+  const surfaceElementCollision = core.validateGeometryV1(validComposition({
+    surface: validMetricSurface({ id: "element:left" }),
+    elements: [
+      {
+        kind: "element",
+        id: "element:left",
+        geometry: { kind: "rect", x: 0, y: 0, width: 300, height: 800 },
+      },
+    ],
+  }));
+
+  assertGeometryFailed(surfaceElementCollision, "InvalidGeometryV1");
+  assert.equal(surfaceElementCollision.errors[0].targetRef, "elements.0.id");
+  assert.equal(
+    surfaceElementCollision.errors[0].message,
+    "Duplicate geometry source id in Composition2D: element:left; first occurrence at surface.id.",
+  );
+});
+
 test("PR3 rejects geometry without an explicit coordinate system", () => {
   const result = core.validateGeometryV1({
     kind: "surface-space",

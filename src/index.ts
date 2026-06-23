@@ -920,6 +920,11 @@ function validateComposition2D(value: Record<string, unknown>): GeometryValueVal
     return elementsValidation;
   }
 
+  const sourceIdFailure = validateCompositionSourceIds(surfaceValidation.value, elementsValidation.value);
+  if (sourceIdFailure !== null) {
+    return failedGeometryValue(sourceIdFailure);
+  }
+
   const anchorsValidation = validateOptionalAnchors(value.anchors, policiesValidation.value.coordinateSystem, "anchors");
   if (!anchorsValidation.ok) {
     return anchorsValidation;
@@ -1244,6 +1249,24 @@ function validateElement(
   }
 
   return validGeometryValue(value as unknown as Element);
+}
+
+function validateCompositionSourceIds(surface: SurfaceSpace, elements: readonly Element[]): CoreResult | null {
+  const seenSourceIds = new Map<string, string>([[surface.id, "surface.id"]]);
+
+  for (const [index, element] of elements.entries()) {
+    const targetRef = `elements.${index}.id`;
+    const firstTargetRef = seenSourceIds.get(element.id);
+    if (firstTargetRef !== undefined) {
+      return invalidGeometryV1(
+        targetRef,
+        `Duplicate geometry source id in Composition2D: ${element.id}; first occurrence at ${firstTargetRef}.`,
+      );
+    }
+    seenSourceIds.set(element.id, targetRef);
+  }
+
+  return null;
 }
 
 function validateOptionalAnchors(
