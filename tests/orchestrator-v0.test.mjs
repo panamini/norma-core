@@ -20,6 +20,7 @@ import {
   acquireRunLock,
   createRunId,
   releaseRunLock,
+  runOrchestration,
   snapshotGitStatus,
   writeJsonAtomic,
   writeRunEvent,
@@ -323,6 +324,46 @@ test("plans path-aware validation commands, supports dry-run, and propagates fai
     assert.equal(failed.results[0].stderr.includes("secret-value"), false);
     assert.equal(failed.results[0].stderr.includes("[REDACTED]"), true);
     assert.equal(redactSecrets("abc secret-value", { TOKEN: "secret-value" }), "abc [REDACTED]");
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("reports dry-run orchestration validation as planned rather than executed", async () => {
+  const fixture = await createFixture();
+  try {
+    const result = await runOrchestration({
+      codeRoot: fixture.codeRoot,
+      task: "dry run semantic check",
+      changedFiles: ["tools/orchestrator/src/run.ts"],
+      config: {
+        ...DEFAULT_ORCHESTRATOR_CONFIG,
+        wikiPath: fixture.wikiRoot,
+        pinnedWikiNotes: ["wiki/strategy/validation-rules.md"],
+        validationCommands: [
+          {
+            name: "orchestrator-unit",
+            command: process.execPath,
+            args: ["-e", "process.exit(0)"],
+            required: true,
+            timeoutMs: 5000,
+            categories: ["orchestrator"],
+          },
+        ],
+      },
+      dryRun: true,
+    });
+
+    assert.equal(result.status, "READY_TO_REVIEW");
+    assert.equal(result.dryRun, true);
+    assert.equal(result.validationExecuted, false);
+    assert.equal(result.validationStatus, "planned");
+
+    const final = JSON.parse(await readFile(path.join(result.runDir, "final.json"), "utf8"));
+    assert.equal(final.status, "READY_TO_REVIEW");
+    assert.equal(final.dryRun, true);
+    assert.equal(final.validationExecuted, false);
+    assert.equal(final.validationStatus, "planned");
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }

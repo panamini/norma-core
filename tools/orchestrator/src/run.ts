@@ -73,6 +73,9 @@ async function readTaskText(task: string): Promise<string> {
 export async function runOrchestration(options: RunOrchestrationOptions): Promise<{
   readonly runDir: string;
   readonly status: "READY_TO_REVIEW" | "BLOCKED";
+  readonly dryRun: boolean;
+  readonly validationExecuted: boolean;
+  readonly validationStatus: "passed" | "blocked" | "planned";
 }> {
   const task = await readTaskText(options.task);
   const orchestratorRoot = path.join(options.codeRoot, ".orchestrator");
@@ -119,6 +122,8 @@ export async function runOrchestration(options: RunOrchestrationOptions): Promis
     const wikiStatusAfter =
       options.config.wikiPath === null ? [] : await snapshotGitStatus(options.config.wikiPath);
     const wikiUnchanged = JSON.stringify(wikiStatusBefore) === JSON.stringify(wikiStatusAfter);
+    const validationExecuted = !options.dryRun;
+    const validationStatus = options.dryRun ? "planned" : validation.status;
     const status = validation.status === "passed" && wikiUnchanged ? "READY_TO_REVIEW" : "BLOCKED";
     await writeJsonAtomic(path.join(runDir, "plan.json"), {
       status: options.dryRun ? "dry-run" : "not-invoked",
@@ -136,8 +141,10 @@ export async function runOrchestration(options: RunOrchestrationOptions): Promis
     );
     await writeJsonAtomic(path.join(runDir, "final.json"), {
       status,
+      dryRun: options.dryRun,
       wikiUnchanged,
-      validationStatus: validation.status,
+      validationExecuted,
+      validationStatus,
     });
     await writeJsonAtomic(path.join(runDir, "metadata.json"), {
       runId,
@@ -146,7 +153,7 @@ export async function runOrchestration(options: RunOrchestrationOptions): Promis
       code: codeGit,
       wiki: wikiGit,
     });
-    return { runDir, status };
+    return { runDir, status, dryRun: options.dryRun, validationExecuted, validationStatus };
   } finally {
     await releaseRunLock(lock);
   }
