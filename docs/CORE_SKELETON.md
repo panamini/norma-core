@@ -105,11 +105,21 @@ Artifact statuses are `current`, `lossy`, `stale`, and `non_replayable`, with de
 
 Artifacts are projections only. They do not create geometry, measure facts, recalculate scores, change comparison/decision outcomes, invent explanations, implement replay, or make JSON/SVG output acceptable as PR6-PR9 source truth. `ArtifactWouldBecomeSourceOfTruth` protects that boundary.
 
+## PR11 Run and Replay-Readiness V1
+
+PR11 adds the deterministic run envelope that makes PR6-PR10 results replay-ready without executing replay. `createPackLockV1` locks the exact validated RatioPack V1 identity, including pack ref, version, schema version, content identity, compatibility, source refs, and provenance.
+
+`createOperationContextV1` exposes the effective computational context for a run: core version, operation and operation version, geometry model version, coordinate, metric, tolerance, rounding, numeric, ordering, and feature-flag policies. Context refs are deterministic and reject hidden or executable policy fields.
+
+`createRunV1` binds structured source inputs, a PackLock V1, ordered rule refs, an OperationContext V1, output refs, execution status, warnings, errors, provenance, and static replay-readiness evidence into a closed `run-v1` envelope. Run identity uses the local `norma-run-v1-stable-json-fnv1a64` basis and intentionally excludes output refs, output payloads, diagnostics, execution status, timestamps, machine paths, and random data so artifacts can receive a runRef before final output refs are assembled.
+
+`assessReplayReadinessV1` compares a Run V1 against an explicit dependency set and reports deterministic mismatches, missing sources, stale artifact refs, warnings, provenance, and one of `replay_ready`, `non_replayable`, `stale`, or `incompatible`. This is a static assessment only: PR11 does not replay operations, regenerate outputs, fetch dependencies, verify freshness, add storage, add registries, or sign runs.
+
 ## Does Not Contain
 
 - Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Recommendations, optimizations, creative corrections, replay runtime, or PR11+ behavior.
+- Recommendations, optimizations, creative corrections, replay runtime, or PR12+ behavior.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

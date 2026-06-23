@@ -601,8 +601,8 @@ function warningCodes(artifact) {
   return artifact.warnings.map((warning) => warning.code);
 }
 
-test("PR10 exports Artifacts V1 vocabulary and keeps PR11/export scope absent", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr10");
+test("PR10 Artifacts V1 remains projection-only after PR11 exports run envelopes", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr11");
   assert.equal(ARTIFACT_V1_SCHEMA_VERSION, "artifact-v1");
   assert.deepEqual(ARTIFACT_V1_STATUSES, ["current", "lossy", "stale", "non_replayable"]);
   assert.deepEqual(ARTIFACT_V1_TYPES, [
@@ -635,17 +635,19 @@ test("PR10 exports Artifacts V1 vocabulary and keeps PR11/export scope absent", 
   }
 
   for (const forbiddenExport of [
-    "RunV1",
-    "PackLockV1",
-    "OperationContextV1",
     "replayArtifactV1",
+    "replayRun",
+    "replayRunV1",
+    "verifyRun",
+    "verifyRunV1",
+    "verifyArtifactFreshness",
     "verifyArtifactFreshnessV1",
     "exportArtifactPngV1",
     "exportArtifactPdfV1",
     "exportArtifactCsvV1",
     "renderInteractiveArtifactV1",
   ]) {
-    assert.equal(forbiddenExport in core, false, `${forbiddenExport} must remain out of PR10`);
+    assert.equal(forbiddenExport in core, false, `${forbiddenExport} must remain out of Norma Core scope`);
   }
 });
 
