@@ -1267,6 +1267,14 @@ test("replay-readiness status precedence handles missing sources, stale artifact
   assert.equal(stale.output.status, "stale");
   assertMismatch(stale, "artifact_stale");
 
+  const staleOutranksMissing = assessReplayReadinessV1(staleFixture.run, matchingDependencies(staleFixture, {
+    sourceRefs: staleFixture.run.runInput.inputRefs.slice(1),
+  }));
+  assertOk(staleOutranksMissing);
+  assert.equal(staleOutranksMissing.output.status, "stale");
+  assertMismatch(staleOutranksMissing, "artifact_stale");
+  assertMismatch(staleOutranksMissing, "missing_source");
+
   const wrongRunRefArtifacts = fixture.artifacts.map((artifact, index) => (
     index === 0 ? { ...artifact, runRef: { id: "run:v1:other" } } : artifact
   ));
