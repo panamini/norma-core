@@ -804,7 +804,7 @@ function assertMismatch(report, kind) {
 }
 
 test("PR11 exports Run and Replay-Readiness V1 vocabulary and keeps replay execution absent", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr11");
+  assert.equal(CORE_VERSION, "0.1.0-pr12");
   assert.equal(PACK_LOCK_V1_SCHEMA_VERSION, "pack-lock-v1");
   assert.equal(OPERATION_CONTEXT_V1_SCHEMA_VERSION, "operation-context-v1");
   assert.equal(RUN_INPUT_V1_SCHEMA_VERSION, "run-input-v1");

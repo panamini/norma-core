@@ -115,11 +115,19 @@ PR11 adds the deterministic run envelope that makes PR6-PR10 results replay-read
 
 `assessReplayReadinessV1` compares a Run V1 against an explicit dependency set and reports deterministic mismatches, missing sources, stale artifact refs, warnings, provenance, and one of `replay_ready`, `non_replayable`, `stale`, or `incompatible`. This is a static assessment only: PR11 does not replay operations, regenerate outputs, fetch dependencies, verify freshness, add storage, add registries, or sign runs.
 
+## PR12 MVP Demo Harness V1
+
+PR12 adds the final in-memory MVP demo harness over PR4-PR11. `createCanonicalMvpDemoInputV1` returns the explicit canonical demo input, and `runMvpDemoV1` validates that input, validates and locks the pack, resolves rules, generates construction, measures composition A/B, evaluates both compositions, compares them, derives decision/explanation objects, creates structured and visual artifacts, assembles a Run V1, assesses static replay-readiness, and validates the final result.
+
+The harness is deterministic, closed, and core-only. It has no UI, CLI, API, MCP, storage, network, browser, image, camera, plugin, CAD, or replay-execution dependency. All output-changing inputs are explicit in the source input or nested operation context. Structured outputs remain authoritative; artifacts, including the SVG projection, are derived evidence and cannot become source truth.
+
+`validateMvpDemoResultV1` validates the final envelope deeply enough to reject forged nested source outputs, forged artifacts, mismatched run/readiness evidence, incomplete traces, orphan trace refs, summary drift, recommendation/aesthetic requests, and post-MVP claims.
+
 ## Does Not Contain
 
 - Geometry calculations outside explicit Measurements V1 requests.
 - Implicit ratios, ratio inference, or generated ratio defaults.
-- Recommendations, optimizations, creative corrections, replay runtime, or PR12+ behavior.
+- Recommendations, optimizations, creative corrections, replay runtime, or post-MVP behavior.
 - 3D, curves, polygons, rotated rectangles, native layers, images, camera/tracking, plugin objects, CAD-native objects, or UI styling.
 - UI, camera, image, vision, OpenCV, tracking, plugin, CAD, cloud, marketplace, API, CLI, SDK, MCP, or replay runtime.
 - A final JSON schema or final public API contract for future business operations.

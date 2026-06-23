@@ -9,7 +9,7 @@ export type OperationStatus = (typeof CORE_OPERATION_STATUSES)[number];
 export const CORE_VALIDATION_LEVELS = ["call", "result", "replay"] as const;
 export type CoreValidationLevel = (typeof CORE_VALIDATION_LEVELS)[number];
 
-export const CORE_VERSION: CoreVersion = "0.1.0-pr11";
+export const CORE_VERSION: CoreVersion = "0.1.0-pr12";
 
 export const CORE_DIAGNOSTIC_CODES = [
   "MissingOperation",
@@ -95,6 +95,11 @@ export const CORE_DIAGNOSTIC_CODES = [
   "ArtifactStale",
   "MissingOptionalSource",
   "ReplayReadinessPartial",
+  "InvalidMvpDemoInputV1",
+  "InvalidMvpDemoResultV1",
+  "MissingMvpDemoDependency",
+  "UnsupportedMvpDemoRequest",
+  "BeautyScoreRequested",
 ] as const;
 
 export type DiagnosticCode = (typeof CORE_DIAGNOSTIC_CODES)[number];
@@ -2296,3 +2301,4 @@ export * from "./evaluation.js";
 export * from "./comparison.js";
 export * from "./artifacts.js";
 export * from "./run.js";
+export * from "./mvp-demo.js";

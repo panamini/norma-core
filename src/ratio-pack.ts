@@ -94,7 +94,7 @@ export interface RatioPackCompatibility {
 }
 
 export interface RatioPackLimits {
-  noBeautyClaims: true;
+  noSubjectiveJudgmentClaims: true;
   noIntentInference: true;
   noUiPreset: true;
 }
@@ -278,7 +278,7 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
     coreVersionRange: "0.1.0-pr4",
   }),
   limits: Object.freeze({
-    noBeautyClaims: true,
+    noSubjectiveJudgmentClaims: true,
     noIntentInference: true,
     noUiPreset: true,
   }),
@@ -1039,7 +1039,7 @@ function isRatioPackCompatibility(value: unknown): value is RatioPackCompatibili
 
 function isRatioPackLimits(value: unknown): value is RatioPackLimits {
   return isRecord(value)
-    && value.noBeautyClaims === true
+    && value.noSubjectiveJudgmentClaims === true
     && value.noIntentInference === true
     && value.noUiPreset === true;
 }

@@ -510,7 +510,7 @@ function deepFreeze(value) {
 }
 
 test("PR9 exports Comparison, Decision, and Structured Explanation V1 while PR10 artifacts are public", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr11");
+  assert.equal(CORE_VERSION, "0.1.0-pr12");
   assert.equal(COMPARISON_POLICY_V1_SCHEMA_VERSION, "comparison-policy-v1");
   assert.equal(COMPARISON_V1_SCHEMA_VERSION, "comparison-v1");
   assert.equal(DECISION_V1_SCHEMA_VERSION, "decision-v1");

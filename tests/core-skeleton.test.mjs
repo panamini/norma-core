@@ -82,8 +82,8 @@ function assertInvalidOperationResultShape(resultShape) {
   assertFailedWithDiagnostic(core.validateCoreOperationResult(resultShape), "InvalidInputShape");
 }
 
-test("core version reflects PR11 run and replay-readiness model", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr11");
+test("core version reflects PR12 MVP demo harness model", () => {
+  assert.equal(CORE_VERSION, "0.1.0-pr12");
 });
 
 test("validateCoreSkeleton returns a structured result", () => {
@@ -202,6 +202,11 @@ test("required and additional PR1 diagnostics are exported", () => {
       "ArtifactStale",
       "MissingOptionalSource",
       "ReplayReadinessPartial",
+      "InvalidMvpDemoInputV1",
+      "InvalidMvpDemoResultV1",
+      "MissingMvpDemoDependency",
+      "UnsupportedMvpDemoRequest",
+      "BeautyScoreRequested",
     ]),
   );
 });
