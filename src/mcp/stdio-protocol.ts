@@ -28,6 +28,7 @@ export type McpNormaErrorCode =
 
 type JsonRpcId = string | number;
 type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603 | -32000;
+type McpProtocolVersion = string;
 type JsonRpcErrorMessage =
   | "Internal error"
   | "Invalid params"
@@ -51,7 +52,7 @@ interface JsonRpcErrorResponse {
 interface InitializeResponse {
   readonly jsonrpc: "2.0";
   readonly result: {
-    readonly protocolVersion: typeof MCP_PROTOCOL_VERSION;
+    readonly protocolVersion: McpProtocolVersion;
     readonly capabilities: {
       readonly tools: Record<string, never>;
     };
@@ -89,6 +90,11 @@ interface ToolsCallResponse {
 interface McpToolDefinition {
   readonly name: typeof MCP_RUN_MVP_DEMO_TOOL_NAME;
   readonly description: string;
+  readonly annotations: {
+    readonly readOnlyHint: true;
+    readonly openWorldHint: false;
+    readonly destructiveHint: false;
+  };
   readonly inputSchema: {
     readonly type: "object";
     readonly additionalProperties: false;
@@ -155,6 +161,11 @@ interface JsonTraversalStackItem {
 const RUN_MVP_DEMO_TOOL_DEFINITION = {
   name: MCP_RUN_MVP_DEMO_TOOL_NAME,
   description: "Run the existing deterministic Norma Core MVP demo and return a compact structured result.",
+  annotations: {
+    readOnlyHint: true,
+    openWorldHint: false,
+    destructiveHint: false,
+  },
   inputSchema: {
     type: "object",
     additionalProperties: false,
@@ -260,8 +271,9 @@ function handleValidatedJsonRpcRequest(
   }
 
   if (message.method === "initialize") {
-    return isValidInitializeParams(message.params)
-      ? createInitializeResult(requestId)
+    const protocolVersion = supportedInitializeProtocolVersion(message.params);
+    return protocolVersion !== null
+      ? createInitializeResult(requestId, protocolVersion)
       : createMcpInputError(requestId, -32602, "Invalid params", "MCP_INVALID_INPUT");
   }
 
@@ -278,11 +290,11 @@ function handleValidatedJsonRpcRequest(
   return createMcpInputError(requestId, -32601, "Method not found", "MCP_METHOD_NOT_FOUND");
 }
 
-function createInitializeResult(id: JsonRpcId): InitializeResponse {
+function createInitializeResult(id: JsonRpcId, protocolVersion: McpProtocolVersion): InitializeResponse {
   return {
     jsonrpc: "2.0",
     result: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion,
       capabilities: {
         tools: {},
       },
@@ -410,20 +422,26 @@ function compactMvpDemoToolFailureOutput(
   };
 }
 
-function isValidInitializeParams(params: unknown): boolean {
+function supportedInitializeProtocolVersion(params: unknown): McpProtocolVersion | null {
   if (!isJsonRpcRecord(params)) {
-    return false;
+    return null;
   }
 
-  if (params.protocolVersion !== MCP_PROTOCOL_VERSION || !isJsonRpcRecord(params.capabilities)) {
-    return false;
+  if (!isMcpProtocolVersionString(params.protocolVersion) || !isJsonRpcRecord(params.capabilities)) {
+    return null;
   }
 
   if (!isJsonRpcRecord(params.clientInfo)) {
-    return false;
+    return null;
   }
 
-  return typeof params.clientInfo.name === "string" && typeof params.clientInfo.version === "string";
+  return typeof params.clientInfo.name === "string" && typeof params.clientInfo.version === "string"
+    ? params.protocolVersion
+    : null;
+}
+
+function isMcpProtocolVersionString(version: unknown): version is McpProtocolVersion {
+  return typeof version === "string" && /^\d{4}-\d{2}-\d{2}$/.test(version);
 }
 
 function jsonValueLimitFailure(value: unknown, id: JsonRpcId | null): JsonRpcErrorResponse | null {

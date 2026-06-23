@@ -24,6 +24,13 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 const demoCliPath = join(repoRoot, "bin", "norma-core-mvp-demo.mjs");
+const MCP_CHATGPT_COMPAT_PROTOCOL_VERSION = "2025-03-26";
+const MCP_OBSERVED_CHATGPT_WEB_PROTOCOL_VERSION = "2025-11-25";
+const expectedToolAnnotations = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  destructiveHint: false,
+};
 
 test("PR5 initialize response preserves transport metadata and advertises tools", () => {
   const response = parseRequiredResponse(validInitializeRequest("init-1"));
@@ -46,6 +53,32 @@ test("PR5 initialize response preserves transport metadata and advertises tools"
   assert.equal(MCP_SERVER_VERSION, "0.1.0-pr5");
 });
 
+test("PR6 initialize accepts and echoes supported MCP protocol versions", () => {
+  const currentResponse = parseRequiredResponse(validInitializeRequest("init-current", MCP_PROTOCOL_VERSION));
+  const chatgptCompatResponse = parseRequiredResponse(
+    validInitializeRequest("init-chatgpt-compat", MCP_CHATGPT_COMPAT_PROTOCOL_VERSION),
+  );
+  const observedChatgptWebResponse = parseRequiredResponse(
+    validInitializeRequest("init-observed-chatgpt-web", MCP_OBSERVED_CHATGPT_WEB_PROTOCOL_VERSION),
+  );
+
+  assert.equal(currentResponse.id, "init-current");
+  assert.equal(currentResponse.result.protocolVersion, MCP_PROTOCOL_VERSION);
+  assert.deepEqual(currentResponse.result.capabilities, { tools: {} });
+
+  assert.equal(chatgptCompatResponse.id, "init-chatgpt-compat");
+  assert.equal(chatgptCompatResponse.result.protocolVersion, MCP_CHATGPT_COMPAT_PROTOCOL_VERSION);
+  assert.deepEqual(chatgptCompatResponse.result.capabilities, { tools: {} });
+
+  assert.equal(observedChatgptWebResponse.id, "init-observed-chatgpt-web");
+  assert.equal(observedChatgptWebResponse.result.protocolVersion, MCP_OBSERVED_CHATGPT_WEB_PROTOCOL_VERSION);
+  assert.deepEqual(observedChatgptWebResponse.result.capabilities, { tools: {} });
+  assert.deepEqual(chatgptCompatResponse.result.serverInfo, {
+    name: "norma-core-mcp-stdio",
+    version: "0.1.0-pr5",
+  });
+});
+
 test("PR4 initialize requires valid MCP params and preserves request id on invalid params", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
@@ -54,6 +87,19 @@ test("PR4 initialize requires valid MCP params and preserves request id on inval
   });
 
   assert.deepEqual(response, errorResponse("bare-init", -32602, "Invalid params", "MCP_INVALID_INPUT"));
+
+  const unsupportedProtocolResponse = parseRequiredResponse({
+    ...validInitializeRequest("unsupported-protocol"),
+    params: {
+      ...validInitializeRequest("unsupported-protocol").params,
+      protocolVersion: "not-a-date",
+    },
+  });
+
+  assert.deepEqual(
+    unsupportedProtocolResponse,
+    errorResponse("unsupported-protocol", -32602, "Invalid params", "MCP_INVALID_INPUT"),
+  );
 });
 
 test("PR4 JSON-RPC ids accept safe integers and reject decimal or null ids", () => {
@@ -84,8 +130,11 @@ test("PR5 tools/list exposes only norma.runMvpDemoV1", () => {
   assert.equal(response.jsonrpc, "2.0");
   assert.equal(response.id, "tools-list");
   assert.deepEqual(response.result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
+  assert.equal(response.result.tools.some((tool) => tool.name === "norma.replayRun"), false);
+  assert.deepEqual(response.result.tools[0].annotations, expectedToolAnnotations);
   assert.equal(response.result.tools[0].inputSchema.properties.input.type, "object");
   assert.equal(response.result.tools[0].inputSchema.additionalProperties, false);
+  assert.equal("outputSchema" in response.result.tools[0], false);
 });
 
 test("PR5 tools/list accepts MCP _meta params from Codex lifecycle", () => {
@@ -109,8 +158,11 @@ test("PR5 tools/call returns compact canonical MVP demo output", () => {
   const expected = expectedToolOutputFromRun();
 
   assert.deepEqual(toolOutput, expected);
+  assert.equal(toolOutput.runRef, "run:v1:5c6303f20c12537e");
   assert.deepEqual(toolOutput.measurementCounts, { a: 6, b: 6 });
   assert.equal(toolOutput.status, "ok");
+  assert.equal(toolOutput.decision.status, "a_closer");
+  assert.equal(toolOutput.decision.selectedCompositionRef, "composition:A");
   assert.equal(toolOutput.replayReadiness.status, expected.replayReadiness.status);
   assert.equal("surface" in toolOutput, false);
   assert.equal("artifacts" in toolOutput, false);
@@ -319,13 +371,13 @@ test("PR4 stdio process survives malformed, deep, long, and oversized input befo
   assert.deepEqual(lines[4].result.capabilities, { tools: {} });
 });
 
-function validInitializeRequest(id) {
+function validInitializeRequest(id, protocolVersion = MCP_PROTOCOL_VERSION) {
   return {
     jsonrpc: "2.0",
     id,
     method: "initialize",
     params: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion,
       capabilities: {},
       clientInfo: {
         name: "test-client",
