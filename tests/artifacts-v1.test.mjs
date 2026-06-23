@@ -602,7 +602,7 @@ function warningCodes(artifact) {
 }
 
 test("PR10 Artifacts V1 remains projection-only after PR11 exports run envelopes", () => {
-  assert.equal(CORE_VERSION, "0.1.0-pr11");
+  assert.equal(CORE_VERSION, "0.1.0-pr12");
   assert.equal(ARTIFACT_V1_SCHEMA_VERSION, "artifact-v1");
   assert.deepEqual(ARTIFACT_V1_STATUSES, ["current", "lossy", "stale", "non_replayable"]);
   assert.deepEqual(ARTIFACT_V1_TYPES, [
