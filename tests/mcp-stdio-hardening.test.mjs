@@ -88,6 +88,21 @@ test("PR5 tools/list exposes only norma.runMvpDemoV1", () => {
   assert.equal(response.result.tools[0].inputSchema.additionalProperties, false);
 });
 
+test("PR5 tools/list accepts MCP _meta params from Codex lifecycle", () => {
+  const response = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "tools-list-meta",
+    method: "tools/list",
+    params: {
+      _meta: {
+        progressToken: 0,
+      },
+    },
+  });
+
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
+});
+
 test("PR5 tools/call returns compact canonical MVP demo output", () => {
   const response = parseRequiredResponse(validRunMvpDemoToolCallRequest("run-demo"));
   const toolOutput = assertOkToolCallResponse(response);
@@ -109,6 +124,24 @@ test("PR5 tools/call explicit canonical input matches omitted-input output", () 
   );
 
   assert.deepEqual(assertOkToolCallResponse(explicitInputResponse), assertOkToolCallResponse(omittedInputResponse));
+});
+
+test("PR5 lifecycle notifications produce no JSON-RPC response", () => {
+  assert.equal(
+    handleMcpJsonRpcMessage(JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+    })),
+    null,
+  );
+
+  assert.equal(
+    handleMcpJsonRpcMessage(JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/unknown",
+    })),
+    null,
+  );
 });
 
 test("PR5 MCP canonical output matches CLI result.json compact projection", async () => {
@@ -144,6 +177,33 @@ test("PR5 stdio initialize, tools/list, and tools/call succeed in sequence", () 
 
   const lines = parseStdoutLines(result.stdout);
   assert.equal(lines.length, 3);
+  assert.deepEqual(lines[0].result.capabilities, { tools: {} });
+  assert.deepEqual(lines[1].result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
+  assert.deepEqual(assertOkToolCallResponse(lines[2]), expectedToolOutputFromRun());
+});
+
+test("PR5 stdio lifecycle notification writes no response and keeps tools usable", () => {
+  const result = runStdioServerRawLines([
+    JSON.stringify(validInitializeRequest("stdio-init")),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+    }),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: "stdio-list",
+      method: "tools/list",
+    }),
+    JSON.stringify(validRunMvpDemoToolCallRequest("stdio-run")),
+  ]);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, "");
+  assertNoDiagnosticLeak(result.stderr + result.stdout);
+
+  const lines = parseStdoutLines(result.stdout);
+  assert.equal(lines.length, 3);
+  assert.equal(lines[0].id, "stdio-init");
   assert.deepEqual(lines[0].result.capabilities, { tools: {} });
   assert.deepEqual(lines[1].result.tools.map((tool) => tool.name), [MCP_RUN_MVP_DEMO_TOOL_NAME]);
   assert.deepEqual(assertOkToolCallResponse(lines[2]), expectedToolOutputFromRun());
