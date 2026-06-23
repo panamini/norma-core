@@ -229,6 +229,10 @@ test("canonical success path assembles the full PR4-PR11 chain and validates dee
   assert.equal(result.evaluationA.profileRef, result.evaluationB.profileRef);
   assert.equal(result.evaluationA.packRef, result.evaluationB.packRef);
   assert.equal(result.evaluationA.ruleSetRef, result.evaluationB.ruleSetRef);
+  assert.equal(result.evaluationA.compositionRef, input.compositions.a.id);
+  assert.equal(result.evaluationB.compositionRef, input.compositions.b.id);
+  assert.equal(result.evaluationA.constructionRef, result.construction.constructionRef);
+  assert.equal(result.evaluationB.constructionRef, result.construction.constructionRef);
   assert.ok(result.evaluationA.score.overallScore > result.evaluationB.score.overallScore);
 
   assert.equal(result.comparison.status, "a_closer");
@@ -281,6 +285,22 @@ test("canonical success path assembles the full PR4-PR11 chain and validates dee
   ]) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
+});
+
+test("evaluations use actual input composition and construction refs", () => {
+  const input = createCanonicalMvpDemoInputV1();
+  input.compositions.a.id = "composition:custom-a";
+  input.compositions.b.id = "composition:custom-b";
+
+  const result = runMvpDemoV1(input);
+
+  assertOk(result);
+  assert.equal(result.output.evaluationA.compositionRef, "composition:custom-a");
+  assert.equal(result.output.evaluationB.compositionRef, "composition:custom-b");
+  assert.equal(result.output.evaluationA.constructionRef, result.output.construction.constructionRef);
+  assert.equal(result.output.evaluationB.constructionRef, result.output.construction.constructionRef);
+  assert.equal(result.output.comparison.compositionARef, "composition:custom-a");
+  assert.equal(result.output.comparison.compositionBRef, "composition:custom-b");
 });
 
 test("trace order, refs, run identity, replay evidence, and determinism are stable", () => {
@@ -350,8 +370,37 @@ test("input validation rejects mandatory controlled dependency failures", () => 
   delete implicitPack.pack;
   assertFailedWithDiagnostic(runMvpDemoV1(implicitPack), "MissingMvpDemoDependency");
 
+  for (const field of [
+    "metricPolicy",
+    "numericPolicy",
+    "tolerancePolicy",
+    "orderingPolicy",
+    "roundingPolicy",
+    "artifactOptions",
+    "sourceRefs",
+    "featureFlags",
+  ]) {
+    const missing = createCanonicalMvpDemoInputV1();
+    delete missing[field];
+    assertFailedWithDiagnostic(validateMvpDemoInputV1(missing), "MissingMvpDemoDependency");
+    assertFailedWithDiagnostic(runMvpDemoV1(missing), "MissingMvpDemoDependency");
+  }
+
+  for (const requestedOutputs of [
+    [],
+    ["construction"],
+    [...MVP_DEMO_REQUESTED_OUTPUTS_V1].reverse(),
+    [...MVP_DEMO_REQUESTED_OUTPUTS_V1, "construction"],
+  ]) {
+    const partialOutputRequest = createCanonicalMvpDemoInputV1();
+    partialOutputRequest.requestedOutputs = requestedOutputs;
+    assertFailedWithDiagnostic(validateMvpDemoInputV1(partialOutputRequest), "InvalidMvpDemoInputV1");
+    assertFailedWithDiagnostic(runMvpDemoV1(partialOutputRequest), "InvalidMvpDemoInputV1");
+  }
+
   const beautyScore = createCanonicalMvpDemoInputV1();
   beautyScore.requestedOutputs = [...beautyScore.requestedOutputs, "beauty_score"];
+  assertFailedWithDiagnostic(validateMvpDemoInputV1(beautyScore), "BeautyScoreRequested");
   assertFailedWithDiagnostic(runMvpDemoV1(beautyScore), "BeautyScoreRequested");
 
   const extraField = createCanonicalMvpDemoInputV1();
@@ -366,6 +415,29 @@ test("input validation rejects mandatory controlled dependency failures", () => 
   nonFiniteMetric.metricPolicy.width = Number.POSITIVE_INFINITY;
   assertFailedWithDiagnostic(validateMvpDemoInputV1(nonFiniteMetric), "InvalidMvpDemoInputV1");
   assertFailedWithDiagnostic(runMvpDemoV1(nonFiniteMetric), "InvalidMvpDemoInputV1");
+
+  for (const mutate of [
+    (candidate) => {
+      candidate.numericPolicy.precision = 1n;
+    },
+    (candidate) => {
+      candidate.tolerancePolicy.compare = () => true;
+    },
+    (candidate) => {
+      candidate.orderingPolicy.token = Symbol("invalid");
+    },
+    (candidate) => {
+      candidate.metricPolicy.unit = undefined;
+    },
+    (candidate) => {
+      candidate.numericPolicy.self = candidate.numericPolicy;
+    },
+  ]) {
+    const invalidJsonInput = createCanonicalMvpDemoInputV1();
+    mutate(invalidJsonInput);
+    assertFailedWithDiagnostic(validateMvpDemoInputV1(invalidJsonInput), "InvalidMvpDemoInputV1");
+    assertFailedWithDiagnostic(runMvpDemoV1(invalidJsonInput), "InvalidMvpDemoInputV1");
+  }
 });
 
 test("non-comparable context is represented without selecting or recommending a candidate", () => {
@@ -392,7 +464,28 @@ test("source-aware result validation rejects forged outputs and visual artifacts
   const { result } = runCanonical();
 
   const cases = [
+    { kind: "mvp-demo-result", schemaVersion: "mvp-demo-v1", status: "ok" },
     { ...result, extra: true },
+    (() => {
+      const candidate = structuredClone(result);
+      delete candidate.artifacts;
+      return candidate;
+    })(),
+    (() => {
+      const candidate = structuredClone(result);
+      delete candidate.evaluationProfiles;
+      return candidate;
+    })(),
+    (() => {
+      const candidate = structuredClone(result);
+      delete candidate.ruleResolution;
+      return candidate;
+    })(),
+    (() => {
+      const candidate = structuredClone(result);
+      delete candidate.trace;
+      return candidate;
+    })(),
     { ...result, evaluationA: { ...result.evaluationA, score: { ...result.evaluationA.score, overallScore: 0 } } },
     { ...result, evaluationA: { ...result.evaluationA, confidence: { ...result.evaluationA.confidence, value: 0 } } },
     { ...result, comparison: { ...result.comparison, status: "tie" } },
@@ -432,7 +525,49 @@ test("source-aware result validation rejects forged outputs and visual artifacts
     },
     {
       ...result,
+      trace: {
+        ...result.trace,
+        entries: result.trace.entries.map((entry, index) => index === 0
+          ? { ...entry, operationVersion: "" }
+          : entry),
+      },
+    },
+    {
+      ...result,
+      trace: {
+        ...result.trace,
+        entries: result.trace.entries.map((entry, index) => index === 0
+          ? { ...entry, operationVersion: "999.0.0" }
+          : entry),
+      },
+    },
+    (() => {
+      const candidate = structuredClone(result);
+      delete candidate.trace.entries[0].operationVersion;
+      return candidate;
+    })(),
+    {
+      ...result,
       summary: { ...result.summary, constructionCounts: { ...result.summary.constructionCounts, guides: 99 } },
+    },
+    {
+      ...result,
+      summary: {
+        ...result.summary,
+        artifactStatuses: result.summary.artifactStatuses.map((status, index) => index === 0
+          ? { ...status, status: "forged" }
+          : status),
+      },
+    },
+    { ...result, summary: { ...result.summary, warningCount: 1 } },
+    { ...result, summary: { ...result.summary, errorCount: 1 } },
+    { ...result, summary: { ...result.summary, boundaryNotes: [...result.summary.boundaryNotes, "forged"] } },
+    {
+      ...result,
+      summary: {
+        ...result.summary,
+        surfaceDimensions: { ...result.summary.surfaceDimensions, width: result.summary.surfaceDimensions.width + 1 },
+      },
     },
   ];
 
@@ -451,6 +586,32 @@ test("source-aware result validation rejects forged outputs and visual artifacts
     }),
     "InvalidMvpDemoResultV1",
   );
+});
+
+test("result validation rejects non-JSON and cyclic result values without throwing", () => {
+  const { result } = runCanonical();
+
+  for (const mutate of [
+    (candidate) => {
+      candidate.summary.warningCount = 1n;
+    },
+    (candidate) => {
+      candidate.summary.format = () => "invalid";
+    },
+    (candidate) => {
+      candidate.summary.token = Symbol("invalid");
+    },
+    (candidate) => {
+      candidate.summary.surfaceDimensions.unit = undefined;
+    },
+    (candidate) => {
+      candidate.summary.self = candidate.summary;
+    },
+  ]) {
+    const invalidJsonResult = structuredClone(result);
+    mutate(invalidJsonResult);
+    assertFailedWithDiagnostic(validateMvpDemoResultV1(invalidJsonResult), "InvalidMvpDemoResultV1");
+  }
 });
 
 test("changed run dependency assesses as incompatible without replay execution", () => {

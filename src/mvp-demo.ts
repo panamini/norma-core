@@ -597,7 +597,8 @@ export function runMvpDemoV1(input: unknown = createCanonicalMvpDemoInputV1()): 
     return failedFromCoreResult(profileAResult);
   }
   const evaluationAResult = evaluateCompositionBasicV1(evaluationInput(
-    "composition:A",
+    demoInput.compositions.a.id,
+    constructionResult.output.constructionRef,
     measurementAResult.output,
     profileAResult.output,
     demoInput,
@@ -612,7 +613,8 @@ export function runMvpDemoV1(input: unknown = createCanonicalMvpDemoInputV1()): 
     return failedFromCoreResult(profileBResult);
   }
   const evaluationBResult = evaluateCompositionBasicV1(evaluationInput(
-    "composition:B",
+    demoInput.compositions.b.id,
+    constructionResult.output.constructionRef,
     measurementBResult.output,
     profileBResult.output,
     demoInput,
@@ -859,8 +861,8 @@ function validateMvpDemoInputValue(input: unknown): MvpValidation<MvpDemoInputV1
   if (!isRecord(input)) {
     return failedValidation(invalidMvpDemoInput("input", "MVP demo input must be a structured object."));
   }
-  if (containsNonFiniteNumber(input)) {
-    return failedValidation(invalidMvpDemoInput("input", "MVP demo input cannot contain non-finite numbers."));
+  if (containsInvalidJsonValue(input)) {
+    return failedValidation(invalidMvpDemoInput("input", "MVP demo input must be finite, acyclic JSON data."));
   }
   if (containsArtifactObject(input)) {
     return failedValidation(artifactWouldBecomeSource("input", "Artifacts cannot be supplied as MVP demo source input."));
@@ -880,6 +882,7 @@ function validateMvpDemoInputValue(input: unknown): MvpValidation<MvpDemoInputV1
   }
   for (const [field, message] of [
     ["surface", "MVP demo input requires an explicit surface."],
+    ["metricPolicy", "MVP demo input requires an explicit metric policy."],
     ["pack", "MVP demo input requires an explicit ratio pack."],
     ["packLock", "MVP demo input requires an explicit PackLock."],
     ["ruleSetRef", "MVP demo input requires an explicit ruleSetRef."],
@@ -887,9 +890,16 @@ function validateMvpDemoInputValue(input: unknown): MvpValidation<MvpDemoInputV1
     ["measurementRequests", "MVP demo input requires explicit measurement requests."],
     ["evaluationProfiles", "MVP demo input requires explicit evaluation profiles."],
     ["comparisonPolicy", "MVP demo input requires an explicit comparison policy."],
+    ["artifactOptions", "MVP demo input requires explicit artifact options."],
     ["operationContext", "MVP demo input requires an explicit operation context."],
     ["operationVersions", "MVP demo input requires explicit operation versions."],
     ["requestedOutputs", "MVP demo input requires explicit requested outputs."],
+    ["sourceRefs", "MVP demo input requires explicit source refs."],
+    ["featureFlags", "MVP demo input requires explicit feature flags."],
+    ["numericPolicy", "MVP demo input requires an explicit numeric policy."],
+    ["tolerancePolicy", "MVP demo input requires an explicit tolerance policy."],
+    ["orderingPolicy", "MVP demo input requires an explicit ordering policy."],
+    ["roundingPolicy", "MVP demo input requires an explicit rounding policy."],
   ] as const) {
     if (!(field in input) || input[field] === undefined || input[field] === null) {
       return failedValidation(missingMvpDependency(field, message));
@@ -911,6 +921,9 @@ function validateMvpDemoInputValue(input: unknown): MvpValidation<MvpDemoInputV1
   }
   if (new Set(input.requestedOutputs).size !== input.requestedOutputs.length) {
     return failedValidation(invalidMvpDemoInput("requestedOutputs", "MVP demo requested outputs must be unique."));
+  }
+  if (!sameJson(input.requestedOutputs, [...MVP_DEMO_REQUESTED_OUTPUTS_V1])) {
+    return failedValidation(invalidMvpDemoInput("requestedOutputs", "MVP demo V1 requires the complete canonical requested output set."));
   }
   if (!hasCanonicalOperationVersions(input.operationVersions)) {
     return failedValidation(invalidMvpDemoInput("operationVersions", "MVP demo operation versions are incomplete."));
@@ -975,12 +988,19 @@ function validateMvpDemoResultValue(value: unknown): MvpValidation<MvpDemoResult
   if (!isRecord(value)) {
     return failedValidation(invalidMvpDemoResult("result", "MVP demo result must be a structured object."));
   }
+  if (containsInvalidJsonValue(value)) {
+    return failedValidation(invalidMvpDemoResult("result", "MVP demo result must be finite, acyclic JSON data."));
+  }
   const unknownField = firstUnknownKey(value, MVP_DEMO_RESULT_ALLOWED_KEYS);
   if (unknownField !== null) {
     return failedValidation(invalidMvpDemoResult(unknownField, `MVP demo result field is outside PR12: ${unknownField}.`));
   }
   if (value.kind !== "mvp-demo-result" || value.schemaVersion !== MVP_DEMO_V1_SCHEMA_VERSION || value.status !== "ok") {
     return failedValidation(invalidMvpDemoResult("schemaVersion", "MVP demo result requires an ok mvp-demo-v1 envelope."));
+  }
+  const shapeFailure = validateRequiredMvpDemoResultShape(value);
+  if (shapeFailure !== null) {
+    return failedValidation(shapeFailure);
   }
   const result = value as unknown as MvpDemoResultV1;
   const inputValidation = validateMvpDemoInputV1(inputFromResult(result));
@@ -1051,6 +1071,80 @@ function validateMvpDemoResultValue(value: unknown): MvpValidation<MvpDemoResult
   }
 
   return { ok: true, value: result };
+}
+
+function validateRequiredMvpDemoResultShape(value: Record<string, unknown>): CoreResult | null {
+  for (const field of MVP_DEMO_RESULT_ALLOWED_KEYS) {
+    if (!(field in value) || value[field] === undefined || value[field] === null) {
+      return invalidMvpDemoResult(field, `MVP demo result requires field: ${field}.`);
+    }
+  }
+
+  if (!Array.isArray(value.requestedOutputs)) {
+    return invalidMvpDemoResult("requestedOutputs", "MVP demo result requires requested outputs.");
+  }
+  if (!isSourceReferenceArray(value.inputRefs)) {
+    return invalidMvpDemoResult("inputRefs", "MVP demo result requires source input refs.");
+  }
+  if (!Array.isArray(value.warnings) || !Array.isArray(value.errors)) {
+    return invalidMvpDemoResult("diagnostics", "MVP demo result requires diagnostics arrays.");
+  }
+  if (!isRecord(value.provenance)) {
+    return invalidMvpDemoResult("provenance", "MVP demo result requires provenance.");
+  }
+
+  const artifacts = value.artifacts;
+  if (!isRecord(artifacts) || !MVP_DEMO_ARTIFACT_KEYS.every((key) => isRecord(artifacts[key]))) {
+    return invalidMvpDemoResult("artifacts", "MVP demo result requires all artifact objects.");
+  }
+
+  const evaluationProfiles = value.evaluationProfiles;
+  if (!isRecord(evaluationProfiles) || !isRecord(evaluationProfiles.a) || !isRecord(evaluationProfiles.b)) {
+    return invalidMvpDemoResult("evaluationProfiles", "MVP demo result requires evaluation profiles A and B.");
+  }
+
+  const compositions = value.compositions;
+  if (!isRecord(compositions) || !isRecord(compositions.a) || !isRecord(compositions.b)) {
+    return invalidMvpDemoResult("compositions", "MVP demo result requires compositions A and B.");
+  }
+
+  const measurementRequests = value.measurementRequests;
+  if (!isRecord(measurementRequests) || !Array.isArray(measurementRequests.a) || !Array.isArray(measurementRequests.b)) {
+    return invalidMvpDemoResult("measurementRequests", "MVP demo result requires measurement request arrays A and B.");
+  }
+
+  for (const field of [
+    "surface",
+    "pack",
+    "packLock",
+    "operationContext",
+    "ruleResolution",
+    "construction",
+    "measurementResultA",
+    "measurementResultB",
+    "evaluationA",
+    "evaluationB",
+    "comparisonPolicy",
+    "comparison",
+    "decision",
+    "structuredExplanation",
+    "initialRunRef",
+    "run",
+    "replayReadinessReport",
+    "trace",
+    "summary",
+  ] as const) {
+    if (!isRecord(value[field])) {
+      return invalidMvpDemoResult(field, `MVP demo result requires object field: ${field}.`);
+    }
+  }
+
+  const trace = value.trace;
+  if (!isRecord(trace) || !Array.isArray(trace.entries)) {
+    return invalidMvpDemoResult("trace.entries", "MVP demo result requires trace entries.");
+  }
+
+  return null;
 }
 
 function buildMvpDemoResult(
@@ -1569,6 +1663,7 @@ function measurementInput(
 
 function evaluationInput(
   compositionRef: string,
+  constructionRef: string,
   measurementResult: MeasurementResultV1,
   profile: EvaluationProfileV1,
   demoInput: MvpDemoInputV1,
@@ -1577,7 +1672,7 @@ function evaluationInput(
     kind: "evaluation-input",
     schemaVersion: "evaluation-input-v1",
     compositionRef,
-    constructionRef: CONSTRUCTION_REF,
+    constructionRef,
     measurementResult,
     profile,
     packRef: profile.packRef,
@@ -1879,6 +1974,9 @@ function validateTrace(result: MvpDemoResultV1): boolean {
   if (!isRecord(result.trace) || result.trace.kind !== "mvp-demo-trace" || result.trace.schemaVersion !== "mvp-demo-trace-v1") {
     return false;
   }
+  if (!Array.isArray(result.trace.entries)) {
+    return false;
+  }
   if (result.trace.entries.length !== MVP_DEMO_TRACE_OPERATION_ORDER_V1.length) {
     return false;
   }
@@ -1887,11 +1985,14 @@ function validateTrace(result: MvpDemoResultV1): boolean {
     return false;
   }
   const knownRefs = new Set(resultOutputRefs(result).map(sourceKey));
+  const versions = canonicalOperationVersions();
   for (const [index, entry] of result.trace.entries.entries()) {
+    const expectedOperationVersion = traceOperationVersion(entry.operation, versions);
     if (
       entry.kind !== "mvp-demo-trace-entry" ||
       entry.stepIndex !== index + 1 ||
       entry.status !== "ok" ||
+      entry.operationVersion !== expectedOperationVersion ||
       !isSourceReferenceArray(entry.inputRefs) ||
       !isSourceReferenceArray(entry.outputRefs) ||
       !isSourceReferenceArray(entry.warningRefs) ||
@@ -1911,25 +2012,60 @@ function validateTrace(result: MvpDemoResultV1): boolean {
   return true;
 }
 
+function traceOperationVersion(operation: MvpDemoTraceOperationV1, versions: MvpDemoOperationVersionsV1): string {
+  switch (operation) {
+    case "validateMvpDemoInputV1":
+    case "validateMvpDemoResultV1":
+      return versions.resultValidation;
+    case "validateRatioPackV1":
+      return versions.ratioPackValidation;
+    case "validatePackLockV1":
+      return versions.packLock;
+    case "validateGeometryV1":
+      return "0.1.0";
+    case "resolveRuleSetV1":
+      return versions.ruleResolution;
+    case "generateConstructionV1":
+      return versions.constructionGeneration;
+    case "measureGeometryV1:A":
+    case "measureGeometryV1:B":
+      return versions.measurement;
+    case "evaluateCompositionBasicV1:A":
+    case "evaluateCompositionBasicV1:B":
+      return versions.evaluation;
+    case "compareCompositionsBasicV1":
+    case "deriveComparisonDecisionExplanationV1":
+      return versions.comparison;
+    case "deriveRunRefV1":
+    case "createRunV1":
+      return versions.run;
+    case "createStructuredResultArtifactV1":
+    case "createConstructionSummaryArtifactV1":
+    case "createEvaluationReportArtifactV1":
+    case "createExplanationArtifactV1":
+    case "createSimpleVisualArtifactV1":
+      return versions.artifact;
+    case "assessReplayReadinessV1":
+      return versions.replayReadiness;
+  }
+}
+
 function validateSummary(result: MvpDemoResultV1): boolean {
-  return [
-    result.summary.kind === "mvp-demo-summary",
-    result.summary.surfaceRef === result.surface.id,
-    result.summary.surfaceDimensions.width === 1200,
-    result.summary.surfaceDimensions.height === 800,
-    result.summary.surfaceDimensions.unit === "px",
-    sameJson(result.summary.surfaceDimensions.normalizedBounds, result.surface.bounds),
-    sameJson(result.summary.constructionCounts, constructionCounts(result.construction)),
-    result.summary.measurementCounts.a === result.measurementResultA.measurements.length,
-    result.summary.measurementCounts.b === result.measurementResultB.measurements.length,
-    sameJson(result.summary.evaluationSummaries.a, evaluationSummary(result.evaluationA)),
-    sameJson(result.summary.evaluationSummaries.b, evaluationSummary(result.evaluationB)),
-    result.summary.comparisonStatus === result.comparison.status,
-    result.summary.selectedCompositionRef === result.comparison.selectedCompositionRef,
-    result.summary.comparisonStatement === comparisonStatement(result.comparison.status),
-    result.summary.runRef === result.run.runRef.id,
-    result.summary.replayReadinessStatus === result.replayReadinessReport.status,
-  ].every(Boolean);
+  const expected = summaryFor(
+    inputFromResult(result),
+    result.construction,
+    result.measurementResultA,
+    result.measurementResultB,
+    result.evaluationA,
+    result.evaluationB,
+    result.comparison,
+    result.artifacts,
+    result.run,
+    result.replayReadinessReport,
+    result.warnings,
+    result.errors,
+  );
+  return sameJson(result.summary, expected);
 }
 
 function resultOutputRefs(result: MvpDemoResultV1): readonly SourceReference[] {
@@ -2015,17 +2151,37 @@ function containsArtifactObject(value: unknown): boolean {
     .some(([, child]) => containsArtifactObject(child));
 }
 
-function containsNonFiniteNumber(value: unknown): boolean {
+function containsInvalidJsonValue(value: unknown, ancestors: WeakSet<object> = new WeakSet<object>()): boolean {
   if (typeof value === "number") {
     return !Number.isFinite(value);
   }
+  if (
+    value === undefined ||
+    typeof value === "bigint" ||
+    typeof value === "function" ||
+    typeof value === "symbol"
+  ) {
+    return true;
+  }
   if (Array.isArray(value)) {
-    return value.some(containsNonFiniteNumber);
+    if (ancestors.has(value)) {
+      return true;
+    }
+    ancestors.add(value);
+    const invalid = value.some((item) => containsInvalidJsonValue(item, ancestors));
+    ancestors.delete(value);
+    return invalid;
   }
   if (!isRecord(value)) {
     return false;
   }
-  return Object.values(value).some(containsNonFiniteNumber);
+  if (ancestors.has(value)) {
+    return true;
+  }
+  ancestors.add(value);
+  const invalid = Object.values(value).some((child) => containsInvalidJsonValue(child, ancestors));
+  ancestors.delete(value);
+  return invalid;
 }
 
 function containsForbiddenClaim(result: MvpDemoResultV1): boolean {
