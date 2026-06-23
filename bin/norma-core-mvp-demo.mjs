@@ -51,9 +51,13 @@ if (result.status !== "ok" || result.output === null) {
 }
 
 const files = createMvpProofFiles(result.output);
-await Promise.all(Object.entries(files).map(([fileName, content]) => (
-  writeFile(path.join(outDir, fileName), content, "utf8")
-)));
+try {
+  await Promise.all(Object.entries(files).map(([fileName, content]) => (
+    writeFile(path.join(outDir, fileName), content, "utf8")
+  )));
+} catch {
+  fail("WriteError", "Could not write proof files to output directory.", "out");
+}
 
 console.log(formatProofLine(result.output, MVP_PROOF_OUTPUT_FILES.report));
 
@@ -81,8 +85,12 @@ async function ensureOutputDirectory(directory) {
     }
   } catch (error) {
     if (error && error.code === "ENOENT") {
-      await mkdir(directory, { recursive: true });
-      return;
+      try {
+        await mkdir(directory, { recursive: true });
+        return;
+      } catch {
+        fail("InvalidOutputPath", "Could not create output directory.", "out");
+      }
     }
     if (error && error.code !== "ENOENT") {
       fail("InvalidOutputPath", "Could not inspect output directory.", "out");

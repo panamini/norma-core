@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import test from "node:test";
 
@@ -15,7 +16,7 @@ import {
   stableJsonFile,
 } from "../dist/src/local-mvp-proof.js";
 
-const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const cliPath = path.join(repoRoot, "bin/norma-core-mvp-demo.mjs");
 const forbiddenTerms = [
   "beauty score",
@@ -168,6 +169,54 @@ test("Post-MVP PR3 rejects unsupported flags and output files", async () => {
   assert.notEqual(invalidOut.code, 0);
   assert.match(invalidOut.stderr, /InvalidOutputPath/);
   assert.equal(invalidOut.stderr.includes(outputFile), false);
+});
+
+test("Post-MVP PR3 write failures fail without stack traces", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX directory permissions are required for this focused write-failure check.");
+    return;
+  }
+
+  const outDir = await mkdtemp(path.join(tmpdir(), "norma-proof-unwritable-"));
+  await chmod(outDir, 0o555);
+  t.after(async () => {
+    await chmod(outDir, 0o755);
+    await rm(outDir, { recursive: true, force: true });
+  });
+
+  const run = await runDemo(["--out", outDir]);
+
+  assert.notEqual(run.code, 0);
+  assert.match(run.stderr, /NORMA_MVP_PROOF_FAIL WriteError/);
+  assert.match(run.stderr, /Could not write proof files to output directory\./);
+  assert.equal(run.stderr.includes("Error:"), false);
+  assert.equal(run.stderr.includes("at "), false);
+  assert.equal(run.stderr.includes(outDir), false);
+});
+
+test("Post-MVP PR3 output directory creation failures fail without stack traces", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX directory permissions are required for this focused mkdir-failure check.");
+    return;
+  }
+
+  const parentDir = await mkdtemp(path.join(tmpdir(), "norma-proof-no-mkdir-"));
+  const outDir = path.join(parentDir, "child");
+  await chmod(parentDir, 0o555);
+  t.after(async () => {
+    await chmod(parentDir, 0o755);
+    await rm(parentDir, { recursive: true, force: true });
+  });
+
+  const run = await runDemo(["--out", outDir]);
+
+  assert.notEqual(run.code, 0);
+  assert.match(run.stderr, /NORMA_MVP_PROOF_FAIL InvalidOutputPath/);
+  assert.match(run.stderr, /Could not create output directory\./);
+  assert.equal(run.stderr.includes("Error:"), false);
+  assert.equal(run.stderr.includes("at "), false);
+  assert.equal(run.stderr.includes(parentDir), false);
+  assert.equal(run.stderr.includes(outDir), false);
 });
 
 function createCanonicalResultFixture() {
