@@ -84,13 +84,14 @@ export function createMcpInputError(code: McpInputErrorCode, message: string): M
 }
 
 function handleRawJsonRpcLine(rawLine: string): InitializeResponse | ToolsListResponse | McpInputErrorResponse | null {
-  if (requestEncoder.encode(rawLine).length > MCP_STDIO_MAX_REQUEST_BYTES) {
+  const normalizedLine = rawLine.replace(/\r$/, "");
+  if (requestEncoder.encode(normalizedLine).length > MCP_STDIO_MAX_REQUEST_BYTES) {
     return createMcpInputError("MCP_TOO_LARGE", "MCP request payload exceeds maximum size.");
   }
 
   let message: unknown;
   try {
-    message = JSON.parse(rawLine);
+    message = JSON.parse(normalizedLine);
   } catch {
     return createMcpInputError("MCP_INVALID_INPUT", "MCP request is invalid.");
   }

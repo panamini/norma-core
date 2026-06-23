@@ -128,6 +128,19 @@ test("PR4 raw payload over the byte limit returns MCP_TOO_LARGE", () => {
   });
 });
 
+test("PR4 raw payload limit normalizes a trailing CR from CRLF input", () => {
+  const response = parseRawResponse(`${rawToolsListWithTargetBytes(MCP_STDIO_MAX_REQUEST_BYTES)}\r`);
+
+  assert.deepEqual(response, {
+    jsonrpc: "2.0",
+    error: {
+      code: "MCP_INVALID_INPUT",
+      message: "MCP request is invalid.",
+    },
+    id: null,
+  });
+});
+
 test("PR4 stdio process survives malformed, deep, long, and oversized input before valid initialize", () => {
   const validRequest = {
     jsonrpc: "2.0",
