@@ -235,6 +235,15 @@ function handleValidatedJsonRpcRequest(
     return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
   }
 
+  if (!Object.hasOwn(message, "id")) {
+    if (message.jsonrpc !== "2.0" || typeof message.method !== "string" || message.method.length === 0) {
+      return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
+    }
+
+    const limitFailure = jsonValueLimitFailure(message, null);
+    return limitFailure;
+  }
+
   if (!Object.hasOwn(message, "id") || !isJsonRpcId(message.id)) {
     return createMcpInputError(null, -32600, "Invalid Request", "MCP_INVALID_INPUT");
   }
@@ -338,7 +347,13 @@ function createToolsCallResult(params: unknown, id: JsonRpcId): ToolsCallRespons
 }
 
 function isValidToolsListParams(params: unknown): boolean {
-  return params === undefined || (isJsonRpcRecord(params) && Object.keys(params).length === 0);
+  if (params === undefined) {
+    return true;
+  }
+
+  return isJsonRpcRecord(params)
+    && Object.keys(params).every((key) => key === "_meta")
+    && (!Object.hasOwn(params, "_meta") || isJsonRpcRecord(params._meta));
 }
 
 function isValidToolsCallParams(params: unknown): params is {
@@ -411,7 +426,7 @@ function isValidInitializeParams(params: unknown): boolean {
   return typeof params.clientInfo.name === "string" && typeof params.clientInfo.version === "string";
 }
 
-function jsonValueLimitFailure(value: unknown, id: JsonRpcId): JsonRpcErrorResponse | null {
+function jsonValueLimitFailure(value: unknown, id: JsonRpcId | null): JsonRpcErrorResponse | null {
   const stack: JsonTraversalStackItem[] = [
     {
       value,
@@ -437,7 +452,7 @@ function jsonValueLimitFailure(value: unknown, id: JsonRpcId): JsonRpcErrorRespo
 
 function validateJsonStackItem(
   item: JsonTraversalStackItem,
-  id: JsonRpcId,
+  id: JsonRpcId | null,
   stack: JsonTraversalStackItem[],
 ): JsonRpcErrorResponse | null {
   if (item.depth > MCP_STDIO_MAX_JSON_DEPTH) {
@@ -451,7 +466,7 @@ function validateJsonStackItem(
   return pushJsonCompositeChildren(item, id, stack);
 }
 
-function scalarLimitFailure(value: unknown, id: JsonRpcId): JsonRpcErrorResponse | null {
+function scalarLimitFailure(value: unknown, id: JsonRpcId | null): JsonRpcErrorResponse | null {
   if (typeof value === "string" && value.length > MCP_STDIO_MAX_STRING_LENGTH) {
     return createMcpInputError(id, -32602, "Invalid params", "MCP_STRING_TOO_LONG");
   }
@@ -473,7 +488,7 @@ function isJsonScalarValue(value: unknown): boolean {
 
 function pushJsonCompositeChildren(
   item: JsonTraversalStackItem,
-  id: JsonRpcId,
+  id: JsonRpcId | null,
   stack: JsonTraversalStackItem[],
 ): JsonRpcErrorResponse | null {
   const value = item.value as object;
@@ -513,7 +528,7 @@ function pushJsonRecordEntries(
   value: object,
   depth: number,
   ancestors: readonly object[],
-  id: JsonRpcId,
+  id: JsonRpcId | null,
   stack: JsonTraversalStackItem[],
 ): JsonRpcErrorResponse | null {
   const entries = Object.entries(value);
