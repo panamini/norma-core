@@ -23,11 +23,7 @@ interface InitializeResponse {
   readonly jsonrpc: "2.0";
   readonly result: {
     readonly protocolVersion: typeof MCP_PROTOCOL_VERSION;
-    readonly capabilities: {
-      readonly tools: {
-        readonly listChanged: false;
-      };
-    };
+    readonly capabilities: Record<string, never>;
     readonly serverInfo: {
       readonly name: typeof MCP_SERVER_NAME;
       readonly version: typeof MCP_SERVER_VERSION;
@@ -140,11 +136,7 @@ function createInitializeResult(id: JsonRpcId): InitializeResponse {
     jsonrpc: "2.0",
     result: {
       protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {
-        tools: {
-          listChanged: false,
-        },
-      },
+      capabilities: {},
       serverInfo: {
         name: MCP_SERVER_NAME,
         version: MCP_SERVER_VERSION,

@@ -36,11 +36,7 @@ test("PR4 initialize succeeds and exposes no runtime tools", () => {
     jsonrpc: "2.0",
     result: {
       protocolVersion: "2025-06-18",
-      capabilities: {
-        tools: {
-          listChanged: false,
-        },
-      },
+      capabilities: {},
       serverInfo: {
         name: "norma-core-mcp-stdio",
         version: "0.1.0-pr4",
