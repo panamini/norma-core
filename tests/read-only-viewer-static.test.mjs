@@ -151,6 +151,21 @@ const r4CurrentOperationsRunbookChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r5PostMvpAdapterArchitectureChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-24-post-mvp-adapter-architecture.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -310,6 +325,10 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isR2AOutputSchemaChangeSet = isExactR2AOutputSchemaChangeSet(changed);
   const isR2BOutputSchemaChangeSet = isExactR2BOutputSchemaChangeSet(changed);
   const isR4CurrentOperationsRunbookChangeSet = isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles);
+  const isR5PostMvpAdapterArchitectureChangeSet = isExactChangedFileSet(
+    changed,
+    r5PostMvpAdapterArchitectureChangedFiles,
+  );
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
@@ -317,6 +336,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     isPr78ApprovedChangeSet ? pr78ApprovedChangedFiles : [],
     isPr80ApprovedChangeSet ? pr80ApprovedChangedFiles : [],
     isR4CurrentOperationsRunbookChangeSet ? r4CurrentOperationsRunbookChangedFiles : [],
+    isR5PostMvpAdapterArchitectureChangeSet ? r5PostMvpAdapterArchitectureChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -361,6 +381,13 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), pr101ReplayChangedFiles), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), r2aOutputSchemaChangedFiles), false);
     assert.equal(isExactChangedFileSet([...r2bOutputSchemaChangedFiles, unexpectedFile].sort(), r2bOutputSchemaChangedFiles), false);
+    assert.equal(
+      isExactChangedFileSet(
+        [...r5PostMvpAdapterArchitectureChangedFiles, unexpectedFile].sort(),
+        r5PostMvpAdapterArchitectureChangedFiles,
+      ),
+      false,
+    );
   }
 });
 
