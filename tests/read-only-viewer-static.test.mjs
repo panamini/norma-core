@@ -136,6 +136,21 @@ const r2bOutputSchemaChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r4CurrentOperationsRunbookChangedFiles = [
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -294,12 +309,14 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr101ReplayChangeSet = isExactPr101ReplayChangeSet(changed);
   const isR2AOutputSchemaChangeSet = isExactR2AOutputSchemaChangeSet(changed);
   const isR2BOutputSchemaChangeSet = isExactR2BOutputSchemaChangeSet(changed);
+  const isR4CurrentOperationsRunbookChangeSet = isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
     isPr77ApprovedChangeSet ? pr77ApprovedChangedFiles : [],
     isPr78ApprovedChangeSet ? pr78ApprovedChangedFiles : [],
     isPr80ApprovedChangeSet ? pr80ApprovedChangedFiles : [],
+    isR4CurrentOperationsRunbookChangeSet ? r4CurrentOperationsRunbookChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -377,9 +394,11 @@ function sampleModel() {
 
 // fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
+  const baseFiles =
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
+    gitFiles(["diff", "--name-only", "main...HEAD"]);
   const probes = [
-    gitFiles(["diff", "--name-only", "main...HEAD"]),
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    baseFiles,
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),

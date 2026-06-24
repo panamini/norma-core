@@ -92,6 +92,21 @@ const pr70ReadOnlyViewerDemoReadinessPaths = [
   "tests/read-only-viewer-demo-readiness.test.mjs",
 ];
 
+const r4CurrentOperationsRunbookChangedFiles = [
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
@@ -419,9 +434,11 @@ function readDoc(path) {
 
 // fallow-ignore-next-line code-duplication
 function branchChangedFiles() {
+  const baseFiles =
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
+    gitFiles(["diff", "--name-only", "main...HEAD"]);
   const probes = [
-    gitFiles(["diff", "--name-only", "main...HEAD"]),
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    baseFiles,
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),
@@ -492,6 +509,9 @@ function approvedChangedFilesFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
+  if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) {
+    return r4CurrentOperationsRunbookChangedFiles;
+  }
   if (isExactPr71ApprovedChangeSet(changed)) {
     return pr71ApprovedChangedFiles;
   }

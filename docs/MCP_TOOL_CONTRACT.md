@@ -60,6 +60,8 @@ Any future remote MCP requires a separate approval PR.
 
 Reference: `docs/MCP_REMOTE_THREAT_MODEL.md`.
 
+Operational runbook: `docs/OPERATIONS_RUNBOOK.md`.
+
 ## MCP Scope Decision
 
 Decision: contract_only_no_mcp_runtime
