@@ -25,7 +25,77 @@ interface McpToolDefinition {
   readonly title: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
+  readonly outputSchema?: Readonly<Record<string, unknown>>;
 }
+
+const GET_VERSION_OUTPUT_SCHEMA = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "coreVersion",
+    "protocolVersion",
+    "serverName",
+    "serverVersion",
+    "capabilities",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.getVersion" },
+    status: { const: "ok" },
+    coreVersion: { type: "string" },
+    protocolVersion: { type: "string" },
+    serverName: { type: "string" },
+    serverVersion: { type: "string" },
+    capabilities: {
+      type: "object",
+      required: [
+        "toolsList",
+        "getVersion",
+        "serializeCanonicalJson",
+        "verifyRun",
+        "verifyArtifactFreshness",
+        "replayMvpDemo",
+        "resources",
+        "prompts",
+        "remoteMcp",
+      ],
+      additionalProperties: false,
+      properties: {
+        toolsList: { const: true },
+        getVersion: { const: true },
+        serializeCanonicalJson: { const: true },
+        verifyRun: { const: true },
+        verifyArtifactFreshness: { const: true },
+        replayMvpDemo: { const: true },
+        resources: { const: false },
+        prompts: { const: false },
+        remoteMcp: { const: false },
+      },
+    },
+  },
+} as const;
+
+const SERIALIZE_CANONICAL_JSON_OUTPUT_SCHEMA = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "serializationVersion",
+    "canonicalJson",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.serializeCanonicalJson" },
+    status: { const: "ok" },
+    serializationVersion: { type: "string" },
+    canonicalJson: { type: "string" },
+  },
+} as const;
 
 const PR38_MCP_TOOLS = [
   {
@@ -37,6 +107,7 @@ const PR38_MCP_TOOLS = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: GET_VERSION_OUTPUT_SCHEMA,
   },
   {
     name: "norma.serializeCanonicalJson",
@@ -53,6 +124,7 @@ const PR38_MCP_TOOLS = [
         },
       },
     },
+    outputSchema: SERIALIZE_CANONICAL_JSON_OUTPUT_SCHEMA,
   },
   {
     name: "norma.verifyRun",

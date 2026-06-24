@@ -27,6 +27,75 @@ const pr72MaxRequestBytes = 524_288;
 const pr72MaxJsonDepth = 64;
 const pr72MaxStringLength = 65_536;
 
+const getVersionOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "coreVersion",
+    "protocolVersion",
+    "serverName",
+    "serverVersion",
+    "capabilities",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.getVersion" },
+    status: { const: "ok" },
+    coreVersion: { type: "string" },
+    protocolVersion: { type: "string" },
+    serverName: { type: "string" },
+    serverVersion: { type: "string" },
+    capabilities: {
+      type: "object",
+      required: [
+        "toolsList",
+        "getVersion",
+        "serializeCanonicalJson",
+        "verifyRun",
+        "verifyArtifactFreshness",
+        "replayMvpDemo",
+        "resources",
+        "prompts",
+        "remoteMcp",
+      ],
+      additionalProperties: false,
+      properties: {
+        toolsList: { const: true },
+        getVersion: { const: true },
+        serializeCanonicalJson: { const: true },
+        verifyRun: { const: true },
+        verifyArtifactFreshness: { const: true },
+        replayMvpDemo: { const: true },
+        resources: { const: false },
+        prompts: { const: false },
+        remoteMcp: { const: false },
+      },
+    },
+  },
+};
+
+const serializeCanonicalJsonOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "serializationVersion",
+    "canonicalJson",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.serializeCanonicalJson" },
+    status: { const: "ok" },
+    serializationVersion: { type: "string" },
+    canonicalJson: { type: "string" },
+  },
+};
+
 const expectedTools = [
   {
     name: "norma.getVersion",
@@ -37,6 +106,7 @@ const expectedTools = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: getVersionOutputSchema,
   },
   {
     name: "norma.serializeCanonicalJson",
@@ -53,6 +123,7 @@ const expectedTools = [
         },
       },
     },
+    outputSchema: serializeCanonicalJsonOutputSchema,
   },
   {
     name: "norma.verifyRun",
@@ -172,10 +243,7 @@ test("PR38 tools/list does not expose arbitrary replay forbidden tools or rich c
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
   assertNoKeysRecursive(response, [
     "nextCursor",
-    "outputSchema",
     "annotations",
-    "resources",
-    "prompts",
     "resourceLinks",
     "embeddedResources",
     "uri",
@@ -200,6 +268,7 @@ test("PR36 tools/call getVersion returns one JSON text item plus structuredConte
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
+  assertConformsToSchema(response.result.structuredContent, getVersionOutputSchema);
 });
 
 test("PR36 getVersion structuredContent has exact version and capability fields", () => {
@@ -287,6 +356,7 @@ test("PR36 serializeCanonicalJson returns deterministic canonical JSON", () => {
   });
   assert.equal(response.result.structuredContent.canonicalJson, serializeCanonicalJson(value));
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
+  assertConformsToSchema(response.result.structuredContent, serializeCanonicalJsonOutputSchema);
 });
 
 test("PR36 serializeCanonicalJson accepts the explicit current policy string", () => {
@@ -526,6 +596,8 @@ test("PR36 tools/call validates params and unknown tools with JSON-RPC invalid p
       arguments: {},
     },
   });
+  assert.equal(Object.hasOwn(unknownToolResponse, "result"), false);
+  assert.equal(Object.hasOwn(unknownToolResponse, "structuredContent"), false);
 
   assert.deepEqual(unknownToolResponse, {
     jsonrpc: "2.0",
@@ -731,7 +803,10 @@ function parseToolResultResponse(message) {
 }
 
 function assertInvalidParams(message) {
-  assert.deepEqual(parseRequiredResponse(message), {
+  const response = parseRequiredResponse(message);
+  assert.equal(Object.hasOwn(response, "result"), false);
+  assert.equal(Object.hasOwn(response, "structuredContent"), false);
+  assert.deepEqual(response, {
     jsonrpc: "2.0",
     id: Object.hasOwn(message, "id") ? message.id : null,
     error: {
@@ -739,6 +814,40 @@ function assertInvalidParams(message) {
       message: "Invalid params",
     },
   });
+}
+
+function assertConformsToSchema(value, schema, path = "structuredContent") {
+  if (Object.hasOwn(schema, "const")) {
+    assert.deepEqual(value, schema.const, `${path} must match const`);
+  }
+
+  if (schema.type !== undefined) {
+    assert.equal(typeof value, schema.type, `${path} must be ${schema.type}`);
+  }
+
+  if (schema.type !== "object") {
+    return;
+  }
+
+  assert.notEqual(value, null, `${path} must be an object`);
+  assert.equal(Array.isArray(value), false, `${path} must not be an array`);
+  const properties = schema.properties ?? {};
+
+  for (const key of schema.required ?? []) {
+    assert.equal(Object.hasOwn(value, key), true, `${path}.${key} is required`);
+  }
+
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(value)) {
+      assert.equal(Object.hasOwn(properties, key), true, `${path}.${key} is not declared`);
+    }
+  }
+
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (Object.hasOwn(value, key)) {
+      assertConformsToSchema(value[key], propertySchema, `${path}.${key}`);
+    }
+  }
 }
 
 function parseRequiredResponse(message) {

@@ -131,6 +131,22 @@ const pr101ReplayChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r2aOutputSchemaChangedFiles = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/mcp-tools-list-contract.test.mjs",
+  "tests/mcp-verify-tools-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr65ChangedFiles = [
   ...expectedPr65ChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -361,6 +377,7 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
 test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
   for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
     assert.equal(exactApprovedChangedFiles([...pr101ReplayChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(exactApprovedChangedFiles([...r2aOutputSchemaChangedFiles, unexpectedFile].sort()), null);
   }
 });
 
@@ -426,6 +443,10 @@ function isExactPr101ReplayChangeSet(changed) {
   return isExactChangedFileSet(changed, pr101ReplayChangedFiles);
 }
 
+function isExactR2AOutputSchemaChangeSet(changed) {
+  return isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles);
+}
+
 function approvedChangedFilesFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr65ChangedFiles;
 }
@@ -451,6 +472,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactPr101ReplayChangeSet(changed)) {
     return pr101ReplayChangedFiles;
+  }
+  if (isExactR2AOutputSchemaChangeSet(changed)) {
+    return r2aOutputSchemaChangedFiles;
   }
   return null;
 }

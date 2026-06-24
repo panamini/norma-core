@@ -13,6 +13,75 @@ const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
 const packageJsonPath = join(repoRoot, "package.json");
 
+const getVersionOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "coreVersion",
+    "protocolVersion",
+    "serverName",
+    "serverVersion",
+    "capabilities",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.getVersion" },
+    status: { const: "ok" },
+    coreVersion: { type: "string" },
+    protocolVersion: { type: "string" },
+    serverName: { type: "string" },
+    serverVersion: { type: "string" },
+    capabilities: {
+      type: "object",
+      required: [
+        "toolsList",
+        "getVersion",
+        "serializeCanonicalJson",
+        "verifyRun",
+        "verifyArtifactFreshness",
+        "replayMvpDemo",
+        "resources",
+        "prompts",
+        "remoteMcp",
+      ],
+      additionalProperties: false,
+      properties: {
+        toolsList: { const: true },
+        getVersion: { const: true },
+        serializeCanonicalJson: { const: true },
+        verifyRun: { const: true },
+        verifyArtifactFreshness: { const: true },
+        replayMvpDemo: { const: true },
+        resources: { const: false },
+        prompts: { const: false },
+        remoteMcp: { const: false },
+      },
+    },
+  },
+};
+
+const serializeCanonicalJsonOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "serializationVersion",
+    "canonicalJson",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.serializeCanonicalJson" },
+    status: { const: "ok" },
+    serializationVersion: { type: "string" },
+    canonicalJson: { type: "string" },
+  },
+};
+
 const discoveredTools = [
   {
     name: "norma.getVersion",
@@ -23,6 +92,7 @@ const discoveredTools = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: getVersionOutputSchema,
   },
   {
     name: "norma.serializeCanonicalJson",
@@ -39,6 +109,7 @@ const discoveredTools = [
         },
       },
     },
+    outputSchema: serializeCanonicalJsonOutputSchema,
   },
   {
     name: "norma.verifyRun",
@@ -169,6 +240,7 @@ test("PR38 tools/list schemas are exact", () => {
     properties: {},
   });
   assert.equal(Object.hasOwn(tools[0].inputSchema, "required"), false);
+  assert.deepEqual(tools[0].outputSchema, getVersionOutputSchema);
 
   assert.deepEqual(tools[1].inputSchema, {
     type: "object",
@@ -181,6 +253,7 @@ test("PR38 tools/list schemas are exact", () => {
       },
     },
   });
+  assert.deepEqual(tools[1].outputSchema, serializeCanonicalJsonOutputSchema);
 
   assert.deepEqual(tools[2].inputSchema, {
     type: "object",
@@ -206,6 +279,13 @@ test("PR38 tools/list schemas are exact", () => {
     properties: {},
   });
   assert.equal(Object.hasOwn(tools[4].inputSchema, "required"), false);
+
+  assert.equal(Object.hasOwn(tools[2], "outputSchema"), false);
+  assert.equal(Object.hasOwn(tools[3], "outputSchema"), false);
+  assert.equal(Object.hasOwn(tools[4], "outputSchema"), false);
+  for (const tool of tools) {
+    assert.equal(Object.hasOwn(tool, "annotations"), false);
+  }
 });
 
 test("PR38 tools/list does not expose arbitrary replay resources prompts or rich content fields", () => {
@@ -221,10 +301,7 @@ test("PR38 tools/list does not expose arbitrary replay resources prompts or rich
   }
 
   assertNoKeysRecursive(response, [
-    "resources",
-    "prompts",
     "annotations",
-    "outputSchema",
     "resourceLinks",
     "embeddedResources",
     "content",
