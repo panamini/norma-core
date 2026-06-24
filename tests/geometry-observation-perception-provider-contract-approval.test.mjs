@@ -169,6 +169,21 @@ const r3NonCanonicalStructuredInputChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const r5PostMvpAdapterArchitectureChangedFiles = new Set([
+  'docs/BUSINESS_READINESS_ROADMAP.md',
+  'docs/decisions/2026-06-24-post-mvp-adapter-architecture.md',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -619,6 +634,13 @@ test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes'
       ),
       false,
     );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r5PostMvpAdapterArchitectureChangedFiles, unexpectedFile].sort(),
+        [...r5PostMvpAdapterArchitectureChangedFiles].sort(),
+      ),
+      false,
+    );
   }
 });
 
@@ -640,6 +662,11 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r3NonCanonicalStructuredInputChangedFiles].sort())) {
     assertR3NonCanonicalStructuredInputChangedFiles(changedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r5PostMvpAdapterArchitectureChangedFiles].sort())) {
+    assertR5PostMvpAdapterArchitectureChangedFiles(changedFiles);
     return;
   }
 
@@ -746,6 +773,23 @@ function assertR3NonCanonicalStructuredInputChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
       `R3 guard maintenance must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertR5PostMvpAdapterArchitectureChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      r5PostMvpAdapterArchitectureChangedFiles.has(changedFile),
+      `unexpected R5 adapter architecture file changed: ${changedFile}`,
+    );
+    assert.ok(
+      changedFile.startsWith('docs/') || changedFile.startsWith('tests/'),
+      `R5 guard maintenance must stay documentation and guard-test only: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R5 guard maintenance must not change protected implementation surface: ${changedFile}`,
     );
   }
 }

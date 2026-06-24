@@ -107,6 +107,21 @@ const r4CurrentOperationsRunbookChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r5PostMvpAdapterArchitectureChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-24-post-mvp-adapter-architecture.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const pr71ApprovedChangedFiles = [
   "src/index.ts",
   "src/measurements.ts",
@@ -425,6 +440,7 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
     assert.equal(exactApprovedChangedFiles([...r2aOutputSchemaChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r2bOutputSchemaChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(exactApprovedChangedFiles([...r5PostMvpAdapterArchitectureChangedFiles, unexpectedFile].sort()), null);
   }
 });
 
@@ -511,6 +527,9 @@ function approvedChangedFilesFor(changed) {
 function exactApprovedChangedFiles(changed) {
   if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) {
     return r4CurrentOperationsRunbookChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles)) {
+    return r5PostMvpAdapterArchitectureChangedFiles;
   }
   if (isExactPr71ApprovedChangeSet(changed)) {
     return pr71ApprovedChangedFiles;

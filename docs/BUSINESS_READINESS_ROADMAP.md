@@ -47,6 +47,18 @@ Candidate follow-up sequence, each requiring its own fiche and approval:
 5. PR80 - ChatGPT app integration approval.
 6. PR81 - Local ChatGPT Analyze vertical slice.
 
+## R5 Structured Analyze V1 Architecture Freeze
+
+R5 narrows the selected first post-MVP product outcome to ChatGPT Structured Analyze V1 before any image, vision, camera, CAD, plugin, hosted-cloud, or public-app work.
+
+Decision reference: `docs/decisions/2026-06-24-post-mvp-adapter-architecture.md`.
+
+R5 authorizes architecture only. It does not add runtime code, types, schemas, MCP tools, output schemas, annotations, dependencies, package changes, CI changes, ChatGPT UI, hosted MCP, app publication, image inference, camera input, CAD import, plugin integration, URL fetching, file-system ingestion, automatic correction, recommendation, optimization, or beauty scoring.
+
+The selected first slice requires explicit user-supplied structured geometry or composition data, visible proposed versus accepted geometry, mandatory provenance, explicit pack/profile/tolerance/context where output-affecting, deterministic validation, and user-facing wording limited to which composition is closer to the declared proportional system.
+
+R6 may later propose one stable structured analysis operation and at most one corresponding MCP tool if existing tools are insufficient. R6 must preserve the current five-tool MCP inventory, declare `outputSchema` from first introduction, validate model-provided input server-side, and remain private/developer-only during proof.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
