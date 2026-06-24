@@ -95,6 +95,20 @@ const pr80ApprovedChangedFiles = new Set([
   'tests/read-only-viewer-static.test.mjs',
 ]);
 
+const pr101ReplayChangedFiles = new Set([
+  'src/mcp/stdio-protocol.ts',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/mcp-stdio-server-skeleton.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -527,7 +541,18 @@ test('PR78 PR79 and PR80 branch changes stay limited to their approved contract 
   assertApprovedContractSurfaceChanges(branchChangedFiles());
 });
 
+test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes', () => {
+  for (const unexpectedFile of ['src/mcp/unrelated.ts', 'package.json', '.github/workflows/ci.yml']) {
+    assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), [...pr101ReplayChangedFiles].sort()), false);
+  }
+});
+
 function assertApprovedContractSurfaceChanges(changedFiles) {
+  if (isExactChangedFileSet(changedFiles, [...pr101ReplayChangedFiles].sort())) {
+    assertPr101ReplayChangedFiles(changedFiles);
+    return;
+  }
+
   if (isExactChangedFileSet(changedFiles, [...pr80ApprovedChangedFiles].sort())) {
     assertPr80ApprovedChangedFiles(changedFiles);
     return;
@@ -539,6 +564,24 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
   }
 
   assertPr78ApprovedChangedFiles(changedFiles);
+}
+
+function assertPr101ReplayChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      pr101ReplayChangedFiles.has(changedFile),
+      `unexpected PR101 replay file changed: ${changedFile}`,
+    );
+    assert.ok(
+      changedFile === 'src/mcp/stdio-protocol.ts' ||
+        !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `PR101 replay must not change protected implementation surface outside approved MCP initialize replay: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `PR101 replay must not change protected project contract file: ${changedFile}`,
+    );
+  }
 }
 
 function assertPr79ApprovedChangedFiles(changedFiles) {

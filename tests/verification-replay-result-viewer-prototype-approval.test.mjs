@@ -139,6 +139,20 @@ const pr79ApprovedChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const pr101ReplayChangedFiles = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr60ChangedPaths = [
   ...approvedPr60ChangedPaths,
   ...futureImplementationPaths,
@@ -295,6 +309,12 @@ test("PR60 permits only approval files or approved future prototype files after 
   );
 });
 
+test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
+  for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
+    assert.equal(exactApprovedChangedFiles([...pr101ReplayChangedFiles, unexpectedFile].sort()), null);
+  }
+});
+
 test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
   const changed = branchChangedFiles();
@@ -394,6 +414,10 @@ function isExactPr79ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr79ApprovedChangedFiles);
 }
 
+function isExactPr101ReplayChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr101ReplayChangedFiles);
+}
+
 function approvedChangedPathsFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr60ChangedPaths;
 }
@@ -416,6 +440,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactPr79ApprovedChangeSet(changed)) {
     return pr79ApprovedChangedFiles;
+  }
+  if (isExactPr101ReplayChangeSet(changed)) {
+    return pr101ReplayChangedFiles;
   }
   return null;
 }

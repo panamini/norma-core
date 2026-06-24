@@ -89,6 +89,20 @@ const pr80ApprovedChangedFiles = [
   "tests/read-only-viewer-static.test.mjs",
 ];
 
+const pr101ReplayChangedFiles = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -244,6 +258,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isPr77ApprovedChangeSet = isExactPr77ApprovedChangeSet(changed);
   const isPr78ApprovedChangeSet = isExactPr78ApprovedChangeSet(changed);
   const isPr80ApprovedChangeSet = isExactPr80ApprovedChangeSet(changed);
+  const isPr101ReplayChangeSet = isExactPr101ReplayChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
@@ -267,7 +282,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   );
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
   assert.deepEqual(
-    changed.filter((file) => isUnapprovedPr72PrefixChange(file, "src/mcp/", isPr72ApprovedChangeSet)),
+    changed.filter((file) => isUnapprovedMcpChange(file, isPr72ApprovedChangeSet, isPr101ReplayChangeSet)),
     [],
   );
   assert.deepEqual(
@@ -275,6 +290,12 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     [],
   );
   assert.deepEqual(changed.filter((file) => file.startsWith("examples/")), []);
+});
+
+test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
+  for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
+    assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), pr101ReplayChangedFiles), false);
+  }
 });
 
 function sampleModel() {
@@ -363,8 +384,22 @@ function isExactPr80ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr80ApprovedChangedFiles);
 }
 
+function isExactPr101ReplayChangeSet(changed) {
+  return isExactChangedFileSet(changed, pr101ReplayChangedFiles);
+}
+
 function isUnapprovedPr72PrefixChange(file, prefix, isPr72ApprovedChangeSet) {
   return file.startsWith(prefix) && !(isPr72ApprovedChangeSet && pr72ApprovedChangedFiles.includes(file));
+}
+
+function isUnapprovedMcpChange(file, isPr72ApprovedChangeSet, isPr101ReplayChangeSet) {
+  return (
+    file.startsWith("src/mcp/") &&
+    !(
+      (isPr72ApprovedChangeSet && pr72ApprovedChangedFiles.includes(file)) ||
+      (isPr101ReplayChangeSet && pr101ReplayChangedFiles.includes(file))
+    )
+  );
 }
 
 function isUnapprovedDocsChange(file, approvedDocChangeSets) {

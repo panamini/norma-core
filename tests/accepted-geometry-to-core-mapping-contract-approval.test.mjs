@@ -46,6 +46,20 @@ const pr80ApprovedChangedFiles = [
   "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
+const pr101ReplayChangedFiles = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 test("PR80 decision file exists with required headings in order", () => {
   assert.equal(fs.existsSync(nodePath.join(repositoryRoot, decisionPath)), true);
   assertHeadingSequence(decision, requiredHeadings);
@@ -199,11 +213,19 @@ test("PR80 keeps synthetic-only boundary and PR81 scope narrow", () => {
 });
 
 test("PR80 branch changes stay limited to the approved doc test and exact guards", () => {
-  assert.deepEqual(branchChangedFiles(), pr80ApprovedChangedFiles);
+  const changed = branchChangedFiles();
+
+  assert.equal(
+    isExactChangedFileSet(changed, pr80ApprovedChangedFiles) ||
+      isExactChangedFileSet(changed, pr101ReplayChangedFiles),
+    true,
+    `Unexpected PR80/PR101 changed files:\n${changed.join("\n")}`,
+  );
 });
 
 test("PR80 keeps protected runtime package fixture README and CI surfaces unchanged", () => {
   const changed = branchChangedFiles();
+  const protectedAllowlist = isExactChangedFileSet(changed, pr101ReplayChangedFiles) ? pr101ReplayChangedFiles : [];
   const protectedPatterns = [
     /^src\//,
     /^bin\//,
@@ -218,9 +240,15 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
   ];
 
   assert.deepEqual(
-    changed.filter((file) => protectedPatterns.some((pattern) => pattern.test(file))),
+    changed.filter((file) => protectedPatterns.some((pattern) => pattern.test(file)) && !protectedAllowlist.includes(file)),
     [],
   );
+});
+
+test("PR101 replay guard rejects unrelated MCP package and CI changes", () => {
+  for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
+    assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), pr101ReplayChangedFiles), false);
+  }
 });
 
 function read(relativePath) {
@@ -265,6 +293,10 @@ function branchChangedFiles() {
   }
   assert.notEqual(successfulGitProbes, 0, "Unable to inspect changed files with git");
   return [...files].sort();
+}
+
+function isExactChangedFileSet(changed, approvedFiles) {
+  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function gitOutputLines(args) {
