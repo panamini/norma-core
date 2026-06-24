@@ -427,6 +427,7 @@ test("R6A MCP contract approves only future structured analyze candidate without
     "Malformed `tools/call` params or malformed tool arguments must return JSON-RPC",
     "`-32602`",
     "Validly shaped domain-invalid structured analysis input must return structured",
+    "status: \"invalid\"",
     "exactly one",
     "text content item",
     "parsed text equals",

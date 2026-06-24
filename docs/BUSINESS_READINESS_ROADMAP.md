@@ -89,8 +89,12 @@ MCP descriptors, annotations, ChatGPT app metadata, hosted MCP, Developer Mode
 configuration, image input, vision input, camera input, CAD input, plugin input,
 dependencies, package metadata, CI changes, or public submission.
 
-R6B may implement the direct `analyzeStructuredCompositionV1` operation with
-deterministic direct-core A/B/invalid tests.
+R6B may implement the direct `analyzeStructuredCompositionV1` operation only
+with explicit `contractVersion`, explicit `analysisId`, and deterministic
+direct-core proof for the full R6A fixture set: Case A expects
+`decision.status` `a_closer`, Case B expects `decision.status` `b_closer`, and
+Case C expects duplicate-ID input to return `status: "invalid"` with diagnostic
+`DuplicateGeometrySourceId` and no output refs.
 
 R6C may expose at most one MCP tool, `norma.analyzeStructuredCompositionV1`,
 only after the direct operation exists and only with `inputSchema`,

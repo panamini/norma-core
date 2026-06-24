@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -161,7 +161,6 @@ test("R6A does not expose the future MCP tool at runtime", () => {
   assert.deepEqual(toolNames, currentMcpTools);
   assert.equal(toolNames.includes(futureAnalyzeTool), false);
   assert.equal(protocolSource.includes(futureAnalyzeTool), false);
-  assert.equal(existsSync(join(repoRoot, "src", "structured-analyze.ts")), false);
 });
 
 function read(relativePath) {
