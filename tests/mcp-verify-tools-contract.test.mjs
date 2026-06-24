@@ -22,6 +22,80 @@ const expectedTools = [
   "norma.replayMvpDemo",
 ];
 
+const getVersionOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "coreVersion",
+    "protocolVersion",
+    "serverName",
+    "serverVersion",
+    "capabilities",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.getVersion" },
+    status: { const: "ok" },
+    coreVersion: { type: "string" },
+    protocolVersion: { type: "string" },
+    serverName: { type: "string" },
+    serverVersion: { type: "string" },
+    capabilities: {
+      type: "object",
+      required: [
+        "toolsList",
+        "getVersion",
+        "serializeCanonicalJson",
+        "verifyRun",
+        "verifyArtifactFreshness",
+        "replayMvpDemo",
+        "resources",
+        "prompts",
+        "remoteMcp",
+      ],
+      additionalProperties: false,
+      properties: {
+        toolsList: { const: true },
+        getVersion: { const: true },
+        serializeCanonicalJson: { const: true },
+        verifyRun: { const: true },
+        verifyArtifactFreshness: { const: true },
+        replayMvpDemo: { const: true },
+        resources: { const: false },
+        prompts: { const: false },
+        remoteMcp: { const: false },
+      },
+    },
+  },
+};
+
+const serializeCanonicalJsonOutputSchema = {
+  type: "object",
+  required: [
+    "kind",
+    "tool",
+    "status",
+    "serializationVersion",
+    "canonicalJson",
+  ],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.serializeCanonicalJson" },
+    status: { const: "ok" },
+    serializationVersion: { type: "string" },
+    canonicalJson: { type: "string" },
+  },
+};
+
+const allowedOutputSchemasByToolName = new Map([
+  ["norma.getVersion", getVersionOutputSchema],
+  ["norma.serializeCanonicalJson", serializeCanonicalJsonOutputSchema],
+]);
+
 const forbiddenToolNames = [
   "norma.replayRun",
   "norma.createRule",
@@ -82,9 +156,9 @@ test("PR38 tools/list exposes no arbitrary replay forbidden tools or rich conten
   }
 
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
+  assertOutputSchemasAreOnlyOnR2ASimpleTools(response.result.tools);
   assertNoKeysRecursive(response, [
     "nextCursor",
-    "outputSchema",
     "annotations",
     "resources",
     "prompts",
@@ -685,6 +759,21 @@ function parseRequiredResponse(message) {
   assert.notEqual(response, null);
   assert.equal(response.endsWith("\n"), false);
   return JSON.parse(response);
+}
+
+function assertOutputSchemasAreOnlyOnR2ASimpleTools(tools) {
+  for (const tool of tools) {
+    assert.equal(Object.hasOwn(tool, "annotations"), false);
+    const expectedOutputSchema = allowedOutputSchemasByToolName.get(tool.name);
+
+    if (expectedOutputSchema === undefined) {
+      assert.equal(Object.hasOwn(tool, "outputSchema"), false, `${tool.name} must not declare outputSchema`);
+      continue;
+    }
+
+    assert.deepEqual(tool.outputSchema, expectedOutputSchema);
+    delete tool.outputSchema;
+  }
 }
 
 function assertNoKeysRecursive(value, forbiddenKeys) {
