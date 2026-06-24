@@ -96,6 +96,35 @@ const serializeCanonicalJsonOutputSchema = {
   },
 };
 
+function complexToolOutputSchema(tool, resultKind) {
+  return {
+    type: "object",
+    required: ["kind", "tool", "status", "result"],
+    additionalProperties: false,
+    properties: {
+      kind: { const: "norma-mcp-tool-result" },
+      tool: { const: tool },
+      status: { type: "string" },
+      result: {
+        type: "object",
+        required: ["kind", "status"],
+        additionalProperties: true,
+        properties: {
+          kind: { const: resultKind },
+          status: { type: "string" },
+        },
+      },
+    },
+  };
+}
+
+const verifyRunOutputSchema = complexToolOutputSchema("norma.verifyRun", "run-verification");
+const verifyArtifactFreshnessOutputSchema = complexToolOutputSchema(
+  "norma.verifyArtifactFreshness",
+  "artifact-freshness-verification",
+);
+const replayMvpDemoOutputSchema = complexToolOutputSchema("norma.replayMvpDemo", "run-replay");
+
 const expectedTools = [
   {
     name: "norma.getVersion",
@@ -137,6 +166,7 @@ const expectedTools = [
         input: {},
       },
     },
+    outputSchema: verifyRunOutputSchema,
   },
   {
     name: "norma.verifyArtifactFreshness",
@@ -150,6 +180,7 @@ const expectedTools = [
         input: {},
       },
     },
+    outputSchema: verifyArtifactFreshnessOutputSchema,
   },
   {
     name: "norma.replayMvpDemo",
@@ -160,10 +191,12 @@ const expectedTools = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: replayMvpDemoOutputSchema,
   },
 ];
 
 const forbiddenToolNames = [
+  "norma.runMvpDemoV1",
   "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
