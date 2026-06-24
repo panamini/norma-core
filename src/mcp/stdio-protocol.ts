@@ -97,6 +97,35 @@ const SERIALIZE_CANONICAL_JSON_OUTPUT_SCHEMA = {
   },
 } as const;
 
+function createComplexToolOutputSchema(tool: string, resultKind: string): Readonly<Record<string, unknown>> {
+  return {
+    type: "object",
+    required: ["kind", "tool", "status", "result"],
+    additionalProperties: false,
+    properties: {
+      kind: { const: "norma-mcp-tool-result" },
+      tool: { const: tool },
+      status: { type: "string" },
+      result: {
+        type: "object",
+        required: ["kind", "status"],
+        additionalProperties: true,
+        properties: {
+          kind: { const: resultKind },
+          status: { type: "string" },
+        },
+      },
+    },
+  };
+}
+
+const VERIFY_RUN_OUTPUT_SCHEMA = createComplexToolOutputSchema("norma.verifyRun", "run-verification");
+const VERIFY_ARTIFACT_FRESHNESS_OUTPUT_SCHEMA = createComplexToolOutputSchema(
+  "norma.verifyArtifactFreshness",
+  "artifact-freshness-verification",
+);
+const REPLAY_MVP_DEMO_OUTPUT_SCHEMA = createComplexToolOutputSchema("norma.replayMvpDemo", "run-replay");
+
 const PR38_MCP_TOOLS = [
   {
     name: "norma.getVersion",
@@ -138,6 +167,7 @@ const PR38_MCP_TOOLS = [
         input: {},
       },
     },
+    outputSchema: VERIFY_RUN_OUTPUT_SCHEMA,
   },
   {
     name: "norma.verifyArtifactFreshness",
@@ -151,6 +181,7 @@ const PR38_MCP_TOOLS = [
         input: {},
       },
     },
+    outputSchema: VERIFY_ARTIFACT_FRESHNESS_OUTPUT_SCHEMA,
   },
   {
     name: "norma.replayMvpDemo",
@@ -161,6 +192,7 @@ const PR38_MCP_TOOLS = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: REPLAY_MVP_DEMO_OUTPUT_SCHEMA,
   },
 ] as const satisfies readonly McpToolDefinition[];
 

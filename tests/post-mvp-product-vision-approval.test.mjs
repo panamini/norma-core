@@ -107,6 +107,23 @@ const exactR2AOutputSchemaChangedFilesWithGuards = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const exactR2BOutputSchemaChangedFilesWithGuards = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-replay-mvp-demo-contract.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/mcp-tools-list-contract.test.mjs",
+  "tests/mcp-verify-tools-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -344,7 +361,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -367,7 +385,13 @@ test("PR75 does not add runtime package deployment provider or schema files", ()
 });
 
 test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
-  for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
+  for (const unexpectedFile of [
+    "src/mcp/unrelated.ts",
+    "src/runtime.ts",
+    "package.json",
+    ".github/workflows/ci.yml",
+    "docs/unrelated.md",
+  ]) {
     assert.equal(
       isExactChangedFileSet(
         [...exactPr101ReplayChangedFilesWithGuards, unexpectedFile].sort(),
@@ -379,6 +403,13 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
       isExactChangedFileSet(
         [...exactR2AOutputSchemaChangedFilesWithGuards, unexpectedFile].sort(),
         exactR2AOutputSchemaChangedFilesWithGuards,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...exactR2BOutputSchemaChangedFilesWithGuards, unexpectedFile].sort(),
+        exactR2BOutputSchemaChangedFilesWithGuards,
       ),
       false,
     );
@@ -453,6 +484,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards)) {
     return exactR2AOutputSchemaChangedFilesWithGuards;
+  }
+  if (isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards)) {
+    return exactR2BOutputSchemaChangedFilesWithGuards;
   }
   return [];
 }

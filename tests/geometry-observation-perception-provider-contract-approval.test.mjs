@@ -125,6 +125,23 @@ const r2aOutputSchemaChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const r2bOutputSchemaChangedFiles = new Set([
+  'src/mcp/stdio-protocol.ts',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/mcp-replay-mvp-demo-contract.test.mjs',
+  'tests/mcp-tools-call-contract.test.mjs',
+  'tests/mcp-tools-list-contract.test.mjs',
+  'tests/mcp-verify-tools-contract.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -558,9 +575,16 @@ test('PR78 PR79 and PR80 branch changes stay limited to their approved contract 
 });
 
 test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes', () => {
-  for (const unexpectedFile of ['src/mcp/unrelated.ts', 'package.json', '.github/workflows/ci.yml']) {
+  for (const unexpectedFile of [
+    'src/mcp/unrelated.ts',
+    'src/runtime.ts',
+    'package.json',
+    '.github/workflows/ci.yml',
+    'docs/unrelated.md',
+  ]) {
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), [...pr101ReplayChangedFiles].sort()), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), [...r2aOutputSchemaChangedFiles].sort()), false);
+    assert.equal(isExactChangedFileSet([...r2bOutputSchemaChangedFiles, unexpectedFile].sort(), [...r2bOutputSchemaChangedFiles].sort()), false);
   }
 });
 
@@ -572,6 +596,11 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r2aOutputSchemaChangedFiles].sort())) {
     assertR2AOutputSchemaChangedFiles(changedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r2bOutputSchemaChangedFiles].sort())) {
+    assertR2BOutputSchemaChangedFiles(changedFiles);
     return;
   }
 
@@ -620,6 +649,25 @@ function assertR2AOutputSchemaChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
       `R2A output schema guard maintenance must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertR2BOutputSchemaChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      r2bOutputSchemaChangedFiles.has(changedFile),
+      `unexpected R2B output schema file changed: ${changedFile}`,
+    );
+    assert.ok(
+      changedFile === 'src/mcp/stdio-protocol.ts' ||
+        changedFile.startsWith('tests/mcp-') ||
+        !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R2B output schema guard maintenance must not change protected implementation surface outside the MCP descriptor and MCP contract tests: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `R2B output schema guard maintenance must not change protected project contract file: ${changedFile}`,
     );
   }
 }

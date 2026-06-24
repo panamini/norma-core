@@ -23,6 +23,26 @@ const expectedTools = [
   "norma.replayMvpDemo",
 ];
 
+const replayMvpDemoOutputSchema = {
+  type: "object",
+  required: ["kind", "tool", "status", "result"],
+  additionalProperties: false,
+  properties: {
+    kind: { const: "norma-mcp-tool-result" },
+    tool: { const: "norma.replayMvpDemo" },
+    status: { type: "string" },
+    result: {
+      type: "object",
+      required: ["kind", "status"],
+      additionalProperties: true,
+      properties: {
+        kind: { const: "run-replay" },
+        status: { type: "string" },
+      },
+    },
+  },
+};
+
 const replayMvpDemoTool = {
   name: "norma.replayMvpDemo",
   title: "Replay Norma MVP demo",
@@ -32,9 +52,11 @@ const replayMvpDemoTool = {
     additionalProperties: false,
     properties: {},
   },
+  outputSchema: replayMvpDemoOutputSchema,
 };
 
 const forbiddenToolNames = [
+  "norma.runMvpDemoV1",
   "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
@@ -97,6 +119,8 @@ test("PR38 norma.replayMvpDemo returns the full core replay result in the MCP to
   assert.deepEqual(response.result.structuredContent.result.errors, []);
   assert.deepEqual(response.result.structuredContent.result.packLockRef, expectedCoreResult.packLockRef);
   assert.deepEqual(response.result.structuredContent.result.operationContextRef, expectedCoreResult.operationContextRef);
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, replayMvpDemoOutputSchema);
 });
 
 test("PR38 norma.replayMvpDemo accepts missing or empty arguments only and stays deterministic", () => {
@@ -109,6 +133,10 @@ test("PR38 norma.replayMvpDemo accepts missing or empty arguments only and stays
   assert.deepEqual(missingResponse.result.structuredContent.result, expectedCoreResult);
   assert.deepEqual(emptyResponse.result.structuredContent.result, expectedCoreResult);
   assert.deepEqual(missingResponse.result.structuredContent.result, emptyResponse.result.structuredContent.result);
+  assert.equal(missingResponse.result.structuredContent.status, missingResponse.result.structuredContent.result.status);
+  assert.equal(emptyResponse.result.structuredContent.status, emptyResponse.result.structuredContent.result.status);
+  assertConformsToSchema(missingResponse.result.structuredContent, replayMvpDemoOutputSchema);
+  assertConformsToSchema(emptyResponse.result.structuredContent, replayMvpDemoOutputSchema);
 });
 
 test("PR38 norma.replayMvpDemo rejects all caller-supplied replay inputs and options", () => {
@@ -306,7 +334,42 @@ function assertToolResultEnvelope(response, id) {
   assert.equal(response.result.isError, false);
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
+  assert.equal(response.result.content[0].text, core.serializeCanonicalJson(response.result.structuredContent));
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
+}
+
+function assertConformsToSchema(value, schema, path = "structuredContent") {
+  if (Object.hasOwn(schema, "const")) {
+    assert.deepEqual(value, schema.const, `${path} must match const`);
+  }
+
+  if (schema.type !== undefined) {
+    assert.equal(typeof value, schema.type, `${path} must be ${schema.type}`);
+  }
+
+  if (schema.type !== "object") {
+    return;
+  }
+
+  assert.notEqual(value, null, `${path} must be an object`);
+  assert.equal(Array.isArray(value), false, `${path} must not be an array`);
+  const properties = schema.properties ?? {};
+
+  for (const key of schema.required ?? []) {
+    assert.equal(Object.hasOwn(value, key), true, `${path}.${key} is required`);
+  }
+
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(value)) {
+      assert.equal(Object.hasOwn(properties, key), true, `${path}.${key} is not declared`);
+    }
+  }
+
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (Object.hasOwn(value, key)) {
+      assertConformsToSchema(value[key], propertySchema, `${path}.${key}`);
+    }
+  }
 }
 
 function assertInvalidParams(message) {

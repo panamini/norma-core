@@ -91,12 +91,45 @@ const serializeCanonicalJsonOutputSchema = {
   },
 };
 
+function complexToolOutputSchema(tool, resultKind) {
+  return {
+    type: "object",
+    required: ["kind", "tool", "status", "result"],
+    additionalProperties: false,
+    properties: {
+      kind: { const: "norma-mcp-tool-result" },
+      tool: { const: tool },
+      status: { type: "string" },
+      result: {
+        type: "object",
+        required: ["kind", "status"],
+        additionalProperties: true,
+        properties: {
+          kind: { const: resultKind },
+          status: { type: "string" },
+        },
+      },
+    },
+  };
+}
+
+const verifyRunOutputSchema = complexToolOutputSchema("norma.verifyRun", "run-verification");
+const verifyArtifactFreshnessOutputSchema = complexToolOutputSchema(
+  "norma.verifyArtifactFreshness",
+  "artifact-freshness-verification",
+);
+const replayMvpDemoOutputSchema = complexToolOutputSchema("norma.replayMvpDemo", "run-replay");
+
 const allowedOutputSchemasByToolName = new Map([
   ["norma.getVersion", getVersionOutputSchema],
   ["norma.serializeCanonicalJson", serializeCanonicalJsonOutputSchema],
+  ["norma.verifyRun", verifyRunOutputSchema],
+  ["norma.verifyArtifactFreshness", verifyArtifactFreshnessOutputSchema],
+  ["norma.replayMvpDemo", replayMvpDemoOutputSchema],
 ]);
 
 const forbiddenToolNames = [
+  "norma.runMvpDemoV1",
   "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
@@ -156,7 +189,7 @@ test("PR38 tools/list exposes no arbitrary replay forbidden tools or rich conten
   }
 
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
-  assertOutputSchemasAreOnlyOnR2ASimpleTools(response.result.tools);
+  assertOutputSchemasMatchAllowedTools(response.result.tools);
   assertNoKeysRecursive(response, [
     "nextCursor",
     "annotations",
@@ -245,6 +278,8 @@ test("PR37 norma.verifyRun returns one text item and preserves exact core result
   assert.equal(response.result.structuredContent.result.kind, "run-verification");
   assert.equal(response.result.structuredContent.result.status, "verified");
   assert.equal(response.result.structuredContent.result.replaySummary.replayAttempted, false);
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyRunOutputSchema);
 });
 
 test("PR37 norma.verifyRun preserves warnings errors mismatches provenance and artifactFreshness", () => {
@@ -279,6 +314,20 @@ test("PR37 norma.verifyRun preserves warnings errors mismatches provenance and a
   assert.deepEqual(response.result.structuredContent.result, expectedCoreResult);
   assert.deepEqual(response.result.structuredContent.result.artifactFreshness, expectedCoreResult.artifactFreshness);
   assert.equal(response.result.structuredContent.status, expectedCoreResult.status);
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyRunOutputSchema);
+});
+
+test("PR37 norma.verifyRun returns a conforming successful MCP envelope for invalid core input", () => {
+  const response = callTool("norma.verifyRun", { input: null }, "verify-run-invalid-core-input");
+
+  assertToolResultEnvelope(response, "verify-run-invalid-core-input");
+  assert.equal(response.result.structuredContent.tool, "norma.verifyRun");
+  assert.equal(response.result.structuredContent.status, "invalid");
+  assert.equal(response.result.structuredContent.result.kind, "run-verification");
+  assert.equal(response.result.structuredContent.result.status, "invalid");
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyRunOutputSchema);
 });
 
 test("PR37 norma.verifyRun rejects malformed MCP argument wrappers", () => {
@@ -312,6 +361,8 @@ test("PR37 norma.verifyArtifactFreshness returns one text item and preserves exa
   });
   assert.equal(response.result.structuredContent.result.kind, "artifact-freshness-verification");
   assert.equal(response.result.structuredContent.result.status, "current");
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyArtifactFreshnessOutputSchema);
 });
 
 test("PR37 norma.verifyArtifactFreshness preserves warnings errors stale refs and provenance", () => {
@@ -352,6 +403,24 @@ test("PR37 norma.verifyArtifactFreshness preserves warnings errors stale refs an
   const response = callTool("norma.verifyArtifactFreshness", { input: verificationInput }, "verify-freshness-preserve");
   assert.deepEqual(response.result.structuredContent.result, expectedCoreResult);
   assert.equal(response.result.structuredContent.status, expectedCoreResult.status);
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyArtifactFreshnessOutputSchema);
+});
+
+test("PR37 norma.verifyArtifactFreshness returns a conforming successful MCP envelope for invalid core input", () => {
+  const response = callTool(
+    "norma.verifyArtifactFreshness",
+    { input: null },
+    "verify-freshness-invalid-core-input",
+  );
+
+  assertToolResultEnvelope(response, "verify-freshness-invalid-core-input");
+  assert.equal(response.result.structuredContent.tool, "norma.verifyArtifactFreshness");
+  assert.equal(response.result.structuredContent.status, "invalid");
+  assert.equal(response.result.structuredContent.result.kind, "artifact-freshness-verification");
+  assert.equal(response.result.structuredContent.result.status, "invalid");
+  assert.equal(response.result.structuredContent.status, response.result.structuredContent.result.status);
+  assertConformsToSchema(response.result.structuredContent, verifyArtifactFreshnessOutputSchema);
 });
 
 test("PR37 norma.verifyArtifactFreshness rejects malformed MCP argument wrappers", () => {
@@ -734,6 +803,7 @@ function assertToolResultEnvelope(response, id) {
   assert.equal(response.result.isError, false);
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
+  assert.equal(response.result.content[0].text, core.serializeCanonicalJson(response.result.structuredContent));
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
 }
 
@@ -761,7 +831,7 @@ function parseRequiredResponse(message) {
   return JSON.parse(response);
 }
 
-function assertOutputSchemasAreOnlyOnR2ASimpleTools(tools) {
+function assertOutputSchemasMatchAllowedTools(tools) {
   for (const tool of tools) {
     assert.equal(Object.hasOwn(tool, "annotations"), false);
     const expectedOutputSchema = allowedOutputSchemasByToolName.get(tool.name);
@@ -773,6 +843,40 @@ function assertOutputSchemasAreOnlyOnR2ASimpleTools(tools) {
 
     assert.deepEqual(tool.outputSchema, expectedOutputSchema);
     delete tool.outputSchema;
+  }
+}
+
+function assertConformsToSchema(value, schema, path = "structuredContent") {
+  if (Object.hasOwn(schema, "const")) {
+    assert.deepEqual(value, schema.const, `${path} must match const`);
+  }
+
+  if (schema.type !== undefined) {
+    assert.equal(typeof value, schema.type, `${path} must be ${schema.type}`);
+  }
+
+  if (schema.type !== "object") {
+    return;
+  }
+
+  assert.notEqual(value, null, `${path} must be an object`);
+  assert.equal(Array.isArray(value), false, `${path} must not be an array`);
+  const properties = schema.properties ?? {};
+
+  for (const key of schema.required ?? []) {
+    assert.equal(Object.hasOwn(value, key), true, `${path}.${key} is required`);
+  }
+
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(value)) {
+      assert.equal(Object.hasOwn(properties, key), true, `${path}.${key} is not declared`);
+    }
+  }
+
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (Object.hasOwn(value, key)) {
+      assertConformsToSchema(value[key], propertySchema, `${path}.${key}`);
+    }
   }
 }
 

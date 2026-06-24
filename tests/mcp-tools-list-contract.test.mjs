@@ -82,6 +82,35 @@ const serializeCanonicalJsonOutputSchema = {
   },
 };
 
+function complexToolOutputSchema(tool, resultKind) {
+  return {
+    type: "object",
+    required: ["kind", "tool", "status", "result"],
+    additionalProperties: false,
+    properties: {
+      kind: { const: "norma-mcp-tool-result" },
+      tool: { const: tool },
+      status: { type: "string" },
+      result: {
+        type: "object",
+        required: ["kind", "status"],
+        additionalProperties: true,
+        properties: {
+          kind: { const: resultKind },
+          status: { type: "string" },
+        },
+      },
+    },
+  };
+}
+
+const verifyRunOutputSchema = complexToolOutputSchema("norma.verifyRun", "run-verification");
+const verifyArtifactFreshnessOutputSchema = complexToolOutputSchema(
+  "norma.verifyArtifactFreshness",
+  "artifact-freshness-verification",
+);
+const replayMvpDemoOutputSchema = complexToolOutputSchema("norma.replayMvpDemo", "run-replay");
+
 const discoveredTools = [
   {
     name: "norma.getVersion",
@@ -123,6 +152,7 @@ const discoveredTools = [
         input: {},
       },
     },
+    outputSchema: verifyRunOutputSchema,
   },
   {
     name: "norma.verifyArtifactFreshness",
@@ -136,6 +166,7 @@ const discoveredTools = [
         input: {},
       },
     },
+    outputSchema: verifyArtifactFreshnessOutputSchema,
   },
   {
     name: "norma.replayMvpDemo",
@@ -146,10 +177,12 @@ const discoveredTools = [
       additionalProperties: false,
       properties: {},
     },
+    outputSchema: replayMvpDemoOutputSchema,
   },
 ];
 
 const forbiddenToolNames = [
+  "norma.runMvpDemoV1",
   "norma.replayRun",
   "norma.createRule",
   "norma.createPack",
@@ -280,9 +313,9 @@ test("PR38 tools/list schemas are exact", () => {
   });
   assert.equal(Object.hasOwn(tools[4].inputSchema, "required"), false);
 
-  assert.equal(Object.hasOwn(tools[2], "outputSchema"), false);
-  assert.equal(Object.hasOwn(tools[3], "outputSchema"), false);
-  assert.equal(Object.hasOwn(tools[4], "outputSchema"), false);
+  assert.deepEqual(tools[2].outputSchema, verifyRunOutputSchema);
+  assert.deepEqual(tools[3].outputSchema, verifyArtifactFreshnessOutputSchema);
+  assert.deepEqual(tools[4].outputSchema, replayMvpDemoOutputSchema);
   for (const tool of tools) {
     assert.equal(Object.hasOwn(tool, "annotations"), false);
   }
