@@ -77,6 +77,20 @@ const exactPr80ChangedFilesWithGuards = [
   "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
+const exactPr101ReplayChangedFilesWithGuards = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -312,7 +326,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr77ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -332,6 +347,18 @@ test("PR75 does not add runtime package deployment provider or schema files", ()
   );
 
   assert.deepEqual(unexpected, []);
+});
+
+test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
+  for (const unexpectedFile of ["src/mcp/unrelated.ts", "package.json", ".github/workflows/ci.yml"]) {
+    assert.equal(
+      isExactChangedFileSet(
+        [...exactPr101ReplayChangedFilesWithGuards, unexpectedFile].sort(),
+        exactPr101ReplayChangedFilesWithGuards,
+      ),
+      false,
+    );
+  }
 });
 
 function read(relativePath) {
@@ -396,6 +423,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards)) {
     return exactPr80ChangedFilesWithGuards;
+  }
+  if (isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards)) {
+    return exactPr101ReplayChangedFilesWithGuards;
   }
   return [];
 }

@@ -17,6 +17,7 @@ type JsonRpcId = string | number;
 type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603;
 
 const requestEncoder = new TextEncoder();
+const mcpProtocolDateStringPattern = /^\d{4}-\d{2}-\d{2}$/u;
 
 interface McpToolDefinition {
   readonly name: string;
@@ -106,7 +107,7 @@ interface InitializeResponse {
   readonly jsonrpc: "2.0";
   readonly id: JsonRpcId;
   readonly result: {
-    readonly protocolVersion: typeof MCP_PROTOCOL_VERSION;
+    readonly protocolVersion: string;
     readonly capabilities: {
       readonly tools: {
         readonly listChanged: false;
@@ -185,7 +186,7 @@ export function handleMcpJsonRpcRequest(
   }
 
   if (message.method === "initialize") {
-    return createInitializeResult(id);
+    return createInitializeResult(id, selectInitializeProtocolVersion(message.params));
   }
 
   if (message.method === "tools/list") {
@@ -228,12 +229,15 @@ export function createJsonRpcError(
   };
 }
 
-export function createInitializeResult(id: JsonRpcId): InitializeResponse {
+export function createInitializeResult(
+  id: JsonRpcId,
+  protocolVersion = MCP_PROTOCOL_VERSION,
+): InitializeResponse {
   return {
     jsonrpc: "2.0",
     id,
     result: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion,
       capabilities: {
         tools: {
           listChanged: false,
@@ -245,6 +249,16 @@ export function createInitializeResult(id: JsonRpcId): InitializeResponse {
       },
     },
   };
+}
+
+function selectInitializeProtocolVersion(params: unknown): string {
+  if (!isRecord(params) || Array.isArray(params)) {
+    return MCP_PROTOCOL_VERSION;
+  }
+
+  return typeof params.protocolVersion === "string" && mcpProtocolDateStringPattern.test(params.protocolVersion)
+    ? params.protocolVersion
+    : MCP_PROTOCOL_VERSION;
 }
 
 function createToolsListResult(id: JsonRpcId): ToolsListResponse {

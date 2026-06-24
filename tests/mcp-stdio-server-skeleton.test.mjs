@@ -96,6 +96,37 @@ test("PR35 initialize returns the exact local STDIO skeleton response for string
   assertNoToolNames(JSON.stringify(response));
 });
 
+test("PR101 initialize accepts and echoes MCP protocol date-string versions", () => {
+  for (const protocolVersion of ["2025-03-26", "2025-06-18", "2025-11-25"]) {
+    const response = parseRequiredResponse({
+      jsonrpc: "2.0",
+      id: `init-${protocolVersion}`,
+      method: "initialize",
+      params: {
+        protocolVersion,
+        capabilities: {},
+        clientInfo: {
+          name: "test-client",
+          version: "0.0.0",
+        },
+      },
+    });
+
+    assert.equal(response.result.protocolVersion, protocolVersion);
+    assert.deepEqual(response.result.capabilities, {
+      tools: {
+        listChanged: false,
+      },
+    });
+    assert.deepEqual(response.result.serverInfo, {
+      name: "norma-core-mcp-stdio-skeleton",
+      version: "0.1.0-pr12",
+    });
+    assertNoUnapprovedCapabilityOrInstructionFields(response.result);
+    assertNoToolNames(JSON.stringify(response));
+  }
+});
+
 test("PR34 initialize preserves number ids exactly", () => {
   const response = parseRequiredResponse({
     jsonrpc: "2.0",
@@ -110,6 +141,55 @@ test("PR34 initialize preserves number ids exactly", () => {
       listChanged: false,
     },
   });
+});
+
+test("PR101 initialize preserves current default behavior for missing or non-date protocol versions", () => {
+  for (const request of [
+    {
+      jsonrpc: "2.0",
+      id: "init-without-params",
+      method: "initialize",
+    },
+    {
+      jsonrpc: "2.0",
+      id: "init-without-protocol-version",
+      method: "initialize",
+      params: {
+        capabilities: {},
+        clientInfo: {
+          name: "test-client",
+          version: "0.0.0",
+        },
+      },
+    },
+    {
+      jsonrpc: "2.0",
+      id: "init-non-date-protocol-version",
+      method: "initialize",
+      params: {
+        protocolVersion: "not-a-date",
+        capabilities: {},
+        clientInfo: {
+          name: "test-client",
+          version: "0.0.0",
+        },
+      },
+    },
+  ]) {
+    const response = parseRequiredResponse(request);
+
+    assert.equal(response.result.protocolVersion, MCP_PROTOCOL_VERSION);
+    assert.deepEqual(response.result.capabilities, {
+      tools: {
+        listChanged: false,
+      },
+    });
+    assert.deepEqual(response.result.serverInfo, {
+      name: "norma-core-mcp-stdio-skeleton",
+      version: "0.1.0-pr12",
+    });
+    assertNoUnapprovedCapabilityOrInstructionFields(response.result);
+  }
 });
 
 test("PR34 notifications do not produce stdout responses", () => {
@@ -340,6 +420,50 @@ test("PR34 spawned STDIO wrapper responds before stdin closes", async () => {
   assert.equal(response.jsonrpc, "2.0");
   assert.equal(response.id, "streaming-init");
   assert.equal(response.result.protocolVersion, "2025-06-18");
+});
+
+test("PR101 spawned STDIO wrapper echoes ChatGPT MCP protocol date strings", async () => {
+  const child = spawn(process.execPath, [wrapperPath], {
+    cwd: repoRoot,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  child.stdin.setDefaultEncoding("utf8");
+
+  let stdoutLine;
+
+  try {
+    stdoutLine = await readStdoutLineBeforeClosingStdin(child, {
+      jsonrpc: "2.0",
+      id: "streaming-init-chatgpt",
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: {
+          name: "chatgpt",
+          version: "test",
+        },
+      },
+    });
+  } finally {
+    child.stdin.end();
+    child.kill();
+  }
+
+  const response = JSON.parse(stdoutLine);
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.id, "streaming-init-chatgpt");
+  assert.equal(response.result.protocolVersion, "2025-11-25");
+  assert.deepEqual(response.result.capabilities, {
+    tools: {
+      listChanged: false,
+    },
+  });
+  assert.deepEqual(response.result.serverInfo, {
+    name: "norma-core-mcp-stdio-skeleton",
+    version: "0.1.0-pr12",
+  });
 });
 
 test("PR34 spawned STDIO wrapper emits empty stdout for notification-only input", () => {
