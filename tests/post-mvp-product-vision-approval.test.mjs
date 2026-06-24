@@ -124,6 +124,18 @@ const exactR2BOutputSchemaChangedFilesWithGuards = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const exactR3NonCanonicalStructuredInputChangedFilesWithGuards = [
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mvp-demo-harness.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -362,7 +374,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards),
+      isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, exactR3NonCanonicalStructuredInputChangedFilesWithGuards),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -410,6 +423,13 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
       isExactChangedFileSet(
         [...exactR2BOutputSchemaChangedFilesWithGuards, unexpectedFile].sort(),
         exactR2BOutputSchemaChangedFilesWithGuards,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...exactR3NonCanonicalStructuredInputChangedFilesWithGuards, unexpectedFile].sort(),
+        exactR3NonCanonicalStructuredInputChangedFilesWithGuards,
       ),
       false,
     );
@@ -487,6 +507,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards)) {
     return exactR2BOutputSchemaChangedFilesWithGuards;
+  }
+  if (isExactChangedFileSet(changed, exactR3NonCanonicalStructuredInputChangedFilesWithGuards)) {
+    return exactR3NonCanonicalStructuredInputChangedFilesWithGuards;
   }
   return [];
 }

@@ -142,6 +142,18 @@ const r2bOutputSchemaChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const r3NonCanonicalStructuredInputChangedFiles = new Set([
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/mvp-demo-harness.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -585,6 +597,13 @@ test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes'
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), [...pr101ReplayChangedFiles].sort()), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), [...r2aOutputSchemaChangedFiles].sort()), false);
     assert.equal(isExactChangedFileSet([...r2bOutputSchemaChangedFiles, unexpectedFile].sort(), [...r2bOutputSchemaChangedFiles].sort()), false);
+    assert.equal(
+      isExactChangedFileSet(
+        [...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort(),
+        [...r3NonCanonicalStructuredInputChangedFiles].sort(),
+      ),
+      false,
+    );
   }
 });
 
@@ -601,6 +620,11 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r2bOutputSchemaChangedFiles].sort())) {
     assertR2BOutputSchemaChangedFiles(changedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r3NonCanonicalStructuredInputChangedFiles].sort())) {
+    assertR3NonCanonicalStructuredInputChangedFiles(changedFiles);
     return;
   }
 
@@ -668,6 +692,23 @@ function assertR2BOutputSchemaChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
       `R2B output schema guard maintenance must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertR3NonCanonicalStructuredInputChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      r3NonCanonicalStructuredInputChangedFiles.has(changedFile),
+      `unexpected R3 non-canonical structured input proof file changed: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R3 guard maintenance must not change protected implementation surface: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `R3 guard maintenance must not change protected project contract file: ${changedFile}`,
     );
   }
 }

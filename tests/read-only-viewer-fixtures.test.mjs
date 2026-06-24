@@ -187,6 +187,18 @@ const r2bOutputSchemaChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r3NonCanonicalStructuredInputChangedFiles = [
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mvp-demo-harness.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const exactApprovedChangedFileSets = [
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
@@ -201,6 +213,7 @@ const exactApprovedChangedFileSets = [
   pr101ReplayChangedFiles,
   r2aOutputSchemaChangedFiles,
   r2bOutputSchemaChangedFiles,
+  r3NonCanonicalStructuredInputChangedFiles,
 ];
 
 test("PR69 fixtures are valid deterministic JSON", () => {
@@ -340,6 +353,7 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
     assert.equal(exactApprovedChangedFiles([...pr101ReplayChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r2aOutputSchemaChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r2bOutputSchemaChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(exactApprovedChangedFiles([...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort()), null);
   }
 });
 

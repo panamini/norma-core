@@ -170,6 +170,18 @@ const r2bOutputSchemaChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r3NonCanonicalStructuredInputChangedFiles = [
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mvp-demo-harness.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const allowedPostPr62ChangedFiles = [
   ...expectedChangedFiles,
   ...pr67ReadOnlyViewerModelPaths,
@@ -410,6 +422,7 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
     assert.equal(exactApprovedChangedFiles([...pr101ReplayChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r2aOutputSchemaChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r2bOutputSchemaChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(exactApprovedChangedFiles([...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort()), null);
   }
 });
 
@@ -493,6 +506,10 @@ function isExactR2BOutputSchemaChangeSet(changed) {
   return isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles);
 }
 
+function isExactR3NonCanonicalStructuredInputChangeSet(changed) {
+  return isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles);
+}
+
 function approvedChangedFilesFor(changed) {
   return exactApprovedChangedFiles(changed) ?? allowedPostPr62ChangedFiles;
 }
@@ -524,6 +541,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactR2BOutputSchemaChangeSet(changed)) {
     return r2bOutputSchemaChangedFiles;
+  }
+  if (isExactR3NonCanonicalStructuredInputChangeSet(changed)) {
+    return r3NonCanonicalStructuredInputChangedFiles;
   }
   return null;
 }
