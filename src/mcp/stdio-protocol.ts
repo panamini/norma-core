@@ -18,6 +18,7 @@ type JsonRpcErrorCode = -32700 | -32600 | -32601 | -32602 | -32603;
 
 const requestEncoder = new TextEncoder();
 const mcpProtocolDateStringPattern = /^\d{4}-\d{2}-\d{2}$/u;
+const minimumCompatibleMcpProtocolDate = "2025-03-26";
 
 interface McpToolDefinition {
   readonly name: string;
@@ -256,9 +257,39 @@ function selectInitializeProtocolVersion(params: unknown): string {
     return MCP_PROTOCOL_VERSION;
   }
 
-  return typeof params.protocolVersion === "string" && mcpProtocolDateStringPattern.test(params.protocolVersion)
+  return typeof params.protocolVersion === "string" && isCompatibleMcpProtocolDateString(params.protocolVersion)
     ? params.protocolVersion
     : MCP_PROTOCOL_VERSION;
+}
+
+function isCompatibleMcpProtocolDateString(protocolVersion: string): boolean {
+  if (!mcpProtocolDateStringPattern.test(protocolVersion)) {
+    return false;
+  }
+
+  const year = Number(protocolVersion.slice(0, 4));
+  const month = Number(protocolVersion.slice(5, 7));
+  const day = Number(protocolVersion.slice(8, 10));
+
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth(year, month) &&
+    protocolVersion >= minimumCompatibleMcpProtocolDate
+  );
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return isLeapYear(year) ? 29 : 28;
+  }
+
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 function createToolsListResult(id: JsonRpcId): ToolsListResponse {

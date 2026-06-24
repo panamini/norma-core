@@ -175,6 +175,32 @@ test("PR101 initialize preserves current default behavior for missing or non-dat
         },
       },
     },
+    {
+      jsonrpc: "2.0",
+      id: "init-impossible-date-protocol-version",
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-99-99",
+        capabilities: {},
+        clientInfo: {
+          name: "test-client",
+          version: "0.0.0",
+        },
+      },
+    },
+    {
+      jsonrpc: "2.0",
+      id: "init-absurd-date-protocol-version",
+      method: "initialize",
+      params: {
+        protocolVersion: "9999-99-99",
+        capabilities: {},
+        clientInfo: {
+          name: "test-client",
+          version: "0.0.0",
+        },
+      },
+    },
   ]) {
     const response = parseRequiredResponse(request);
 
