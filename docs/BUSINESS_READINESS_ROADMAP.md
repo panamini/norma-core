@@ -59,6 +59,47 @@ The selected first slice requires explicit user-supplied structured geometry or 
 
 R6 may later propose one stable structured analysis operation and at most one corresponding MCP tool if existing tools are insufficient. R6 must preserve the current five-tool MCP inventory, declare `outputSchema` from first introduction, validate model-provided input server-side, and remain private/developer-only during proof.
 
+## R6A Structured Analyze V1 Contract
+
+R6A converts the R5 architecture boundary into a reviewed contract for the first
+direct Structured Analyze V1 operation.
+
+Decision reference: `docs/decisions/2026-06-25-structured-analyze-v1-contract.md`.
+
+R6A is contract docs/tests only.
+
+R6A selects one future direct operation:
+
+```text
+analyzeStructuredCompositionV1
+```
+
+The operation name is:
+
+```text
+core.structured-composition-analysis.analyze
+```
+
+R6A uses explicit user-supplied Core `Composition2D` pairs plus explicit
+acceptance, pack lock, evaluation profile, tolerance policy, operation context,
+and provenance.
+
+R6A does not implement runtime code, package exports, schemas, generated files,
+MCP descriptors, annotations, ChatGPT app metadata, hosted MCP, Developer Mode
+configuration, image input, vision input, camera input, CAD input, plugin input,
+dependencies, package metadata, CI changes, or public submission.
+
+R6B may implement the direct `analyzeStructuredCompositionV1` operation with
+deterministic direct-core A/B/invalid tests.
+
+R6C may expose at most one MCP tool, `norma.analyzeStructuredCompositionV1`,
+only after the direct operation exists and only with `inputSchema`,
+`outputSchema`, read-only/idempotent/non-open-world annotations, and
+direct-core/MCP parity tests from first exposure.
+
+R6A keeps no image, vision, camera, CAD, plugin, hosted MCP, public submission,
+or runtime tool exposure in scope.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:

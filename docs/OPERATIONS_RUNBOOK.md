@@ -35,6 +35,8 @@ Norma Core has two separate proof tracks that must not be collapsed.
   `norma.replayMvpDemo`.
 - PR105 / R3 proved non-canonical structured MVP inputs through repository
   tests and the MVP harness boundary.
+- R6A Structured Analyze V1 contract is documentation and tests only. It does
+  not expose a new runtime operation or MCP tool.
 
 Current `main` is not the historical PR6 branch. Current `main` exposes a
 different five-tool MCP inventory and still needs a current-main ChatGPT
@@ -73,6 +75,8 @@ Current `main` exposes exactly these MCP tools through local STDIO:
 
 All five tools declare `outputSchema` in `src/mcp/stdio-protocol.ts`.
 Annotations are absent on current main.
+
+No current `norma.analyzeStructuredCompositionV1` MCP tool exists.
 
 `norma.runMvpDemoV1` is not exposed on current main.
 
@@ -441,6 +445,9 @@ rollback means reverting `docs/OPERATIONS_RUNBOOK.md` and the related link in
 - No current-main ChatGPT re-smoke proof yet.
 - Annotations are absent on current main.
 - No current custom-analysis MCP tool.
+- No current `norma.analyzeStructuredCompositionV1` MCP tool.
+- R6A is a contract for a future direct Structured Analyze V1 operation and a
+  later possible MCP wrapper; it is not runtime proof.
 - R3 is a repository test/harness proof, not a ChatGPT custom-analysis product
   proof.
 - No image, camera, or vision input.

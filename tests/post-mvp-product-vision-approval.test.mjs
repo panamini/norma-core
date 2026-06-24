@@ -166,6 +166,25 @@ const r5PostMvpAdapterArchitectureChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const r6aStructuredAnalyzeContractChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-tool-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-analyze-v1-contract.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -407,7 +426,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactR3NonCanonicalStructuredInputChangedFilesWithGuards) ||
-      isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles),
+      isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles) ||
+      isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -469,6 +489,13 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
       isExactChangedFileSet(
         [...r5PostMvpAdapterArchitectureChangedFiles, unexpectedFile].sort(),
         r5PostMvpAdapterArchitectureChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6aStructuredAnalyzeContractChangedFiles, unexpectedFile].sort(),
+        r6aStructuredAnalyzeContractChangedFiles,
       ),
       false,
     );
@@ -557,6 +584,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles)) {
     return r5PostMvpAdapterArchitectureChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles)) {
+    return r6aStructuredAnalyzeContractChangedFiles;
   }
   return [];
 }

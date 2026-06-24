@@ -401,6 +401,45 @@ test("PR39 MCP contract references the remote threat model and keeps remote MCP 
   assertNoMcpDependency(packageJson);
 });
 
+test("R6A MCP contract approves only future structured analyze candidate without runtime exposure", () => {
+  const doc = readDoc(contractDocPath);
+  const r6aSection = sectionBetween(doc, "## R6A Structured Analyze Tool Contract", "## Resources and Prompts Policy");
+  const toolsListResponse = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "r6a-tools-list",
+    method: "tools/list",
+  });
+
+  assertDocMentions(r6aSection, [
+    "R6A is contract docs/tests only.",
+    "norma.analyzeStructuredCompositionV1",
+    "R6A does not expose the tool.",
+    "R6A does not change current `tools/list` output.",
+    "R6A does not add annotations to current tools.",
+    "append the new tool after the five current tools",
+    "inputSchema",
+    "outputSchema",
+    "additionalProperties: false",
+    "\"readOnlyHint\": true",
+    "\"destructiveHint\": false",
+    "\"idempotentHint\": true",
+    "\"openWorldHint\": false",
+    "Malformed `tools/call` params or malformed tool arguments must return JSON-RPC",
+    "`-32602`",
+    "Validly shaped domain-invalid structured analysis input must return structured",
+    "exactly one",
+    "text content item",
+    "parsed text equals",
+    "`structuredContent`",
+  ]);
+
+  assert.deepEqual(toolsListResponse.result.tools.map((tool) => tool.name), approvedCallableTools);
+  assert.equal(
+    toolsListResponse.result.tools.some((tool) => tool.name === "norma.analyzeStructuredCompositionV1"),
+    false,
+  );
+});
+
 test("PR38 runtime implements tools/call only for approved callable tools", () => {
   for (const toolName of approvedCallableTools) {
     const argumentsValue = argumentsForTool(toolName);

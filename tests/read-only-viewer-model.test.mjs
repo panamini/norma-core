@@ -116,9 +116,29 @@ const r5PostMvpAdapterArchitectureChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r6aStructuredAnalyzeContractChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-tool-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-analyze-v1-contract.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const exactApprovedChangedFileSets = [
   r4CurrentOperationsRunbookChangedFiles,
   r5PostMvpAdapterArchitectureChangedFiles,
+  r6aStructuredAnalyzeContractChangedFiles,
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr75ApprovedChangedFiles,

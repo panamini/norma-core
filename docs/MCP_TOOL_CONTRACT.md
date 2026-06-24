@@ -58,6 +58,15 @@ Current MCP runtime remains local STDIO only.
 
 Any future remote MCP requires a separate approval PR.
 
+R6A Structured Analyze V1 contract only approves a future structured analysis
+operation and one future MCP candidate.
+
+R6A does not implement or expose `norma.analyzeStructuredCompositionV1`.
+
+R6A does not change current `tools/list` output.
+
+R6A does not add annotations to current tools.
+
 Reference: `docs/MCP_REMOTE_THREAT_MODEL.md`.
 
 Operational runbook: `docs/OPERATIONS_RUNBOOK.md`.
@@ -618,6 +627,81 @@ PR38 does not add filesystem access, network access, shell execution, package me
 PR39 remains the future candidate for remote MCP/API threat modeling before any remote exposure.
 
 PR39 remains remote MCP threat model only, not remote implementation.
+
+## R6A Structured Analyze Tool Contract
+
+R6A is contract docs/tests only.
+
+R6A approves this future MCP candidate only:
+
+```txt
+norma.analyzeStructuredCompositionV1
+```
+
+R6A does not expose the tool.
+
+R6A does not change current `tools/list` output.
+
+R6A does not add annotations to current tools.
+
+R6A keeps current local STDIO MCP at exactly five tools:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+norma.replayMvpDemo
+```
+
+A future implementation PR may append the new tool after the five current tools:
+
+```txt
+norma.getVersion
+norma.serializeCanonicalJson
+norma.verifyRun
+norma.verifyArtifactFreshness
+norma.replayMvpDemo
+norma.analyzeStructuredCompositionV1
+```
+
+The future tool must wrap only the direct `analyzeStructuredCompositionV1`
+operation approved by `docs/decisions/2026-06-25-structured-analyze-v1-contract.md`.
+
+The tool must accept only explicit structured
+`StructuredCompositionAnalysisInputV1` data.
+
+The tool must not infer geometry, packs, rules, tolerances, operation context,
+acceptance, recommendations, optimization, beauty score, or intent from prompt
+text.
+
+The tool descriptor must declare `inputSchema` and `outputSchema` from first
+exposure. Closed objects must use `additionalProperties: false`.
+
+The future tool annotations must be:
+
+```json
+{
+  "readOnlyHint": true,
+  "destructiveHint": false,
+  "idempotentHint": true,
+  "openWorldHint": false
+}
+```
+
+Annotations are client-facing metadata. Server-side validation remains
+mandatory.
+
+Malformed `tools/call` params or malformed tool arguments must return JSON-RPC
+`-32602`.
+
+Validly shaped domain-invalid structured analysis input must return structured
+`status: "invalid"` with diagnostics, no downstream measurements, no
+evaluations, no comparison, no decision, and no output refs.
+
+The tool result must preserve the existing local MCP envelope rule: exactly one
+text content item, text is canonical JSON, parsed text equals
+`structuredContent`, and `isError` is not used for domain validation failures.
 
 ## Resources and Prompts Policy
 
