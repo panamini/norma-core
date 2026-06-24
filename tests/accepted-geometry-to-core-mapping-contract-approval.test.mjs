@@ -93,6 +93,18 @@ const r2bOutputSchemaChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const r3NonCanonicalStructuredInputChangedFiles = [
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mvp-demo-harness.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 test("PR80 decision file exists with required headings in order", () => {
   assert.equal(fs.existsSync(nodePath.join(repositoryRoot, decisionPath)), true);
   assertHeadingSequence(decision, requiredHeadings);
@@ -252,9 +264,10 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
     isExactChangedFileSet(changed, pr80ApprovedChangedFiles) ||
       isExactChangedFileSet(changed, pr101ReplayChangedFiles) ||
       isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles) ||
-      isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles),
+      isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles) ||
+      isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles),
     true,
-    `Unexpected PR80/PR101/R2A/R2B changed files:\n${changed.join("\n")}`,
+    `Unexpected PR80/PR101/R2A/R2B/R3 changed files:\n${changed.join("\n")}`,
   );
 });
 
@@ -266,7 +279,9 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
       ? r2aOutputSchemaChangedFiles
       : isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles)
         ? r2bOutputSchemaChangedFiles
-        : [];
+        : isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles)
+          ? r3NonCanonicalStructuredInputChangedFiles
+          : [];
   const protectedPatterns = [
     /^src\//,
     /^bin\//,
@@ -297,6 +312,13 @@ test("PR101 replay guard rejects unrelated MCP package and CI changes", () => {
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), pr101ReplayChangedFiles), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), r2aOutputSchemaChangedFiles), false);
     assert.equal(isExactChangedFileSet([...r2bOutputSchemaChangedFiles, unexpectedFile].sort(), r2bOutputSchemaChangedFiles), false);
+    assert.equal(
+      isExactChangedFileSet(
+        [...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort(),
+        r3NonCanonicalStructuredInputChangedFiles,
+      ),
+      false,
+    );
   }
 });
 
