@@ -77,6 +77,21 @@ const exactPr80ChangedFilesWithGuards = [
   "tests/read-only-viewer-static.test.mjs",
 ].sort();
 
+const r4CurrentOperationsRunbookChangedFiles = [
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const exactPr101ReplayChangedFilesWithGuards = [
   "src/mcp/stdio-protocol.ts",
   "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
@@ -372,6 +387,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactPr78ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards) ||
+      isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles) ||
       isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactR2AOutputSchemaChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, exactR2BOutputSchemaChangedFilesWithGuards) ||
@@ -458,9 +474,11 @@ function assertHeadingsInOrder(source, expectedHeadings) {
 }
 
 function branchChangedFiles() {
+  const baseFiles =
+    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
+    gitFiles(["diff", "--name-only", "main...HEAD"]);
   const probes = [
-    gitFiles(["diff", "--name-only", "main...HEAD"]),
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
+    baseFiles,
     gitFiles(["diff", "--name-only"]),
     gitFiles(["diff", "--cached", "--name-only"]),
     gitFiles(["ls-files", "--others", "--exclude-standard"]),
@@ -498,6 +516,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, exactPr80ChangedFilesWithGuards)) {
     return exactPr80ChangedFilesWithGuards;
+  }
+  if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) {
+    return r4CurrentOperationsRunbookChangedFiles;
   }
   if (isExactChangedFileSet(changed, exactPr101ReplayChangedFilesWithGuards)) {
     return exactPr101ReplayChangedFilesWithGuards;

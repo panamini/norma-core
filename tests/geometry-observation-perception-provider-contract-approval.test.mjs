@@ -95,6 +95,21 @@ const pr80ApprovedChangedFiles = new Set([
   'tests/read-only-viewer-static.test.mjs',
 ]);
 
+const r4CurrentOperationsRunbookChangedFiles = new Set([
+  'docs/MCP_TOOL_CONTRACT.md',
+  'docs/OPERATIONS_RUNBOOK.md',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr101ReplayChangedFiles = new Set([
   'src/mcp/stdio-protocol.ts',
   'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
@@ -633,6 +648,11 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
     return;
   }
 
+  if (isExactChangedFileSet(changedFiles, [...r4CurrentOperationsRunbookChangedFiles].sort())) {
+    assertR4CurrentOperationsRunbookChangedFiles(changedFiles);
+    return;
+  }
+
   if (isExactChangedFileSet(changedFiles, [...pr79ApprovedChangedFiles].sort())) {
     assertPr79ApprovedChangedFiles(changedFiles);
     return;
@@ -655,6 +675,23 @@ function assertPr101ReplayChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedFiles.has(changedFile),
       `PR101 replay must not change protected project contract file: ${changedFile}`,
+    );
+  }
+}
+
+function assertR4CurrentOperationsRunbookChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      r4CurrentOperationsRunbookChangedFiles.has(changedFile),
+      `unexpected R4 current operations runbook file changed: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R4 runbook guard maintenance must not change protected implementation surface: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `R4 runbook guard maintenance must not change protected project contract file: ${changedFile}`,
     );
   }
 }
@@ -789,9 +826,11 @@ function assertIncludes(text, expected) {
 }
 
 function branchChangedFiles() {
+  const baseFiles =
+    gitFiles(['diff', '--name-only', 'origin/main...HEAD']) ??
+    gitFiles(['diff', '--name-only', 'main...HEAD']);
   const probes = [
-    gitFiles(['diff', '--name-only', 'main...HEAD']),
-    gitFiles(['diff', '--name-only', 'origin/main...HEAD']),
+    baseFiles,
     gitFiles(['diff', '--name-only']),
     gitFiles(['diff', '--cached', '--name-only']),
     gitFiles(['ls-files', '--others', '--exclude-standard']),

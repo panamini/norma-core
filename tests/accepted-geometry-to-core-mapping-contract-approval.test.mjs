@@ -9,6 +9,21 @@ const modulePath = modulePathFromUrl(import.meta.url);
 const testDirectory = nodePath.dirname(modulePath);
 const repositoryRoot = nodePath.dirname(testDirectory);
 
+const r4CurrentOperationsRunbookChangedFiles = [
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const decisionPath =
   "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md";
 const decision = read(decisionPath);
@@ -262,6 +277,7 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
 
   assert.equal(
     isExactChangedFileSet(changed, pr80ApprovedChangedFiles) ||
+      isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles) ||
       isExactChangedFileSet(changed, pr101ReplayChangedFiles) ||
       isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles) ||
       isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles) ||
@@ -275,7 +291,9 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
   const changed = branchChangedFiles();
   const protectedAllowlist = isExactChangedFileSet(changed, pr101ReplayChangedFiles)
     ? pr101ReplayChangedFiles
-    : isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles)
+    : isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)
+      ? r4CurrentOperationsRunbookChangedFiles
+      : isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles)
       ? r2aOutputSchemaChangedFiles
       : isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles)
         ? r2bOutputSchemaChangedFiles
@@ -346,9 +364,12 @@ function assertHeadingSequence(source, expectedHeadings) {
 function branchChangedFiles() {
   const files = new Set();
   let successfulGitProbes = 0;
+  const baseArgs =
+    gitOutputLines(["diff", "--name-only", "origin/main...HEAD"]) !== null
+      ? ["diff", "--name-only", "origin/main...HEAD"]
+      : ["diff", "--name-only", "main...HEAD"];
   for (const args of [
-    ["diff", "--name-only", "main...HEAD"],
-    ["diff", "--name-only", "origin/main...HEAD"],
+    baseArgs,
     ["diff", "--name-only"],
     ["diff", "--cached", "--name-only"],
     ["ls-files", "--others", "--exclude-standard"],
