@@ -331,6 +331,8 @@ test("R6C transport-invalid tool arguments return sanitized invalid params error
     { name: analyzeToolName, arguments: { input: null } },
     { name: analyzeToolName, arguments: { input: "bad" } },
     { name: analyzeToolName, arguments: { input: { ...input, contractVersion: "wrong" } } },
+    { name: analyzeToolName, arguments: { input: { ...input, analysisId: 42 } } },
+    { name: analyzeToolName, arguments: { input: { ...input, compositionA: {} } } },
     ...badInputFields.map((field) => ({ name: analyzeToolName, arguments: { input: { ...input, [field]: "blocked" } } })),
   ];
 

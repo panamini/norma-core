@@ -1266,22 +1266,6 @@ function createToolResult(id: JsonRpcId, structuredContent: McpStructuredContent
 
 const invalidVerifyToolInput = Symbol("invalidVerifyToolInput");
 const invalidStructuredAnalysisToolInput = Symbol("invalidStructuredAnalysisToolInput");
-const STRUCTURED_ANALYSIS_INPUT_KEYS = [
-  "contractVersion",
-  "analysisId",
-  "compositionA",
-  "compositionB",
-  "acceptance",
-  "ratioPack",
-  "packLock",
-  "ruleSetRef",
-  "evaluationProfile",
-  "evaluationTolerances",
-  "comparisonTolerances",
-  "tolerancePolicy",
-  "operationContext",
-  "provenance",
-] as const;
 
 function parseVerifyToolInput(toolArguments: Readonly<Record<string, unknown>> | undefined): unknown {
   if (toolArguments === undefined) {
@@ -1299,34 +1283,108 @@ function parseVerifyToolInput(toolArguments: Readonly<Record<string, unknown>> |
 function parseStructuredAnalysisToolInput(
   toolArguments: Readonly<Record<string, unknown>> | undefined,
 ): StructuredCompositionAnalysisInputV1 | typeof invalidStructuredAnalysisToolInput {
-  if (toolArguments === undefined) {
+  if (
+    toolArguments === undefined ||
+    !matchesJsonSchemaSubset(toolArguments, STRUCTURED_ANALYSIS_TOOL_INPUT_SCHEMA)
+  ) {
     return invalidStructuredAnalysisToolInput;
   }
 
-  const argumentKeys = Object.keys(toolArguments);
-  if (argumentKeys.length !== 1 || !Object.hasOwn(toolArguments, "input")) {
-    return invalidStructuredAnalysisToolInput;
+  return toolArguments.input as StructuredCompositionAnalysisInputV1;
+}
+
+function matchesJsonSchemaSubset(value: unknown, schema: unknown): boolean {
+  if (!isRecord(schema)) {
+    return true;
   }
 
-  const input = toolArguments.input;
-  if (!isJsonCompatibleValue(input) || !isRecord(input) || Array.isArray(input)) {
-    return invalidStructuredAnalysisToolInput;
+  const oneOf = schema.oneOf;
+  if (Array.isArray(oneOf)) {
+    return oneOf.filter((candidate) => matchesJsonSchemaSubset(value, candidate)).length === 1;
   }
 
-  const inputKeys = Object.keys(input);
-  const hasOnlyContractKeys = inputKeys.every((key) =>
-    STRUCTURED_ANALYSIS_INPUT_KEYS.includes(key as (typeof STRUCTURED_ANALYSIS_INPUT_KEYS)[number])
-  );
-  const hasAllContractKeys = STRUCTURED_ANALYSIS_INPUT_KEYS.every((key) => Object.hasOwn(input, key));
-  if (!hasOnlyContractKeys || !hasAllContractKeys) {
-    return invalidStructuredAnalysisToolInput;
+  if (Object.hasOwn(schema, "const") && !sameJsonSchemaValue(value, schema.const)) {
+    return false;
   }
 
-  if (input.contractVersion !== STRUCTURED_COMPOSITION_ANALYSIS_INPUT_CONTRACT_VERSION) {
-    return invalidStructuredAnalysisToolInput;
+  const enumValues = schema.enum;
+  if (Array.isArray(enumValues) && !enumValues.some((candidate) => sameJsonSchemaValue(value, candidate))) {
+    return false;
   }
 
-  return input as unknown as StructuredCompositionAnalysisInputV1;
+  const schemaType = schema.type;
+  if (typeof schemaType === "string" && !matchesJsonSchemaType(value, schemaType)) {
+    return false;
+  }
+
+  if (schemaType === "array") {
+    const itemSchema = schema.items;
+    return Array.isArray(value) && value.every((item) => matchesJsonSchemaSubset(item, itemSchema));
+  }
+
+  if (schemaType !== "object") {
+    return true;
+  }
+
+  if (!isRecord(value) || Array.isArray(value)) {
+    return false;
+  }
+
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  if (!required.every((key) => typeof key === "string" && Object.hasOwn(value, key))) {
+    return false;
+  }
+
+  if (schema.additionalProperties === false) {
+    const propertyNames = new Set(Object.keys(properties));
+    if (Object.keys(value).some((key) => !propertyNames.has(key))) {
+      return false;
+    }
+  }
+
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (Object.hasOwn(value, key) && !matchesJsonSchemaSubset(value[key], propertySchema)) {
+      return false;
+    }
+  }
+
+  if (isRecord(schema.additionalProperties)) {
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (!Object.hasOwn(properties, key) && !matchesJsonSchemaSubset(nestedValue, schema.additionalProperties)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function matchesJsonSchemaType(value: unknown, schemaType: string): boolean {
+  switch (schemaType) {
+    case "array":
+      return Array.isArray(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "object":
+      return isRecord(value) && !Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    default:
+      return true;
+  }
+}
+
+function sameJsonSchemaValue(left: unknown, right: unknown): boolean {
+  if (!isJsonCompatibleValue(left) || !isJsonCompatibleValue(right)) {
+    return false;
+  }
+
+  return serializeCanonicalJson(left) === serializeCanonicalJson(right);
 }
 
 function parseToolsCallParams(
