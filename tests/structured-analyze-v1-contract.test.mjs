@@ -45,6 +45,7 @@ test("R6A decision approves one direct structured analysis operation without run
 
   assertIncludes(decision, [
     "R6A is contract docs/tests only.",
+    "R6A.1 amends this contract",
     "export name: analyzeStructuredCompositionV1",
     "operation name: core.structured-composition-analysis.analyze",
     "operation version: 0.1.0-r6",
@@ -66,8 +67,42 @@ test("R6A input boundary keeps explicit accepted Core compositions as source tru
     "`accepted` must be exactly `true` before downstream computation can run.",
     "user_supplied_structured_data",
     "`acceptedAt` is operational metadata.",
+    "may be echoed in provenance",
     "must not affect deterministic",
-    "measurement, evaluation, comparison, decision, output refs",
+    "measurement, evaluation, comparison, decision",
+    "run identity",
+    "meaningful analysis",
+    "equality",
+    "Deterministic equality tests should compare analysis-significant output",
+  ]);
+});
+
+test("R6A.1 input contract requires executable pack rules and explicit tolerances", () => {
+  const decision = read(decisionPath);
+
+  assertIncludes(decision, [
+    "ratioPack: RatioPack;",
+    "ruleSetRef: string;",
+    "evaluationTolerances: EvaluationTolerances;",
+    "comparisonTolerances: TiePolicy;",
+    "`packLock` is identity/hash metadata only.",
+    "It cannot supply executable rules.",
+    "`ratioPack` supplies the executable `ruleSets` and `ruleDeclarations`.",
+    "`ruleSetRef` selects the exact rule set from `ratioPack`.",
+    "validate coherence between `ratioPack`, `packLock`, `ruleSetRef`, and",
+    "`operationContext`",
+    "must not silently select `BASIC_PROPORTIONS_PACK`",
+    "hidden built-in pack default",
+    "`evaluationProfile` does not embed tolerances.",
+    "`evaluationTolerances` is",
+    "required explicitly",
+    "`comparisonTolerances` is required explicitly",
+    "maps to the current Core `TiePolicy` type",
+    "Missing evaluation tolerances",
+    "missing comparison/tie tolerances",
+    "unsupported tolerance policies",
+    "implicit output-affecting operation context policies",
+    "rather than defaulting",
   ]);
 });
 
@@ -79,12 +114,20 @@ test("R6A result contract separates invalid domain input from internal failures"
     "structured-composition-analysis-result.v1",
     "valid",
     "invalid",
-    "failed",
-    "Domain validation failures must return `status: \"invalid\"`",
+    "The returned direct-operation statuses are only `valid` and `invalid`.",
+    "Human-facing text may describe a valid result as analyzed",
+    "Ordinary malformed or domain-invalid caller input must return",
+    "`status: \"invalid\"`",
     "no downstream measurements, evaluations, comparison, decision",
-    "or output refs",
+    "output refs, run ref",
+    "replay-readiness data",
     "Unexpected internal failures may throw in the direct operation boundary.",
     "JSON-RPC `-32603`",
+    "must not return a normal `failed` result variant unless a future ADR defines",
+  ]);
+
+  assertNotIncludes(decision, [
+    "Allowed `status` values are:\n\n```text\nvalid\ninvalid\nfailed\n```",
   ]);
 });
 
@@ -120,12 +163,19 @@ test("R6A docs keep MCP runtime inventory unchanged and future tool contract exp
     "Validly shaped domain-invalid analysis input must return structured",
   ]);
 
+  assertIncludes(decision, [
+    "R6B must not silently select `BASIC_PROPORTIONS_PACK`",
+    "R6B must not return a normal `failed` result variant",
+  ]);
+
   assertIncludes(mcpContract, [
     "R6A Structured Analyze V1 contract only",
     futureAnalyzeTool,
     "R6A does not change current `tools/list` output.",
     "R6A does not add annotations to current tools.",
     "append the new tool after the five current tools",
+    "`ratioPack`, `ruleSetRef`, `packLock`, `evaluationProfile`",
+    "`evaluationTolerances`, `comparisonTolerances`, `tolerancePolicy`",
     "\"openWorldHint\": false",
   ]);
 
@@ -142,6 +192,9 @@ test("R6A roadmap links the decision and keeps future implementation split", () 
     "## R6A Structured Analyze V1 Contract",
     decisionPath,
     "R6A is contract docs/tests only.",
+    "R6A.1 clarifies that `packLock` is identity/hash metadata only",
+    "must require explicit `ratioPack`, `ruleSetRef`, `evaluationTolerances`",
+    "`comparisonTolerances`",
     "R6B may implement the direct `analyzeStructuredCompositionV1` operation",
     "R6C may expose at most one MCP tool",
     "no image, vision, camera, CAD, plugin, hosted MCP, public submission",
@@ -174,9 +227,21 @@ function parseRequiredResponse(message) {
 }
 
 function assertIncludes(source, snippets) {
+  const normalizedSource = normalizeWhitespace(source);
   for (const snippet of snippets) {
-    assert.match(source, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
+    assert.match(normalizedSource, new RegExp(escapeRegExp(normalizeWhitespace(snippet)), "i"), `${snippet} should be documented`);
   }
+}
+
+function assertNotIncludes(source, snippets) {
+  const normalizedSource = normalizeWhitespace(source);
+  for (const snippet of snippets) {
+    assert.doesNotMatch(normalizedSource, new RegExp(escapeRegExp(normalizeWhitespace(snippet)), "i"), `${snippet} should not be documented`);
+  }
+}
+
+function normalizeWhitespace(value) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function assertHeadingsInOrder(source, expectedHeadings) {

@@ -6,6 +6,9 @@ R6A is contract docs/tests only.
 
 R6A approves the contract for one future direct structured analysis operation.
 
+R6A.1 amends this contract so the future direct operation is executable without
+hidden pack, rule, tolerance, context, or failure-semantics defaults.
+
 R6A does not implement runtime code, package exports, schemas, generated files,
 MCP tool descriptors, tool annotations, ChatGPT app metadata, hosted MCP,
 Developer Mode configuration, image input, vision input, CAD input, plugin
@@ -62,11 +65,24 @@ runtime scope.
 - `compositionA`;
 - `compositionB`;
 - `acceptance`;
+- `ratioPack`;
+- `ruleSetRef`;
 - `packLock`;
 - `evaluationProfile`;
+- `evaluationTolerances`;
+- `comparisonTolerances`;
 - `tolerancePolicy`;
 - `operationContext`;
 - `provenance`.
+
+The execution-bearing fields must map to current Core types:
+
+```ts
+ratioPack: RatioPack;
+ruleSetRef: string;
+evaluationTolerances: EvaluationTolerances;
+comparisonTolerances: TiePolicy;
+```
 
 `contractVersion` must be exactly:
 
@@ -96,24 +112,48 @@ accepted for this operation. It must include:
 user_supplied_structured_data
 ```
 
-`acceptedAt` is operational metadata. It must not affect deterministic
-measurement, evaluation, comparison, decision, output refs, or replay-readiness
-identity.
+`acceptedAt` is operational metadata. It may be echoed in provenance, but it
+must not affect deterministic measurement, evaluation, comparison, decision,
+run identity, output refs, replay-readiness identity, or meaningful analysis
+equality. Deterministic equality tests should compare analysis-significant
+output with `acceptedAt` treated as metadata only.
+
+`packLock` is identity/hash metadata only. It cannot supply executable rules.
+`ratioPack` supplies the executable `ruleSets` and `ruleDeclarations`.
+`ruleSetRef` selects the exact rule set from `ratioPack`.
+
+R6B must validate coherence between `ratioPack`, `packLock`, `ruleSetRef`, and
+`operationContext`. Incoherent or unsupported combinations must return
+`status: "invalid"` with deterministic diagnostics before downstream
+computation. R6B must not silently select `BASIC_PROPORTIONS_PACK` or use any
+hidden built-in pack default.
+
+`evaluationProfile` does not embed tolerances. `evaluationTolerances` is
+required explicitly. `comparisonTolerances` is required explicitly and maps to
+the current Core `TiePolicy` type. Missing evaluation tolerances, missing
+comparison/tie tolerances, unsupported tolerance policies, or implicit
+output-affecting operation context policies must return `status: "invalid"`
+rather than defaulting.
 
 ## Operation Semantics
 
 The direct operation must:
 
 1. validate the closed input object;
-2. validate both compositions before construction, measurement, evaluation, or
-   comparison;
+2. validate contract literals;
 3. reject missing or false acceptance before downstream computation;
-4. use only explicit `packLock`, `evaluationProfile`, `tolerancePolicy`, and
-   `operationContext` values;
-5. run the existing deterministic construction, measurement, evaluation, and
-   comparison path;
-6. return full structured diagnostics, provenance, refs, decision, and
-   replay-readiness data.
+4. validate both compositions before construction, measurement, evaluation, or
+   comparison;
+5. validate `ratioPack` and `packLock` coherence;
+6. resolve `ruleSetRef` from `ratioPack`;
+7. validate `evaluationProfile`;
+8. validate `evaluationTolerances`;
+9. validate `comparisonTolerances`;
+10. validate explicit operation context for output-affecting policies;
+11. run the existing deterministic construction, measurement, evaluation, and
+    comparison path;
+12. project deterministic structured diagnostics, provenance, refs, decision,
+    and replay-readiness data.
 
 The operation must not:
 
@@ -173,16 +213,23 @@ Allowed `status` values are:
 ```text
 valid
 invalid
-failed
 ```
 
-Domain validation failures must return `status: "invalid"` with deterministic
-diagnostics and no downstream measurements, evaluations, comparison, decision,
-or output refs.
+The returned direct-operation statuses are only `valid` and `invalid`.
+Human-facing text may describe a valid result as analyzed, but the executable
+status value is `valid`.
+
+Ordinary malformed or domain-invalid caller input must return
+`status: "invalid"` with deterministic diagnostics and no downstream
+measurements, evaluations, comparison, decision, output refs, run ref, or
+replay-readiness data.
 
 Unexpected internal failures may throw in the direct operation boundary. If a
 future MCP tool wraps the operation, those internal failures must map to
 JSON-RPC `-32603` with no stack trace.
+
+R6B must not return a normal `failed` result variant unless a future ADR defines
+domain-level failure semantics.
 
 ## Deterministic Fixtures
 
