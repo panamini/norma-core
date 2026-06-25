@@ -75,6 +75,30 @@ const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const r6bStructuredAnalyzeImplementationChangedFiles = [
+  "src/index.ts",
+  "src/structured-composition-analysis.ts",
+  "tests/package-consumption.test.mjs",
+  "tests/structured-composition-analysis.test.mjs",
+].sort();
+
+const r6bStructuredAnalyzeGuardMaintenanceChangedFiles = [
+  ...r6bStructuredAnalyzeImplementationChangedFiles,
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+].sort();
+
 const decisionPath =
   "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md";
 const decision = read(decisionPath);
@@ -335,9 +359,11 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
       isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles) ||
       isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles) ||
       isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles) ||
-      isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles),
+      isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
+      isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
+      isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles),
     true,
-    `Unexpected PR80/PR101/R2A/R2B/R3 changed files:\n${changed.join("\n")}`,
+    `Unexpected PR80/PR101/R2A/R2B/R3/R6B changed files:\n${changed.join("\n")}`,
   );
 });
 
@@ -359,7 +385,11 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
             ? r6aStructuredAnalyzeContractChangedFiles
             : isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)
               ? r6a1StructuredAnalyzeExecutableContractChangedFiles
-          : [];
+              : isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles)
+                ? r6bStructuredAnalyzeImplementationChangedFiles
+                : isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)
+                  ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles
+                  : [];
   const protectedPatterns = [
     /^src\//,
     /^bin\//,
@@ -383,9 +413,11 @@ test("PR101 replay guard rejects unrelated MCP package and CI changes", () => {
   for (const unexpectedFile of [
     "src/mcp/unrelated.ts",
     "src/runtime.ts",
+    "tests/unrelated.test.mjs",
     "package.json",
     ".github/workflows/ci.yml",
     "docs/unrelated.md",
+    "bin/unrelated.mjs",
   ]) {
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), pr101ReplayChangedFiles), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), r2aOutputSchemaChangedFiles), false);
@@ -415,6 +447,20 @@ test("PR101 replay guard rejects unrelated MCP package and CI changes", () => {
       isExactChangedFileSet(
         [...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort(),
         r6a1StructuredAnalyzeExecutableContractChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeImplementationChangedFiles, unexpectedFile].sort(),
+        r6bStructuredAnalyzeImplementationChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles, unexpectedFile].sort(),
+        r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
       ),
       false,
     );

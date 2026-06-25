@@ -2269,3 +2269,4 @@ export * from "./run-replay.js";
 export * from "./runtime.js";
 export * from "./serialization.js";
 export * from "./mvp-demo.js";
+export * from "./structured-composition-analysis.js";

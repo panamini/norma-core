@@ -220,6 +220,35 @@ const r6a1StructuredAnalyzeExecutableContractChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const r6bStructuredAnalyzeImplementationChangedFiles = new Set([
+  'src/index.ts',
+  'src/structured-composition-analysis.ts',
+  'tests/package-consumption.test.mjs',
+  'tests/structured-composition-analysis.test.mjs',
+]);
+
+const r6bStructuredAnalyzeGuardMaintenanceChangedFiles = new Set([
+  ...r6bStructuredAnalyzeImplementationChangedFiles,
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/structured-json-input-viewer-prototype-approval.test.mjs',
+  'tests/structured-json-input-viewer.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+  'tests/verification-replay-result-viewer.test.mjs',
+]);
+
+const r6bStructuredAnalyzeApprovedImplementationFiles = new Set([
+  'src/index.ts',
+  'src/structured-composition-analysis.ts',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -656,9 +685,11 @@ test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes'
   for (const unexpectedFile of [
     'src/mcp/unrelated.ts',
     'src/runtime.ts',
+    'tests/unrelated.test.mjs',
     'package.json',
     '.github/workflows/ci.yml',
     'docs/unrelated.md',
+    'bin/unrelated.mjs',
   ]) {
     assert.equal(isExactChangedFileSet([...pr101ReplayChangedFiles, unexpectedFile].sort(), [...pr101ReplayChangedFiles].sort()), false);
     assert.equal(isExactChangedFileSet([...r2aOutputSchemaChangedFiles, unexpectedFile].sort(), [...r2aOutputSchemaChangedFiles].sort()), false);
@@ -688,6 +719,20 @@ test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes'
       isExactChangedFileSet(
         [...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort(),
         [...r6a1StructuredAnalyzeExecutableContractChangedFiles].sort(),
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeImplementationChangedFiles, unexpectedFile].sort(),
+        [...r6bStructuredAnalyzeImplementationChangedFiles].sort(),
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles, unexpectedFile].sort(),
+        [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles].sort(),
       ),
       false,
     );
@@ -727,6 +772,16 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r6a1StructuredAnalyzeExecutableContractChangedFiles].sort())) {
     assertR6A1StructuredAnalyzeExecutableContractChangedFiles(changedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r6bStructuredAnalyzeImplementationChangedFiles].sort())) {
+    assertR6BStructuredAnalyzeChangedFiles(changedFiles, r6bStructuredAnalyzeImplementationChangedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles].sort())) {
+    assertR6BStructuredAnalyzeChangedFiles(changedFiles, r6bStructuredAnalyzeGuardMaintenanceChangedFiles);
     return;
   }
 
@@ -884,6 +939,29 @@ function assertR6A1StructuredAnalyzeExecutableContractChangedFiles(changedFiles)
     assert.ok(
       !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
       `R6A.1 guard maintenance must not change protected implementation surface: ${changedFile}`,
+    );
+  }
+}
+
+function assertR6BStructuredAnalyzeChangedFiles(changedFiles, approvedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      approvedFiles.has(changedFile),
+      `unexpected R6B structured analyze file changed: ${changedFile}`,
+    );
+    assert.ok(
+      r6bStructuredAnalyzeApprovedImplementationFiles.has(changedFile) ||
+        changedFile.startsWith('tests/'),
+      `R6B guard maintenance must stay in exact implementation files or guard tests: ${changedFile}`,
+    );
+    assert.ok(
+      r6bStructuredAnalyzeApprovedImplementationFiles.has(changedFile) ||
+        !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R6B guard maintenance must not change protected implementation surface: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedFiles.has(changedFile),
+      `R6B guard maintenance must not change protected exact file: ${changedFile}`,
     );
   }
 }

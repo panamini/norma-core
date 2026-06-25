@@ -152,11 +152,37 @@ const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r6bStructuredAnalyzeImplementationChangedFiles = [
+  "src/index.ts",
+  "src/structured-composition-analysis.ts",
+  "tests/package-consumption.test.mjs",
+  "tests/structured-composition-analysis.test.mjs",
+];
+
+const r6bStructuredAnalyzeGuardMaintenanceChangedFiles = [
+  ...r6bStructuredAnalyzeImplementationChangedFiles,
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+].sort();
+
 const exactApprovedChangedFileSets = [
   r4CurrentOperationsRunbookChangedFiles,
   r5PostMvpAdapterArchitectureChangedFiles,
   r6aStructuredAnalyzeContractChangedFiles,
   r6a1StructuredAnalyzeExecutableContractChangedFiles,
+  r6bStructuredAnalyzeImplementationChangedFiles,
+  r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr75ApprovedChangedFiles,
@@ -316,6 +342,21 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
     (file) => isForbiddenReadOnlyViewerChange(file) && !approvedExactChangedFiles.includes(file),
   );
   assert.deepEqual(forbiddenChanges, []);
+});
+
+test("R6B structured analyze exact-set guard rejects unrelated read-only viewer files", () => {
+  for (const unexpectedFile of [
+    "src/mcp/unrelated.ts",
+    "src/runtime.ts",
+    "tests/unrelated.test.mjs",
+    "package.json",
+    ".github/workflows/ci.yml",
+    "docs/unrelated.md",
+    "bin/unrelated.mjs",
+  ]) {
+    assert.equal(approvedExactChangedFilesFor([...r6bStructuredAnalyzeImplementationChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(approvedExactChangedFilesFor([...r6bStructuredAnalyzeGuardMaintenanceChangedFiles, unexpectedFile].sort()), null);
+  }
 });
 
 function assertProvenance(model) {
