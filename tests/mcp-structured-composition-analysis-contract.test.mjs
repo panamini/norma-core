@@ -280,6 +280,56 @@ test("R6C Case A valid direct and MCP results are identical and deterministic", 
   assert.deepEqual(repeatedResponse.result.structuredContent, response.result.structuredContent);
 });
 
+test("R6D Structured Analyze tolerates only root MCP metadata before schema validation", () => {
+  const input = createR3CaseAInput();
+  const plainResponse = callAnalyze(input, "r6d-meta-plain");
+  const metaResponse = parseToolResultResponse({
+    jsonrpc: "2.0",
+    id: "r6d-meta-root",
+    method: "tools/call",
+    params: {
+      name: analyzeToolName,
+      arguments: {
+        input,
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+      _meta: {
+        progressToken: "progress-2",
+      },
+    },
+  });
+
+  assert.deepEqual(metaResponse.result.structuredContent, plainResponse.result.structuredContent);
+
+  const nestedMetaResponse = parseRequiredResponse({
+    jsonrpc: "2.0",
+    id: "r6d-nested-meta-rejected",
+    method: "tools/call",
+    params: {
+      name: analyzeToolName,
+      arguments: {
+        input: {
+          ...input,
+          _meta: {
+            progressToken: "progress-1",
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(nestedMetaResponse, {
+    jsonrpc: "2.0",
+    id: "r6d-nested-meta-rejected",
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+});
+
 test("R6C Case B valid direct and MCP results are identical and select B", () => {
   const input = createR3CaseBInput();
   const { direct, response } = assertDirectMcpParity(input, "r6c-case-b");
