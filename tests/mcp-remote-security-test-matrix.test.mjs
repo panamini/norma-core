@@ -30,6 +30,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const requiredMatrixSections = [
   "# MCP Remote Security Test Matrix",
@@ -250,7 +251,7 @@ test("PR43 keeps the current local STDIO tool allowlist as the only approved exp
   assertDocMentions(matrixDoc, approvedCallableTools);
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

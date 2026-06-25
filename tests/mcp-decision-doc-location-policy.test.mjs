@@ -50,6 +50,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 test("PR45 MCP decision doc location policy exists under docs/decisions with a date-prefixed filename", () => {
   assert.equal(existsSync(policyDocPath), true);
@@ -156,7 +157,7 @@ test("PR45 keeps local STDIO tools unchanged and replay exposure blocked", async
   assertDocMentions(policyDoc, approvedCallableTools);
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

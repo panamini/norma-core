@@ -37,9 +37,12 @@ Norma Core has two separate proof tracks that must not be collapsed.
   tests and the MVP harness boundary.
 - R6A Structured Analyze V1 contract is documentation and tests only. It does
   not expose a new runtime operation or MCP tool.
+- R6B implemented the direct `analyzeStructuredCompositionV1` operation.
+- R6C exposes that operation through one local STDIO MCP tool,
+  `norma.analyzeStructuredCompositionV1`.
 
 Current `main` is not the historical PR6 branch. Current `main` exposes a
-different five-tool MCP inventory and still needs a current-main ChatGPT
+different six-tool MCP inventory and still needs a current-main ChatGPT
 metadata refresh and re-smoke before anyone claims ChatGPT parity for that
 inventory.
 
@@ -51,11 +54,11 @@ inventory.
 | build and full check | `PROVEN_ON_CURRENT_MAIN` | PR105 CI `verify`; package scripts | current | Use the repository `npm` scripts from `package.json`. |
 | R3 non-canonical structured-input test proof | `PROVEN_ON_CURRENT_MAIN` | R3 tests in `tests/mvp-demo-harness.test.mjs` | current | R3 proves non-canonical structured inputs through the test/harness boundary only. |
 | direct MCP initialize | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-stdio-server-skeleton.test.mjs` | current | Initialize echoes compatible MCP date-string protocol versions. |
-| tools/list current inventory | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-tools-list-contract.test.mjs` and `tests/mcp-verify-tools-contract.test.mjs` | current | Current inventory is exactly the five tools listed below. |
+| tools/list current inventory | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-tools-list-contract.test.mjs`, `tests/mcp-verify-tools-contract.test.mjs`, and `tests/mcp-structured-composition-analysis-contract.test.mjs` | current | Current inventory is exactly the six tools listed below. |
 | direct tools/call | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-tools-call-contract.test.mjs`, `tests/mcp-verify-tools-contract.test.mjs`, `tests/mcp-replay-mvp-demo-contract.test.mjs` | current | Direct STDIO tool calls are covered by existing tests. |
 | Codex local MCP | `DOCUMENTED_BUT_NOT_RETESTED` | local STDIO server exists; no current-main Codex call proof in repo | current workflow | Configure as a local MCP server and verify inventory; do not claim current-main Codex call parity without evidence. |
 | private ChatGPT Secure MCP Tunnel | `HISTORICALLY_PROVEN_ON_OTHER_BRANCH` | historical post-PR6 checkpoint | historical | Private ChatGPT tunnel compatibility was historically proven with `norma.runMvpDemoV1`. |
-| current-main ChatGPT metadata refresh | `DOCUMENTED_BUT_NOT_RETESTED` | no post-PR105 repo evidence | current workflow | Refresh Draft app metadata after tool metadata changes before checking the five current tools. |
+| current-main ChatGPT metadata refresh | `DOCUMENTED_BUT_NOT_RETESTED` | no post-R6C repo evidence | current workflow | Refresh Draft app metadata after tool metadata changes before checking the six current tools. |
 | current-main ChatGPT tool call | `DOCUMENTED_BUT_NOT_RETESTED` | no post-PR105 ChatGPT smoke evidence | current workflow | Run a safe current tool call before claiming ChatGPT parity. |
 | hosted MCP endpoint | `NOT_IMPLEMENTED` | docs and source keep remote/hosted MCP blocked | current | No hosted always-on MCP endpoint exists. |
 | public app submission | `NOT_IMPLEMENTED` | historical proof stayed private/dev | current/historical | Public submission is separate and not part of this runbook. |
@@ -72,11 +75,11 @@ Current `main` exposes exactly these MCP tools through local STDIO:
 3. `norma.verifyRun`
 4. `norma.verifyArtifactFreshness`
 5. `norma.replayMvpDemo`
+6. `norma.analyzeStructuredCompositionV1`
 
-All five tools declare `outputSchema` in `src/mcp/stdio-protocol.ts`.
-Annotations are absent on current main.
-
-No current `norma.analyzeStructuredCompositionV1` MCP tool exists.
+All six tools declare `outputSchema` in `src/mcp/stdio-protocol.ts`.
+Annotations are absent on the original five tools. Structured Analyze declares
+read-only, non-destructive, non-open-world, idempotent annotations.
 
 `norma.runMvpDemoV1` is not exposed on current main.
 
@@ -91,6 +94,7 @@ MCP tool exposure.
 | `norma.verifyRun` | Verify an explicit Norma run envelope using existing core verification semantics. | Object with `input`. | Present. | Absent. | Does not create a run, fix input, or perform arbitrary replay. |
 | `norma.verifyArtifactFreshness` | Verify explicit artifact freshness using existing core semantics. | Object with `input`. | Present. | Absent. | Does not regenerate artifacts or treat artifacts as source truth. |
 | `norma.replayMvpDemo` | Replay the fixed in-memory MVP demo using existing replay semantics. | Empty object or missing arguments only. | Present. | Absent. | Does not accept caller-supplied replay inputs and does not expose `norma.replayRun`. |
+| `norma.analyzeStructuredCompositionV1` | Analyze two accepted structured compositions with an explicit pack, rule set, tolerances, context, and provenance. | Object with explicit `input` matching `StructuredCompositionAnalysisInputV1`. | Present. | `readOnlyHint: true`, `destructiveHint: false`, `openWorldHint: false`, `idempotentHint: true`. | Does not infer geometry from prompts, images, files, URLs, providers, packs, rules, tolerances, or operation context; does not recommend, optimize, or score beauty. |
 
 Source and tests remain canonical for exact schemas:
 
@@ -99,6 +103,7 @@ Source and tests remain canonical for exact schemas:
 - `tests/mcp-tools-call-contract.test.mjs`
 - `tests/mcp-verify-tools-contract.test.mjs`
 - `tests/mcp-replay-mvp-demo-contract.test.mjs`
+- `tests/mcp-structured-composition-analysis-contract.test.mjs`
 
 ## 5. Local prerequisites
 
@@ -142,7 +147,8 @@ node --test tests/mcp-stdio-server-skeleton.test.mjs \
   tests/mcp-tools-list-contract.test.mjs \
   tests/mcp-tools-call-contract.test.mjs \
   tests/mcp-verify-tools-contract.test.mjs \
-  tests/mcp-replay-mvp-demo-contract.test.mjs
+  tests/mcp-replay-mvp-demo-contract.test.mjs \
+  tests/mcp-structured-composition-analysis-contract.test.mjs
 ```
 
 Expected high-level outcomes:
@@ -150,9 +156,11 @@ Expected high-level outcomes:
 - build succeeds;
 - tests pass;
 - direct MCP initialize supports compatible MCP protocol date strings;
-- `tools/list` returns exactly five current tools;
-- all five current tools expose `outputSchema`;
-- annotations remain absent;
+- `tools/list` returns exactly six current tools;
+- all six current tools expose `outputSchema`;
+- annotations remain absent on the original five tools;
+- Structured Analyze exposes exactly the read-only, non-destructive,
+  non-open-world, idempotent annotations documented above;
 - R3 non-canonical structured MVP inputs pass through the test/harness boundary;
 - `norma.runMvpDemoV1` and `norma.replayRun` remain absent from MCP inventory.
 
@@ -180,6 +188,7 @@ node --test tests/mcp-tools-list-contract.test.mjs
 node --test tests/mcp-tools-call-contract.test.mjs
 node --test tests/mcp-verify-tools-contract.test.mjs
 node --test tests/mcp-replay-mvp-demo-contract.test.mjs
+node --test tests/mcp-structured-composition-analysis-contract.test.mjs
 ```
 
 Manual STDIO sequence, when an operator needs a live transcript:
@@ -189,7 +198,9 @@ Manual STDIO sequence, when an operator needs a live transcript:
    produce responses;
 3. send `tools/list`;
 4. send one representative safe `tools/call`, such as `norma.getVersion`;
-5. close stdin or terminate the local process.
+5. call `norma.analyzeStructuredCompositionV1` only with an explicit accepted
+   structured fixture when that boundary is the intended smoke;
+6. close stdin or terminate the local process.
 
 Current initialize capability shape is limited to:
 
@@ -223,11 +234,11 @@ for the active Codex client. The server command should use placeholders:
 
 After configuration, verify inventory from the interactive Codex client or TUI:
 
-- expect exactly the five current tools listed in section 4;
+- expect exactly the six current tools listed in section 4;
 - verify `norma.runMvpDemoV1` is absent;
 - verify `norma.replayRun` is absent;
 - run only a safe current tool such as `norma.getVersion` unless the operator
-  explicitly authorizes a broader check.
+  explicitly authorizes a structured-analysis fixture check.
 
 Known caveat: Codex noninteractive approval controls can block or alter local
 tool execution. Codex approval settings are separate from ChatGPT app
@@ -382,7 +393,7 @@ This checklist remains unproven until it is executed on current main.
 4. Verify tunnel-client `/healthz`, `/readyz`, `/metrics`, and `/ui` using the
    admin URL printed by the client.
 5. Refresh Draft app metadata.
-6. Confirm ChatGPT lists exactly the five current tools.
+6. Confirm ChatGPT lists exactly the six current tools.
 7. Explicitly call a safe current tool such as `norma.getVersion`.
 8. Verify the result uses outputSchema-backed structured content.
 9. Record the Git SHA, tool name, redacted request, redacted response, and stop
@@ -420,7 +431,7 @@ evidence.
 | app absent from composer | ChatGPT Developer Mode/UI | Developer Mode status, Drafts listing | app/UI issue | Enable Developer Mode and select the Draft app. |
 | tool call requires confirmation | ChatGPT approval policy | confirmation prompt and app settings | approval policy | Confirm only intended safe calls. |
 | tool returns wrong values | product contract / runtime | direct STDIO response, ChatGPT response, Git SHA | contract mismatch | Compare direct MCP and ChatGPT responses before assigning blame. |
-| current main differs from historical PR6 tool set | expected historical/current distinction | current tool list, PR6 checkpoint | expected branch drift | Use current five-tool wording and do not call PR6 current. |
+| current main differs from historical PR6 tool set | expected historical/current distinction | current tool list, PR6 checkpoint | expected branch drift | Use current six-tool wording and do not call PR6 current. |
 
 ## 13. Cleanup and rollback
 
@@ -443,11 +454,11 @@ rollback means reverting `docs/OPERATIONS_RUNBOOK.md` and the related link in
 - No hosted always-on MCP.
 - No public app submission.
 - No current-main ChatGPT re-smoke proof yet.
-- Annotations are absent on current main.
-- No current custom-analysis MCP tool.
-- No current `norma.analyzeStructuredCompositionV1` MCP tool.
-- R6A is a contract for a future direct Structured Analyze V1 operation and a
-  later possible MCP wrapper; it is not runtime proof.
+- Annotations are absent on the original five MCP tools only.
+- Structured Analyze is local STDIO MCP only; no ChatGPT smoke proof is claimed.
+- No prompt-driven custom-analysis MCP tool.
+- R6A is a historical contract for the direct Structured Analyze V1 operation
+  and the R6C MCP wrapper; it is not ChatGPT proof.
 - R3 is a repository test/harness proof, not a ChatGPT custom-analysis product
   proof.
 - No image, camera, or vision input.

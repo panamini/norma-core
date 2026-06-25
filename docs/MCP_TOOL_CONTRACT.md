@@ -61,11 +61,15 @@ Any future remote MCP requires a separate approval PR.
 R6A Structured Analyze V1 contract only approves a future structured analysis
 operation and one future MCP candidate.
 
-R6A does not implement or expose `norma.analyzeStructuredCompositionV1`.
+R6A did not implement or expose `norma.analyzeStructuredCompositionV1`.
 
-R6A does not change current `tools/list` output.
+R6B implemented the direct `analyzeStructuredCompositionV1` operation.
 
-R6A does not add annotations to current tools.
+R6C exposes that operation through exactly one local STDIO MCP tool:
+`norma.analyzeStructuredCompositionV1`.
+
+R6C must append the new tool after the original five local STDIO tools and add
+annotations only to the new tool.
 
 Reference: `docs/MCP_REMOTE_THREAT_MODEL.md`.
 
@@ -103,6 +107,7 @@ Current readiness:
 - PR37 implements `tools/call` for `norma.verifyRun` and `norma.verifyArtifactFreshness` only beyond PR36 and keeps replay blocked.
 - PR38 implements `tools/call` for `norma.replayMvpDemo` only beyond PR37 and keeps arbitrary replay blocked.
 - PR39 adds `docs/MCP_REMOTE_THREAT_MODEL.md` only as remote MCP threat model and approval gate documentation.
+- R6C exposes `norma.analyzeStructuredCompositionV1` only as a local STDIO MCP tool wrapping the merged direct operation.
 
 ## Official MCP Concepts Used
 
@@ -628,33 +633,17 @@ PR39 remains the future candidate for remote MCP/API threat modeling before any 
 
 PR39 remains remote MCP threat model only, not remote implementation.
 
-## R6A Structured Analyze Tool Contract
+## R6C Structured Analyze MCP Runtime
 
-R6A is contract docs/tests only.
+R6C moves Structured Analyze into the current local STDIO runtime inventory.
 
-R6A approves this future MCP candidate only:
+R6C exposes exactly one new MCP tool:
 
 ```txt
 norma.analyzeStructuredCompositionV1
 ```
 
-R6A does not expose the tool.
-
-R6A does not change current `tools/list` output.
-
-R6A does not add annotations to current tools.
-
-R6A keeps current local STDIO MCP at exactly five tools:
-
-```txt
-norma.getVersion
-norma.serializeCanonicalJson
-norma.verifyRun
-norma.verifyArtifactFreshness
-norma.replayMvpDemo
-```
-
-A future implementation PR may append the new tool after the five current tools:
+R6C must append the new tool after the original five tools:
 
 ```txt
 norma.getVersion
@@ -665,10 +654,26 @@ norma.replayMvpDemo
 norma.analyzeStructuredCompositionV1
 ```
 
-The future tool must wrap only the direct `analyzeStructuredCompositionV1`
-operation approved by `docs/decisions/2026-06-25-structured-analyze-v1-contract.md`.
+Original five tools keep their descriptor, outputSchema, annotation state, and tools/call behavior.
 
-The tool must accept only explicit structured
+The R6C tool wraps only the direct `analyzeStructuredCompositionV1` operation
+approved by `docs/decisions/2026-06-25-structured-analyze-v1-contract.md` and
+implemented by R6B.
+
+The tool descriptor title is:
+
+```txt
+Analyze structured composition
+```
+
+The description states that the tool analyzes explicitly accepted user-supplied
+structured composition data with deterministic Norma Core analysis, requires
+explicit ratio pack, rule set, tolerances, and operation context, does not
+accept prompts, images, files, URLs, inferred configuration, recommendations,
+or optimization, and reports whether composition A or B is closer to the
+declared proportional system.
+
+The tool accepts only explicit structured
 `StructuredCompositionAnalysisInputV1` data. That input must include explicit
 `ratioPack`, `ruleSetRef`, `packLock`, `evaluationProfile`,
 `evaluationTolerances`, `comparisonTolerances`, `tolerancePolicy`,
@@ -683,17 +688,17 @@ The tool must not infer geometry, packs, rules, tolerances, operation context,
 acceptance, recommendations, optimization, beauty score, or intent from prompt
 text.
 
-The tool descriptor must declare `inputSchema` and `outputSchema` from first
-exposure. Closed objects must use `additionalProperties: false`.
+The tool descriptor declares `inputSchema` and `outputSchema` from first
+exposure. Closed objects use `additionalProperties: false`.
 
-The future tool annotations must be:
+The tool annotations are exactly:
 
 ```json
 {
   "readOnlyHint": true,
   "destructiveHint": false,
-  "idempotentHint": true,
-  "openWorldHint": false
+  "openWorldHint": false,
+  "idempotentHint": true
 }
 ```
 
@@ -709,8 +714,8 @@ evaluations, no comparison, no decision, and no output refs.
 
 The wrapped direct operation returns only `status: "valid"` or
 `status: "invalid"` for ordinary operation results. Unexpected internal failures
-may throw at the direct boundary and must map to JSON-RPC `-32603` if this
-future MCP tool wraps them.
+may throw at the direct boundary and map to JSON-RPC `-32603` through the MCP
+wrapper.
 
 The tool result must preserve the existing local MCP envelope rule: exactly one
 text content item, text is canonical JSON, parsed text equals

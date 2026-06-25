@@ -57,7 +57,12 @@ R5 authorizes architecture only. It does not add runtime code, types, schemas, M
 
 The selected first slice requires explicit user-supplied structured geometry or composition data, visible proposed versus accepted geometry, mandatory provenance, explicit pack/profile/tolerance/context where output-affecting, deterministic validation, and user-facing wording limited to which composition is closer to the declared proportional system.
 
-R6 may later propose one stable structured analysis operation and at most one corresponding MCP tool if existing tools are insufficient. R6 must preserve the current five-tool MCP inventory, declare `outputSchema` from first introduction, validate model-provided input server-side, and remain private/developer-only during proof.
+R6 is staged as one direct structured analysis operation and, after that direct
+operation exists, at most one corresponding MCP tool. R6A defines the contract,
+R6B implements the direct operation, and R6C exposes at most one MCP tool while
+preserving the original five-tool behavior, declaring `outputSchema` from first
+introduction, validating model-provided input server-side, and remaining
+private/developer-only during proof.
 
 ## R6A Structured Analyze V1 Contract
 
@@ -95,8 +100,8 @@ MCP descriptors, annotations, ChatGPT app metadata, hosted MCP, Developer Mode
 configuration, image input, vision input, camera input, CAD input, plugin input,
 dependencies, package metadata, CI changes, or public submission.
 
-R6B may implement the direct `analyzeStructuredCompositionV1` operation only
-with explicit `contractVersion`, explicit `analysisId`, and deterministic
+R6B implements the direct `analyzeStructuredCompositionV1` operation with
+explicit `contractVersion`, explicit `analysisId`, and deterministic
 direct-core proof for the full R6A fixture set. R6B must require explicit
 `ratioPack`, `ruleSetRef`, `evaluationTolerances`, `comparisonTolerances`,
 `packLock`, `tolerancePolicy`, and output-affecting `operationContext` values
@@ -105,13 +110,16 @@ without hidden built-in defaults. Case A expects
 Case C expects duplicate-ID input to return `status: "invalid"` with diagnostic
 `DuplicateGeometrySourceId` and no output refs.
 
-R6C may expose at most one MCP tool, `norma.analyzeStructuredCompositionV1`,
-only after the direct operation exists and only with `inputSchema`,
-`outputSchema`, read-only/idempotent/non-open-world annotations, and
-direct-core/MCP parity tests from first exposure.
+R6C exposes at most one MCP tool, `norma.analyzeStructuredCompositionV1`, only
+after the direct operation exists and only with `inputSchema`, `outputSchema`,
+read-only/idempotent/non-open-world annotations, and direct-core/MCP parity
+tests from first exposure.
 
-R6A keeps no image, vision, camera, CAD, plugin, hosted MCP, public submission,
-or runtime tool exposure in scope.
+R6A kept no image, vision, camera, CAD, plugin, hosted MCP, public submission,
+or runtime tool exposure in scope. R6C still adds no image, vision, camera, CAD,
+plugin, hosted MCP, public submission, prompt inference, recommendation,
+optimization, beauty scoring, or runtime expansion beyond the one
+structured-analysis MCP tool.
 
 ## Current State After PR25
 

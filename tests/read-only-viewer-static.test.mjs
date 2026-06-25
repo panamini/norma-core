@@ -5,6 +5,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r6cStructuredAnalyzeMcpChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -405,6 +410,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     changed,
     r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
   );
+  const isR6CStructuredAnalyzeMcpChangeSet = isExactR6CStructuredAnalyzeMcpChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
@@ -416,6 +422,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     isR6AStructuredAnalyzeContractChangeSet ? r6aStructuredAnalyzeContractChangedFiles : [],
     isR6A1StructuredAnalyzeExecutableContractChangeSet ? r6a1StructuredAnalyzeExecutableContractChangedFiles : [],
     isR6BStructuredAnalyzeGuardMaintenanceChangeSet ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles : [],
+    isR6CStructuredAnalyzeMcpChangeSet ? r6cStructuredAnalyzeMcpChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -449,6 +456,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
       isPr101ReplayChangeSet,
       isR2AOutputSchemaChangeSet,
       isR2BOutputSchemaChangeSet,
+      isR6CStructuredAnalyzeMcpChangeSet,
     )),
     [],
   );
@@ -620,6 +628,7 @@ function isUnapprovedMcpChange(
   isPr101ReplayChangeSet,
   isR2AOutputSchemaChangeSet,
   isR2BOutputSchemaChangeSet,
+  isR6CStructuredAnalyzeMcpChangeSet,
 ) {
   return (
     file.startsWith("src/mcp/") &&
@@ -627,7 +636,8 @@ function isUnapprovedMcpChange(
       (isPr72ApprovedChangeSet && pr72ApprovedChangedFiles.includes(file)) ||
       (isPr101ReplayChangeSet && pr101ReplayChangedFiles.includes(file)) ||
       (isR2AOutputSchemaChangeSet && r2aOutputSchemaChangedFiles.includes(file)) ||
-      (isR2BOutputSchemaChangeSet && r2bOutputSchemaChangedFiles.includes(file))
+      (isR2BOutputSchemaChangeSet && r2bOutputSchemaChangedFiles.includes(file)) ||
+      (isR6CStructuredAnalyzeMcpChangeSet && r6cStructuredAnalyzeMcpChangedFiles.includes(file))
     )
   );
 }

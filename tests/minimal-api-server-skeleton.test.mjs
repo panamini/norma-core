@@ -40,6 +40,7 @@ const approvedMcpTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeMcpTools = [...approvedMcpTools, "norma.analyzeStructuredCompositionV1"];
 
 test("PR53 build output exports the minimal local API skeleton contract", async () => {
   const api = await loadApiModule();
@@ -323,7 +324,7 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
       }),
     ),
   );
-  assert.deepEqual(toolsList.result.tools.map((tool) => tool.name), approvedMcpTools);
+  assert.deepEqual(toolsList.result.tools.map((tool) => tool.name), currentRuntimeMcpTools);
 
   const replayRun = parseMcpResponse(
     mcp.handleMcpJsonRpcMessage(

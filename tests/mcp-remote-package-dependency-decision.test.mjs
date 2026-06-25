@@ -29,6 +29,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const blockedPackageCandidates = [
   "@modelcontextprotocol/sdk",
@@ -250,7 +251,7 @@ test("PR42 keeps current local STDIO tools unchanged and arbitrary replay blocke
   assertDocMentions(decisionDoc, approvedCallableTools);
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

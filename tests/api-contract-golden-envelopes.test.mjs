@@ -18,6 +18,7 @@ const approvedMcpTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeMcpTools = [...approvedMcpTools, "norma.analyzeStructuredCompositionV1"];
 
 const expectedRootMcpRemoteDocs = [
   "MCP_REMOTE_THREAT_MODEL.md",
@@ -167,7 +168,7 @@ test("PR54 keeps runtime package deployment UI and MCP boundaries unchanged", as
   );
   assert.deepEqual(
     [...toolsList.result.tools.map((tool) => tool.name)].sort(),
-    [...approvedMcpTools].sort(),
+    [...currentRuntimeMcpTools].sort(),
   );
 
   const replayRun = parseMcpResponse(

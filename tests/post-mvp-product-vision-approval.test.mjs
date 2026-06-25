@@ -5,6 +5,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r6cStructuredAnalyzeMcpChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const semgrepCiGuardMaintenanceFiles = new Set([
@@ -485,7 +490,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles) ||
       isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
-      isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles),
+      isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
+      isExactR6CStructuredAnalyzeMcpChangeSet(changed),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -678,6 +684,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) {
+    return r6cStructuredAnalyzeMcpChangedFiles;
   }
   return [];
 }
