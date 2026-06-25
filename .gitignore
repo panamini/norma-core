@@ -5,3 +5,4 @@ dist/
 .orchestrator/run.lock
 .orchestrator/runs/
 .orchestrator/generated/
+openai-api-key.txt
