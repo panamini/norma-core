@@ -222,6 +222,11 @@ function assertValid(result) {
 }
 
 function assertInvalid(result, expectedDiagnosticCode) {
+  assertInvalidWithoutDownstream(result);
+  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === expectedDiagnosticCode), expectedDiagnosticCode);
+}
+
+function assertInvalidWithoutDownstream(result) {
   assert.equal(result.status, "invalid");
   assert.deepEqual(result.outputRefs, []);
   assert.equal(result.measurements, null);
@@ -229,7 +234,6 @@ function assertInvalid(result, expectedDiagnosticCode) {
   assert.equal(result.comparison, null);
   assert.equal(result.decision, null);
   assert.equal(result.replayReadiness, null);
-  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === expectedDiagnosticCode), expectedDiagnosticCode);
 }
 
 test("R6B analyzes explicit structured Case A as a_closer", () => {
@@ -306,6 +310,59 @@ test("R1 rejects duplicate structured anchor source ids before downstream output
   assertInvalid(result, "DuplicateGeometrySourceId");
 });
 
+test("R7.2 rejects duplicate structured source identity variants before downstream outputs", () => {
+  const cases = [
+    {
+      name: "composition id duplicates surface id",
+      mutate(input) {
+        input.compositionA = {
+          ...input.compositionA,
+          id: input.compositionA.surface.id,
+        };
+      },
+    },
+    {
+      name: "composition B duplicates sibling element id",
+      mutate(input) {
+        input.compositionB = {
+          ...input.compositionB,
+          elements: input.compositionB.elements.map((element, index) => (
+            index === 1 ? { ...element, id: input.compositionB.elements[0].id } : element
+          )),
+        };
+      },
+    },
+    {
+      name: "element anchors duplicate inside one composition",
+      mutate(input) {
+        input.compositionA = {
+          ...input.compositionA,
+          elements: input.compositionA.elements.map((element, index) => (
+            index === 0
+              ? {
+                  ...element,
+                  anchors: [
+                    { kind: "anchor", id: "anchor:duplicate-element-anchor", point: { kind: "point", x: 100, y: 100 } },
+                    { kind: "anchor", id: "anchor:duplicate-element-anchor", point: { kind: "point", x: 200, y: 200 } },
+                  ],
+                }
+              : element
+          )),
+        };
+      },
+    },
+  ];
+
+  for (const testCase of cases) {
+    const input = createR3CaseAInput();
+    testCase.mutate(input);
+
+    const result = core.analyzeStructuredCompositionV1(input);
+
+    assertInvalid(result, "DuplicateGeometrySourceId");
+  }
+});
+
 test("R6B rejects missing acceptance and source-id mismatches", () => {
   const falseAcceptance = createR3CaseAInput();
   falseAcceptance.acceptance = { ...falseAcceptance.acceptance, accepted: false };
@@ -347,4 +404,119 @@ test("R6B rejects hidden operation-context defaults", () => {
   const result = core.analyzeStructuredCompositionV1(input);
 
   assertInvalid(result, "HiddenOutputChangingDefault");
+});
+
+test("R7.2 rejects every required explicit structured input without downstream outputs", () => {
+  for (const field of [
+    "acceptance",
+    "ratioPack",
+    "packLock",
+    "ruleSetRef",
+    "evaluationProfile",
+    "evaluationTolerances",
+    "comparisonTolerances",
+    "tolerancePolicy",
+    "operationContext",
+    "provenance",
+  ]) {
+    const input = createR3CaseAInput();
+    delete input[field];
+
+    const result = core.analyzeStructuredCompositionV1(input);
+
+    assertInvalidWithoutDownstream(result);
+    assert.ok(result.diagnostics.length > 0, `${field} should produce a diagnostic`);
+  }
+});
+
+test("R7.2 rejects prompt and inference-shaped fields before analysis", () => {
+  for (const field of [
+    "prompt",
+    "image",
+    "recommendation",
+    "beautyScore",
+    "intentInference",
+    "hiddenTolerance",
+  ]) {
+    const input = createR3CaseAInput();
+    input[field] = "blocked";
+
+    const result = core.analyzeStructuredCompositionV1(input);
+
+    assertInvalid(result, "InvalidInputShape");
+  }
+});
+
+test("R7.2 rejects pack, operation, and tolerance identity mismatches without fallback", () => {
+  const cases = [
+    {
+      expectedCode: "InvalidPackLock",
+      mutate(input) {
+        input.packLock = {
+          ...input.packLock,
+          packVersion: "changed-pack-version",
+        };
+      },
+    },
+    {
+      expectedCode: "InvalidOperationContext",
+      mutate(input) {
+        input.operationContext = {
+          ...input.operationContext,
+          operationName: "core.mvp-demo.run",
+        };
+      },
+    },
+    {
+      expectedCode: "TolerancePolicyMismatch",
+      mutate(input) {
+        input.operationContext = {
+          ...input.operationContext,
+          tolerancePolicy: {
+            ...input.operationContext.tolerancePolicy,
+            value: {
+              ...input.operationContext.tolerancePolicy.value,
+              id: "changed-tolerance-policy",
+            },
+          },
+        };
+      },
+    },
+  ];
+
+  for (const testCase of cases) {
+    const input = createR3CaseAInput();
+    testCase.mutate(input);
+
+    const result = core.analyzeStructuredCompositionV1(input);
+
+    assertInvalid(result, testCase.expectedCode);
+  }
+});
+
+test("R7.2 preserves valid provenance and rejects caller source id forgery", () => {
+  const input = createR3CaseAInput();
+  input.provenance = {
+    ...input.provenance,
+    callerSourceIds: [...input.provenance.callerSourceIds].reverse(),
+  };
+
+  const valid = core.analyzeStructuredCompositionV1(input);
+
+  assertValid(valid);
+  assert.deepEqual(valid.provenance.callerSourceIds, input.provenance.callerSourceIds);
+  assert.deepEqual(valid.validation.acceptedSourceIds, input.acceptance.acceptedSourceIds);
+  assert.deepEqual(valid.validation.effectiveSourceIds, input.acceptance.acceptedSourceIds);
+
+  const forged = createR3CaseAInput();
+  forged.provenance = {
+    ...forged.provenance,
+    callerSourceIds: [...forged.provenance.callerSourceIds, "forged-source-id"],
+  };
+
+  const invalid = core.analyzeStructuredCompositionV1(forged);
+
+  assertInvalid(invalid, "MissingProvenance");
+  assert.deepEqual(invalid.inputRefs, []);
+  assert.deepEqual(invalid.outputRefs, []);
 });
