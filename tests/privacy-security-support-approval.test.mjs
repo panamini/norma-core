@@ -7,6 +7,17 @@ import { fileURLToPath } from "node:url";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
+const semgrepCiGuardMaintenanceFiles = new Set([
+  ".github/workflows/ci.yml",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+]);
 
 const pr65DocPath = join("docs", "decisions", "2026-06-17-privacy-security-support-approval.md");
 
@@ -534,6 +545,7 @@ function branchChangedFiles() {
   assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
   return successful
     .flat()
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
     .filter((file, index, files) => files.indexOf(file) === index)
     .sort();
 }

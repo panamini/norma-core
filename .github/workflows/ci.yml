@@ -17,6 +17,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  semgrep:
+    name: semgrep-ce/scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest@sha256:06938c1f365d3f67b8cedd8bc117607ae64253f88a0e768e9da9408548927dd6
+    if: github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run Semgrep CE on pull request changes
+        if: github.event_name == 'pull_request'
+        run: |
+          BASELINE_COMMIT="$(git merge-base HEAD "${{ github.event.pull_request.base.sha }}")"
+          semgrep scan --config auto --baseline-commit "$BASELINE_COMMIT" --error
+
+      - name: Run Semgrep CE full scan
+        if: github.event_name != 'pull_request'
+        run: semgrep scan --config auto --error
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
