@@ -109,6 +109,12 @@ const r1GeometrySourceIdentityNonSemgrepGuardMaintenanceWithPr114LocalMainDriftC
   ]),
 ].sort();
 
+const r1MeasurementAnchorTargetRefFollowupChangedFiles = [
+  "src/measurements.ts",
+  "tests/measurements.test.mjs",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
 const r6dChatgptMcpMetadataCompatibilityChangedFiles = [
   "src/mcp/stdio-protocol.ts",
   "tests/mcp-structured-composition-analysis-contract.test.mjs",
@@ -150,6 +156,10 @@ export function isExactR1GeometrySourceIdentityChangeSet(changedFiles) {
     isExactChangedFileSet(
       changedFiles,
       r1GeometrySourceIdentityNonSemgrepGuardMaintenanceWithPr114LocalMainDriftChangedFiles,
+    ) ||
+    isExactChangedFileSet(
+      changedFiles,
+      r1MeasurementAnchorTargetRefFollowupChangedFiles,
     )
   );
 }

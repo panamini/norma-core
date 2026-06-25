@@ -1601,12 +1601,12 @@ function measurementGeometrySourceIdOccurrences(composition: Composition2D): rea
     occurrences.push({ id: element.id, targetRef: `composition.elements.${index}.id` });
   }
 
-  for (const [index, anchor] of sourceIdAnchors(composition.anchors).entries()) {
+  for (const [index, anchor] of sourceIdAnchorEntries(composition.anchors)) {
     occurrences.push({ id: anchor.id, targetRef: `composition.anchors.${index}.id` });
   }
 
   for (const [elementIndex, element] of composition.elements.entries()) {
-    for (const [anchorIndex, anchor] of sourceIdAnchors(element.anchors).entries()) {
+    for (const [anchorIndex, anchor] of sourceIdAnchorEntries(element.anchors)) {
       occurrences.push({
         id: anchor.id,
         targetRef: `composition.elements.${elementIndex}.anchors.${anchorIndex}.id`,
@@ -1617,12 +1617,18 @@ function measurementGeometrySourceIdOccurrences(composition: Composition2D): rea
   return occurrences;
 }
 
-function sourceIdAnchors(value: unknown): readonly { id: string }[] {
+function sourceIdAnchorEntries(value: unknown): readonly [number, { id: string }][] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return value.filter((anchor): anchor is { id: string } => isRecord(anchor) && hasNonEmptyString(anchor, "id"));
+  return value.flatMap((anchor, index): [number, { id: string }][] => {
+    if (!isRecord(anchor) || !hasNonEmptyString(anchor, "id")) {
+      return [];
+    }
+
+    return [[index, { id: anchor.id as string }]];
+  });
 }
 
 function duplicateMeasurementGeometrySourceId(duplicate: DuplicateMeasurementGeometrySourceIdOccurrence): CoreError {

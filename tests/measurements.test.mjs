@@ -494,6 +494,33 @@ test("R1 rejects duplicate anchor source ids at the measurement boundary", () =>
   assert.equal(result.output, null);
 });
 
+test("R1 reports duplicate anchor source ids using original measurement input indices", () => {
+  const duplicateComposition = {
+    ...compositionA,
+    id: "composition:duplicate-anchor-original-indices",
+    anchors: [
+      { kind: "invalid-anchor-without-id" },
+      { kind: "anchor", id: "anchor:dup", point: { kind: "point", x: 100, y: 100 } },
+      { kind: "anchor", id: "anchor:dup", point: { kind: "point", x: 200, y: 200 } },
+    ],
+  };
+
+  const result = measureGeometry({
+    compositionA: duplicateComposition,
+    compositionB: undefined,
+  });
+
+  assertFailedWithDiagnostic(result, "DuplicateGeometrySourceId");
+  const duplicateError = result.errors.find((error) => error.code === "DuplicateGeometrySourceId");
+  assert.ok(duplicateError);
+  assert.equal(duplicateError.targetRef, "composition.anchors.2.id");
+  assert.equal(duplicateError.source.ref, "composition.anchors.2.id");
+  assert.equal(
+    duplicateError.message,
+    "Duplicate Geometry V1 source id \"anchor:dup\" at composition.anchors.2.id; first occurrence at composition.anchors.1.id.",
+  );
+});
+
 test("PR71 keeps sparse measurement element arrays invalid instead of throwing", () => {
   const sparseElements = [
     { kind: "element", id: "first", geometry: { kind: "rect", x: 0, y: 0, width: 400, height: 800 } },
