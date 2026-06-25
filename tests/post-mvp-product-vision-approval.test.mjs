@@ -6,7 +6,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -491,6 +493,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
+      isExactR1GeometrySourceIdentityChangeSet(changed) ||
       isExactR6CStructuredAnalyzeMcpChangeSet(changed),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
@@ -684,6 +687,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactR1GeometrySourceIdentityChangeSet(changed)) {
+    return r1GeometrySourceIdentityChangedFiles;
   }
   if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) {
     return r6cStructuredAnalyzeMcpChangedFiles;

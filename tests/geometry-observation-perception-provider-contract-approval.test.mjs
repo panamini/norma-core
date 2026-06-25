@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { isExactR6CStructuredAnalyzeMcpChangeSet } from './r6c-structured-analyze-mcp-change-set.mjs';
+import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from './r6c-structured-analyze-mcp-change-set.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -795,6 +795,10 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles].sort())) {
     assertR6BStructuredAnalyzeChangedFiles(changedFiles, r6bStructuredAnalyzeGuardMaintenanceChangedFiles);
+    return;
+  }
+
+  if (isExactR1GeometrySourceIdentityChangeSet(changedFiles)) {
     return;
   }
 

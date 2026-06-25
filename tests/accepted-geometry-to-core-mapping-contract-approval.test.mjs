@@ -6,7 +6,9 @@ import test from "node:test";
 import { fileURLToPath as modulePathFromUrl } from "node:url";
 
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -381,6 +383,7 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
       isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
+      isExactR1GeometrySourceIdentityChangeSet(changed) ||
       isExactR6CStructuredAnalyzeMcpChangeSet(changed),
     true,
     `Unexpected PR80/PR101/R2A/R2B/R3/R6B/R6C changed files:\n${changed.join("\n")}`,
@@ -407,11 +410,13 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
               ? r6a1StructuredAnalyzeExecutableContractChangedFiles
               : isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles)
                 ? r6bStructuredAnalyzeImplementationChangedFiles
-                : isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)
-                  ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles
-                  : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
-                  ? r6cStructuredAnalyzeMcpChangedFiles
-                  : [];
+	                : isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)
+	                  ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles
+	                  : isExactR1GeometrySourceIdentityChangeSet(changed)
+	                  ? r1GeometrySourceIdentityChangedFiles
+	                  : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
+	                  ? r6cStructuredAnalyzeMcpChangedFiles
+	                  : [];
   const protectedPatterns = [
     /^src\//,
     /^bin\//,

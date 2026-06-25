@@ -9,7 +9,7 @@ import {
   STRUCTURED_JSON_INPUT_VIEWER_LIMITS,
   parseStructuredJsonInput,
 } from "../dist/src/structured-json-input-viewer.js";
-import { isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
+import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -278,11 +278,12 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
     if (
       !isExactPr71ApprovedChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
-      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles)
-    ) {
+	      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
+	      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
+	      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
+	      !isExactR1GeometrySourceIdentityChangeSet(changedFiles) &&
+	      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles)
+	    ) {
       assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
     }
   }

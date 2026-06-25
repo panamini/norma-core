@@ -634,12 +634,12 @@ function validateMeasurementCompositionGeometry(geometry: unknown): MeasurementV
     return failedMeasurementValidation(invalidMeasurementInput("composition.elements", "Composition2D measurement source elements must be rectangular."));
   }
 
-  const duplicateElementIdFailure = duplicateMeasurementGeometrySourceIdFailure(
-    measurementElements,
-    "composition.elements",
-  );
-  if (duplicateElementIdFailure !== null) {
-    return failedMeasurementValidation(duplicateElementIdFailure);
+  const duplicateSourceIdFailure = duplicateMeasurementGeometrySourceIdFailure({
+    ...(geometry as unknown as Composition2D),
+    elements: measurementElements,
+  });
+  if (duplicateSourceIdFailure !== null) {
+    return failedMeasurementValidation(duplicateSourceIdFailure);
   }
 
   return validMeasurementValidation(geometry as unknown as Composition2D);
@@ -1556,39 +1556,83 @@ function invalidMeasurementInput(targetRef: string, message: string): CoreResult
   });
 }
 
-function duplicateMeasurementGeometrySourceIdFailure(
-  elements: readonly Element[],
-  targetPrefix: string,
-): CoreResult | null {
-  const elementIdRefs = new Map<string, string>();
-
-  for (let index = 0; index < elements.length; index += 1) {
-    const element = elements[index] as Element;
-    const currentRef = `${targetPrefix}.${index}.id`;
-    const firstRef = elementIdRefs.get(element.id);
-    if (firstRef !== undefined) {
-      return duplicateMeasurementGeometrySourceId(currentRef, element.id, firstRef);
-    }
-
-    elementIdRefs.set(element.id, currentRef);
-  }
-
-  return null;
+interface MeasurementGeometrySourceIdOccurrence {
+  id: string;
+  targetRef: string;
 }
 
-function duplicateMeasurementGeometrySourceId(targetRef: string, duplicateId: string, firstRef: string): CoreResult {
-  const message = `Duplicate Geometry V1 element id "${duplicateId}" at ${targetRef}; first occurrence at ${firstRef}.`;
+interface DuplicateMeasurementGeometrySourceIdOccurrence {
+  id: string;
+  targetRef: string;
+  firstRef: string;
+}
+
+function duplicateMeasurementGeometrySourceIdFailure(composition: Composition2D): CoreResult | null {
+  const firstRefs = new Map<string, string>();
+  const duplicates: DuplicateMeasurementGeometrySourceIdOccurrence[] = [];
+
+  for (const occurrence of measurementGeometrySourceIdOccurrences(composition)) {
+    const firstRef = firstRefs.get(occurrence.id);
+    if (firstRef !== undefined) {
+      duplicates.push({ ...occurrence, firstRef });
+      continue;
+    }
+
+    firstRefs.set(occurrence.id, occurrence.targetRef);
+  }
+
+  if (duplicates.length === 0) {
+    return null;
+  }
 
   return createMeasurementResult({
     status: "failed",
-    errors: [
-      measurementError({
-        code: "DuplicateGeometrySourceId",
-        message,
-        targetRef,
-        sourceRef: { kind: "measurement-input", ref: targetRef },
-      }),
-    ],
+    errors: duplicates.map((duplicate) => duplicateMeasurementGeometrySourceId(duplicate)),
+  });
+}
+
+function measurementGeometrySourceIdOccurrences(composition: Composition2D): readonly MeasurementGeometrySourceIdOccurrence[] {
+  const occurrences: MeasurementGeometrySourceIdOccurrence[] = [
+    { id: composition.id, targetRef: "composition.id" },
+    { id: composition.surface.id, targetRef: "composition.surface.id" },
+  ];
+
+  for (const [index, element] of composition.elements.entries()) {
+    occurrences.push({ id: element.id, targetRef: `composition.elements.${index}.id` });
+  }
+
+  for (const [index, anchor] of sourceIdAnchors(composition.anchors).entries()) {
+    occurrences.push({ id: anchor.id, targetRef: `composition.anchors.${index}.id` });
+  }
+
+  for (const [elementIndex, element] of composition.elements.entries()) {
+    for (const [anchorIndex, anchor] of sourceIdAnchors(element.anchors).entries()) {
+      occurrences.push({
+        id: anchor.id,
+        targetRef: `composition.elements.${elementIndex}.anchors.${anchorIndex}.id`,
+      });
+    }
+  }
+
+  return occurrences;
+}
+
+function sourceIdAnchors(value: unknown): readonly { id: string }[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((anchor): anchor is { id: string } => isRecord(anchor) && hasNonEmptyString(anchor, "id"));
+}
+
+function duplicateMeasurementGeometrySourceId(duplicate: DuplicateMeasurementGeometrySourceIdOccurrence): CoreError {
+  const message = `Duplicate Geometry V1 source id "${duplicate.id}" at ${duplicate.targetRef}; first occurrence at ${duplicate.firstRef}.`;
+
+  return measurementError({
+    code: "DuplicateGeometrySourceId",
+    message,
+    targetRef: duplicate.targetRef,
+    sourceRef: { kind: "measurement-input", ref: duplicate.targetRef },
   });
 }
 

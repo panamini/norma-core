@@ -6,7 +6,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -410,6 +412,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     changed,
     r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
   );
+  const isR1GeometrySourceIdentityChangeSet = isExactR1GeometrySourceIdentityChangeSet(changed);
   const isR6CStructuredAnalyzeMcpChangeSet = isExactR6CStructuredAnalyzeMcpChangeSet(changed);
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
@@ -422,17 +425,19 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     isR6AStructuredAnalyzeContractChangeSet ? r6aStructuredAnalyzeContractChangedFiles : [],
     isR6A1StructuredAnalyzeExecutableContractChangeSet ? r6a1StructuredAnalyzeExecutableContractChangedFiles : [],
     isR6BStructuredAnalyzeGuardMaintenanceChangeSet ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles : [],
+    isR1GeometrySourceIdentityChangeSet ? r1GeometrySourceIdentityChangedFiles : [],
     isR6CStructuredAnalyzeMcpChangeSet ? r6cStructuredAnalyzeMcpChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
   assert.deepEqual(
     changed.filter((file) => (
-      file === "src/index.ts" &&
-      !isPr71ApprovedChangeSet &&
-      !isR6BStructuredAnalyzeImplementationChangeSet &&
-      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet
-    )),
+	      file === "src/index.ts" &&
+	      !isPr71ApprovedChangeSet &&
+	      !isR6BStructuredAnalyzeImplementationChangeSet &&
+	      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet &&
+	      !isR1GeometrySourceIdentityChangeSet
+	    )),
     [],
   );
   assert.deepEqual(

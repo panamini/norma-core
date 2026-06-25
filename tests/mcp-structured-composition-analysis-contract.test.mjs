@@ -238,6 +238,18 @@ function createDuplicateIdInput() {
   return input;
 }
 
+function createDuplicateAnchorIdInput() {
+  const input = createR3CaseAInput();
+  input.compositionA = {
+    ...input.compositionA,
+    anchors: [
+      { kind: "anchor", id: input.compositionA.elements[0].id, point: { kind: "point", x: 100, y: 100 } },
+      { kind: "anchor", id: input.compositionA.elements[0].id, point: { kind: "point", x: 200, y: 200 } },
+    ],
+  };
+  return input;
+}
+
 test("R6C tools/list exposes exactly six tools and annotates only Structured Analyze", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
@@ -343,6 +355,22 @@ test("R6C Case B valid direct and MCP results are identical and select B", () =>
 test("R6C Case C duplicate source ID returns direct invalid result over MCP", () => {
   const input = createDuplicateIdInput();
   const { direct, response } = assertDirectMcpParity(input, "r6c-case-c");
+
+  assert.equal(direct.status, "invalid");
+  assert.equal(response.result.structuredContent.status, "invalid");
+  assert.ok(direct.diagnostics.some((diagnostic) => diagnostic.code === "DuplicateGeometrySourceId"));
+  assert.deepEqual(direct.outputRefs, []);
+  assert.equal(direct.measurements, null);
+  assert.equal(direct.evaluations, null);
+  assert.equal(direct.comparison, null);
+  assert.equal(direct.decision, null);
+  assert.equal(direct.replayReadiness, null);
+  assert.equal(direct.serializationSummary, null);
+});
+
+test("R1 duplicate anchor source ID returns direct invalid result over MCP", () => {
+  const input = createDuplicateAnchorIdInput();
+  const { direct, response } = assertDirectMcpParity(input, "r1-duplicate-anchor");
 
   assert.equal(direct.status, "invalid");
   assert.equal(response.result.structuredContent.status, "invalid");

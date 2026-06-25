@@ -6,7 +6,9 @@ import { test } from "node:test";
 import { fileURLToPath as pathFromFileUrl } from "node:url";
 
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -500,11 +502,12 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   assert.equal(changed.includes("package-lock.json"), false);
   assert.deepEqual(
     changed.filter((relativePath) => (
-      relativePath === "src/index.ts" &&
-      !isPr71ApprovedChangeSet &&
-      !isR6BStructuredAnalyzeImplementationChangeSet &&
-      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet
-    )),
+	      relativePath === "src/index.ts" &&
+	      !isPr71ApprovedChangeSet &&
+	      !isR6BStructuredAnalyzeImplementationChangeSet &&
+	      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet &&
+	      !isExactR1GeometrySourceIdentityChangeSet(changed)
+	    )),
     [],
   );
   assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
@@ -631,6 +634,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactR1GeometrySourceIdentityChangeSet(changed)) {
+    return r1GeometrySourceIdentityChangedFiles;
   }
   if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) {
     return r6cStructuredAnalyzeMcpChangedFiles;

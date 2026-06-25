@@ -911,7 +911,78 @@ test("PR71 rejects duplicate sibling Composition2D element source ids", () => {
   assertGeometryFailed(result, "DuplicateGeometrySourceId");
   assert.equal(result.errors[0].targetRef, "elements.1.id");
   assert.equal(result.errors[0].source.ref, "elements.1.id");
-  assert.equal(result.errors[0].message, "Duplicate Geometry V1 element id \"dup\" at elements.1.id; first occurrence at elements.0.id.");
+  assert.equal(result.errors[0].message, "Duplicate Geometry V1 source id \"dup\" at elements.1.id; first occurrence at elements.0.id.");
+});
+
+test("R1 rejects duplicate Composition2D anchor source ids", () => {
+  const result = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:duplicate-anchors",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "surface:metric",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [
+      {
+        kind: "element",
+        id: "panel",
+        geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 },
+        anchors: [
+          { kind: "anchor", id: "element-anchor:dup", point: { kind: "point", x: 100, y: 100 } },
+          { kind: "anchor", id: "element-anchor:dup", point: { kind: "point", x: 200, y: 200 } },
+        ],
+      },
+    ],
+    anchors: [
+      { kind: "anchor", id: "composition-anchor:dup", point: { kind: "point", x: 300, y: 300 } },
+      { kind: "anchor", id: "composition-anchor:dup", point: { kind: "point", x: 400, y: 400 } },
+    ],
+  });
+
+  assertGeometryFailed(result, "DuplicateGeometrySourceId");
+  assert.equal(result.errors[0].targetRef, "anchors.1.id");
+  assert.equal(result.errors[0].source.ref, "anchors.1.id");
+  assert.equal(
+    result.errors[0].message,
+    "Duplicate Geometry V1 source id \"composition-anchor:dup\" at anchors.1.id; first occurrence at anchors.0.id.",
+  );
+  assert.equal(result.errors[1].targetRef, "elements.0.anchors.1.id");
+  assert.equal(
+    result.errors[1].message,
+    "Duplicate Geometry V1 source id \"element-anchor:dup\" at elements.0.anchors.1.id; first occurrence at elements.0.anchors.0.id.",
+  );
+});
+
+test("R1 rejects duplicate Composition2D source ids across source-object kinds", () => {
+  const result = core.validateGeometryV1({
+    kind: "composition-2d",
+    id: "composition:shared-id",
+    coordinateSystem: metricCoordinateSystem2d,
+    metricPolicy,
+    tolerancePolicy,
+    surface: {
+      kind: "surface-space",
+      id: "source:shared",
+      coordinateSystem: metricCoordinateSystem2d,
+      metricPolicy,
+      tolerancePolicy,
+      bounds: { kind: "rect", x: 0, y: 0, width: 1200, height: 800 },
+    },
+    elements: [
+      { kind: "element", id: "source:shared", geometry: { kind: "rect", x: 0, y: 0, width: 600, height: 800 } },
+    ],
+  });
+
+  assertGeometryFailed(result, "DuplicateGeometrySourceId");
+  assert.equal(result.errors[0].targetRef, "elements.0.id");
+  assert.equal(result.errors[0].message, "Duplicate Geometry V1 source id \"source:shared\" at elements.0.id; first occurrence at surface.id.");
 });
 
 test("PR71 duplicate element source id rejection is deterministic and reports the later occurrence", () => {
@@ -942,7 +1013,7 @@ test("PR71 duplicate element source id rejection is deterministic and reports th
   assertGeometryFailed(first, "DuplicateGeometrySourceId");
   assert.deepEqual(first.errors, second.errors);
   assert.equal(first.errors[0].targetRef, "elements.2.id");
-  assert.equal(first.errors[0].message, "Duplicate Geometry V1 element id \"first\" at elements.2.id; first occurrence at elements.0.id.");
+  assert.equal(first.errors[0].message, "Duplicate Geometry V1 source id \"first\" at elements.2.id; first occurrence at elements.0.id.");
 });
 
 test("PR3 rejects geometry without an explicit coordinate system", () => {

@@ -10,7 +10,7 @@ import {
   VERIFICATION_REPLAY_RESULT_VIEWER_SECTION_KEYS,
   createVerificationReplayResultDisplayModel,
 } from "../dist/src/verification-replay-result-viewer.js";
-import { isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
+import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -339,11 +339,12 @@ test("PR61 keeps helper package-private and avoids forbidden surfaces", () => {
   if (changedFiles.some((file) => file.includes("verification-replay-result-viewer"))) {
     if (
       !isExactPr71ApprovedChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
-      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
-      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles)
-    ) {
+	      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
+	      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
+	      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
+	      !isExactR1GeometrySourceIdentityChangeSet(changedFiles) &&
+	      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles)
+	    ) {
       assert.deepEqual(changedFiles.filter(isForbiddenVerificationReplayViewerChange), []);
     }
   }

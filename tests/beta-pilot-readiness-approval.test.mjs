@@ -6,7 +6,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -625,6 +627,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactR1GeometrySourceIdentityChangeSet(changed)) {
+    return r1GeometrySourceIdentityChangedFiles;
   }
   if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) {
     return r6cStructuredAnalyzeMcpChangedFiles;
