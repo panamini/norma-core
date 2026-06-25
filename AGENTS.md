@@ -68,18 +68,36 @@ Do not mutate `norma-core-wiki` unless the task is explicitly memory/wiki update
 
 Use the repo-local Skill at `.agents/skills/norma-orchestrator/` for non-trivial
 planning, implementation, validation, or review work that needs wiki context.
+The canonical package manager is the `packageManager` declared in `package.json`;
+for this repo state it is `pnpm@11.8.0`.
 
 Entry points:
 
-- `npm run orchestrator:doctor`
-- `npm run orchestrator:context -- --task "<task>"`
-- `npm run orchestrator:validate -- --changed "<path[,path]>" --dry-run`
-- `npm run orchestrator:run -- --task "<task>" --changed "<path[,path]>" --dry-run`
+- `pnpm run orchestrator:doctor`
+- `pnpm run orchestrator:context -- --task "<task>"`
+- `pnpm run orchestrator:validate -- --changed "<path[,path]>" --dry-run`
+- `pnpm run orchestrator:run -- --task "<task>" --changed "<path[,path]>" --dry-run`
 
 The orchestrator is a TypeScript/Node tooling layer under `tools/orchestrator/`.
 It must keep `norma-core-wiki` read-only by default, treat generated context as
 disposable evidence, and write run artifacts only under ignored `.orchestrator/`
 paths.
+
+### Trust And Maturity Contract
+
+- `current_level`: `L1_ADVISORY`.
+- `trusted_for`: locating relevant wiki context, planning validation commands,
+  running configured deterministic checks, and recording derived run evidence.
+- `not_trusted_for`: autonomous implementation, autonomous PR creation or merge,
+  wiki mutation, source-of-truth decisions, release approval, security approval,
+  or replacing human/Codex review of active code.
+- `source_of_truth`: active source files, tests, `package.json`,
+  `pnpm-lock.yaml`, current Git state, and the durable wiki pages are primary.
+  Orchestrator context packs, validation plans, run JSON, and proposed wiki
+  writebacks are derived evidence only.
+- `L2 promotion criteria`: requires a reviewed decision record, contract tests
+  for every promoted capability, explicit false-positive/false-negative limits,
+  documented rollback behavior, and human approval for any expanded authority.
 
 ## Codebase Authority
 
