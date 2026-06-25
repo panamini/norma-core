@@ -273,35 +273,25 @@ export function analyzeStructuredCompositionV1(
     return construction.result;
   }
 
-  const measurementA = successfulStage(
+  const measurements = successfulStage(
     measureGeometry({
       construction: construction.output,
-      compositions: [{ label: "A", geometry: prepared.input.compositionA }],
+      compositions: [
+        { label: "A", geometry: prepared.input.compositionA },
+        { label: "B", geometry: prepared.input.compositionB },
+      ],
       operationContextRef: prepared.operationContext.ref,
       requestedOutputs: ["measurements"],
     }),
     prepared,
   );
-  if (!measurementA.ok) {
-    return measurementA.result;
-  }
-
-  const measurementB = successfulStage(
-    measureGeometry({
-      construction: construction.output,
-      compositions: [{ label: "B", geometry: prepared.input.compositionB }],
-      operationContextRef: prepared.operationContext.ref,
-      requestedOutputs: ["measurements"],
-    }),
-    prepared,
-  );
-  if (!measurementB.ok) {
-    return measurementB.result;
+  if (!measurements.ok) {
+    return measurements.result;
   }
 
   const evaluationA = successfulStage(
     evaluateCompositionBasic({
-      measurements: measurementA.output,
+      measurements: measurements.output,
       compositionLabel: "A",
       profile: prepared.input.evaluationProfile,
       pack: prepared.ratioPack,
@@ -321,7 +311,7 @@ export function analyzeStructuredCompositionV1(
 
   const evaluationB = successfulStage(
     evaluateCompositionBasic({
-      measurements: measurementB.output,
+      measurements: measurements.output,
       compositionLabel: "B",
       profile: prepared.input.evaluationProfile,
       pack: prepared.ratioPack,
@@ -355,8 +345,7 @@ export function analyzeStructuredCompositionV1(
 
   return createValidAnalysisResult(prepared, {
     construction,
-    measurementA,
-    measurementB,
+    measurements,
     evaluationA,
     evaluationB,
     comparison,
@@ -546,8 +535,7 @@ function createValidAnalysisResult(
   prepared: PreparedAnalysisInput,
   stages: {
     construction: StageResult<Construction> & { ok: true };
-    measurementA: StageResult<MeasurementSet> & { ok: true };
-    measurementB: StageResult<MeasurementSet> & { ok: true };
+    measurements: StageResult<MeasurementSet> & { ok: true };
     evaluationA: StageResult<Evaluation> & { ok: true };
     evaluationB: StageResult<Evaluation> & { ok: true };
     comparison: StageResult<Comparison> & { ok: true };
@@ -555,10 +543,8 @@ function createValidAnalysisResult(
 ): StructuredCompositionAnalysisResultV1 {
   const outputRefs = sortOutputRefsDeterministically([
     ...stages.construction.result.outputRefs,
-    { kind: "measurement-set", ref: stages.measurementA.output.id },
-    ...stages.measurementA.result.outputRefs,
-    { kind: "measurement-set", ref: stages.measurementB.output.id },
-    ...stages.measurementB.result.outputRefs,
+    { kind: "measurement-set", ref: stages.measurements.output.id },
+    ...stages.measurements.result.outputRefs,
     ...stages.evaluationA.result.outputRefs,
     ...stages.evaluationB.result.outputRefs,
     ...stages.comparison.result.outputRefs,
@@ -588,8 +574,7 @@ function createValidAnalysisResult(
 
   const warnings = canonicalizeWarnings([
     ...stages.construction.result.warnings,
-    ...stages.measurementA.result.warnings,
-    ...stages.measurementB.result.warnings,
+    ...stages.measurements.result.warnings,
     ...stages.evaluationA.result.warnings,
     ...stages.evaluationB.result.warnings,
     ...stages.comparison.result.warnings,
@@ -616,8 +601,8 @@ function createValidAnalysisResult(
       effectiveSourceIds: prepared.effectiveSourceIds,
     },
     measurements: {
-      a: stages.measurementA.output,
-      b: stages.measurementB.output,
+      a: stages.measurements.output,
+      b: stages.measurements.output,
     },
     evaluations: {
       a: stages.evaluationA.output,
@@ -640,8 +625,8 @@ function createValidAnalysisResult(
       meaningfulIdentity: meaningfulIdentity(prepared, {
         outputRefs,
         measurements: {
-          a: stages.measurementA.output,
-          b: stages.measurementB.output,
+          a: stages.measurements.output,
+          b: stages.measurements.output,
         },
         evaluations: {
           a: stages.evaluationA.output,
@@ -819,6 +804,7 @@ function validatePackLockCoherence(packLock: unknown, ratioPack: RatioPack): Cor
     || packLock.packId !== expected.packId
     || packLock.packVersion !== expected.packVersion
     || packLock.packSchemaVersion !== expected.packSchemaVersion
+    || packLock.coreVersion !== expected.coreVersion
     || packLock.contentIdentity !== expected.contentIdentity
     || packLock.status !== expected.status
   ) {
@@ -1028,7 +1014,7 @@ function acceptanceWithoutAcceptedAt(
     accepted: acceptance.accepted,
     mode: acceptance.mode,
     acceptedBy: acceptance.acceptedBy,
-    acceptedSourceIds: acceptance.acceptedSourceIds,
+    acceptedSourceIds: [...acceptance.acceptedSourceIds].sort(compareStrings),
     acceptanceRecordId: acceptance.acceptanceRecordId,
   };
 }

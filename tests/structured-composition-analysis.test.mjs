@@ -211,6 +211,9 @@ function assertValid(result) {
   assert.equal(result.operationVersion, core.STRUCTURED_COMPOSITION_ANALYSIS_OPERATION_VERSION);
   assert.equal(result.errors.length, 0);
   assert.ok(result.measurements);
+  assert.equal(result.measurements.a.id, result.measurements.b.id);
+  assert.deepEqual(result.measurements.a.compositions.map((composition) => composition.label), ["A", "B"]);
+  assert.deepEqual(result.measurements.b.compositions.map((composition) => composition.label), ["A", "B"]);
   assert.ok(result.evaluations);
   assert.ok(result.comparison);
   assert.ok(result.decision);
