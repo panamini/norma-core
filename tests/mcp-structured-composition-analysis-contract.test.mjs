@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import * as core from "../dist/src/index.js";
 import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r7StructuredAnalyzeHardeningChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -250,6 +254,26 @@ function createDuplicateAnchorIdInput() {
   return input;
 }
 
+function createDuplicateCompositionBElementIdInput() {
+  const input = createR3CaseAInput();
+  input.compositionB = {
+    ...input.compositionB,
+    elements: input.compositionB.elements.map((element, index) => (
+      index === 1 ? { ...element, id: input.compositionB.elements[0].id } : element
+    )),
+  };
+  return input;
+}
+
+function createForgedCallerSourceIdInput() {
+  const input = createR3CaseAInput();
+  input.provenance = {
+    ...input.provenance,
+    callerSourceIds: [...input.provenance.callerSourceIds, "forged-source-id"],
+  };
+  return input;
+}
+
 test("R6C tools/list exposes exactly six tools and annotates only Structured Analyze", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
@@ -277,6 +301,22 @@ test("R6C tools/list exposes exactly six tools and annotates only Structured Ana
   assert.equal(analyzeTool.outputSchema.properties.result.additionalProperties, false);
   assertNoBooleanTrueAdditionalProperties(analyzeTool.inputSchema, "inputSchema");
   assertNoBooleanTrueAdditionalProperties(analyzeTool.outputSchema, "outputSchema");
+});
+
+test("R7.2 exact guard set rejects unrelated files", () => {
+  assert.equal(isExactR6CStructuredAnalyzeMcpChangeSet(r7StructuredAnalyzeHardeningChangedFiles), true);
+  assert.equal(
+    isExactR6CStructuredAnalyzeMcpChangeSet(
+      [...r7StructuredAnalyzeHardeningChangedFiles, "tests/unrelated.test.mjs"].sort(),
+    ),
+    false,
+  );
+  assert.equal(
+    isExactR6CStructuredAnalyzeMcpChangeSet(
+      r7StructuredAnalyzeHardeningChangedFiles.filter((file) => file !== "tests/structured-composition-analysis.test.mjs"),
+    ),
+    false,
+  );
 });
 
 test("R6C Case A valid direct and MCP results are identical and deterministic", () => {
@@ -384,6 +424,37 @@ test("R1 duplicate anchor source ID returns direct invalid result over MCP", () 
   assert.equal(direct.serializationSummary, null);
 });
 
+test("R7.2 semantic invalid inputs preserve direct and MCP parity", () => {
+  for (const [id, input, expectedDiagnosticCode] of [
+    ["r7-duplicate-composition-b-element", createDuplicateCompositionBElementIdInput(), "DuplicateGeometrySourceId"],
+    ["r7-forged-caller-source-id", createForgedCallerSourceIdInput(), "MissingProvenance"],
+  ]) {
+    const { direct, response } = assertDirectMcpParity(input, id);
+
+    assert.equal(direct.status, "invalid");
+    assert.equal(response.result.structuredContent.status, "invalid");
+    assert.ok(direct.diagnostics.some((diagnostic) => diagnostic.code === expectedDiagnosticCode));
+    assert.deepEqual(direct.outputRefs, []);
+    assert.equal(direct.measurements, null);
+    assert.equal(direct.evaluations, null);
+    assert.equal(direct.comparison, null);
+    assert.equal(direct.decision, null);
+    assert.equal(direct.replayReadiness, null);
+    assert.equal(direct.serializationSummary, null);
+  }
+});
+
+test("R7.2 MCP remains usable after semantic invalid Structured Analyze input", () => {
+  const invalidResponse = callAnalyze(createDuplicateCompositionBElementIdInput(), "r7-semantic-invalid");
+  const validResponse = callAnalyze(createR3CaseAInput(), "r7-valid-after-semantic-invalid");
+
+  assert.equal(Object.hasOwn(invalidResponse, "error"), false);
+  assert.equal(invalidResponse.result.isError, false);
+  assert.equal(invalidResponse.result.structuredContent.status, "invalid");
+  assert.equal(validResponse.result.structuredContent.status, "valid");
+  assert.equal(validResponse.result.structuredContent.result.comparison.status, "a_closer");
+});
+
 test("R6C domain-invalid acceptance returns successful invalid structuredContent", () => {
   const input = createR3CaseAInput();
   input.acceptance = { ...input.acceptance, accepted: false };
@@ -401,7 +472,7 @@ test("R6C domain-invalid acceptance returns successful invalid structuredContent
 
 test("R6C transport-invalid tool arguments return sanitized invalid params errors", () => {
   const input = createR3CaseAInput();
-  const badInputFields = ["prompt", "image", "file", "url"];
+  const badInputFields = ["prompt", "image", "file", "url", "recommendation", "beautyScore", "intentInference", "hiddenTolerance"];
   const invalidRequests = [
     { name: analyzeToolName },
     { name: analyzeToolName, arguments: {} },
