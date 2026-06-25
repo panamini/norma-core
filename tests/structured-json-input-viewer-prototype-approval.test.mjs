@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath as pathFromFileUrl } from "node:url";
 
-import { isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
+import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
 const docPath = path.join(
@@ -255,6 +255,7 @@ test("PR57 keeps the approved PR58 prototype files package-private after impleme
     !isExactR6BStructuredAnalyzeImplementationChangeSet(changed) &&
     !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changed) &&
     !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changed) &&
+    !isExactR1GeometrySourceIdentityChangeSet(changed) &&
     !isExactR6CStructuredAnalyzeMcpChangeSet(changed)
   ) {
     assert.deepEqual(changed.filter(isForbiddenStructuredJsonViewerChange), []);

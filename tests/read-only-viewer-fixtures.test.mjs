@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 import { modelToStaticViewTree } from "../viewer/read-only-result-viewer.js";
 import {
+  isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -632,7 +634,9 @@ function approvedChangedFilesFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
-  return isExactR6CStructuredAnalyzeMcpChangeSet(changed)
+  return isExactR1GeometrySourceIdentityChangeSet(changed)
+    ? r1GeometrySourceIdentityChangedFiles
+    : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
     ? r6cStructuredAnalyzeMcpChangedFiles
     : exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
 }

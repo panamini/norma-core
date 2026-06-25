@@ -291,6 +291,21 @@ test("R6B rejects duplicate structured geometry ids before downstream outputs", 
   assertInvalid(result, "DuplicateGeometrySourceId");
 });
 
+test("R1 rejects duplicate structured anchor source ids before downstream outputs", () => {
+  const input = createR3CaseAInput();
+  input.compositionA = {
+    ...input.compositionA,
+    anchors: [
+      { kind: "anchor", id: input.compositionA.elements[0].id, point: { kind: "point", x: 100, y: 100 } },
+      { kind: "anchor", id: input.compositionA.elements[0].id, point: { kind: "point", x: 200, y: 200 } },
+    ],
+  };
+
+  const result = core.analyzeStructuredCompositionV1(input);
+
+  assertInvalid(result, "DuplicateGeometrySourceId");
+});
+
 test("R6B rejects missing acceptance and source-id mismatches", () => {
   const falseAcceptance = createR3CaseAInput();
   falseAcceptance.acceptance = { ...falseAcceptance.acceptance, accepted: false };

@@ -994,6 +994,11 @@ function validateComposition2D(value: Record<string, unknown>): GeometryValueVal
     return anchorsValidation;
   }
 
+  const duplicateIdFailure = duplicateGeometrySourceIdFailure(value as unknown as Composition2D);
+  if (duplicateIdFailure !== null) {
+    return failedGeometryValue(duplicateIdFailure);
+  }
+
   return validGeometryValue(value as unknown as Composition2D);
 }
 
@@ -1250,11 +1255,6 @@ function validateElements(
     return invalidElementValidation;
   }
 
-  const duplicateIdFailure = duplicateGeometryElementSourceIdFailure(value as readonly Element[], "elements");
-  if (duplicateIdFailure !== null) {
-    return failedGeometryValue(duplicateIdFailure);
-  }
-
   return validGeometryValue(value as readonly Element[]);
 }
 
@@ -1272,23 +1272,65 @@ function firstInvalidElementValidation(
   return null;
 }
 
-function duplicateGeometryElementSourceIdFailure(
-  elements: readonly Element[],
-  targetPrefix: string,
-): CoreResult | null {
-  const elementIdRefs = new Map<string, string>();
+interface GeometrySourceIdOccurrence {
+  id: string;
+  targetRef: string;
+}
 
-  for (const [index, element] of elements.entries()) {
-    const currentRef = `${targetPrefix}.${index}.id`;
-    const firstRef = elementIdRefs.get(element.id);
+interface DuplicateGeometrySourceIdOccurrence {
+  id: string;
+  targetRef: string;
+  firstRef: string;
+}
+
+function duplicateGeometrySourceIdFailure(composition: Composition2D): CoreResult | null {
+  const firstRefs = new Map<string, string>();
+  const duplicates: DuplicateGeometrySourceIdOccurrence[] = [];
+
+  for (const occurrence of geometrySourceIdOccurrences(composition)) {
+    const firstRef = firstRefs.get(occurrence.id);
     if (firstRef !== undefined) {
-      return duplicateGeometrySourceId(currentRef, element.id, firstRef);
+      duplicates.push({ ...occurrence, firstRef });
+      continue;
     }
 
-    elementIdRefs.set(element.id, `${targetPrefix}.${index}.id`);
+    firstRefs.set(occurrence.id, occurrence.targetRef);
   }
 
-  return null;
+  if (duplicates.length === 0) {
+    return null;
+  }
+
+  return createCoreResult({
+    status: "failed",
+    errors: duplicates.map((duplicate) => duplicateGeometrySourceId(duplicate)),
+  });
+}
+
+function geometrySourceIdOccurrences(composition: Composition2D): readonly GeometrySourceIdOccurrence[] {
+  const occurrences: GeometrySourceIdOccurrence[] = [
+    { id: composition.id, targetRef: "id" },
+    { id: composition.surface.id, targetRef: "surface.id" },
+  ];
+
+  for (const [index, element] of composition.elements.entries()) {
+    occurrences.push({ id: element.id, targetRef: `elements.${index}.id` });
+  }
+
+  for (const [index, anchor] of (composition.anchors ?? []).entries()) {
+    occurrences.push({ id: anchor.id, targetRef: `anchors.${index}.id` });
+  }
+
+  for (const [index, element] of composition.elements.entries()) {
+    for (const [anchorIndex, anchor] of (element.anchors ?? []).entries()) {
+      occurrences.push({
+        id: anchor.id,
+        targetRef: `elements.${index}.anchors.${anchorIndex}.id`,
+      });
+    }
+  }
+
+  return occurrences;
 }
 
 function validateElement(
@@ -1412,17 +1454,12 @@ function invalidGeometryV1(targetRef: string, message: string): CoreResult {
   });
 }
 
-function duplicateGeometrySourceId(targetRef: string, duplicateId: string, firstRef: string): CoreResult {
-  return createCoreResult({
-    status: "failed",
-    errors: [
-      createCoreError({
-        code: "DuplicateGeometrySourceId",
-        message: `Duplicate Geometry V1 element id "${duplicateId}" at ${targetRef}; first occurrence at ${firstRef}.`,
-        targetRef,
-        sourceRef: { kind: "geometry-v1", ref: targetRef },
-      }),
-    ],
+function duplicateGeometrySourceId(duplicate: DuplicateGeometrySourceIdOccurrence): CoreError {
+  return createCoreError({
+    code: "DuplicateGeometrySourceId",
+    message: `Duplicate Geometry V1 source id "${duplicate.id}" at ${duplicate.targetRef}; first occurrence at ${duplicate.firstRef}.`,
+    targetRef: duplicate.targetRef,
+    sourceRef: { kind: "geometry-v1", ref: duplicate.targetRef },
   });
 }
 

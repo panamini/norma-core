@@ -48,6 +48,67 @@ export const r6cStructuredAnalyzeMcpChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ].sort();
 
+export const r1GeometrySourceIdentityChangedFiles = [
+  "src/index.ts",
+  "src/measurements.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/core-skeleton.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+  "tests/measurements.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-composition-analysis.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+].sort();
+
+const r1GeometrySourceIdentitySemgrepGuardMaintenanceFiles = new Set([
+  ".github/workflows/ci.yml",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+]);
+
+const r1GeometrySourceIdentityNonSemgrepGuardMaintenanceChangedFiles =
+  r1GeometrySourceIdentityChangedFiles
+    .filter((file) => !r1GeometrySourceIdentitySemgrepGuardMaintenanceFiles.has(file))
+    .sort();
+
+const pr114LocalMainDriftChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "src/mcp/stdio-protocol.ts",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/mcp-tools-list-contract.test.mjs",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
+const r1GeometrySourceIdentityWithPr114LocalMainDriftChangedFiles = [
+  ...new Set([...r1GeometrySourceIdentityChangedFiles, ...pr114LocalMainDriftChangedFiles]),
+].sort();
+
+const r1GeometrySourceIdentityNonSemgrepGuardMaintenanceWithPr114LocalMainDriftChangedFiles = [
+  ...new Set([
+    ...r1GeometrySourceIdentityNonSemgrepGuardMaintenanceChangedFiles,
+    ...pr114LocalMainDriftChangedFiles,
+  ]),
+].sort();
+
 const r6dChatgptMcpMetadataCompatibilityChangedFiles = [
   "src/mcp/stdio-protocol.ts",
   "tests/mcp-structured-composition-analysis-contract.test.mjs",
@@ -79,6 +140,18 @@ export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
   ) ||
     isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles) ||
     isExactChangedFileSet(changedFiles, r6dChatgptCheckpointChangedFiles);
+}
+
+export function isExactR1GeometrySourceIdentityChangeSet(changedFiles) {
+  return (
+    isExactChangedFileSet(changedFiles, r1GeometrySourceIdentityChangedFiles) ||
+    isExactChangedFileSet(changedFiles, r1GeometrySourceIdentityNonSemgrepGuardMaintenanceChangedFiles) ||
+    isExactChangedFileSet(changedFiles, r1GeometrySourceIdentityWithPr114LocalMainDriftChangedFiles) ||
+    isExactChangedFileSet(
+      changedFiles,
+      r1GeometrySourceIdentityNonSemgrepGuardMaintenanceWithPr114LocalMainDriftChangedFiles,
+    )
+  );
 }
 
 function isExactChangedFileSet(changedFiles, approvedFiles) {
