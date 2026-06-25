@@ -511,10 +511,12 @@ test("R1 reports duplicate anchor source ids using original measurement input in
   });
 
   assertFailedWithDiagnostic(result, "DuplicateGeometrySourceId");
-  assert.equal(result.errors[0].targetRef, "composition.anchors.2.id");
-  assert.equal(result.errors[0].source.ref, "composition.anchors.2.id");
+  const duplicateError = result.errors.find((error) => error.code === "DuplicateGeometrySourceId");
+  assert.ok(duplicateError);
+  assert.equal(duplicateError.targetRef, "composition.anchors.2.id");
+  assert.equal(duplicateError.source.ref, "composition.anchors.2.id");
   assert.equal(
-    result.errors[0].message,
+    duplicateError.message,
     "Duplicate Geometry V1 source id \"anchor:dup\" at composition.anchors.2.id; first occurrence at composition.anchors.1.id.",
   );
 });
