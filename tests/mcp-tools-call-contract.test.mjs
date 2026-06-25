@@ -370,6 +370,70 @@ test("PR36 getVersion accepts missing arguments and rejects malformed arguments"
   }
 });
 
+test("R6D tools/call tolerates reserved root MCP metadata without weakening zero-argument tools", () => {
+  const getVersionResponse = parseToolResultResponse({
+    jsonrpc: "2.0",
+    id: "get-version-root-meta",
+    method: "tools/call",
+    params: {
+      name: "norma.getVersion",
+      arguments: {
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+      _meta: {
+        progressToken: "progress-2",
+      },
+    },
+  });
+
+  assert.equal(getVersionResponse.result.structuredContent.tool, "norma.getVersion");
+
+  const replayResponse = parseToolResultResponse({
+    jsonrpc: "2.0",
+    id: "replay-root-meta",
+    method: "tools/call",
+    params: {
+      name: "norma.replayMvpDemo",
+      arguments: {
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+      _meta: {
+        progressToken: "progress-2",
+      },
+    },
+  });
+
+  assert.equal(replayResponse.result.structuredContent.tool, "norma.replayMvpDemo");
+
+  for (const params of [
+    {
+      name: "norma.getVersion",
+      arguments: {},
+      extra: true,
+    },
+    {
+      name: "norma.getVersion",
+      arguments: {
+        extra: true,
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+    },
+  ]) {
+    assertInvalidParams({
+      jsonrpc: "2.0",
+      id: "root-meta-unknown-key",
+      method: "tools/call",
+      params,
+    });
+  }
+});
+
 test("PR36 serializeCanonicalJson returns deterministic canonical JSON", () => {
   const value = {
     b: 2,
@@ -397,6 +461,44 @@ test("PR36 serializeCanonicalJson returns deterministic canonical JSON", () => {
   assert.equal(response.result.structuredContent.canonicalJson, serializeCanonicalJson(value));
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
   assertConformsToSchema(response.result.structuredContent, serializeCanonicalJsonOutputSchema);
+});
+
+test("R6D serializeCanonicalJson ignores only reserved root MCP metadata", () => {
+  const value = {
+    b: 2,
+    a: 1,
+  };
+  const plainResponse = parseToolResultResponse({
+    jsonrpc: "2.0",
+    id: "serialize-plain",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value,
+      },
+    },
+  });
+  const metaResponse = parseToolResultResponse({
+    jsonrpc: "2.0",
+    id: "serialize-root-meta",
+    method: "tools/call",
+    params: {
+      name: "norma.serializeCanonicalJson",
+      arguments: {
+        value,
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+      _meta: {
+        progressToken: "progress-2",
+      },
+    },
+  });
+
+  assert.deepEqual(metaResponse.result.structuredContent, plainResponse.result.structuredContent);
+  assert.equal(metaResponse.result.structuredContent.canonicalJson, "{\"a\":1,\"b\":2}");
 });
 
 test("PR36 serializeCanonicalJson accepts the explicit current policy string", () => {

@@ -1395,7 +1395,7 @@ function parseToolsCallParams(
   }
 
   const keys = Object.keys(params);
-  if (keys.some((key) => key !== "name" && key !== "arguments")) {
+  if (keys.some((key) => key !== "name" && key !== "arguments" && key !== "_meta")) {
     return null;
   }
 
@@ -1415,7 +1415,7 @@ function parseToolsCallParams(
 
   return {
     name: params.name,
-    arguments: params.arguments,
+    arguments: stripRootReservedMcpMeta(params.arguments),
   };
 }
 
@@ -1433,7 +1433,26 @@ function isValidToolsListParams(params: unknown, hasParams: boolean): boolean {
     return true;
   }
 
-  return keys.length === 1 && keys[0] === "cursor" && typeof params.cursor === "string";
+  if (keys.some((key) => key !== "cursor" && key !== "_meta")) {
+    return false;
+  }
+
+  return !Object.hasOwn(params, "cursor") || typeof params.cursor === "string";
+}
+
+function stripRootReservedMcpMeta(params: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  if (!Object.hasOwn(params, "_meta")) {
+    return params;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== "_meta") {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
 }
 
 function isJsonRpcId(value: unknown): value is JsonRpcId {

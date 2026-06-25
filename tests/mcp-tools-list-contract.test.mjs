@@ -370,6 +370,27 @@ test("PR36 tools/list accepts missing empty and string cursor params without pag
         cursor: "cursor-1",
       },
     },
+    {
+      jsonrpc: "2.0",
+      id: "tools-list-root-meta",
+      method: "tools/list",
+      params: {
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+    },
+    {
+      jsonrpc: "2.0",
+      id: "tools-list-cursor-root-meta",
+      method: "tools/list",
+      params: {
+        cursor: "cursor-1",
+        _meta: {
+          progressToken: "progress-1",
+        },
+      },
+    },
   ];
 
   for (const request of requestVariants) {
@@ -382,7 +403,17 @@ test("PR36 tools/list accepts missing empty and string cursor params without pag
 });
 
 test("PR36 tools/list rejects malformed params with invalid params", () => {
-  for (const params of ["cursor-1", 1, true, null, [], { cursor: 1 }, { cursor: null }, { extra: true }]) {
+  for (const params of [
+    "cursor-1",
+    1,
+    true,
+    null,
+    [],
+    { cursor: 1 },
+    { cursor: null },
+    { extra: true },
+    { _meta: { progressToken: "progress-1" }, extra: true },
+  ]) {
     const response = parseRequiredResponse({
       jsonrpc: "2.0",
       id: "bad-tools-list-params",

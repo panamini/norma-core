@@ -48,6 +48,14 @@ export const r6cStructuredAnalyzeMcpChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ].sort();
 
+const r6dChatgptMcpMetadataCompatibilityChangedFiles = [
+  "src/mcp/stdio-protocol.ts",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+  "tests/mcp-tools-call-contract.test.mjs",
+  "tests/mcp-tools-list-contract.test.mjs",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
 const requiredR6CStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
@@ -59,6 +67,12 @@ const requiredR6CStructuredAnalyzeMcpChangedFiles = [
 ].sort();
 
 export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
-  return requiredR6CStructuredAnalyzeMcpChangedFiles.every((file) => changedFiles.includes(file))
-    && changedFiles.every((file) => r6cStructuredAnalyzeMcpChangedFiles.includes(file));
+  return (
+    requiredR6CStructuredAnalyzeMcpChangedFiles.every((file) => changedFiles.includes(file))
+      && changedFiles.every((file) => r6cStructuredAnalyzeMcpChangedFiles.includes(file))
+  ) || isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles);
+}
+
+function isExactChangedFileSet(changedFiles, approvedFiles) {
+  return changedFiles.length === approvedFiles.length && approvedFiles.every((file) => changedFiles.includes(file));
 }
