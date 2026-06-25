@@ -173,6 +173,23 @@ const r6aStructuredAnalyzeContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-analyze-v1-contract.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 const pr79ApprovedChangedFiles = [
   "src/geometry-observation.ts",
   "src/node-crypto.d.ts",
@@ -417,6 +434,7 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
     assert.equal(exactApprovedChangedFiles([...r3NonCanonicalStructuredInputChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r5PostMvpAdapterArchitectureChangedFiles, unexpectedFile].sort()), null);
     assert.equal(exactApprovedChangedFiles([...r6aStructuredAnalyzeContractChangedFiles, unexpectedFile].sort()), null);
+    assert.equal(exactApprovedChangedFiles([...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort()), null);
   }
 });
 
@@ -549,6 +567,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles)) {
     return r6aStructuredAnalyzeContractChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)) {
+    return r6a1StructuredAnalyzeExecutableContractChangedFiles;
   }
   if (isExactPr71ApprovedChangeSet(changed)) {
     return pr71ApprovedChangedFiles;

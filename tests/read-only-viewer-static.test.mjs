@@ -185,6 +185,23 @@ const r6aStructuredAnalyzeContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ];
 
+const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-analyze-v1-contract.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+];
+
 test("PR68 static viewer files exist", () => {
   assert.equal(existsSync(htmlPath), true, "viewer/read-only-result-viewer.html must exist");
   assert.equal(existsSync(jsPath), true, "viewer/read-only-result-viewer.js must exist");
@@ -352,6 +369,10 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     changed,
     r6aStructuredAnalyzeContractChangedFiles,
   );
+  const isR6A1StructuredAnalyzeExecutableContractChangeSet = isExactChangedFileSet(
+    changed,
+    r6a1StructuredAnalyzeExecutableContractChangedFiles,
+  );
   const approvedDocChangeSets = [
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
@@ -361,6 +382,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     isR4CurrentOperationsRunbookChangeSet ? r4CurrentOperationsRunbookChangedFiles : [],
     isR5PostMvpAdapterArchitectureChangeSet ? r5PostMvpAdapterArchitectureChangedFiles : [],
     isR6AStructuredAnalyzeContractChangeSet ? r6aStructuredAnalyzeContractChangedFiles : [],
+    isR6A1StructuredAnalyzeExecutableContractChangeSet ? r6a1StructuredAnalyzeExecutableContractChangedFiles : [],
   ];
 
   assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
@@ -416,6 +438,13 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
       isExactChangedFileSet(
         [...r6aStructuredAnalyzeContractChangedFiles, unexpectedFile].sort(),
         r6aStructuredAnalyzeContractChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort(),
+        r6a1StructuredAnalyzeExecutableContractChangedFiles,
       ),
       false,
     );

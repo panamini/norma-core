@@ -81,8 +81,14 @@ core.structured-composition-analysis.analyze
 ```
 
 R6A uses explicit user-supplied Core `Composition2D` pairs plus explicit
-acceptance, pack lock, evaluation profile, tolerance policy, operation context,
-and provenance.
+acceptance, ratio pack, rule set ref, pack lock, evaluation profile, evaluation
+tolerances, comparison/tie tolerances, tolerance policy, operation context, and
+provenance.
+
+R6A.1 clarifies that `packLock` is identity/hash metadata only, executable rules
+come from `ratioPack` and `ruleSetRef`, `evaluationProfile` does not embed
+tolerances, and the direct-operation executable statuses are only `valid` and
+`invalid`.
 
 R6A does not implement runtime code, package exports, schemas, generated files,
 MCP descriptors, annotations, ChatGPT app metadata, hosted MCP, Developer Mode
@@ -91,7 +97,10 @@ dependencies, package metadata, CI changes, or public submission.
 
 R6B may implement the direct `analyzeStructuredCompositionV1` operation only
 with explicit `contractVersion`, explicit `analysisId`, and deterministic
-direct-core proof for the full R6A fixture set: Case A expects
+direct-core proof for the full R6A fixture set. R6B must require explicit
+`ratioPack`, `ruleSetRef`, `evaluationTolerances`, `comparisonTolerances`,
+`packLock`, `tolerancePolicy`, and output-affecting `operationContext` values
+without hidden built-in defaults. Case A expects
 `decision.status` `a_closer`, Case B expects `decision.status` `b_closer`, and
 Case C expects duplicate-ID input to return `status: "invalid"` with diagnostic
 `DuplicateGeometrySourceId` and no output refs.

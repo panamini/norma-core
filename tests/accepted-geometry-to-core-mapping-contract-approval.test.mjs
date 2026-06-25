@@ -58,6 +58,23 @@ const r6aStructuredAnalyzeContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_TOOL_CONTRACT.md",
+  "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-analyze-v1-contract.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort();
+
 const decisionPath =
   "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md";
 const decision = read(decisionPath);
@@ -317,7 +334,8 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
       isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles) ||
       isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles) ||
       isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles) ||
-      isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles),
+      isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles) ||
+      isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles),
     true,
     `Unexpected PR80/PR101/R2A/R2B/R3 changed files:\n${changed.join("\n")}`,
   );
@@ -339,6 +357,8 @@ test("PR80 keeps protected runtime package fixture README and CI surfaces unchan
           ? r5PostMvpAdapterArchitectureChangedFiles
           : isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles)
             ? r6aStructuredAnalyzeContractChangedFiles
+            : isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)
+              ? r6a1StructuredAnalyzeExecutableContractChangedFiles
           : [];
   const protectedPatterns = [
     /^src\//,
@@ -388,6 +408,13 @@ test("PR101 replay guard rejects unrelated MCP package and CI changes", () => {
       isExactChangedFileSet(
         [...r6aStructuredAnalyzeContractChangedFiles, unexpectedFile].sort(),
         r6aStructuredAnalyzeContractChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort(),
+        r6a1StructuredAnalyzeExecutableContractChangedFiles,
       ),
       false,
     );

@@ -669,7 +669,15 @@ The future tool must wrap only the direct `analyzeStructuredCompositionV1`
 operation approved by `docs/decisions/2026-06-25-structured-analyze-v1-contract.md`.
 
 The tool must accept only explicit structured
-`StructuredCompositionAnalysisInputV1` data.
+`StructuredCompositionAnalysisInputV1` data. That input must include explicit
+`ratioPack`, `ruleSetRef`, `packLock`, `evaluationProfile`,
+`evaluationTolerances`, `comparisonTolerances`, `tolerancePolicy`,
+`operationContext`, acceptance, and provenance.
+
+`packLock` is identity/hash metadata only and cannot supply executable rules.
+Executable rules come from `ratioPack` through the selected `ruleSetRef`.
+`evaluationProfile` does not embed tolerances; evaluation and comparison/tie
+tolerances must be explicit.
 
 The tool must not infer geometry, packs, rules, tolerances, operation context,
 acceptance, recommendations, optimization, beauty score, or intent from prompt
@@ -698,6 +706,11 @@ Malformed `tools/call` params or malformed tool arguments must return JSON-RPC
 Validly shaped domain-invalid structured analysis input must return structured
 `status: "invalid"` with diagnostics, no downstream measurements, no
 evaluations, no comparison, no decision, and no output refs.
+
+The wrapped direct operation returns only `status: "valid"` or
+`status: "invalid"` for ordinary operation results. Unexpected internal failures
+may throw at the direct boundary and must map to JSON-RPC `-32603` if this
+future MCP tool wraps them.
 
 The tool result must preserve the existing local MCP envelope rule: exactly one
 text content item, text is canonical JSON, parsed text equals
