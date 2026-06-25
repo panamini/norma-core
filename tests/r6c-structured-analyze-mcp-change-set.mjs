@@ -56,6 +56,12 @@ const r6dChatgptMcpMetadataCompatibilityChangedFiles = [
   "tests/r6c-structured-analyze-mcp-change-set.mjs",
 ].sort();
 
+const r6dChatgptCheckpointChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
 const requiredR6CStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
@@ -70,7 +76,9 @@ export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
   return (
     requiredR6CStructuredAnalyzeMcpChangedFiles.every((file) => changedFiles.includes(file))
       && changedFiles.every((file) => r6cStructuredAnalyzeMcpChangedFiles.includes(file))
-  ) || isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles);
+  ) ||
+    isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles) ||
+    isExactChangedFileSet(changedFiles, r6dChatgptCheckpointChangedFiles);
 }
 
 function isExactChangedFileSet(changedFiles, approvedFiles) {

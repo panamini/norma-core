@@ -121,6 +121,35 @@ plugin, hosted MCP, public submission, prompt inference, recommendation,
 optimization, beauty scoring, or runtime expansion beyond the one
 structured-analysis MCP tool.
 
+## R6D ChatGPT Private Connector Checkpoint
+
+R6D closed the current-main ChatGPT connector `_meta` compatibility blocker.
+
+Checkpoint reference:
+
+- PR: `#113`
+- Merge commit: `bba597bca40facaf36fd7741712a0b0b9d8754e6`
+- Private ChatGPT connector smoke: passed
+- Six-tool inventory: confirmed
+- Positive replay: passed through `norma.replayMvpDemo`
+- Reserved MCP `_meta`: tolerated at the MCP envelope boundary
+- Negative prompts: rejected without a Norma analysis tool call
+
+R6D remains private/developer-only evidence. It does not authorize public app
+submission, hosted MCP, image/prose geometry inference, beauty scoring,
+recommendation, optimization, or changes to core geometry, packs, ratios, rules,
+measurements, evaluation, comparison, artifacts, or deterministic outputs.
+
+Immediate next step after R6D is this small checkpoint. The next mandatory
+product/code PR after the checkpoint is:
+
+```text
+R1 - Reject duplicate geometry source identities
+```
+
+Do not start outputSchema, ChatGPT Analyze expansion, hosting, or publishing
+before R1 unless a later explicit roadmap decision changes the sequence.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
