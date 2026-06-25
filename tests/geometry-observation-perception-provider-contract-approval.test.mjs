@@ -184,6 +184,25 @@ const r5PostMvpAdapterArchitectureChangedFiles = new Set([
   'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
 ]);
 
+const r6aStructuredAnalyzeContractChangedFiles = new Set([
+  'docs/BUSINESS_READINESS_ROADMAP.md',
+  'docs/MCP_TOOL_CONTRACT.md',
+  'docs/OPERATIONS_RUNBOOK.md',
+  'docs/decisions/2026-06-25-structured-analyze-v1-contract.md',
+  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
+  'tests/beta-pilot-readiness-approval.test.mjs',
+  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
+  'tests/mcp-tool-contract.test.mjs',
+  'tests/onboarding-examples-approval.test.mjs',
+  'tests/post-mvp-product-vision-approval.test.mjs',
+  'tests/privacy-security-support-approval.test.mjs',
+  'tests/read-only-viewer-fixtures.test.mjs',
+  'tests/read-only-viewer-model.test.mjs',
+  'tests/read-only-viewer-static.test.mjs',
+  'tests/structured-analyze-v1-contract.test.mjs',
+  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
+]);
+
 const pr79ApprovedImplementationFiles = new Set([
   'src/geometry-observation.ts',
   'src/node-crypto.d.ts',
@@ -641,6 +660,13 @@ test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes'
       ),
       false,
     );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6aStructuredAnalyzeContractChangedFiles, unexpectedFile].sort(),
+        [...r6aStructuredAnalyzeContractChangedFiles].sort(),
+      ),
+      false,
+    );
   }
 });
 
@@ -667,6 +693,11 @@ function assertApprovedContractSurfaceChanges(changedFiles) {
 
   if (isExactChangedFileSet(changedFiles, [...r5PostMvpAdapterArchitectureChangedFiles].sort())) {
     assertR5PostMvpAdapterArchitectureChangedFiles(changedFiles);
+    return;
+  }
+
+  if (isExactChangedFileSet(changedFiles, [...r6aStructuredAnalyzeContractChangedFiles].sort())) {
+    assertR6AStructuredAnalyzeContractChangedFiles(changedFiles);
     return;
   }
 
@@ -790,6 +821,23 @@ function assertR5PostMvpAdapterArchitectureChangedFiles(changedFiles) {
     assert.ok(
       !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
       `R5 guard maintenance must not change protected implementation surface: ${changedFile}`,
+    );
+  }
+}
+
+function assertR6AStructuredAnalyzeContractChangedFiles(changedFiles) {
+  for (const changedFile of changedFiles) {
+    assert.ok(
+      r6aStructuredAnalyzeContractChangedFiles.has(changedFile),
+      `unexpected R6A structured analyze contract file changed: ${changedFile}`,
+    );
+    assert.ok(
+      changedFile.startsWith('docs/') || changedFile.startsWith('tests/'),
+      `R6A guard maintenance must stay documentation and guard-test only: ${changedFile}`,
+    );
+    assert.ok(
+      !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix)),
+      `R6A guard maintenance must not change protected implementation surface: ${changedFile}`,
     );
   }
 }
