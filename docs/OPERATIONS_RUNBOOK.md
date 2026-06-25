@@ -8,8 +8,8 @@ private ChatGPT Developer Mode use.
 
 Current authoritative branch: `main`.
 
-Current checkpoint: post-PR105 at merge commit
-`dc04aee0830915a6316a258ce20e7f6610ea6d70`.
+Current checkpoint: post-PR113 at merge commit
+`bba597bca40facaf36fd7741712a0b0b9d8754e6`.
 
 This is not a production-readiness claim. It is not a public package release,
 hosted MCP deployment, public ChatGPT app release, marketplace submission, or
@@ -40,26 +40,30 @@ Norma Core has two separate proof tracks that must not be collapsed.
 - R6B implemented the direct `analyzeStructuredCompositionV1` operation.
 - R6C exposes that operation through one local STDIO MCP tool,
   `norma.analyzeStructuredCompositionV1`.
+- PR113 / R6D fixed ChatGPT bridge compatibility for reserved MCP `_meta`
+  fields at the MCP envelope boundary. After the fix and tunnel restart, the
+  private ChatGPT connector smoke passed with the current six-tool inventory,
+  positive `getVersion` / `replayMvpDemo` calls, replay readiness `ready`, and
+  negative prompt guardrails that made no Norma tool call.
 
 Current `main` is not the historical PR6 branch. Current `main` exposes a
-different six-tool MCP inventory and still needs a current-main ChatGPT
-metadata refresh and re-smoke before anyone claims ChatGPT parity for that
-inventory.
+different six-tool MCP inventory. PR113 / R6D is the first current-main private
+ChatGPT connector smoke checkpoint for that inventory.
 
 ## 3. Proven versus not proven
 
 | Surface | Status | Evidence | Current or historical | Runbook wording |
 | --- | --- | --- | --- | --- |
-| package/core deterministic path | `PROVEN_ON_CURRENT_MAIN` | PR105 CI plus `tests/mvp-demo-harness.test.mjs` | current | Current main proves deterministic structured MVP paths through repository tests. |
-| build and full check | `PROVEN_ON_CURRENT_MAIN` | PR105 CI `verify`; package scripts | current | Use the repository `npm` scripts from `package.json`. |
+| package/core deterministic path | `PROVEN_ON_CURRENT_MAIN` | PR105 CI plus PR113 local `npm run check` | current | Current main proves deterministic structured MVP paths through repository tests. |
+| build and full check | `PROVEN_ON_CURRENT_MAIN` | PR113 local `npm run check`; GitHub Actions blocked by account billing/spending limit | current | Use the repository `npm` scripts from `package.json`. |
 | R3 non-canonical structured-input test proof | `PROVEN_ON_CURRENT_MAIN` | R3 tests in `tests/mvp-demo-harness.test.mjs` | current | R3 proves non-canonical structured inputs through the test/harness boundary only. |
 | direct MCP initialize | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-stdio-server-skeleton.test.mjs` | current | Initialize echoes compatible MCP date-string protocol versions. |
 | tools/list current inventory | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-tools-list-contract.test.mjs`, `tests/mcp-verify-tools-contract.test.mjs`, and `tests/mcp-structured-composition-analysis-contract.test.mjs` | current | Current inventory is exactly the six tools listed below. |
 | direct tools/call | `PROVEN_ON_CURRENT_MAIN` | `tests/mcp-tools-call-contract.test.mjs`, `tests/mcp-verify-tools-contract.test.mjs`, `tests/mcp-replay-mvp-demo-contract.test.mjs` | current | Direct STDIO tool calls are covered by existing tests. |
 | Codex local MCP | `DOCUMENTED_BUT_NOT_RETESTED` | local STDIO server exists; no current-main Codex call proof in repo | current workflow | Configure as a local MCP server and verify inventory; do not claim current-main Codex call parity without evidence. |
 | private ChatGPT Secure MCP Tunnel | `HISTORICALLY_PROVEN_ON_OTHER_BRANCH` | historical post-PR6 checkpoint | historical | Private ChatGPT tunnel compatibility was historically proven with `norma.runMvpDemoV1`. |
-| current-main ChatGPT metadata refresh | `DOCUMENTED_BUT_NOT_RETESTED` | no post-R6C repo evidence | current workflow | Refresh Draft app metadata after tool metadata changes before checking the six current tools. |
-| current-main ChatGPT tool call | `DOCUMENTED_BUT_NOT_RETESTED` | no post-PR105 ChatGPT smoke evidence | current workflow | Run a safe current tool call before claiming ChatGPT parity. |
+| current-main ChatGPT metadata refresh | `PROVEN_ON_CURRENT_MAIN` | PR113 / R6D manual smoke | current workflow | Draft app metadata was refreshed for the current six-tool inventory. |
+| current-main ChatGPT tool call | `PROVEN_ON_CURRENT_MAIN` | PR113 / R6D manual smoke | current workflow | Private ChatGPT connector calls reached current `main` and no longer failed with `_meta`-related `-32602 Invalid params`. |
 | hosted MCP endpoint | `NOT_IMPLEMENTED` | docs and source keep remote/hosted MCP blocked | current | No hosted always-on MCP endpoint exists. |
 | public app submission | `NOT_IMPLEMENTED` | historical proof stayed private/dev | current/historical | Public submission is separate and not part of this runbook. |
 | image/vision input | `NOT_IMPLEMENTED` | product docs keep image/vision future-scoped | current | No image, camera, or vision input exists in Norma Core. |
@@ -448,14 +452,49 @@ Repository rollback is separate from external-state cleanup. For this runbook,
 rollback means reverting `docs/OPERATIONS_RUNBOOK.md` and the related link in
 `docs/MCP_TOOL_CONTRACT.md`.
 
-## 14. Known limitations
+## 14. R6D current-main ChatGPT checkpoint
+
+PR113 merged the R6D ChatGPT MCP `_meta` compatibility patch into `main`.
+
+Checkpoint facts:
+
+- PR: `#113`
+- Merge commit: `bba597bca40facaf36fd7741712a0b0b9d8754e6`
+- Head commit: `fe7869cc7e26654f30f254cd3e2bf448ce5e71b0`
+- Private ChatGPT connector smoke: passed
+- Tool inventory: exactly the current six MCP tools
+- Positive calls: `norma.getVersion` and `norma.replayMvpDemo`
+- Replay readiness: `ready`
+- Selected evaluation ref included `evaluation:A:basic-grid-alignment`
+- Reserved MCP `_meta` compatibility blocker: fixed
+- Negative prompts for image/prose geometry inference, beauty/recommendation,
+  and prose-only geometry inference: rejected without a Norma analysis tool
+  call
+
+This checkpoint does not approve public ChatGPT app submission, hosted MCP,
+always-on tunnel infrastructure, image/prose inference, beauty scoring,
+recommendation, optimization, or any change to core geometry, packs, ratios,
+rules, measurements, evaluation, comparison, artifacts, or deterministic
+results.
+
+Next mandatory product/code PR after this checkpoint:
+
+```text
+R1 - Reject duplicate geometry source identities
+```
+
+Do not start outputSchema, ChatGPT Analyze expansion, hosting, or publishing
+before that R1 rail unless a later explicit roadmap decision changes the order.
+
+## 15. Known limitations
 
 - No production claim.
 - No hosted always-on MCP.
 - No public app submission.
-- No current-main ChatGPT re-smoke proof yet.
 - Annotations are absent on the original five MCP tools only.
-- Structured Analyze is local STDIO MCP only; no ChatGPT smoke proof is claimed.
+- Structured Analyze has current ChatGPT inventory visibility and negative
+  prompt guardrail smoke only; no positive ChatGPT Structured Analyze call is
+  claimed by this checkpoint.
 - No prompt-driven custom-analysis MCP tool.
 - R6A is a historical contract for the direct Structured Analyze V1 operation
   and the R6C MCP wrapper; it is not ChatGPT proof.
@@ -466,7 +505,7 @@ rollback means reverting `docs/OPERATIONS_RUNBOOK.md` and the related link in
 - No `norma.replayRun` MCP tool.
 - No beauty score, recommendation, optimization, or intent inference.
 
-## 15. Official references
+## 16. Official references
 
 Use current official OpenAI references for OpenAI product behavior:
 
