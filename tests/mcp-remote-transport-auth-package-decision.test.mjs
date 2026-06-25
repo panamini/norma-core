@@ -27,6 +27,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const requiredDecisionSections = [
   "# MCP Remote Transport/Auth/Package Decision",
@@ -143,7 +144,7 @@ test("PR41 keeps local STDIO tools unchanged and arbitrary replay blocked", asyn
   assertDocMentions(decisionDoc, approvedCallableTools);
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

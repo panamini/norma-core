@@ -5,6 +5,11 @@ import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r6cStructuredAnalyzeMcpChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const semgrepCiGuardMaintenanceFiles = new Set([
@@ -643,6 +648,9 @@ function exactApprovedChangedFiles(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) {
+    return r6cStructuredAnalyzeMcpChangedFiles;
   }
   if (isExactPr71ApprovedChangeSet(changed)) {
     return pr71ApprovedChangedFiles;

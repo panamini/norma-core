@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 import { modelToStaticViewTree } from "../viewer/read-only-result-viewer.js";
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r6cStructuredAnalyzeMcpChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -307,6 +311,7 @@ const exactApprovedChangedFileSets = [
   r6a1StructuredAnalyzeExecutableContractChangedFiles,
   r6bStructuredAnalyzeImplementationChangedFiles,
   r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
+  r6cStructuredAnalyzeMcpChangedFiles,
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr73ApprovedChangedFiles,
@@ -627,7 +632,9 @@ function approvedChangedFilesFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
-  return exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
+  return isExactR6CStructuredAnalyzeMcpChangeSet(changed)
+    ? r6cStructuredAnalyzeMcpChangedFiles
+    : exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
 }
 
 function isUnexpectedProtectedChange(file, protectedAllowlist) {

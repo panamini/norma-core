@@ -194,6 +194,17 @@ const expectedTools = [
     outputSchema: replayMvpDemoOutputSchema,
   },
 ];
+const structuredAnalyzeToolName = "norma.analyzeStructuredCompositionV1";
+const finalToolNames = [
+  ...expectedTools.map((tool) => tool.name),
+  structuredAnalyzeToolName,
+];
+const structuredAnalyzeAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+  idempotentHint: true,
+};
 
 const forbiddenToolNames = [
   "norma.runMvpDemoV1",
@@ -227,24 +238,17 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR38 tools/list still exposes PR36 tools plus verification and fixed MVP replay tools", () => {
+test("R6C tools/list still preserves PR36-PR38 tools before Structured Analyze", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list",
     method: "tools/list",
   });
 
-  assert.deepEqual(response.result.tools, expectedTools);
-  assert.deepEqual(
-    response.result.tools.map((tool) => tool.name),
-    [
-      "norma.getVersion",
-      "norma.serializeCanonicalJson",
-      "norma.verifyRun",
-      "norma.verifyArtifactFreshness",
-      "norma.replayMvpDemo",
-    ],
-  );
+  assert.deepEqual(response.result.tools.slice(0, 5), expectedTools);
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
+  assert.equal(response.result.tools[5].name, structuredAnalyzeToolName);
+  assert.deepEqual(response.result.tools[5].annotations, structuredAnalyzeAnnotations);
 });
 
 test("PR36 tools/list descriptions are no longer PR35 discovery-only text", () => {
@@ -276,12 +280,15 @@ test("PR38 tools/list does not expose arbitrary replay forbidden tools or rich c
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
   assertNoKeysRecursive(response, [
     "nextCursor",
-    "annotations",
     "resourceLinks",
     "embeddedResources",
     "uri",
     "mimeType",
   ]);
+  for (const tool of response.result.tools.slice(0, 5)) {
+    assert.equal(Object.hasOwn(tool, "annotations"), false);
+  }
+  assert.deepEqual(response.result.tools[5].annotations, structuredAnalyzeAnnotations);
 });
 
 test("PR36 tools/call getVersion returns one JSON text item plus structuredContent", () => {
@@ -778,7 +785,8 @@ test("PR36 spawned STDIO wrapper handles initialize list and both tool calls bef
   }
 
   assert.equal(JSON.parse(stdoutLines[0]).id, "spawn-init");
-  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools, expectedTools);
+  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.slice(0, 5), expectedTools);
+  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.map((tool) => tool.name), finalToolNames);
   assert.equal(JSON.parse(stdoutLines[2]).result.structuredContent.tool, "norma.getVersion");
   assert.equal(JSON.parse(stdoutLines[3]).result.structuredContent.canonicalJson, "{\"a\":1,\"b\":2}");
 });

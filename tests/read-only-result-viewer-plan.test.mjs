@@ -60,6 +60,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const existingMcpRemoteDocs = [
   "docs/MCP_REMOTE_THREAT_MODEL.md",
@@ -340,7 +341,7 @@ test("PR56 leaves local STDIO MCP tool exposure unchanged", async () => {
   );
   assert.deepEqual(
     [...toolsList.result.tools.map((tool) => tool.name)].sort(),
-    [...approvedCallableTools].sort(),
+    [...currentRuntimeTools].sort(),
   );
 
   const replayRun = parseMcpResponse(

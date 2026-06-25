@@ -21,6 +21,7 @@ const currentMcpTools = [
   "norma.verifyRun",
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
+  "norma.analyzeStructuredCompositionV1",
 ];
 
 const futureAnalyzeTool = "norma.analyzeStructuredCompositionV1";
@@ -52,7 +53,7 @@ test("R6A decision approves one direct structured analysis operation without run
     "input type: StructuredCompositionAnalysisInputV1",
     "result type: StructuredCompositionAnalysisResultV1",
     "R6A does not implement runtime code",
-    "The current MCP runtime inventory remains exactly the five tools",
+    "R6C exposes the operation through exactly one local STDIO MCP tool",
   ]);
 });
 
@@ -144,7 +145,7 @@ test("R6A fixtures require valid A B determinism and duplicate-ID invalid proof"
   ]);
 });
 
-test("R6A docs keep MCP runtime inventory unchanged and future tool contract explicit", () => {
+test("R6C docs move Structured Analyze from future contract to current MCP runtime", () => {
   const decision = read(decisionPath);
   const mcpContract = read(mcpContractPath);
   const runbook = read(operationsRunbookPath);
@@ -169,19 +170,19 @@ test("R6A docs keep MCP runtime inventory unchanged and future tool contract exp
   ]);
 
   assertIncludes(mcpContract, [
-    "R6A Structured Analyze V1 contract only",
+    "R6C Structured Analyze MCP Runtime",
     futureAnalyzeTool,
-    "R6A does not change current `tools/list` output.",
-    "R6A does not add annotations to current tools.",
-    "append the new tool after the five current tools",
+    "R6C moves Structured Analyze into the current local STDIO runtime inventory.",
+    "append the new tool after the original five tools",
+    "Original five tools keep their descriptor, outputSchema, annotation state, and tools/call behavior.",
     "`ratioPack`, `ruleSetRef`, `packLock`, `evaluationProfile`",
     "`evaluationTolerances`, `comparisonTolerances`, `tolerancePolicy`",
     "\"openWorldHint\": false",
   ]);
 
   assertIncludes(runbook, [
-    "R6A Structured Analyze V1 contract is documentation and tests only.",
-    "No current `norma.analyzeStructuredCompositionV1` MCP tool exists.",
+    "Current inventory is exactly the six tools listed below.",
+    "norma.analyzeStructuredCompositionV1",
   ]);
 });
 
@@ -195,25 +196,25 @@ test("R6A roadmap links the decision and keeps future implementation split", () 
     "R6A.1 clarifies that `packLock` is identity/hash metadata only",
     "must require explicit `ratioPack`, `ruleSetRef`, `evaluationTolerances`",
     "`comparisonTolerances`",
-    "R6B may implement the direct `analyzeStructuredCompositionV1` operation",
-    "R6C may expose at most one MCP tool",
+    "R6B implements the direct `analyzeStructuredCompositionV1` operation",
+    "R6C exposes at most one MCP tool",
     "no image, vision, camera, CAD, plugin, hosted MCP, public submission",
-    "or runtime tool exposure",
+    "or runtime expansion beyond the one structured-analysis MCP tool",
   ]);
 });
 
-test("R6A does not expose the future MCP tool at runtime", () => {
+test("R6C exposes the Structured Analyze MCP tool at runtime", () => {
   const protocolSource = read(protocolSourcePath);
   const toolsListResponse = parseRequiredResponse({
     jsonrpc: "2.0",
-    id: "r6a-tools-list",
+    id: "r6c-tools-list",
     method: "tools/list",
   });
   const toolNames = toolsListResponse.result.tools.map((tool) => tool.name);
 
   assert.deepEqual(toolNames, currentMcpTools);
-  assert.equal(toolNames.includes(futureAnalyzeTool), false);
-  assert.equal(protocolSource.includes(futureAnalyzeTool), false);
+  assert.equal(toolNames.includes(futureAnalyzeTool), true);
+  assert.equal(protocolSource.includes(futureAnalyzeTool), true);
 });
 
 function read(relativePath) {

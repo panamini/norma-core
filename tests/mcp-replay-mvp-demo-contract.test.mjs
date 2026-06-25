@@ -22,6 +22,10 @@ const expectedTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const finalToolNames = [
+  ...expectedTools,
+  "norma.analyzeStructuredCompositionV1",
+];
 
 const replayMvpDemoOutputSchema = {
   type: "object",
@@ -87,15 +91,15 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR38 tools/list exposes exactly five callable tools including the fixed MVP replay demo", () => {
+test("R6C tools/list keeps fixed MVP replay as the fifth tool", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list",
     method: "tools/list",
   });
 
-  assert.deepEqual(response.result.tools.map((tool) => tool.name), expectedTools);
-  assert.equal(response.result.tools.length, 5);
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
+  assert.equal(response.result.tools.length, 6);
   assert.deepEqual(response.result.tools[4], replayMvpDemoTool);
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
 });
@@ -245,7 +249,7 @@ test("PR38 spawned STDIO wrapper handles the fixed MVP replay demo tool before s
   }
 
   assert.equal(stdoutLines.length, 3);
-  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.map((tool) => tool.name), expectedTools);
+  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.map((tool) => tool.name), finalToolNames);
   assert.equal(JSON.parse(stdoutLines[2]).result.structuredContent.tool, "norma.replayMvpDemo");
   assert.equal(JSON.parse(stdoutLines[2]).result.structuredContent.result.status, "replayed");
 });

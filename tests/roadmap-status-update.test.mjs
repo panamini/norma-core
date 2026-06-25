@@ -52,6 +52,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const blockedRuntimeAndDeploymentPaths = [
   "src/mcp/http-server.ts",
@@ -255,7 +256,7 @@ test("PR48 keeps current MCP tools exactly and replayRun blocked", async () => {
 
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

@@ -6,6 +6,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
+import {
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  r6cStructuredAnalyzeMcpChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 // fallow-ignore-next-line code-duplication
@@ -183,6 +187,7 @@ const exactApprovedChangedFileSets = [
   r6a1StructuredAnalyzeExecutableContractChangedFiles,
   r6bStructuredAnalyzeImplementationChangedFiles,
   r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
+  r6cStructuredAnalyzeMcpChangedFiles,
   pr71ApprovedChangedFiles,
   pr72ApprovedChangedFiles,
   pr75ApprovedChangedFiles,
@@ -405,7 +410,9 @@ function gitFiles(args) {
 }
 
 function approvedExactChangedFilesFor(changed) {
-  return exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
+  return isExactR6CStructuredAnalyzeMcpChangeSet(changed)
+    ? r6cStructuredAnalyzeMcpChangedFiles
+    : exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
 }
 
 function isExactChangedFileSet(changed, approvedFiles) {

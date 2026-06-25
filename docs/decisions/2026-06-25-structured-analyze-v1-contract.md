@@ -2,11 +2,12 @@
 
 ## Status
 
-R6A is contract docs/tests only.
+R6A is contract docs/tests only. This is now historical context for R6B and
+R6C.
 
-R6A approves the contract for one future direct structured analysis operation.
+R6A approved the contract for one direct structured analysis operation.
 
-R6A.1 amends this contract so the future direct operation is executable without
+R6A.1 amends this contract so the direct operation is executable without
 hidden pack, rule, tolerance, context, or failure-semantics defaults.
 
 R6A does not implement runtime code, package exports, schemas, generated files,
@@ -14,14 +15,19 @@ MCP tool descriptors, tool annotations, ChatGPT app metadata, hosted MCP,
 Developer Mode configuration, image input, vision input, CAD input, plugin
 input, dependencies, package metadata, CI changes, or public submission.
 
-The current MCP runtime inventory remains exactly the five tools documented in
+R6B implemented the direct `analyzeStructuredCompositionV1` operation.
+
+R6C exposes the operation through exactly one local STDIO MCP tool:
+`norma.analyzeStructuredCompositionV1`.
+
+The current MCP runtime inventory is exactly the six tools documented in
 `docs/OPERATIONS_RUNBOOK.md`.
 
 ## Decision
 
 Structured Analyze V1 is the first post-R5 executable slice.
 
-The direct operation approved for a later implementation PR is:
+The direct operation approved by this contract and implemented by R6B is:
 
 ```text
 export name: analyzeStructuredCompositionV1
@@ -31,13 +37,13 @@ input type: StructuredCompositionAnalysisInputV1
 result type: StructuredCompositionAnalysisResultV1
 ```
 
-The future MCP candidate approved by this contract is:
+The MCP tool approved by this contract and exposed by R6C is:
 
 ```text
 norma.analyzeStructuredCompositionV1
 ```
 
-The MCP tool may be implemented only after the direct operation exists and has
+The MCP tool is implemented only after the direct operation exists and has
 deterministic direct-core tests.
 
 ## Contract Selection
@@ -224,8 +230,8 @@ Ordinary malformed or domain-invalid caller input must return
 measurements, evaluations, comparison, decision, output refs, run ref, or
 replay-readiness data.
 
-Unexpected internal failures may throw in the direct operation boundary. If a
-future MCP tool wraps the operation, those internal failures must map to
+Unexpected internal failures may throw in the direct operation boundary. When
+the R6C MCP tool wraps the operation, those internal failures must map to
 JSON-RPC `-32603` with no stack trace.
 
 R6B must not return a normal `failed` result variant unless a future ADR defines
@@ -243,19 +249,19 @@ The implementation PR must include direct-core tests for three proof inputs:
 
 The direct operation tests must prove repeat determinism for the valid cases.
 
-The future MCP tool tests must prove direct-core/MCP parity for the same cases.
+The R6C MCP tool tests must prove direct-core/MCP parity for the same cases.
 
 ## MCP Tool Contract
 
-R6A approves this future tool name only:
+R6A approved this tool name only:
 
 ```text
 norma.analyzeStructuredCompositionV1
 ```
 
-R6A does not expose the tool.
+R6C exposes that tool through local STDIO MCP.
 
-The current five tools remain:
+The original five tools remain unchanged:
 
 ```text
 norma.getVersion
@@ -265,8 +271,7 @@ norma.verifyArtifactFreshness
 norma.replayMvpDemo
 ```
 
-If the future MCP implementation PR proceeds, `tools/list` must append the new
-tool after the five current tools:
+R6C `tools/list` appends the new tool after the original five current tools:
 
 ```text
 norma.getVersion
@@ -281,21 +286,21 @@ The tool descriptor must declare `inputSchema` and `outputSchema` from first
 introduction. Both schemas must use `additionalProperties: false` for every
 closed object.
 
-The future tool annotations must be:
+The R6C tool annotations are:
 
 ```json
 {
   "readOnlyHint": true,
   "destructiveHint": false,
-  "idempotentHint": true,
-  "openWorldHint": false
+  "openWorldHint": false,
+  "idempotentHint": true
 }
 ```
 
 These annotations describe client-facing behavior only. Server-side validation
 and operation constraints remain mandatory enforcement.
 
-The future MCP tool result must keep the existing local MCP envelope rule:
+The R6C MCP tool result must keep the existing local MCP envelope rule:
 
 - exactly one text content item;
 - text is canonical JSON;
@@ -308,8 +313,8 @@ Malformed `tools/call` params or malformed tool arguments must return JSON-RPC
 
 ## Compatibility
 
-Adding `norma.analyzeStructuredCompositionV1` is a tool inventory change and
-requires its own implementation PR after R6A.
+Adding `norma.analyzeStructuredCompositionV1` is an R6C tool inventory change
+after R6A and R6B.
 
 Changing the direct operation name, operation version, input required fields,
 result status semantics, diagnostic names, or output refs is breaking.
@@ -329,10 +334,10 @@ R6B may implement the direct operation only when it keeps these gates:
 - invalid input cannot reach downstream computation;
 - existing MVP harness behavior remains unchanged.
 
-R6C may implement the MCP tool only when it keeps these gates:
+R6C implements the MCP tool only when it keeps these gates:
 
 - direct operation already exists;
-- current five tools remain unchanged;
+- original five tools remain unchanged;
 - the new tool is appended and has `inputSchema`, `outputSchema`, and
   annotations from first exposure;
 - direct-core/MCP parity tests pass for A/B/C;
@@ -341,10 +346,9 @@ R6C may implement the MCP tool only when it keeps these gates:
 
 ## Rollback
 
-Rollback of R6A is to revert this decision, the R6A roadmap/runbook/MCP contract
-references, the R6A contract tests, and exact guard maintenance for the R6A file
-set.
+Rollback of R6C is to revert the MCP runtime wrapper, R6C MCP parity tests, and
+the R6C roadmap/runbook/MCP contract references while preserving the R6B direct
+operation unless that operation is explicitly in scope.
 
-No runtime migration, data migration, package migration, external tunnel cleanup,
-or ChatGPT app cleanup is required because R6A creates no runtime or external
-state.
+No data migration, package migration, external tunnel cleanup, or ChatGPT app
+cleanup is required because R6C creates no external state.

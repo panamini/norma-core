@@ -42,6 +42,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const rejectedToolNames = [
   "norma.replayRun",
@@ -233,7 +234,7 @@ test("PR46 keeps tools/list exactly on the current five local STDIO tools", asyn
 
   assert.deepEqual(
     response.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 });
 

@@ -21,6 +21,17 @@ const expectedTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const structuredAnalyzeToolName = "norma.analyzeStructuredCompositionV1";
+const finalToolNames = [
+  ...expectedTools,
+  structuredAnalyzeToolName,
+];
+const structuredAnalyzeAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+  idempotentHint: true,
+};
 
 const getVersionOutputSchema = {
   type: "object",
@@ -160,20 +171,21 @@ const forbiddenToolNames = [
   "norma.createMcpServer",
 ];
 
-test("PR38 tools/list exposes exactly the PR36 tools plus verification and fixed MVP replay tools", () => {
+test("R6C tools/list exposes the PR36-PR38 tools plus Structured Analyze", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list",
     method: "tools/list",
   });
 
-  assert.deepEqual(response.result.tools.map((tool) => tool.name), expectedTools);
-  assert.equal(response.result.tools.length, 5);
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
+  assert.equal(response.result.tools.length, 6);
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.getVersion"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.serializeCanonicalJson"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.verifyRun"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.verifyArtifactFreshness"));
   assert.ok(response.result.tools.some((tool) => tool.name === "norma.replayMvpDemo"));
+  assert.ok(response.result.tools.some((tool) => tool.name === structuredAnalyzeToolName));
 });
 
 test("PR38 tools/list exposes no arbitrary replay forbidden tools or rich content fields", () => {
@@ -192,7 +204,6 @@ test("PR38 tools/list exposes no arbitrary replay forbidden tools or rich conten
   assertOutputSchemasMatchAllowedTools(response.result.tools);
   assertNoKeysRecursive(response, [
     "nextCursor",
-    "annotations",
     "resources",
     "prompts",
     "resourceLinks",
@@ -603,7 +614,7 @@ test("PR38 spawned STDIO wrapper handles initialize list and all five tool calls
   }
 
   assert.equal(JSON.parse(stdoutLines[0]).id, "spawn-init");
-  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.map((tool) => tool.name), expectedTools);
+  assert.deepEqual(JSON.parse(stdoutLines[1]).result.tools.map((tool) => tool.name), finalToolNames);
   assert.equal(JSON.parse(stdoutLines[2]).result.structuredContent.tool, "norma.getVersion");
   assert.equal(JSON.parse(stdoutLines[3]).result.structuredContent.canonicalJson, "{\"a\":1,\"b\":2}");
   assert.equal(JSON.parse(stdoutLines[4]).result.structuredContent.tool, "norma.verifyRun");
@@ -833,6 +844,12 @@ function parseRequiredResponse(message) {
 
 function assertOutputSchemasMatchAllowedTools(tools) {
   for (const tool of tools) {
+    if (tool.name === structuredAnalyzeToolName) {
+      assert.deepEqual(tool.annotations, structuredAnalyzeAnnotations);
+      assert.equal(Object.hasOwn(tool, "outputSchema"), true);
+      continue;
+    }
+
     assert.equal(Object.hasOwn(tool, "annotations"), false);
     const expectedOutputSchema = allowedOutputSchemasByToolName.get(tool.name);
 

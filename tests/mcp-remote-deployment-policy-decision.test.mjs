@@ -31,6 +31,7 @@ const approvedCallableTools = [
   "norma.verifyArtifactFreshness",
   "norma.replayMvpDemo",
 ];
+const currentRuntimeTools = [...approvedCallableTools, "norma.analyzeStructuredCompositionV1"];
 
 const blockedDeploymentPaths = [
   "Dockerfile",
@@ -306,7 +307,7 @@ test("PR44 keeps the current local STDIO tool allowlist as the only approved exp
   assertDocMentions(deploymentDoc, approvedCallableTools);
   assert.deepEqual(
     toolsListResponse.result.tools.map((tool) => tool.name),
-    approvedCallableTools,
+    currentRuntimeTools,
   );
 
   const replayRunResponse = await parseRequiredResponse({

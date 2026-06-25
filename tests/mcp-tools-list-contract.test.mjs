@@ -181,6 +181,18 @@ const discoveredTools = [
   },
 ];
 
+const structuredAnalyzeToolName = "norma.analyzeStructuredCompositionV1";
+const finalToolNames = [
+  ...discoveredTools.map((tool) => tool.name),
+  structuredAnalyzeToolName,
+];
+const structuredAnalyzeAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+  idempotentHint: true,
+};
+
 const forbiddenToolNames = [
   "norma.runMvpDemoV1",
   "norma.replayRun",
@@ -228,35 +240,22 @@ test("PR36 initialize declares only the static tools capability", () => {
   assertNoInitializeOnlyFields(response.result);
 
   const responseText = JSON.stringify(response);
-  for (const toolName of discoveredTools.map((tool) => tool.name)) {
+  for (const toolName of finalToolNames) {
     assert.doesNotMatch(responseText, new RegExp(escapeRegExp(toolName)));
   }
 });
 
-test("PR38 tools/list returns exactly the five callable tools", () => {
+test("R6C tools/list returns the five existing tools plus Structured Analyze", () => {
   const response = parseToolsListResponse({
     jsonrpc: "2.0",
     id: "tools-list-1",
     method: "tools/list",
   });
 
-  assert.deepEqual(response, {
-    jsonrpc: "2.0",
-    id: "tools-list-1",
-    result: {
-      tools: discoveredTools,
-    },
-  });
-  assert.deepEqual(
-    response.result.tools.map((tool) => tool.name),
-    [
-      "norma.getVersion",
-      "norma.serializeCanonicalJson",
-      "norma.verifyRun",
-      "norma.verifyArtifactFreshness",
-      "norma.replayMvpDemo",
-    ],
-  );
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.id, "tools-list-1");
+  assert.deepEqual(response.result.tools.slice(0, 5), discoveredTools);
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
 });
 
@@ -316,9 +315,15 @@ test("PR38 tools/list schemas are exact", () => {
   assert.deepEqual(tools[2].outputSchema, verifyRunOutputSchema);
   assert.deepEqual(tools[3].outputSchema, verifyArtifactFreshnessOutputSchema);
   assert.deepEqual(tools[4].outputSchema, replayMvpDemoOutputSchema);
-  for (const tool of tools) {
+  for (const tool of tools.slice(0, 5)) {
     assert.equal(Object.hasOwn(tool, "annotations"), false);
   }
+  assert.equal(tools[5].name, structuredAnalyzeToolName);
+  assert.deepEqual(tools[5].annotations, structuredAnalyzeAnnotations);
+  assert.deepEqual(tools[5].inputSchema.required, ["input"]);
+  assert.equal(tools[5].inputSchema.additionalProperties, false);
+  assert.equal(tools[5].inputSchema.properties.input.additionalProperties, false);
+  assert.equal(tools[5].outputSchema.additionalProperties, false);
 });
 
 test("PR38 tools/list does not expose arbitrary replay resources prompts or rich content fields", () => {
@@ -334,11 +339,14 @@ test("PR38 tools/list does not expose arbitrary replay resources prompts or rich
   }
 
   assertNoKeysRecursive(response, [
-    "annotations",
     "resourceLinks",
     "embeddedResources",
     "content",
   ]);
+  for (const tool of response.result.tools.slice(0, 5)) {
+    assert.equal(Object.hasOwn(tool, "annotations"), false);
+  }
+  assert.deepEqual(response.result.tools[5].annotations, structuredAnalyzeAnnotations);
 });
 
 test("PR36 tools/list accepts missing empty and string cursor params without pagination", () => {
@@ -367,7 +375,8 @@ test("PR36 tools/list accepts missing empty and string cursor params without pag
   for (const request of requestVariants) {
     const response = parseToolsListResponse(request);
 
-    assert.deepEqual(response.result.tools, discoveredTools);
+    assert.deepEqual(response.result.tools.slice(0, 5), discoveredTools);
+    assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
     assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
   }
 });
@@ -472,7 +481,8 @@ test("PR36 spawned STDIO wrapper returns initialize and tools/list before stdin 
 
   assert.equal(toolsListResponse.jsonrpc, "2.0");
   assert.equal(toolsListResponse.id, "spawn-tools-list");
-  assert.deepEqual(toolsListResponse.result.tools, discoveredTools);
+  assert.deepEqual(toolsListResponse.result.tools.slice(0, 5), discoveredTools);
+  assert.deepEqual(toolsListResponse.result.tools.map((tool) => tool.name), finalToolNames);
 });
 
 test("PR36 spawned STDIO wrapper emits empty stdout for notification-only input", () => {
