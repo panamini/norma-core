@@ -10,6 +10,7 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
 const expectedFunctionExports = [
+  "analyzeStructuredCompositionV1",
   "createMvpDemoInput",
   "runMvpDemo",
   "verifyArtifactFreshness",

@@ -202,6 +202,30 @@ const r6a1StructuredAnalyzeExecutableContractChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort();
 
+const r6bStructuredAnalyzeImplementationChangedFiles = [
+  "src/index.ts",
+  "src/structured-composition-analysis.ts",
+  "tests/package-consumption.test.mjs",
+  "tests/structured-composition-analysis.test.mjs",
+].sort();
+
+const r6bStructuredAnalyzeGuardMaintenanceChangedFiles = [
+  ...r6bStructuredAnalyzeImplementationChangedFiles,
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+].sort();
+
 const protectedExactPaths = [
   ".gitignore",
   "README.md",
@@ -445,7 +469,9 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, exactR3NonCanonicalStructuredInputChangedFilesWithGuards) ||
       isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles) ||
       isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles) ||
-      isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles),
+      isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
+      isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
+      isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles),
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -471,9 +497,11 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
   for (const unexpectedFile of [
     "src/mcp/unrelated.ts",
     "src/runtime.ts",
+    "tests/unrelated.test.mjs",
     "package.json",
     ".github/workflows/ci.yml",
     "docs/unrelated.md",
+    "bin/unrelated.mjs",
   ]) {
     assert.equal(
       isExactChangedFileSet(
@@ -521,6 +549,20 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
       isExactChangedFileSet(
         [...r6a1StructuredAnalyzeExecutableContractChangedFiles, unexpectedFile].sort(),
         r6a1StructuredAnalyzeExecutableContractChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeImplementationChangedFiles, unexpectedFile].sort(),
+        r6bStructuredAnalyzeImplementationChangedFiles,
+      ),
+      false,
+    );
+    assert.equal(
+      isExactChangedFileSet(
+        [...r6bStructuredAnalyzeGuardMaintenanceChangedFiles, unexpectedFile].sort(),
+        r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
       ),
       false,
     );
@@ -615,6 +657,12 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)) {
     return r6a1StructuredAnalyzeExecutableContractChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles)) {
+    return r6bStructuredAnalyzeImplementationChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
+    return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
   }
   return [];
 }
