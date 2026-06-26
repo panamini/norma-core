@@ -6,11 +6,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  branchChangedFiles,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -414,7 +417,9 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   );
   const isR1GeometrySourceIdentityChangeSet = isExactR1GeometrySourceIdentityChangeSet(changed);
   const isR6CStructuredAnalyzeMcpChangeSet = isExactR6CStructuredAnalyzeMcpChangeSet(changed);
+  const sharedApprovedChangedFiles = sharedExactApprovedChangedFiles(changed);
   const approvedDocChangeSets = [
+    sharedApprovedChangedFiles ?? [],
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
     isPr76ApprovedChangeSet ? pr76ApprovedChangedFiles : [],
     isPr77ApprovedChangeSet ? pr77ApprovedChangedFiles : [],
@@ -552,36 +557,6 @@ function sampleModel() {
 }
 
 // fallow-ignore-next-line code-duplication
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitFiles(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    const output = execFileSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return output.split("\n").filter(Boolean).sort();
-  } catch {
-    return null;
-  }
-}
 
 function isExactPr71ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
@@ -653,10 +628,6 @@ function isUnapprovedDocsChange(file, approvedDocChangeSets) {
   }
 
   return !approvedDocChangeSets.some((approvedFiles) => approvedFiles.includes(file));
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function assertNoRemoteUrl(source) {

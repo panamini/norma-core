@@ -6,25 +6,17 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
-const semgrepCiGuardMaintenanceFiles = new Set([
-  ".github/workflows/ci.yml",
-  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
-  "tests/beta-pilot-readiness-approval.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
-  "tests/onboarding-examples-approval.test.mjs",
-  "tests/post-mvp-product-vision-approval.test.mjs",
-  "tests/privacy-security-support-approval.test.mjs",
-  "tests/read-only-viewer-fixtures.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
-]);
 
 const pr64DocPath = join("docs", "decisions", "2026-06-17-beta-pilot-readiness-approval.md");
 
@@ -484,7 +476,7 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 });
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedFiles = approvedChangedFilesFor(changed);
   const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
@@ -533,37 +525,6 @@ function readDoc(path) {
 }
 
 // fallow-ignore-next-line code-duplication
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitFiles(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    const output = execFileSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return output.split("\n").filter(Boolean).sort();
-  } catch {
-    return null;
-  }
-}
 
 function isExactPr71ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
@@ -610,6 +571,11 @@ function approvedChangedFilesFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  if (sharedApproved !== null) {
+    return sharedApproved;
+  }
+
   if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) {
     return r4CurrentOperationsRunbookChangedFiles;
   }
@@ -677,10 +643,6 @@ function isAllowedApprovalScopeFile(file, approvedChangedFiles) {
 
 function isUnexpectedProtectedChange(file, protectedAllowlist) {
   return isProtectedChange(file) && !protectedAllowlist.includes(file);
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isProtectedChange(file) {

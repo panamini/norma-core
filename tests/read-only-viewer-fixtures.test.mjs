@@ -8,25 +8,17 @@ import { fileURLToPath } from "node:url";
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 import { modelToStaticViewTree } from "../viewer/read-only-result-viewer.js";
 import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
-const semgrepCiGuardMaintenanceFiles = new Set([
-  ".github/workflows/ci.yml",
-  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
-  "tests/beta-pilot-readiness-approval.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
-  "tests/onboarding-examples-approval.test.mjs",
-  "tests/post-mvp-product-vision-approval.test.mjs",
-  "tests/privacy-security-support-approval.test.mjs",
-  "tests/read-only-viewer-fixtures.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
-]);
 const fixtureRoot = join(testDir, "fixtures", "viewer");
 
 const fixturePaths = {
@@ -443,7 +435,7 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 });
 
 test("PR69 keeps protected surfaces unchanged", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const expectedFiles = approvedChangedFilesFor(changed);
   const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
@@ -594,26 +586,6 @@ function isJsonObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function branchChangedFiles() {
-  const baseFiles =
-    gitLines(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitLines(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitLines(["diff", "--name-only"]),
-    gitLines(["diff", "--cached", "--name-only"]),
-    gitLines(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
 function gitLines(args) {
   let output;
   try {
@@ -634,6 +606,11 @@ function approvedChangedFilesFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  if (sharedApproved !== null) {
+    return sharedApproved;
+  }
+
   return isExactR1GeometrySourceIdentityChangeSet(changed)
     ? r1GeometrySourceIdentityChangedFiles
     : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
@@ -643,10 +620,6 @@ function exactApprovedChangedFiles(changed) {
 
 function isUnexpectedProtectedChange(file, protectedAllowlist) {
   return isProtectedChange(file) && !protectedAllowlist.includes(file);
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isProtectedChange(file) {

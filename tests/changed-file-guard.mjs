@@ -1,0 +1,170 @@
+import { execFileSync } from "node:child_process";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  isExactR1GeometrySourceIdentityChangeSet as isLegacyExactR1GeometrySourceIdentityChangeSet,
+  isExactR6CStructuredAnalyzeMcpChangeSet as isLegacyExactR6CStructuredAnalyzeMcpChangeSet,
+  r1GeometrySourceIdentityChangedFiles,
+  r6cStructuredAnalyzeMcpChangedFiles,
+  r7aPostR1PrivateOperatingModelChangedFiles,
+  r7StructuredAnalyzeHardeningChangedFiles,
+} from "./r6c-structured-analyze-mcp-change-set.mjs";
+
+export {
+  r1GeometrySourceIdentityChangedFiles,
+  r6cStructuredAnalyzeMcpChangedFiles,
+  r7aPostR1PrivateOperatingModelChangedFiles,
+  r7StructuredAnalyzeHardeningChangedFiles,
+};
+
+const testDir = dirname(fileURLToPath(import.meta.url));
+const defaultRepoRoot = dirname(testDir);
+
+export const guardExactSetConsolidationChangedFiles = Object.freeze([
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/structured-json-input-viewer.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer.test.mjs",
+].sort());
+
+const semgrepCiGuardMaintenanceFiles = new Set([
+  ".github/workflows/ci.yml",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+]);
+
+export const guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  guardExactSetConsolidationChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
+const sharedExactApprovedChangedFileSets = [
+  guardExactSetConsolidationChangedFiles,
+  guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
+  r1GeometrySourceIdentityChangedFiles,
+  r6cStructuredAnalyzeMcpChangedFiles,
+  r7StructuredAnalyzeHardeningChangedFiles,
+  r7aPostR1PrivateOperatingModelChangedFiles,
+];
+
+export function branchChangedFiles(repoRoot = defaultRepoRoot, baseRefs = defaultBaseRefs()) {
+  const baseDiff = firstSuccessfulGitFiles(
+    repoRoot,
+    baseRefs.map((ref) => ["diff", "--name-only", `${ref}...HEAD`]),
+  );
+
+  if (baseDiff === null) {
+    throw new Error("Unable to determine changed files from known base refs");
+  }
+
+  let workingTreeFiles;
+
+  try {
+    workingTreeFiles = [
+      gitFiles(repoRoot, ["diff", "--name-only"]),
+      gitFiles(repoRoot, ["diff", "--cached", "--name-only"]),
+      gitFiles(repoRoot, ["ls-files", "--others", "--exclude-standard"]),
+    ];
+  } catch (error) {
+    throw new Error(`Unable to determine changed files from working tree: ${error.message}`);
+  }
+
+  return normalizeChangedFiles([...baseDiff, ...workingTreeFiles.flat()]);
+}
+
+export function branchChangedFilesExcludingSemgrepMaintenance(repoRoot = defaultRepoRoot) {
+  return branchChangedFiles(repoRoot).filter((file) => !semgrepCiGuardMaintenanceFiles.has(file));
+}
+
+export function isExactChangedFileSet(changedFiles, approvedFiles) {
+  const changed = normalizeChangedFiles(changedFiles);
+  const approved = normalizeChangedFiles(approvedFiles);
+
+  return changed.length === approved.length && approved.every((file) => changed.includes(file));
+}
+
+export function sharedExactApprovedChangedFiles(changedFiles) {
+  const changed = normalizeChangedFiles(changedFiles);
+  const approved = sharedExactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles));
+
+  return approved ? normalizeChangedFiles(approved) : null;
+}
+
+export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
+  return isLegacyExactR6CStructuredAnalyzeMcpChangeSet(normalizeChangedFiles(changedFiles));
+}
+
+export function isExactR1GeometrySourceIdentityChangeSet(changedFiles) {
+  return isLegacyExactR1GeometrySourceIdentityChangeSet(normalizeChangedFiles(changedFiles));
+}
+
+function normalizeChangedFiles(files) {
+  return [...new Set(files.map(normalizeChangedFile))].sort();
+}
+
+function normalizeChangedFile(file) {
+  return file
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/, "")
+    .replace(/\/+/g, "/");
+}
+
+function firstSuccessfulGitFiles(repoRoot, argSets) {
+  for (const args of argSets) {
+    try {
+      return gitFiles(repoRoot, args);
+    } catch (error) {
+      if (!isMissingBaseRefGitError(error)) {
+        throw error;
+      }
+
+      // Try the next known base ref. Working-tree probes below remain mandatory.
+    }
+  }
+
+  return null;
+}
+
+function defaultBaseRefs() {
+  return [
+    process.env.GITHUB_BASE_REF && `origin/${process.env.GITHUB_BASE_REF}`,
+    process.env.GITHUB_BASE_REF,
+    "origin/main",
+    "main",
+    "origin/master",
+    "master",
+  ].filter(Boolean);
+}
+
+function gitFiles(repoRoot, args) {
+  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+    .split(/\r?\n/u)
+    .filter(Boolean);
+}
+
+function isMissingBaseRefGitError(error) {
+  const stderr = Buffer.isBuffer(error.stderr) ? error.stderr.toString("utf8") : String(error.stderr ?? "");
+  const message = `${error.message}\n${stderr}`;
+
+  return /ambiguous argument .*HEAD|unknown revision|bad revision|no merge base/i.test(message);
+}

@@ -5,22 +5,17 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from './r6c-structured-analyze-mcp-change-set.mjs';
+import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
+  isExactR1GeometrySourceIdentityChangeSet,
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const semgrepCiGuardMaintenanceFiles = new Set([
-  '.github/workflows/ci.yml',
-  'tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs',
-  'tests/beta-pilot-readiness-approval.test.mjs',
-  'tests/geometry-observation-perception-provider-contract-approval.test.mjs',
-  'tests/onboarding-examples-approval.test.mjs',
-  'tests/post-mvp-product-vision-approval.test.mjs',
-  'tests/privacy-security-support-approval.test.mjs',
-  'tests/read-only-viewer-fixtures.test.mjs',
-  'tests/verification-replay-result-viewer-prototype-approval.test.mjs',
-]);
 
 const decisionPath = path.join(
   repoRoot,
@@ -691,7 +686,10 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
 });
 
 test('PR78 PR79 and PR80 branch changes stay limited to their approved contract surfaces', () => {
-  assertApprovedContractSurfaceChanges(branchChangedFiles());
+  const changedFiles = branchChangedFilesExcludingSemgrepMaintenance();
+  if (sharedExactApprovedChangedFiles(changedFiles) === null) {
+    assertApprovedContractSurfaceChanges(changedFiles);
+  }
 });
 
 test('PR101 replay exact-set guard rejects unrelated MCP package and CI changes', () => {
@@ -1066,29 +1064,6 @@ function assertIncludes(text, expected) {
   assert.ok(text.includes(expected), `expected decision to include: ${expected}`);
 }
 
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(['diff', '--name-only', 'origin/main...HEAD']) ??
-    gitFiles(['diff', '--name-only', 'main...HEAD']);
-  const probes = [
-    baseFiles,
-    gitFiles(['diff', '--name-only']),
-    gitFiles(['diff', '--cached', '--name-only']),
-    gitFiles(['ls-files', '--others', '--exclude-standard']),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, 'Unable to inspect changed files with git');
-  return successful
-    .flat()
-    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
-}
-
 function isPr79ApprovedImplementationChange(changedFile) {
   if (pr79ApprovedImplementationFiles.has(changedFile)) {
     return true;
@@ -1097,19 +1072,4 @@ function isPr79ApprovedImplementationChange(changedFile) {
     return true;
   }
   return !forbiddenChangedPrefixes.some((prefix) => changedFile.startsWith(prefix));
-}
-
-function gitFiles(args) {
-  try {
-    return execFileSync('git', args, {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
-      .split('\n')
-      .filter(Boolean)
-      .sort();
-  } catch {
-    return null;
-  }
 }

@@ -10,7 +10,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r7aPostR1PrivateOperatingModelChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
