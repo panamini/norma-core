@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   branchChangedFiles,
+  geometryHarmonyPackReportExamplesChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   isExactChangedFileSet,
@@ -52,6 +53,13 @@ test("shared exact changed-file guard accepts the local report-kit scope summary
   );
 });
 
+test("shared exact changed-file guard accepts the Geometry Harmony pack/report example set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(geometryHarmonyPackReportExamplesChangedFiles),
+    geometryHarmonyPackReportExamplesChangedFiles,
+  );
+});
+
 test("shared exact changed-file guard treats approved files as a set, not an ordered list", () => {
   const reordered = [...guardExactSetConsolidationChangedFiles].reverse();
 
@@ -84,9 +92,24 @@ test("shared exact changed-file guard rejects a missing required file", () => {
   assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
 });
 
+test("shared exact changed-file guard rejects an incomplete Geometry Harmony pack/report example set", () => {
+  const missingRequiredFile = geometryHarmonyPackReportExamplesChangedFiles.filter(
+    (file) => file !== "tests/ratio-pack-model.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+});
+
 test("shared exact changed-file guard rejects an extra unrelated file", () => {
   assert.equal(
     sharedExactApprovedChangedFiles([...localStructuredAnalyzeReportKitScopeSummaryChangedFiles, "tests/unrelated.test.mjs"]),
+    null,
+  );
+});
+
+test("shared exact changed-file guard rejects extra files in the Geometry Harmony pack/report example set", () => {
+  assert.equal(
+    sharedExactApprovedChangedFiles([...geometryHarmonyPackReportExamplesChangedFiles, "src/mcp/stdio-protocol.ts"]),
     null,
   );
 });

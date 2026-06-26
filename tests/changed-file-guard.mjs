@@ -77,9 +77,20 @@ export const localStructuredAnalyzeReportKitScopeSummaryChangedFiles = Object.fr
   "tests/local-structured-analyze-report-kit.test.mjs",
 ].sort());
 
+export const geometryHarmonyPackReportExamplesChangedFiles = Object.freeze([
+  "docs/local-structured-analyze-report-kit.md",
+  "examples/structured-analyze/geometry-harmony-basic.json",
+  "src/ratio-pack.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-report-kit.test.mjs",
+  "tests/ratio-pack-model.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
+  geometryHarmonyPackReportExamplesChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   r1GeometrySourceIdentityChangedFiles,

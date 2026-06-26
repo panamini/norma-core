@@ -17,6 +17,7 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const exampleInputPath = join(repoRoot, "examples/structured-analyze/basic-grid-alignment.json");
+const geometryHarmonyExampleInputPath = join(repoRoot, "examples/structured-analyze/geometry-harmony-basic.json");
 const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
 
 test("local structured analyze report bundle calls the direct core operation", async () => {
@@ -106,6 +107,51 @@ test("local structured analyze report command writes the deterministic output bu
     assert.match(visualSvg, /Composition B/u);
     assert.match(reportHtml, /<!doctype html>/u);
     assert.match(reportHtml, /Local Structured Analyze Report/u);
+  } finally {
+    await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
+test("local structured analyze report command writes the Geometry Harmony example bundle", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "norma-geometry-harmony-report-"));
+
+  try {
+    const input = await readJson(geometryHarmonyExampleInputPath);
+    const directResult = core.analyzeStructuredCompositionV1(input);
+    const { stdout } = await execFileAsync(process.execPath, [reportCommandPath, geometryHarmonyExampleInputPath, outputDir], {
+      cwd: repoRoot,
+    });
+    const commandResult = JSON.parse(stdout);
+
+    assert.equal(directResult.status, "valid");
+    assert.equal(directResult.comparison.status, "a_closer");
+    assert.equal(directResult.decision.status, "a_closer");
+    assert.equal(directResult.decision.selectedEvaluationRef, "evaluation:A:basic-grid-alignment");
+    assert.equal(directResult.replayReadiness.status, "ready");
+    assert.equal(commandResult.status, "ok");
+    assert.equal(commandResult.resultStatus, "valid");
+    assert.deepEqual(commandResult.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
+
+    const result = await readJson(join(outputDir, "result.json"));
+    const summary = await readJson(join(outputDir, "summary.json"));
+    const summaryMarkdown = await readFile(join(outputDir, "summary.md"), "utf8");
+    const visualSvg = await readFile(join(outputDir, "visual.svg"), "utf8");
+    const reportHtml = await readFile(join(outputDir, "report.html"), "utf8");
+
+    assert.deepEqual(result, directResult);
+    assert.equal(summary.status, "valid");
+    assert.equal(summary.input.ratioPackId, "norma.geometry-harmonies");
+    assert.equal(summary.input.ratioPackVersion, "0.1.0");
+    assert.equal(summary.input.ratioPackRef, "norma.geometry-harmonies@0.1.0");
+    assert.equal(summary.input.ruleSetRef, "surface-golden-section");
+    assert.equal(summary.input.evaluationProfileRef, "evaluation-profile:basic-grid-alignment");
+    assert.equal(summary.scope.geometryHarmoniesPack, true);
+    assert.equal(summary.scope.newRatioPack, true);
+    assert.match(summaryMarkdown, /- geometry harmonies pack supplied/u);
+    assert.match(summaryMarkdown, /- non-basic ratio pack supplied/u);
+    assert.match(visualSvg, /^<svg/u);
+    assert.match(reportHtml, /norma\.geometry-harmonies@0\.1\.0/u);
+    assert.doesNotMatch(`${summaryMarkdown}\n${reportHtml}`, /\bbetter\b|\bbeautiful\b|\brecommends?\b/iu);
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
@@ -260,6 +306,27 @@ test("local structured analyze report command is deterministic for the same inpu
   try {
     await execFileAsync(process.execPath, [reportCommandPath, exampleInputPath, firstDir], { cwd: repoRoot });
     await execFileAsync(process.execPath, [reportCommandPath, exampleInputPath, secondDir], { cwd: repoRoot });
+
+    for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
+      assert.equal(
+        await readFile(join(firstDir, fileName), "utf8"),
+        await readFile(join(secondDir, fileName), "utf8"),
+        fileName,
+      );
+    }
+  } finally {
+    await rm(firstDir, { recursive: true, force: true });
+    await rm(secondDir, { recursive: true, force: true });
+  }
+});
+
+test("local structured analyze report command is deterministic for the Geometry Harmony example", async () => {
+  const firstDir = await mkdtemp(join(tmpdir(), "norma-harmony-report-a-"));
+  const secondDir = await mkdtemp(join(tmpdir(), "norma-harmony-report-b-"));
+
+  try {
+    await execFileAsync(process.execPath, [reportCommandPath, geometryHarmonyExampleInputPath, firstDir], { cwd: repoRoot });
+    await execFileAsync(process.execPath, [reportCommandPath, geometryHarmonyExampleInputPath, secondDir], { cwd: repoRoot });
 
     for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
       assert.equal(
