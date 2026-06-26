@@ -58,9 +58,21 @@ export const guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles = Objec
     .sort(),
 );
 
+export const localStructuredAnalyzeReportKitChangedFiles = Object.freeze([
+  "bin/norma-core-report.mjs",
+  "docs/local-structured-analyze-report-kit.md",
+  "examples/structured-analyze/basic-grid-alignment.json",
+  "src/local-report/structured-analyze-report.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-report-kit.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
+  localStructuredAnalyzeReportKitChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,

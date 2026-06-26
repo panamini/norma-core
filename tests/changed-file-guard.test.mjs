@@ -13,6 +13,7 @@ import {
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  localStructuredAnalyzeReportKitChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -33,6 +34,13 @@ test("shared exact changed-file guard accepts the semgrep-filtered guard consoli
   assert.deepEqual(
     sharedExactApprovedChangedFiles(guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles),
     guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the local structured analyze report kit set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeReportKitChangedFiles),
+    localStructuredAnalyzeReportKitChangedFiles,
   );
 });
 

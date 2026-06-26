@@ -418,6 +418,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   const isR1GeometrySourceIdentityChangeSet = isExactR1GeometrySourceIdentityChangeSet(changed);
   const isR6CStructuredAnalyzeMcpChangeSet = isExactR6CStructuredAnalyzeMcpChangeSet(changed);
   const sharedApprovedChangedFiles = sharedExactApprovedChangedFiles(changed);
+  const isSharedApprovedFile = (file) => sharedApprovedChangedFiles?.includes(file) === true;
   const approvedDocChangeSets = [
     sharedApprovedChangedFiles ?? [],
     isPr75ApprovedChangeSet ? pr75ApprovedChangedFiles : [],
@@ -471,10 +472,13 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     [],
   );
   assert.deepEqual(
-    changed.filter((file) => isUnapprovedPr72PrefixChange(file, "bin/", isPr72ApprovedChangeSet)),
+    changed.filter((file) => (
+      isUnapprovedPr72PrefixChange(file, "bin/", isPr72ApprovedChangeSet) &&
+      !isSharedApprovedFile(file)
+    )),
     [],
   );
-  assert.deepEqual(changed.filter((file) => file.startsWith("examples/")), []);
+  assert.deepEqual(changed.filter((file) => file.startsWith("examples/") && !isSharedApprovedFile(file)), []);
 });
 
 test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
