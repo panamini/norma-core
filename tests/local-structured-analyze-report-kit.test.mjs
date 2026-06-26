@@ -156,6 +156,38 @@ test("local structured analyze report visual skips invalid element geometry", as
   assert.match(visualSvg, /data-element="grid-left-column"/u);
 });
 
+test("local structured analyze report visual skips non-positive rect geometry", async () => {
+  const input = await readJson(exampleInputPath);
+  input.compositionA.elements = [
+    {
+      ...input.compositionA.elements[0],
+      id: "negative-width",
+      geometry: { ...input.compositionA.elements[0].geometry, width: -300 },
+    },
+    input.compositionA.elements[1],
+  ];
+
+  const visualSvg = createLocalStructuredAnalyzeReportBundle(input).artifacts["visual.svg"];
+
+  assert.doesNotMatch(visualSvg, /width="-300"/u);
+  assert.doesNotMatch(visualSvg, /data-element="negative-width"/u);
+  assert.match(visualSvg, /data-element="grid-middle-column"/u);
+});
+
+test("local structured analyze report visual suppresses mismatched surfaces", async () => {
+  const input = await readJson(exampleInputPath);
+  input.compositionB.surface = {
+    ...input.compositionB.surface,
+    bounds: { ...input.compositionB.surface.bounds, width: input.compositionB.surface.bounds.width + 120 },
+  };
+
+  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+
+  assert.equal(bundle.result.status, "invalid");
+  assert.match(bundle.artifacts["visual.svg"], /No rectangular Composition2D visual available/u);
+  assert.doesNotMatch(bundle.artifacts["visual.svg"], /Composition B/u);
+});
+
 test("local structured analyze report visual uses stable codepoint element order", async () => {
   const input = await readJson(exampleInputPath);
   input.compositionA.elements = [
@@ -169,6 +201,19 @@ test("local structured analyze report visual uses stable codepoint element order
     visualSvg.indexOf('data-element="A"') < visualSvg.indexOf('data-element="b"'),
     "visual.svg element order should not depend on runtime locale collation",
   );
+});
+
+test("local structured analyze report markdown keeps user strings on one line", async () => {
+  const input = await readJson(exampleInputPath);
+  input.analysisId = "analysis:ok\n- status: spoofed";
+  input.compositionA.id = "composition:a\n- decision: spoofed";
+
+  const summaryMarkdown = createLocalStructuredAnalyzeReportBundle(input).artifacts["summary.md"];
+
+  assert.match(summaryMarkdown, /- analysisId: analysis:ok\\n- status: spoofed/u);
+  assert.match(summaryMarkdown, /- input: composition:a\\n- decision: spoofed vs/u);
+  assert.doesNotMatch(summaryMarkdown, /^- status: spoofed$/mu);
+  assert.doesNotMatch(summaryMarkdown, /^- decision: spoofed$/mu);
 });
 
 test("local structured analyze report command is deterministic for the same input", async () => {

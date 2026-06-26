@@ -191,14 +191,14 @@ function createSummaryMarkdown(summary: LocalStructuredAnalyzeReportSummaryV1): 
   return [
     "# Local Structured Analyze Report",
     "",
-    `- analysisId: ${summary.analysisId}`,
-    `- status: ${summary.status}`,
-    `- operation: ${summary.operation.name}@${summary.operation.version}`,
-    `- boundary: ${summary.operation.boundary}`,
-    `- input: ${summary.input.compositionAId ?? "unknown"} vs ${summary.input.compositionBId ?? "unknown"}`,
-    `- decision: ${summary.decision?.summary ?? "none"}`,
+    `- analysisId: ${markdownInlineValue(summary.analysisId)}`,
+    `- status: ${markdownInlineValue(summary.status)}`,
+    `- operation: ${markdownInlineValue(`${summary.operation.name}@${summary.operation.version}`)}`,
+    `- boundary: ${markdownInlineValue(summary.operation.boundary)}`,
+    `- input: ${markdownInlineValue(summary.input.compositionAId ?? "unknown")} vs ${markdownInlineValue(summary.input.compositionBId ?? "unknown")}`,
+    `- decision: ${markdownInlineValue(summary.decision?.summary ?? "none")}`,
     `- diagnostics: ${summary.diagnostics.errorCount} errors, ${summary.diagnostics.warningCount} warnings`,
-    `- replayReadiness: ${summary.replayReadiness.status ?? "none"}`,
+    `- replayReadiness: ${markdownInlineValue(summary.replayReadiness.status ?? "none")}`,
     "",
     "## Output Bundle",
     "",
@@ -271,7 +271,8 @@ function createVisualSvg(
   const compositionA = inputRecord?.compositionA;
   const compositionB = inputRecord?.compositionB;
   const surfaceBounds = isComposition2D(compositionA) ? compositionA.surface.bounds : undefined;
-  if (!isRect(surfaceBounds) || !isComposition2D(compositionA) || !isComposition2D(compositionB)) {
+  if (!isRect(surfaceBounds) || !isComposition2D(compositionA) || !isComposition2D(compositionB) ||
+    !sameRect(surfaceBounds, compositionB.surface.bounds)) {
     return emptyVisualSvg(summary);
   }
 
@@ -394,11 +395,24 @@ function isRect(value: unknown): value is Rect {
     && Number.isFinite((value as Rect).x)
     && Number.isFinite((value as Rect).y)
     && Number.isFinite((value as Rect).width)
-    && Number.isFinite((value as Rect).height);
+    && Number.isFinite((value as Rect).height)
+    && (value as Rect).width > 0
+    && (value as Rect).height > 0;
 }
 
 function numberAttr(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(6).replace(/0+$/u, "").replace(/\.$/u, "");
+}
+
+function sameRect(first: Rect, second: Rect): boolean {
+  return first.x === second.x
+    && first.y === second.y
+    && first.width === second.width
+    && first.height === second.height;
+}
+
+function markdownInlineValue(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("\r", "\\r").replaceAll("\n", "\\n");
 }
 
 function escapeHtml(value: string): string {
