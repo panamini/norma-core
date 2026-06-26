@@ -77,6 +77,48 @@ test("local structured analyze report command writes the deterministic output bu
   }
 });
 
+test("local structured analyze report command emits structured usage errors", async () => {
+  await assert.rejects(
+    execFileAsync(process.execPath, [reportCommandPath], { cwd: repoRoot }),
+    (error) => {
+      assert.equal(error.code, 1);
+      const errorPayload = JSON.parse(error.stderr);
+      assert.equal(errorPayload.status, "error");
+      assert.equal(errorPayload.error.code, "InvalidCliUsage");
+      assert.doesNotMatch(error.stderr, /ReferenceError/u);
+      return true;
+    },
+  );
+});
+
+test("local structured analyze report bundle handles invalid primitive input", () => {
+  const bundle = createLocalStructuredAnalyzeReportBundle(null);
+
+  assert.equal(bundle.result.status, "invalid");
+  assert.equal(bundle.summary.status, "invalid");
+  assert.equal(bundle.summary.input.contractVersion, null);
+  assert.equal(bundle.summary.input.compositionAId, null);
+  assert.equal(bundle.summary.input.compositionBId, null);
+  assert.match(bundle.artifacts["result.json"], /"status":"invalid"/u);
+  assert.match(bundle.artifacts["summary.json"], /"status":"invalid"/u);
+  assert.match(bundle.artifacts["visual.svg"], /No rectangular Composition2D visual available/u);
+});
+
+test("local structured analyze report visual uses stable codepoint element order", async () => {
+  const input = await readJson(exampleInputPath);
+  input.compositionA.elements = [
+    { ...input.compositionA.elements[0], id: "b" },
+    { ...input.compositionA.elements[1], id: "A" },
+  ];
+
+  const visualSvg = createLocalStructuredAnalyzeReportBundle(input).artifacts["visual.svg"];
+
+  assert.ok(
+    visualSvg.indexOf('data-element="A"') < visualSvg.indexOf('data-element="b"'),
+    "visual.svg element order should not depend on runtime locale collation",
+  );
+});
+
 test("local structured analyze report command is deterministic for the same input", async () => {
   const firstDir = await mkdtemp(join(tmpdir(), "norma-report-kit-a-"));
   const secondDir = await mkdtemp(join(tmpdir(), "norma-report-kit-b-"));

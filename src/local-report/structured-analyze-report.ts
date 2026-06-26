@@ -101,9 +101,9 @@ export interface LocalStructuredAnalyzeReportBundle {
 }
 
 export function createLocalStructuredAnalyzeReportBundle(
-  input: StructuredCompositionAnalysisInputV1,
+  input: unknown,
 ): LocalStructuredAnalyzeReportBundle {
-  const result = analyzeStructuredCompositionV1(input);
+  const result = analyzeStructuredCompositionV1(input as StructuredCompositionAnalysisInputV1 | null | undefined);
   const summary = createSummary(input, result);
   const visualSvg = createVisualSvg(input, result, summary);
   const summaryMarkdown = createSummaryMarkdown(summary);
@@ -123,9 +123,12 @@ export function createLocalStructuredAnalyzeReportBundle(
 }
 
 function createSummary(
-  input: StructuredCompositionAnalysisInputV1,
+  input: unknown,
   result: StructuredCompositionAnalysisResultV1,
 ): LocalStructuredAnalyzeReportSummaryV1 {
+  const inputRecord = isRecord(input) ? input : null;
+  const provenance = isRecord(inputRecord?.provenance) ? inputRecord.provenance : null;
+
   return {
     kind: "local-structured-analyze-report-kit-summary",
     contractVersion: LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_VERSION,
@@ -138,13 +141,13 @@ function createSummary(
       version: result.operationVersion,
     },
     input: {
-      contractVersion: typeof input.contractVersion === "string" ? input.contractVersion : null,
-      compositionAId: compositionId(input.compositionA),
-      compositionBId: compositionId(input.compositionB),
-      sourceKind: input.provenance?.sourceKind === "user_supplied_structured_data"
+      contractVersion: typeof inputRecord?.contractVersion === "string" ? inputRecord.contractVersion : null,
+      compositionAId: compositionId(inputRecord?.compositionA),
+      compositionBId: compositionId(inputRecord?.compositionB),
+      sourceKind: provenance?.sourceKind === "user_supplied_structured_data"
         ? "user_supplied_structured_data"
         : null,
-      externalSourceRef: normalizeSourceRef(input.provenance?.externalSourceRef),
+      externalSourceRef: normalizeSourceRef(provenance?.externalSourceRef),
     },
     decision: result.status === "valid"
       ? {
@@ -259,13 +262,14 @@ function createReportHtml(summary: LocalStructuredAnalyzeReportSummaryV1, visual
 }
 
 function createVisualSvg(
-  input: StructuredCompositionAnalysisInputV1,
+  input: unknown,
   result: StructuredCompositionAnalysisResultV1,
   summary: LocalStructuredAnalyzeReportSummaryV1,
 ): string {
-  const compositionA = input.compositionA;
-  const compositionB = input.compositionB;
-  const surfaceBounds = compositionA?.surface?.bounds;
+  const inputRecord = isRecord(input) ? input : null;
+  const compositionA = inputRecord?.compositionA;
+  const compositionB = inputRecord?.compositionB;
+  const surfaceBounds = isComposition2D(compositionA) ? compositionA.surface.bounds : undefined;
   if (!isRect(surfaceBounds) || !isComposition2D(compositionA) || !isComposition2D(compositionB)) {
     return emptyVisualSvg(summary);
   }
@@ -311,7 +315,7 @@ function renderComposition(
   yOffset: number,
   fill: string,
 ): string {
-  const elements = [...composition.elements].sort((first, second) => first.id.localeCompare(second.id));
+  const elements = [...composition.elements].sort((first, second) => compareStableStrings(first.id, second.id));
 
   return [
     `<g data-composition="${escapeXml(composition.id)}">`,
@@ -343,17 +347,25 @@ function label(value: string, x: number, y: number): string {
 }
 
 function diagnosticCodes(diagnostics: readonly Diagnostic[]): readonly string[] {
-  return [...new Set(diagnostics.map((diagnostic) => diagnostic.code))].sort((first, second) => first.localeCompare(second));
+  return [...new Set(diagnostics.map((diagnostic) => diagnostic.code))].sort(compareStableStrings);
 }
 
 function compositionId(value: unknown): string | null {
   return isComposition2D(value) ? value.id : null;
 }
 
-function normalizeSourceRef(value: SourceReference | null | undefined): SourceReference | null {
-  return typeof value?.kind === "string" && typeof value.ref === "string"
+function normalizeSourceRef(value: unknown): SourceReference | null {
+  return isRecord(value) && typeof value.kind === "string" && typeof value.ref === "string"
     ? { kind: value.kind, ref: value.ref }
     : null;
+}
+
+function compareStableStrings(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function isComposition2D(value: unknown): value is Composition2D {

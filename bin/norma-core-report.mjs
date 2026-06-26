@@ -8,6 +8,8 @@ import {
 
 const [inputPath, outputDir] = process.argv.slice(2);
 
+class CliUsageError extends Error {}
+
 try {
   if (typeof inputPath !== "string" || typeof outputDir !== "string" || process.argv.length !== 4) {
     throw new CliUsageError("Usage: node bin/norma-core-report.mjs <structured-input.json> <output-dir>");
@@ -42,5 +44,3 @@ try {
   })}\n`);
   process.exitCode = error instanceof CliUsageError ? 1 : 3;
 }
-
-class CliUsageError extends Error {}
