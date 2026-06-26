@@ -6,25 +6,17 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
-const semgrepCiGuardMaintenanceFiles = new Set([
-  ".github/workflows/ci.yml",
-  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
-  "tests/beta-pilot-readiness-approval.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
-  "tests/onboarding-examples-approval.test.mjs",
-  "tests/post-mvp-product-vision-approval.test.mjs",
-  "tests/privacy-security-support-approval.test.mjs",
-  "tests/read-only-viewer-fixtures.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
-]);
 
 const decisionPath = "docs/decisions/2026-06-19-post-mvp-product-vision-and-adapter-architecture.md";
 const roadmapPath = "docs/BUSINESS_READINESS_ROADMAP.md";
@@ -470,7 +462,7 @@ test("PR75 roadmap update is minimal and links to the decision", () => {
 
 // fallow-ignore-next-line complexity
 test("PR75 changed-file scope is exact and protected files remain unchanged", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   if (changed.length === 0) {
     return;
   }
@@ -494,7 +486,8 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
       isExactR1GeometrySourceIdentityChangeSet(changed) ||
-      isExactR6CStructuredAnalyzeMcpChangeSet(changed),
+      isExactR6CStructuredAnalyzeMcpChangeSet(changed) ||
+      sharedExactApprovedChangedFiles(changed) !== null,
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
@@ -507,7 +500,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
 });
 
 test("PR75 does not add runtime package deployment provider or schema files", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const runtimeAllowlist = exactProtectedAllowlist(changed);
   const unexpected = changed.filter(
     (file) => !runtimeAllowlist.includes(file) && forbiddenRuntimePatterns.some((pattern) => pattern.test(file)),
@@ -613,45 +606,16 @@ function assertHeadingsInOrder(source, expectedHeadings) {
   }
 }
 
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitFiles(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    return execFileSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
-  } catch {
-    return null;
-  }
-}
-
 function isProtectedChange(file) {
   return protectedExactPaths.includes(file) || protectedPrefixes.some((prefix) => file.startsWith(prefix));
 }
 
 function exactProtectedAllowlist(changed) {
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  if (sharedApproved !== null) {
+    return sharedApproved;
+  }
+
   if (isExactChangedFileSet(changed, exactPr79ChangedFilesWithGuards)) {
     return exactPr79ChangedFilesWithGuards;
   }
@@ -695,10 +659,6 @@ function exactProtectedAllowlist(changed) {
     return r6cStructuredAnalyzeMcpChangedFiles;
   }
   return [];
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function escapeRegExp(value) {

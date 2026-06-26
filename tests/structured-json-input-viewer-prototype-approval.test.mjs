@@ -5,7 +5,13 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath as pathFromFileUrl } from "node:url";
 
-import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
+import {
+  branchChangedFiles,
+  isExactChangedFileSet,
+  isExactR1GeometrySourceIdentityChangeSet,
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
 const docPath = path.join(
@@ -256,7 +262,8 @@ test("PR57 keeps the approved PR58 prototype files package-private after impleme
     !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changed) &&
     !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changed) &&
     !isExactR1GeometrySourceIdentityChangeSet(changed) &&
-    !isExactR6CStructuredAnalyzeMcpChangeSet(changed)
+    !isExactR6CStructuredAnalyzeMcpChangeSet(changed) &&
+    sharedExactApprovedChangedFiles(changed) === null
   ) {
     assert.deepEqual(changed.filter(isForbiddenStructuredJsonViewerChange), []);
   }
@@ -327,48 +334,6 @@ function assertMentions(value, snippets) {
 }
 
 // fallow-ignore-next-line code-duplication
-function branchChangedFiles() {
-  const baselineProbes = [
-    gitFiles(["diff", "--name-only", "main...HEAD"]),
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]),
-    gitFiles(["diff", "--name-only", "master...HEAD"]),
-    gitFiles(["diff", "--name-only", "origin/master...HEAD"]),
-  ];
-  const successfulBaseline = baselineProbes.filter((files) => files !== null);
-  assert.notEqual(
-    successfulBaseline.length,
-    0,
-    "Unable to inspect branch changed files with git",
-  );
-  const probes = [
-    ...successfulBaseline,
-    // fallow-ignore-next-line code-duplication
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    return execFileSync("git", args, {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Escapes a literal phrase before compiling it as a regular expression.
@@ -391,13 +356,6 @@ function isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changed) {
 
 function isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changed) {
   return isExactChangedFileSet(changed, r6bStructuredAnalyzeBaselineProbeChangedFiles);
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return (
-    changed.length === approvedFiles.length &&
-    approvedFiles.every((file) => changed.includes(file))
-  );
 }
 
 function isForbiddenStructuredJsonViewerChange(file) {

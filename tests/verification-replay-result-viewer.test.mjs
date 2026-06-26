@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -10,7 +9,13 @@ import {
   VERIFICATION_REPLAY_RESULT_VIEWER_SECTION_KEYS,
   createVerificationReplayResultDisplayModel,
 } from "../dist/src/verification-replay-result-viewer.js";
-import { isExactR1GeometrySourceIdentityChangeSet, isExactR6CStructuredAnalyzeMcpChangeSet } from "./r6c-structured-analyze-mcp-change-set.mjs";
+import {
+  branchChangedFiles,
+  isExactChangedFileSet,
+  isExactR1GeometrySourceIdentityChangeSet,
+  isExactR6CStructuredAnalyzeMcpChangeSet,
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -335,16 +340,17 @@ test("PR61 keeps helper package-private and avoids forbidden surfaces", () => {
   }
   assert.doesNotMatch(helperSource, /\b(?:route|server|browser|DOM)\b/);
 
-  const changedFiles = gitChangedFiles();
+  const changedFiles = branchChangedFiles();
   if (changedFiles.some((file) => file.includes("verification-replay-result-viewer"))) {
     if (
       !isExactPr71ApprovedChangeSet(changedFiles) &&
-	      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
-	      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
-	      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
-	      !isExactR1GeometrySourceIdentityChangeSet(changedFiles) &&
-	      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles)
-	    ) {
+      !isExactR6BStructuredAnalyzeImplementationChangeSet(changedFiles) &&
+      !isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changedFiles) &&
+      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
+      !isExactR1GeometrySourceIdentityChangeSet(changedFiles) &&
+      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) &&
+      sharedExactApprovedChangedFiles(changedFiles) === null
+    ) {
       assert.deepEqual(changedFiles.filter(isForbiddenVerificationReplayViewerChange), []);
     }
   }
@@ -600,36 +606,6 @@ function runEnvelope() {
   };
 }
 
-function gitChangedFiles() {
-  const probes = [
-    gitChangedFilesFor(["diff", "--name-only", "main...HEAD"]),
-    gitChangedFilesFor(["diff", "--name-only", "origin/main...HEAD"]),
-    gitChangedFilesFor(["diff", "--name-only"]),
-    gitChangedFilesFor(["diff", "--cached", "--name-only"]),
-    gitChangedFilesFor(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitChangedFilesFor(args) {
-  try {
-    return execFileSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean);
-  } catch {
-    return null;
-  }
-}
-
 // fallow-ignore-next-line code-duplication
 function isExactPr71ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
@@ -645,13 +621,6 @@ function isExactR6BStructuredAnalyzeGuardMaintenanceChangeSet(changed) {
 
 function isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changed) {
   return isExactChangedFileSet(changed, r6bStructuredAnalyzeBaselineProbeChangedFiles);
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return (
-    changed.length === approvedFiles.length &&
-    approvedFiles.every((file) => changed.includes(file))
-  );
 }
 
 function isForbiddenVerificationReplayViewerChange(file) {

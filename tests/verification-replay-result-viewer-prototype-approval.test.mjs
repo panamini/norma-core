@@ -6,24 +6,16 @@ import { test } from "node:test";
 import { fileURLToPath as pathFromFileUrl } from "node:url";
 
 import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
-const semgrepCiGuardMaintenanceFiles = new Set([
-  ".github/workflows/ci.yml",
-  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
-  "tests/beta-pilot-readiness-approval.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
-  "tests/onboarding-examples-approval.test.mjs",
-  "tests/post-mvp-product-vision-approval.test.mjs",
-  "tests/privacy-security-support-approval.test.mjs",
-  "tests/read-only-viewer-fixtures.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
-]);
 const docPath = path.join(
   root,
   "docs",
@@ -441,7 +433,7 @@ test("PR60 preserves mandatory future result visibility", () => {
 });
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedPaths = approvedChangedPathsFor(changed);
   const forbiddenAllowlist = exactApprovedChangedFiles(changed) ?? [];
 
@@ -486,7 +478,7 @@ test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes"
 
 test("PR60 keeps package root export and MCP remote docs unchanged", () => {
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const isPr71ApprovedChangeSet = isExactPr71ApprovedChangeSet(changed);
   const isR6BStructuredAnalyzeImplementationChangeSet = isExactChangedFileSet(
     changed,
@@ -538,39 +530,6 @@ function assertMentions(value, snippets) {
 }
 
 // fallow-ignore-next-line code-duplication
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitFiles(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    return execFileSync("git", args, {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split("\n")
-      .filter(Boolean)
-      .sort();
-  } catch {
-    return null;
-  }
-}
 
 function isExactPr71ApprovedChangeSet(changed) {
   return isExactChangedFileSet(changed, pr71ApprovedChangedFiles);
@@ -617,6 +576,11 @@ function approvedChangedPathsFor(changed) {
 }
 
 function exactApprovedChangedFiles(changed) {
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  if (sharedApproved !== null) {
+    return sharedApproved;
+  }
+
   if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) {
     return r4CurrentOperationsRunbookChangedFiles;
   }
@@ -684,10 +648,6 @@ function isAllowedApprovalScopePath(relativePath, approvedChangedPaths) {
 
 function isUnexpectedForbiddenChange(relativePath, forbiddenAllowlist) {
   return isForbiddenChange(relativePath) && !forbiddenAllowlist.includes(relativePath);
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isForbiddenChange(file) {

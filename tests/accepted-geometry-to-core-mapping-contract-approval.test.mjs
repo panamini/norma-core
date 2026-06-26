@@ -6,26 +6,18 @@ import test from "node:test";
 import { fileURLToPath as modulePathFromUrl } from "node:url";
 
 import {
+  branchChangedFilesExcludingSemgrepMaintenance,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const modulePath = modulePathFromUrl(import.meta.url);
 const testDirectory = nodePath.dirname(modulePath);
 const repositoryRoot = nodePath.dirname(testDirectory);
-const semgrepCiGuardMaintenanceFiles = new Set([
-  ".github/workflows/ci.yml",
-  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
-  "tests/beta-pilot-readiness-approval.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
-  "tests/onboarding-examples-approval.test.mjs",
-  "tests/post-mvp-product-vision-approval.test.mjs",
-  "tests/privacy-security-support-approval.test.mjs",
-  "tests/read-only-viewer-fixtures.test.mjs",
-  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
-]);
 
 const r4CurrentOperationsRunbookChangedFiles = [
   "docs/MCP_TOOL_CONTRACT.md",
@@ -366,7 +358,7 @@ test("PR80 keeps synthetic-only boundary and PR81 scope narrow", () => {
 });
 
 test("PR80 branch changes stay limited to the approved doc test and exact guards", () => {
-  const changed = branchChangedFiles();
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
   if (changed.length === 0) {
     return;
   }
@@ -384,39 +376,39 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
       isExactR1GeometrySourceIdentityChangeSet(changed) ||
-      isExactR6CStructuredAnalyzeMcpChangeSet(changed),
+      isExactR6CStructuredAnalyzeMcpChangeSet(changed) ||
+      sharedExactApprovedChangedFiles(changed) !== null,
     true,
     `Unexpected PR80/PR101/R2A/R2B/R3/R6B/R6C changed files:\n${changed.join("\n")}`,
   );
 });
 
+function exactProtectedAllowlist(changed) {
+  if (isExactR1GeometrySourceIdentityChangeSet(changed)) return r1GeometrySourceIdentityChangedFiles;
+  if (isExactR6CStructuredAnalyzeMcpChangeSet(changed)) return r6cStructuredAnalyzeMcpChangedFiles;
+  if (isExactChangedFileSet(changed, pr101ReplayChangedFiles)) return pr101ReplayChangedFiles;
+  if (isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)) return r4CurrentOperationsRunbookChangedFiles;
+  if (isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles)) return r2aOutputSchemaChangedFiles;
+  if (isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles)) return r2bOutputSchemaChangedFiles;
+  if (isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles)) return r3NonCanonicalStructuredInputChangedFiles;
+  if (isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles)) return r5PostMvpAdapterArchitectureChangedFiles;
+  if (isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles)) return r6aStructuredAnalyzeContractChangedFiles;
+  if (isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)) {
+    return r6a1StructuredAnalyzeExecutableContractChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles)) {
+    return r6bStructuredAnalyzeImplementationChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
+    return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  return [];
+}
+
 test("PR80 keeps protected runtime package fixture README and CI surfaces unchanged", () => {
-  const changed = branchChangedFiles();
-  const protectedAllowlist = isExactChangedFileSet(changed, pr101ReplayChangedFiles)
-    ? pr101ReplayChangedFiles
-    : isExactChangedFileSet(changed, r4CurrentOperationsRunbookChangedFiles)
-      ? r4CurrentOperationsRunbookChangedFiles
-      : isExactChangedFileSet(changed, r2aOutputSchemaChangedFiles)
-      ? r2aOutputSchemaChangedFiles
-      : isExactChangedFileSet(changed, r2bOutputSchemaChangedFiles)
-      ? r2bOutputSchemaChangedFiles
-      : isExactChangedFileSet(changed, r3NonCanonicalStructuredInputChangedFiles)
-        ? r3NonCanonicalStructuredInputChangedFiles
-        : isExactChangedFileSet(changed, r5PostMvpAdapterArchitectureChangedFiles)
-          ? r5PostMvpAdapterArchitectureChangedFiles
-          : isExactChangedFileSet(changed, r6aStructuredAnalyzeContractChangedFiles)
-            ? r6aStructuredAnalyzeContractChangedFiles
-            : isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles)
-              ? r6a1StructuredAnalyzeExecutableContractChangedFiles
-              : isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles)
-                ? r6bStructuredAnalyzeImplementationChangedFiles
-	                : isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)
-	                  ? r6bStructuredAnalyzeGuardMaintenanceChangedFiles
-	                  : isExactR1GeometrySourceIdentityChangeSet(changed)
-	                  ? r1GeometrySourceIdentityChangedFiles
-	                  : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
-	                  ? r6cStructuredAnalyzeMcpChangedFiles
-	                  : [];
+  const changed = branchChangedFilesExcludingSemgrepMaintenance();
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  const protectedAllowlist = sharedApproved ?? exactProtectedAllowlist(changed);
   const protectedPatterns = [
     /^src\//,
     /^bin\//,
@@ -513,50 +505,6 @@ function assertHeadingSequence(source, expectedHeadings) {
   });
 
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
-}
-
-function branchChangedFiles() {
-  const files = new Set();
-  let successfulGitProbes = 0;
-  const baseArgs =
-    gitOutputLines(["diff", "--name-only", "origin/main...HEAD"]) !== null
-      ? ["diff", "--name-only", "origin/main...HEAD"]
-      : ["diff", "--name-only", "main...HEAD"];
-  for (const args of [
-    baseArgs,
-    ["diff", "--name-only"],
-    ["diff", "--cached", "--name-only"],
-    ["ls-files", "--others", "--exclude-standard"],
-  ]) {
-    const outputLines = gitOutputLines(args);
-    if (outputLines === null) {
-      continue;
-    }
-    successfulGitProbes += 1;
-    for (const file of outputLines) {
-      files.add(file);
-    }
-  }
-  assert.notEqual(successfulGitProbes, 0, "Unable to inspect changed files with git");
-  return [...files].filter((file) => !semgrepCiGuardMaintenanceFiles.has(file)).sort();
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
-}
-
-function gitOutputLines(args) {
-  try {
-    const output = execGitSync("git", args, {
-      cwd: repositoryRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-
-    return output === "" ? [] : output.split("\n");
-  } catch {
-    return null;
-  }
 }
 
 function literalRegExp(value) {

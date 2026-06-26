@@ -7,11 +7,14 @@ import { fileURLToPath } from "node:url";
 
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 import {
+  branchChangedFiles,
+  isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
-} from "./r6c-structured-analyze-mcp-change-set.mjs";
+  sharedExactApprovedChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 // fallow-ignore-next-line code-duplication
@@ -380,47 +383,18 @@ function section(model, id) {
 }
 
 // fallow-ignore-next-line code-duplication
-function branchChangedFiles() {
-  const baseFiles =
-    gitFiles(["diff", "--name-only", "origin/main...HEAD"]) ??
-    gitFiles(["diff", "--name-only", "main...HEAD"]);
-  const probes = [
-    baseFiles,
-    gitFiles(["diff", "--name-only"]),
-    gitFiles(["diff", "--cached", "--name-only"]),
-    gitFiles(["ls-files", "--others", "--exclude-standard"]),
-  ];
-  const successful = probes.filter((files) => files !== null);
-  assert.notEqual(successful.length, 0, "Unable to inspect changed files with git");
-  return successful
-    .flat()
-    .filter((file, index, files) => files.indexOf(file) === index)
-    .sort();
-}
-
-function gitFiles(args) {
-  try {
-    const output = execFileSync("git", args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return output.split("\n").filter(Boolean).sort();
-  } catch {
-    return null;
-  }
-}
 
 function approvedExactChangedFilesFor(changed) {
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  if (sharedApproved !== null) {
+    return sharedApproved;
+  }
+
   return isExactR1GeometrySourceIdentityChangeSet(changed)
     ? r1GeometrySourceIdentityChangedFiles
     : isExactR6CStructuredAnalyzeMcpChangeSet(changed)
     ? r6cStructuredAnalyzeMcpChangedFiles
     : exactApprovedChangedFileSets.find((approvedFiles) => isExactChangedFileSet(changed, approvedFiles)) ?? null;
-}
-
-function isExactChangedFileSet(changed, approvedFiles) {
-  return changed.length === approvedFiles.length && approvedFiles.every((file) => changed.includes(file));
 }
 
 function isForbiddenReadOnlyViewerChange(file) {
