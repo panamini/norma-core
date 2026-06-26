@@ -115,8 +115,13 @@ test("Geometry Harmony pack validates as declared mathematical ratio data", () =
     result.output.ratios.map((ratio) => ratio.id),
     ["phi-minor", "phi-major", "1/2"],
   );
-  assert.equal(result.output.ratioFamilies.find((family) => family.id === "golden-section").scope, "surface-partition");
-  assert.deepEqual(result.output.ratioSequences.find((sequence) => sequence.id === "phi:1").parts.length, 2);
+  const goldenSectionFamily = result.output.ratioFamilies.find((family) => family.id === "golden-section");
+  const phiSequence = result.output.ratioSequences.find((sequence) => sequence.id === "phi:1");
+
+  assert.ok(goldenSectionFamily);
+  assert.ok(phiSequence);
+  assert.equal(goldenSectionFamily.scope, "surface-partition");
+  assert.equal(phiSequence.parts.length, 2);
 });
 
 test("Geometry Harmony pack exposes only existing core rule types", () => {
@@ -140,11 +145,11 @@ test("Geometry Harmony pack exposes only existing core rule types", () => {
 
 test("Geometry Harmony pack lock is deterministic and content-bound", () => {
   const first = core.createPackLock({
-    pack: GEOMETRY_HARMONIES_PACK,
+    pack: structuredClone(GEOMETRY_HARMONIES_PACK),
     sourceRefs: [{ kind: "ratio-pack", ref: `${GEOMETRY_HARMONIES_PACK_ID}@${GEOMETRY_HARMONIES_PACK_VERSION}` }],
   });
   const second = core.createPackLock({
-    pack: GEOMETRY_HARMONIES_PACK,
+    pack: structuredClone(GEOMETRY_HARMONIES_PACK),
     sourceRefs: [{ kind: "ratio-pack", ref: `${GEOMETRY_HARMONIES_PACK_ID}@${GEOMETRY_HARMONIES_PACK_VERSION}` }],
   });
 
