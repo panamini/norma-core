@@ -3,6 +3,7 @@ export const r6cStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
   "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-26-private-hosted-mcp-operating-model.md",
   "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
   "src/index.ts",
   "src/mcp/stdio-protocol.ts",
@@ -135,6 +136,13 @@ export const r7StructuredAnalyzeHardeningChangedFiles = [
   "tests/structured-composition-analysis.test.mjs",
 ].sort();
 
+export const r7bPrivateHostedMcpOperatingModelChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-26-private-hosted-mcp-operating-model.md",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
 const requiredR6CStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
@@ -152,7 +160,8 @@ export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
   ) ||
     isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles) ||
     isExactChangedFileSet(changedFiles, r6dChatgptCheckpointChangedFiles) ||
-    isExactChangedFileSet(changedFiles, r7StructuredAnalyzeHardeningChangedFiles);
+    isExactChangedFileSet(changedFiles, r7StructuredAnalyzeHardeningChangedFiles) ||
+    isExactChangedFileSet(changedFiles, r7bPrivateHostedMcpOperatingModelChangedFiles);
 }
 
 export function isExactR1GeometrySourceIdentityChangeSet(changedFiles) {

@@ -150,6 +150,43 @@ R1 - Reject duplicate geometry source identities
 Do not start outputSchema, ChatGPT Analyze expansion, hosting, or publishing
 before R1 unless a later explicit roadmap decision changes the sequence.
 
+## R7.2 Structured Analyze Boundary Completion
+
+PR115 rejected duplicate geometry source identities in active runtime paths.
+PR116 preserved measurement anchor target refs. PR117 hardened Structured
+Analyze boundary coverage through direct and MCP contract tests.
+
+The mandatory private Structured Analyze rail is complete through R7.2. This
+completion does not itself authorize hosting, public submission, image/prose
+geometry inference, beauty scoring, recommendation, optimization, generated
+rules, implicit packs, implicit ratios, or hidden tolerances.
+
+## R7B.0 Private Hosted MCP Operating Model
+
+Decision reference:
+`docs/decisions/2026-06-26-private-hosted-mcp-operating-model.md`.
+
+R7B.0 selects:
+
+```text
+PLAN_PRIVATE_ALWAYS_ON_HOSTING
+```
+
+The preferred target is Cloudflare Workers/Agents hosted private MCP using
+Streamable HTTP, pending explicit provider/account, budget, secrets, auth,
+logging, monitoring, incident, and rollback ownership. Vercel remains the
+fallback if ChatGPT Apps UI components or Next.js-hosted app behavior become
+the dominant product requirement.
+
+R7B.0 does not deploy a hosted endpoint, change MCP runtime behavior, add auth
+runtime, add secrets, submit a public ChatGPT app, add tools, change output
+schemas, add image/vision/CAD/plugin/UI behavior, publish the package, or fix
+CI billing/account state.
+
+The next hosted-MCP PR, if any, must be a provider-specific hosting plan or
+implementation approval fiche. It must keep deployment blocked until the
+operational approvals in the R7B.0 decision are explicit.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
