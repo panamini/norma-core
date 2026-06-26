@@ -8,6 +8,7 @@ import * as core from "../dist/src/index.js";
 import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
 import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  r7aPostR1PrivateOperatingModelChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
 } from "./r6c-structured-analyze-mcp-change-set.mjs";
 
@@ -315,6 +316,29 @@ test("R7.2 exact guard set rejects unrelated files", () => {
     isExactR6CStructuredAnalyzeMcpChangeSet(
       r7StructuredAnalyzeHardeningChangedFiles.filter((file) => file !== "tests/structured-composition-analysis.test.mjs"),
     ),
+    false,
+  );
+});
+
+test("R7A.1 exact guard set rejects unrelated and legacy R6C mixed files", () => {
+  assert.equal(isExactR6CStructuredAnalyzeMcpChangeSet(r7aPostR1PrivateOperatingModelChangedFiles), true);
+  assert.equal(
+    isExactR6CStructuredAnalyzeMcpChangeSet(
+      [...r7aPostR1PrivateOperatingModelChangedFiles, "src/index.ts"].sort(),
+    ),
+    false,
+  );
+  assert.equal(
+    isExactR6CStructuredAnalyzeMcpChangeSet([
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/MCP_TOOL_CONTRACT.md",
+      "docs/OPERATIONS_RUNBOOK.md",
+      "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
+      "docs/decisions/2026-06-26-post-r1-private-operating-model.md",
+      "src/mcp/stdio-protocol.ts",
+      "tests/mcp-structured-composition-analysis-contract.test.mjs",
+      "tests/r6c-structured-analyze-mcp-change-set.mjs",
+    ].sort()),
     false,
   );
 });

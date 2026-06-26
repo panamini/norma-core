@@ -140,52 +140,53 @@ submission, hosted MCP, image/prose geometry inference, beauty scoring,
 recommendation, optimization, or changes to core geometry, packs, ratios, rules,
 measurements, evaluation, comparison, artifacts, or deterministic outputs.
 
-Immediate next step after R6D is this small checkpoint. The next mandatory
-product/code PR after the checkpoint is:
+The historical immediate next step after R6D was this small checkpoint. The next
+mandatory product/code PR after the checkpoint was:
 
 ```text
 R1 - Reject duplicate geometry source identities
 ```
 
-Do not start outputSchema, ChatGPT Analyze expansion, hosting, or publishing
-before R1 unless a later explicit roadmap decision changes the sequence.
+PR #115 satisfied R1 before R7A.1. Do not treat this historical R6D sequencing
+as the current next-step instruction.
 
-## R7.2 Structured Analyze Boundary Completion
-
-PR115 rejected duplicate geometry source identities in active runtime paths.
-PR116 preserved measurement anchor target refs. PR117 hardened Structured
-Analyze boundary coverage through direct and MCP contract tests.
-
-The mandatory private Structured Analyze rail is complete through R7.2. This
-completion does not itself authorize hosting, public submission, image/prose
-geometry inference, beauty scoring, recommendation, optimization, generated
-rules, implicit packs, implicit ratios, or hidden tolerances.
-
-## R7B.0 Private Hosted MCP Operating Model
+## R7A.1 Post-R1 Roadmap State And Private Operating Model
 
 Decision reference:
-`docs/decisions/2026-06-26-private-hosted-mcp-operating-model.md`.
+`docs/decisions/2026-06-26-post-r1-private-operating-model.md`.
 
-R7B.0 selects:
+R7A.1 records the current state after PR #115, PR #116, and PR #117:
+
+- PR #115 / R1 rejected duplicate geometry source identities across active Core,
+  measurement, Structured Analyze, and MCP structured-content paths.
+- PR #116 / R1.1 merged `fix: preserve measurement anchor target refs`. It is
+  not the roadmap, operations, or operating-model checkpoint.
+- PR #117 / R7.2 hardened Structured Analyze boundary coverage through direct and
+  MCP contract tests.
+
+The mandatory private Structured Analyze rail is complete through R7.2. Current
+local STDIO MCP inventory is exactly six tools, including
+`norma.analyzeStructuredCompositionV1`.
+
+R7A.1 selects:
 
 ```text
-PLAN_PRIVATE_ALWAYS_ON_HOSTING
+STOP_PRIVATE_MANUAL
 ```
 
-The preferred target is Cloudflare Workers/Agents hosted private MCP using
-Streamable HTTP, pending explicit provider/account, budget, secrets, auth,
-logging, monitoring, incident, and rollback ownership. Vercel remains the
-fallback if ChatGPT Apps UI components or Next.js-hosted app behavior become
-the dominant product requirement.
+The current operating model stays private/manual: use the private ChatGPT Draft
+app and launch Secure MCP Tunnel only when needed. No mandatory next code PR is
+required.
 
-R7B.0 does not deploy a hosted endpoint, change MCP runtime behavior, add auth
+Hosted MCP is optional later only with explicit provider, budget, secrets,
+deployment, monitoring, incident, rollback, retention, auth/access, and domain
+ownership. Public submission remains optional later only through a
+submission-readiness audit.
+
+R7A.1 does not deploy a hosted endpoint, change MCP runtime behavior, add auth
 runtime, add secrets, submit a public ChatGPT app, add tools, change output
 schemas, add image/vision/CAD/plugin/UI behavior, publish the package, or fix
 CI billing/account state.
-
-The next hosted-MCP PR, if any, must be a provider-specific hosting plan or
-implementation approval fiche. It must keep deployment blocked until the
-operational approvals in the R7B.0 decision are explicit.
 
 ## Current State After PR25
 

@@ -45,9 +45,10 @@ Norma Core has two separate proof tracks that must not be collapsed.
   private ChatGPT connector smoke passed with the current six-tool inventory,
   positive `getVersion` / `replayMvpDemo` calls, replay readiness `ready`, and
   negative prompt guardrails that made no Norma tool call.
-- PR115 rejected duplicate geometry source identities in active runtime paths.
-- PR116 preserved measurement anchor target refs.
-- PR117 hardened Structured Analyze boundary coverage through direct and MCP
+- PR #115 rejected duplicate geometry source identities in active runtime paths.
+- PR #116 / R1.1 merged `fix: preserve measurement anchor target refs`. It is
+  not the roadmap, operations, or operating-model checkpoint.
+- PR #117 hardened Structured Analyze boundary coverage through direct and MCP
   contract tests. The mandatory private Structured Analyze rail is complete
   through R7.2.
 
@@ -55,10 +56,12 @@ Current `main` is not the historical PR6 branch. Current `main` exposes a
 different six-tool MCP inventory. PR113 / R6D is the first current-main private
 ChatGPT connector smoke checkpoint for that inventory.
 
-R7B.0 selects `PLAN_PRIVATE_ALWAYS_ON_HOSTING` as the next operating model and
-prefers Cloudflare Workers/Agents as the private hosted MCP target, but it does
-not approve deployment. See
-`docs/decisions/2026-06-26-private-hosted-mcp-operating-model.md`.
+R7A.1 records the post-R1 private/manual operating model:
+`STOP_PRIVATE_MANUAL`. No mandatory next code PR is required. Secure MCP Tunnel
+remains launched only when needed, and the ChatGPT app remains private/Draft.
+Hosted MCP and public submission remain optional later work that require explicit
+approval. See
+`docs/decisions/2026-06-26-post-r1-private-operating-model.md`.
 
 ## 3. Proven versus not proven
 
