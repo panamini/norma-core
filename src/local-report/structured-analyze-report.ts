@@ -1,6 +1,7 @@
 import type {
   Composition2D,
   Diagnostic,
+  Element,
   Rect,
   SourceReference,
 } from "../index.js";
@@ -315,7 +316,9 @@ function renderComposition(
   yOffset: number,
   fill: string,
 ): string {
-  const elements = [...composition.elements].sort((first, second) => compareStableStrings(first.id, second.id));
+  const elements = composition.elements
+    .filter(isRenderableElement)
+    .sort((first, second) => compareStableStrings(first.id, second.id));
 
   return [
     `<g data-composition="${escapeXml(composition.id)}">`,
@@ -375,6 +378,13 @@ function isComposition2D(value: unknown): value is Composition2D {
     && typeof (value as Composition2D).id === "string"
     && Array.isArray((value as Composition2D).elements)
     && isRect((value as Composition2D).surface?.bounds);
+}
+
+function isRenderableElement(value: unknown): value is Element {
+  return isRecord(value)
+    && value.kind === "element"
+    && typeof value.id === "string"
+    && isRect(value.geometry);
 }
 
 function isRect(value: unknown): value is Rect {

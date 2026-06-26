@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -89,6 +89,44 @@ test("local structured analyze report command emits structured usage errors", as
       return true;
     },
   );
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [reportCommandPath, exampleInputPath, tmpdir(), "extra"], { cwd: repoRoot }),
+    (error) => {
+      assert.equal(error.code, 1);
+      const errorPayload = JSON.parse(error.stderr);
+      assert.equal(errorPayload.status, "error");
+      assert.equal(errorPayload.error.code, "InvalidCliUsage");
+      return true;
+    },
+  );
+});
+
+test("local structured analyze report command writes invalid bundle for primitive JSON input", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "norma-report-kit-invalid-"));
+  const inputPath = join(tempDir, "null.json");
+  const outputDir = join(tempDir, "out");
+  await writeFile(inputPath, "null", "utf8");
+
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, [reportCommandPath, inputPath, outputDir], { cwd: repoRoot }),
+      (error) => {
+        assert.equal(error.code, 2);
+        const commandResult = JSON.parse(error.stdout);
+        assert.equal(commandResult.status, "ok");
+        assert.equal(commandResult.resultStatus, "invalid");
+        assert.equal(error.stderr, "");
+        return true;
+      },
+    );
+
+    assert.equal((await readJson(join(outputDir, "result.json"))).status, "invalid");
+    assert.equal((await readJson(join(outputDir, "summary.json"))).status, "invalid");
+    assert.match(await readFile(join(outputDir, "visual.svg"), "utf8"), /No rectangular Composition2D visual available/u);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("local structured analyze report bundle handles invalid primitive input", () => {
@@ -102,6 +140,20 @@ test("local structured analyze report bundle handles invalid primitive input", (
   assert.match(bundle.artifacts["result.json"], /"status":"invalid"/u);
   assert.match(bundle.artifacts["summary.json"], /"status":"invalid"/u);
   assert.match(bundle.artifacts["visual.svg"], /No rectangular Composition2D visual available/u);
+});
+
+test("local structured analyze report visual skips invalid element geometry", async () => {
+  const input = await readJson(exampleInputPath);
+  input.compositionA.elements = [
+    { kind: "element", id: "missing-geometry" },
+    input.compositionA.elements[0],
+  ];
+
+  const visualSvg = createLocalStructuredAnalyzeReportBundle(input).artifacts["visual.svg"];
+
+  assert.doesNotMatch(visualSvg, /NaN/u);
+  assert.doesNotMatch(visualSvg, /data-element="missing-geometry"/u);
+  assert.match(visualSvg, /data-element="grid-left-column"/u);
 });
 
 test("local structured analyze report visual uses stable codepoint element order", async () => {
