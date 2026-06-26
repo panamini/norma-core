@@ -87,12 +87,36 @@ export const geometryHarmonyPackReportExamplesChangedFiles = Object.freeze([
   "tests/ratio-pack-model.test.mjs",
 ].sort());
 
+export const structuredAnalyzeScenarioPackChangedFiles = Object.freeze([
+  "bin/norma-core-report.mjs",
+  "examples/structured-analyze/scenarios/alignment-basic.json",
+  "examples/structured-analyze/scenarios/boundary-case.json",
+  "examples/structured-analyze/scenarios/invalid-case.json",
+  "examples/structured-analyze/scenarios/ratio-comparison.json",
+  "examples/structured-analyze/scenarios/symmetry-test.json",
+  "package.json",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/scenarios.test.mjs",
+  "tests/structured-json-input-viewer-prototype-approval.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort());
+
+export const structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  structuredAnalyzeScenarioPackChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  structuredAnalyzeScenarioPackChangedFiles,
+  structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
