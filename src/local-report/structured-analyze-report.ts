@@ -13,6 +13,9 @@ import {
   serializeCanonicalJson,
   STABLE_SERIALIZATION_POLICY,
 } from "../serialization.js";
+import {
+  BASIC_PROPORTIONS_PACK_ID,
+} from "../ratio-pack.js";
 import type {
   StructuredCompositionAnalysisInputV1,
   StructuredCompositionAnalysisResultV1,
@@ -50,6 +53,11 @@ export interface LocalStructuredAnalyzeReportSummaryV1 {
     contractVersion: string | null;
     compositionAId: string | null;
     compositionBId: string | null;
+    ratioPackId: string | null;
+    ratioPackVersion: string | null;
+    ratioPackRef: string | null;
+    ruleSetRef: string | null;
+    evaluationProfileRef: string | null;
     sourceKind: "user_supplied_structured_data" | null;
     externalSourceRef: SourceReference | null;
   };
@@ -79,8 +87,8 @@ export interface LocalStructuredAnalyzeReportSummaryV1 {
     hostedMcp: false;
     cloudflare: false;
     publicSubmission: false;
-    geometryHarmoniesPack: false;
-    newRatioPack: false;
+    geometryHarmoniesPack: boolean;
+    newRatioPack: boolean;
     recommendation: false;
     beautyScore: false;
     promptImageInference: false;
@@ -129,6 +137,13 @@ function createSummary(
 ): LocalStructuredAnalyzeReportSummaryV1 {
   const inputRecord = isRecord(input) ? input : null;
   const provenance = isRecord(inputRecord?.provenance) ? inputRecord.provenance : null;
+  const ratioPack = isRecord(inputRecord?.ratioPack) ? inputRecord.ratioPack : null;
+  const ratioPackId = stringField(ratioPack, "id");
+  const ratioPackVersion = stringField(ratioPack, "version");
+  const ratioPackRef = ratioPackId === null || ratioPackVersion === null
+    ? null
+    : `${ratioPackId}@${ratioPackVersion}`;
+  const evaluationProfile = isRecord(inputRecord?.evaluationProfile) ? inputRecord.evaluationProfile : null;
 
   return {
     kind: "local-structured-analyze-report-kit-summary",
@@ -145,6 +160,11 @@ function createSummary(
       contractVersion: typeof inputRecord?.contractVersion === "string" ? inputRecord.contractVersion : null,
       compositionAId: compositionId(inputRecord?.compositionA),
       compositionBId: compositionId(inputRecord?.compositionB),
+      ratioPackId,
+      ratioPackVersion,
+      ratioPackRef,
+      ruleSetRef: stringField(inputRecord, "ruleSetRef"),
+      evaluationProfileRef: stringField(evaluationProfile, "ref") ?? stringField(evaluationProfile, "id"),
       sourceKind: provenance?.sourceKind === "user_supplied_structured_data"
         ? "user_supplied_structured_data"
         : null,
@@ -178,8 +198,8 @@ function createSummary(
       hostedMcp: false,
       cloudflare: false,
       publicSubmission: false,
-      geometryHarmoniesPack: false,
-      newRatioPack: false,
+      geometryHarmoniesPack: ratioPackId === "norma.geometry-harmonies",
+      newRatioPack: ratioPackId !== null && ratioPackId !== BASIC_PROPORTIONS_PACK_ID,
       recommendation: false,
       beautyScore: false,
       promptImageInference: false,
@@ -196,6 +216,9 @@ function createSummaryMarkdown(summary: LocalStructuredAnalyzeReportSummaryV1): 
     `- operation: ${markdownInlineValue(`${summary.operation.name}@${summary.operation.version}`)}`,
     `- boundary: ${markdownInlineValue(summary.operation.boundary)}`,
     `- input: ${markdownInlineValue(summary.input.compositionAId ?? "unknown")} vs ${markdownInlineValue(summary.input.compositionBId ?? "unknown")}`,
+    `- ratioPack: ${markdownInlineValue(summary.input.ratioPackRef ?? "unknown")}`,
+    `- ruleSet: ${markdownInlineValue(summary.input.ruleSetRef ?? "unknown")}`,
+    `- evaluationProfile: ${markdownInlineValue(summary.input.evaluationProfileRef ?? "unknown")}`,
     `- decision: ${markdownInlineValue(summary.decision?.summary ?? "none")}`,
     `- diagnostics: ${summary.diagnostics.errorCount} errors, ${summary.diagnostics.warningCount} warnings`,
     `- replayReadiness: ${markdownInlineValue(summary.replayReadiness.status ?? "none")}`,
@@ -213,8 +236,8 @@ function createSummaryMarkdown(summary: LocalStructuredAnalyzeReportSummaryV1): 
     "- no hosted MCP",
     "- no Cloudflare",
     "- no public submission",
-    "- no geometry harmonies pack",
-    "- no new ratio pack",
+    summary.scope.geometryHarmoniesPack ? "- geometry harmonies pack supplied" : "- no geometry harmonies pack",
+    summary.scope.newRatioPack ? "- non-basic ratio pack supplied" : "- no new ratio pack",
     "- no recommendation",
     "- no beauty score",
     "- no prompt/image inference",
@@ -356,6 +379,15 @@ function diagnosticCodes(diagnostics: readonly Diagnostic[]): readonly string[] 
 
 function compositionId(value: unknown): string | null {
   return isComposition2D(value) ? value.id : null;
+}
+
+function stringField(value: unknown, key: string): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const field = value[key];
+  return typeof field === "string" && field.length > 0 ? field : null;
 }
 
 function normalizeSourceRef(value: unknown): SourceReference | null {

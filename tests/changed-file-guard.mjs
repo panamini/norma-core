@@ -69,10 +69,19 @@ export const localStructuredAnalyzeReportKitChangedFiles = Object.freeze([
   "tests/read-only-viewer-static.test.mjs",
 ].sort());
 
+export const localStructuredAnalyzeReportKitScopeSummaryChangedFiles = Object.freeze([
+  "docs/local-structured-analyze-report-kit.md",
+  "src/local-report/structured-analyze-report.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-report-kit.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
+  localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,

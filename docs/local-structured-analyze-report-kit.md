@@ -13,6 +13,7 @@ This kit is a local-only command wrapper around the direct `analyzeStructuredCom
   - `summary.md`
   - `visual.svg`
   - `report.html`
+- input-derived pack, rule-set, and evaluation-profile references in the summary
 
 ## Non-Scope
 
@@ -20,8 +21,7 @@ This kit is a local-only command wrapper around the direct `analyzeStructuredCom
 - no hosted MCP
 - no Cloudflare
 - no public submission
-- no geometry harmonies pack
-- no new ratio pack
+- no pack definition or pack mutation by the report kit
 - no recommendation
 - no beauty score
 - no prompt/image inference
@@ -36,3 +36,5 @@ node bin/norma-core-report.mjs examples/structured-analyze/basic-grid-alignment.
 ```
 
 The command writes only the deterministic bundle files listed above. It does not mutate the input, start an MCP runtime, call a hosted service, or infer geometry from text or images.
+
+If the explicit input supplies a non-basic ratio pack, the report summary reflects that supplied pack. The report kit does not define the pack, choose a pack, or create a fallback pack.

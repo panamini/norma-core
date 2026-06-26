@@ -14,6 +14,7 @@ import {
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localStructuredAnalyzeReportKitChangedFiles,
+  localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -44,6 +45,13 @@ test("shared exact changed-file guard accepts the local structured analyze repor
   );
 });
 
+test("shared exact changed-file guard accepts the local report-kit scope summary set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeReportKitScopeSummaryChangedFiles),
+    localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  );
+});
+
 test("shared exact changed-file guard treats approved files as a set, not an ordered list", () => {
   const reordered = [...guardExactSetConsolidationChangedFiles].reverse();
 
@@ -69,7 +77,7 @@ test("shared exact changed-file guard returns defensive copies", () => {
 });
 
 test("shared exact changed-file guard rejects a missing required file", () => {
-  const missingRequiredFile = guardExactSetConsolidationChangedFiles.filter(
+  const missingRequiredFile = localStructuredAnalyzeReportKitScopeSummaryChangedFiles.filter(
     (file) => file !== "tests/changed-file-guard.test.mjs",
   );
 
@@ -78,7 +86,7 @@ test("shared exact changed-file guard rejects a missing required file", () => {
 
 test("shared exact changed-file guard rejects an extra unrelated file", () => {
   assert.equal(
-    sharedExactApprovedChangedFiles([...guardExactSetConsolidationChangedFiles, "tests/unrelated.test.mjs"]),
+    sharedExactApprovedChangedFiles([...localStructuredAnalyzeReportKitScopeSummaryChangedFiles, "tests/unrelated.test.mjs"]),
     null,
   );
 });
@@ -92,9 +100,7 @@ test("shared exact changed-file guard does not treat broad path globs as approva
 
 test("shared exact changed-file guard does not approve future report-kit-like files implicitly", () => {
   const futureReportKitLikeFiles = [
-    "bin/norma-core-report.mjs",
     "docs/local-structured-analyze-report-kit.md",
-    "examples/structured-analyze/basic-grid-alignment.json",
     "src/local-report/structured-analyze-report.ts",
     "tests/local-structured-analyze-report-kit.test.mjs",
   ];

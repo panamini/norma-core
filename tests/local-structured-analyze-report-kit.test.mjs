@@ -27,6 +27,11 @@ test("local structured analyze report bundle calls the direct core operation", a
   assert.deepEqual(bundle.result, directResult);
   assert.equal(bundle.result.status, "valid");
   assert.equal(bundle.summary.operation.boundary, "direct-function");
+  assert.equal(bundle.summary.input.ratioPackId, "norma.basic-proportions");
+  assert.equal(bundle.summary.input.ratioPackVersion, "0.1.0");
+  assert.equal(bundle.summary.input.ratioPackRef, "norma.basic-proportions@0.1.0");
+  assert.equal(bundle.summary.input.ruleSetRef, "surface-basic-third-grid");
+  assert.equal(bundle.summary.input.evaluationProfileRef, "evaluation-profile:basic-grid-alignment");
   assert.equal(bundle.summary.scope.localCommandOnly, true);
   assert.equal(bundle.summary.scope.directAnalyzeStructuredCompositionV1, true);
   assert.equal(bundle.summary.scope.explicitStructuredJsonInput, true);
@@ -39,7 +44,36 @@ test("local structured analyze report bundle calls the direct core operation", a
   assert.equal(bundle.summary.scope.recommendation, false);
   assert.equal(bundle.summary.scope.beautyScore, false);
   assert.equal(bundle.summary.scope.promptImageInference, false);
+  assert.match(bundle.artifacts["summary.md"], /- ratioPack: norma\.basic-proportions@0\.1\.0/u);
+  assert.match(bundle.artifacts["summary.md"], /- no geometry harmonies pack/u);
+  assert.match(bundle.artifacts["summary.md"], /- no new ratio pack/u);
   assert.deepEqual(Object.keys(bundle.artifacts).sort(), [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort());
+});
+
+test("local structured analyze report summary derives non-basic pack scope from input", async () => {
+  const input = usePackIdentity(await readJson(exampleInputPath), {
+    id: "norma.geometry-harmonies",
+    concept: "Declared mathematical ratio systems",
+    contentIdentity: "norma.geometry-harmonies@0.1.0:ratio-pack-v1:test-scope-summary",
+    description: "Declared mathematical ratios for report scope testing.",
+    name: "Norma Geometry Harmonies",
+    source: "mathematical",
+  });
+  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+
+  assert.equal(bundle.result.status, "valid");
+  assert.equal(bundle.summary.input.ratioPackId, "norma.geometry-harmonies");
+  assert.equal(bundle.summary.input.ratioPackVersion, "0.1.0");
+  assert.equal(bundle.summary.input.ratioPackRef, "norma.geometry-harmonies@0.1.0");
+  assert.equal(bundle.summary.input.ruleSetRef, "surface-basic-third-grid");
+  assert.equal(bundle.summary.input.evaluationProfileRef, "evaluation-profile:basic-grid-alignment");
+  assert.equal(bundle.summary.scope.geometryHarmoniesPack, true);
+  assert.equal(bundle.summary.scope.newRatioPack, true);
+  assert.match(bundle.artifacts["summary.md"], /- geometry harmonies pack supplied/u);
+  assert.match(bundle.artifacts["summary.md"], /- non-basic ratio pack supplied/u);
+  assert.doesNotMatch(bundle.artifacts["summary.md"], /- no geometry harmonies pack/u);
+  assert.doesNotMatch(bundle.artifacts["summary.md"], /- no new ratio pack/u);
+  assert.match(bundle.artifacts["report.html"], /norma\.geometry-harmonies@0\.1\.0/u);
 });
 
 test("local structured analyze report command writes the deterministic output bundle", async () => {
@@ -137,6 +171,9 @@ test("local structured analyze report bundle handles invalid primitive input", (
   assert.equal(bundle.summary.input.contractVersion, null);
   assert.equal(bundle.summary.input.compositionAId, null);
   assert.equal(bundle.summary.input.compositionBId, null);
+  assert.equal(bundle.summary.input.ratioPackRef, null);
+  assert.equal(bundle.summary.scope.geometryHarmoniesPack, false);
+  assert.equal(bundle.summary.scope.newRatioPack, false);
   assert.match(bundle.artifacts["result.json"], /"status":"invalid"/u);
   assert.match(bundle.artifacts["summary.json"], /"status":"invalid"/u);
   assert.match(bundle.artifacts["visual.svg"], /No rectangular Composition2D visual available/u);
@@ -239,4 +276,47 @@ test("local structured analyze report command is deterministic for the same inpu
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function usePackIdentity(input, packIdentity) {
+  const nextInput = structuredClone(input);
+  const version = "0.1.0";
+  const ratioPack = {
+    ...nextInput.ratioPack,
+    id: packIdentity.id,
+    version,
+    identity: {
+      ...nextInput.ratioPack.identity,
+      id: packIdentity.id,
+      concept: packIdentity.concept,
+    },
+    contentIdentity: packIdentity.contentIdentity,
+    metadata: {
+      ...nextInput.ratioPack.metadata,
+      name: packIdentity.name,
+      description: packIdentity.description,
+    },
+    provenance: {
+      ...nextInput.ratioPack.provenance,
+      source: packIdentity.source,
+      sourceRefs: [{ kind: "test-fixture", ref: "local-report-pack-scope-summary" }],
+    },
+    preLock: {
+      ...nextInput.ratioPack.preLock,
+      ref: `prelock:${packIdentity.id}@${version}`,
+      packId: packIdentity.id,
+      packVersion: version,
+      contentIdentity: packIdentity.contentIdentity,
+    },
+  };
+  const packLock = core.createPackLock({
+    pack: ratioPack,
+    sourceRefs: [{ kind: "ratio-pack", ref: `${packIdentity.id}@${version}` }],
+  });
+
+  assert.equal(packLock.status, "ok");
+  nextInput.ratioPack = ratioPack;
+  nextInput.packLock = packLock.output;
+
+  return nextInput;
 }
