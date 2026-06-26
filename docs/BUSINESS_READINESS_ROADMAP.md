@@ -140,15 +140,53 @@ submission, hosted MCP, image/prose geometry inference, beauty scoring,
 recommendation, optimization, or changes to core geometry, packs, ratios, rules,
 measurements, evaluation, comparison, artifacts, or deterministic outputs.
 
-Immediate next step after R6D is this small checkpoint. The next mandatory
-product/code PR after the checkpoint is:
+The historical immediate next step after R6D was this small checkpoint. The next
+mandatory product/code PR after the checkpoint was:
 
 ```text
 R1 - Reject duplicate geometry source identities
 ```
 
-Do not start outputSchema, ChatGPT Analyze expansion, hosting, or publishing
-before R1 unless a later explicit roadmap decision changes the sequence.
+PR #115 satisfied R1 before R7A.1. Do not treat this historical R6D sequencing
+as the current next-step instruction.
+
+## R7A.1 Post-R1 Roadmap State And Private Operating Model
+
+Decision reference:
+`docs/decisions/2026-06-26-post-r1-private-operating-model.md`.
+
+R7A.1 records the current state after PR #115, PR #116, and PR #117:
+
+- PR #115 / R1 rejected duplicate geometry source identities across active Core,
+  measurement, Structured Analyze, and MCP structured-content paths.
+- PR #116 / R1.1 merged `fix: preserve measurement anchor target refs`. It is
+  not the roadmap, operations, or operating-model checkpoint.
+- PR #117 / R7.2 hardened Structured Analyze boundary coverage through direct and
+  MCP contract tests.
+
+The mandatory private Structured Analyze rail is complete through R7.2. Current
+local STDIO MCP inventory is exactly six tools, including
+`norma.analyzeStructuredCompositionV1`.
+
+R7A.1 selects:
+
+```text
+STOP_PRIVATE_MANUAL
+```
+
+The current operating model stays private/manual: use the private ChatGPT Draft
+app and launch Secure MCP Tunnel only when needed. No mandatory next code PR is
+required.
+
+Hosted MCP is optional later only with explicit provider, budget, secrets,
+deployment, monitoring, incident, rollback, retention, auth/access, and domain
+ownership. Public submission remains optional later only through a
+submission-readiness audit.
+
+R7A.1 does not deploy a hosted endpoint, change MCP runtime behavior, add auth
+runtime, add secrets, submit a public ChatGPT app, add tools, change output
+schemas, add image/vision/CAD/plugin/UI behavior, publish the package, or fix
+CI billing/account state.
 
 ## Current State After PR25
 

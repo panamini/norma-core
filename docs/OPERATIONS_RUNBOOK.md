@@ -8,8 +8,8 @@ private ChatGPT Developer Mode use.
 
 Current authoritative branch: `main`.
 
-Current checkpoint: post-PR113 at merge commit
-`bba597bca40facaf36fd7741712a0b0b9d8754e6`.
+Current checkpoint: post-PR117 at merge commit
+`7ce649e78d8af9626d9323a3e8f112b4ba011bfc`.
 
 This is not a production-readiness claim. It is not a public package release,
 hosted MCP deployment, public ChatGPT app release, marketplace submission, or
@@ -45,10 +45,23 @@ Norma Core has two separate proof tracks that must not be collapsed.
   private ChatGPT connector smoke passed with the current six-tool inventory,
   positive `getVersion` / `replayMvpDemo` calls, replay readiness `ready`, and
   negative prompt guardrails that made no Norma tool call.
+- PR #115 rejected duplicate geometry source identities in active runtime paths.
+- PR #116 / R1.1 merged `fix: preserve measurement anchor target refs`. It is
+  not the roadmap, operations, or operating-model checkpoint.
+- PR #117 hardened Structured Analyze boundary coverage through direct and MCP
+  contract tests. The mandatory private Structured Analyze rail is complete
+  through R7.2.
 
 Current `main` is not the historical PR6 branch. Current `main` exposes a
 different six-tool MCP inventory. PR113 / R6D is the first current-main private
 ChatGPT connector smoke checkpoint for that inventory.
+
+R7A.1 records the post-R1 private/manual operating model:
+`STOP_PRIVATE_MANUAL`. No mandatory next code PR is required. Secure MCP Tunnel
+remains launched only when needed, and the ChatGPT app remains private/Draft.
+Hosted MCP and public submission remain optional later work that require explicit
+approval. See
+`docs/decisions/2026-06-26-post-r1-private-operating-model.md`.
 
 ## 3. Proven versus not proven
 

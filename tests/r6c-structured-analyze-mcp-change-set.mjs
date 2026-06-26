@@ -3,6 +3,7 @@ export const r6cStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
   "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-26-post-r1-private-operating-model.md",
   "docs/decisions/2026-06-25-structured-analyze-v1-contract.md",
   "src/index.ts",
   "src/mcp/stdio-protocol.ts",
@@ -47,6 +48,10 @@ export const r6cStructuredAnalyzeMcpChangedFiles = [
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
   "tests/verification-replay-result-viewer.test.mjs",
 ].sort();
+
+const r6cStructuredAnalyzeMcpExactAllowedFiles = r6cStructuredAnalyzeMcpChangedFiles
+  .filter((file) => file !== "docs/decisions/2026-06-26-post-r1-private-operating-model.md")
+  .sort();
 
 export const r1GeometrySourceIdentityChangedFiles = [
   "src/index.ts",
@@ -135,6 +140,14 @@ export const r7StructuredAnalyzeHardeningChangedFiles = [
   "tests/structured-composition-analysis.test.mjs",
 ].sort();
 
+export const r7aPostR1PrivateOperatingModelChangedFiles = [
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/OPERATIONS_RUNBOOK.md",
+  "docs/decisions/2026-06-26-post-r1-private-operating-model.md",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+  "tests/r6c-structured-analyze-mcp-change-set.mjs",
+].sort();
+
 const requiredR6CStructuredAnalyzeMcpChangedFiles = [
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_TOOL_CONTRACT.md",
@@ -148,11 +161,12 @@ const requiredR6CStructuredAnalyzeMcpChangedFiles = [
 export function isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) {
   return (
     requiredR6CStructuredAnalyzeMcpChangedFiles.every((file) => changedFiles.includes(file))
-      && changedFiles.every((file) => r6cStructuredAnalyzeMcpChangedFiles.includes(file))
+      && changedFiles.every((file) => r6cStructuredAnalyzeMcpExactAllowedFiles.includes(file))
   ) ||
     isExactChangedFileSet(changedFiles, r6dChatgptMcpMetadataCompatibilityChangedFiles) ||
     isExactChangedFileSet(changedFiles, r6dChatgptCheckpointChangedFiles) ||
-    isExactChangedFileSet(changedFiles, r7StructuredAnalyzeHardeningChangedFiles);
+    isExactChangedFileSet(changedFiles, r7StructuredAnalyzeHardeningChangedFiles) ||
+    isExactChangedFileSet(changedFiles, r7aPostR1PrivateOperatingModelChangedFiles);
 }
 
 export function isExactR1GeometrySourceIdentityChangeSet(changedFiles) {
