@@ -7,7 +7,12 @@ import {
   BASIC_PROPORTIONS_PACK_ID,
   BASIC_PROPORTIONS_PACK_VERSION,
   CORE_VERSION,
+  GEOMETRY_HARMONIES_PACK,
+  GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY,
+  GEOMETRY_HARMONIES_PACK_ID,
+  GEOMETRY_HARMONIES_PACK_VERSION,
   SURFACE_BASIC_THIRD_GRID_RULE_SET_ID,
+  SURFACE_GOLDEN_SECTION_RULE_SET_ID,
   readPartitionPatternFromPack,
   readRatioFromPack,
   readRatioSequenceFromPack,
@@ -58,6 +63,9 @@ test("PR7 keeps ratio pack vocabulary and diagnostics available", () => {
   assert.equal(BASIC_PROPORTIONS_PACK_ID, "norma.basic-proportions");
   assert.equal(BASIC_PROPORTIONS_PACK_VERSION, "0.1.0");
   assert.equal(SURFACE_BASIC_THIRD_GRID_RULE_SET_ID, "surface-basic-third-grid");
+  assert.equal(GEOMETRY_HARMONIES_PACK_ID, "norma.geometry-harmonies");
+  assert.equal(GEOMETRY_HARMONIES_PACK_VERSION, "0.1.0");
+  assert.equal(SURFACE_GOLDEN_SECTION_RULE_SET_ID, "surface-golden-section");
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("MissingRatioPack"));
   assert.ok(core.CORE_DIAGNOSTIC_CODES.includes("UnsupportedRatioPackClaim"));
 });
@@ -86,6 +94,66 @@ test("PR4 reads declared ratios from the pack without hardcoded operation ratios
   assertOk(twoThirds);
   assert.equal(oneThird.output.normalizedValue, 1 / 3);
   assert.equal(twoThirds.output.normalizedValue, 2 / 3);
+});
+
+test("Geometry Harmony pack validates as declared mathematical ratio data", () => {
+  const result = validateRatioPackV1(GEOMETRY_HARMONIES_PACK);
+
+  assertOk(result);
+  assert.equal(result.output.id, GEOMETRY_HARMONIES_PACK_ID);
+  assert.equal(result.output.version, GEOMETRY_HARMONIES_PACK_VERSION);
+  assert.equal(result.output.schemaVersion, "ratio-pack-v1");
+  assert.equal(result.output.contentIdentity, GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY);
+  assert.equal(result.output.preLock.contentIdentity, result.output.contentIdentity);
+  assert.equal(result.output.provenance.source, "mathematical");
+  assert.deepEqual(result.output.limits, {
+    noBeautyClaims: true,
+    noIntentInference: true,
+    noUiPreset: true,
+  });
+  assert.deepEqual(
+    result.output.ratios.map((ratio) => ratio.id),
+    ["phi-minor", "phi-major", "1/2"],
+  );
+  assert.equal(result.output.ratioFamilies.find((family) => family.id === "golden-section").scope, "surface-partition");
+  assert.deepEqual(result.output.ratioSequences.find((sequence) => sequence.id === "phi:1").parts.length, 2);
+});
+
+test("Geometry Harmony pack exposes only existing core rule types", () => {
+  const ruleSet = readRuleSetFromPack(GEOMETRY_HARMONIES_PACK, SURFACE_GOLDEN_SECTION_RULE_SET_ID);
+  const sequence = readRatioSequenceFromPack(GEOMETRY_HARMONIES_PACK, "phi:1");
+
+  assertOk(ruleSet);
+  assertOk(sequence);
+  assert.deepEqual(ruleSet.output.ruleRefs, [
+    "verticalGoldenSection",
+    "horizontalGoldenSection",
+    "goldenSectionAxes",
+    "goldenSectionGrid",
+    "goldenSectionDiagonals",
+    "goldenSectionIntersections",
+  ]);
+  assert.equal(GEOMETRY_HARMONIES_PACK.ruleDeclarations.every((rule) => rule.declarationOnly === true), true);
+  assert.equal(GEOMETRY_HARMONIES_PACK.ruleDeclarations.every((rule) => rule.requiresCoreSupport === true), true);
+  assert.equal(GEOMETRY_HARMONIES_PACK.ruleDeclarations.some((rule) => "algorithm" in rule || "execute" in rule), false);
+});
+
+test("Geometry Harmony pack lock is deterministic and content-bound", () => {
+  const first = core.createPackLock({
+    pack: GEOMETRY_HARMONIES_PACK,
+    sourceRefs: [{ kind: "ratio-pack", ref: `${GEOMETRY_HARMONIES_PACK_ID}@${GEOMETRY_HARMONIES_PACK_VERSION}` }],
+  });
+  const second = core.createPackLock({
+    pack: GEOMETRY_HARMONIES_PACK,
+    sourceRefs: [{ kind: "ratio-pack", ref: `${GEOMETRY_HARMONIES_PACK_ID}@${GEOMETRY_HARMONIES_PACK_VERSION}` }],
+  });
+
+  assertOk(first);
+  assertOk(second);
+  assert.deepEqual(first.output, second.output);
+  assert.equal(first.output.packId, GEOMETRY_HARMONIES_PACK_ID);
+  assert.equal(first.output.packVersion, GEOMETRY_HARMONIES_PACK_VERSION);
+  assert.equal(first.output.contentIdentity, GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY);
 });
 
 test("PR4 keeps 1:1:1 as a ratio sequence with normalized parts", () => {

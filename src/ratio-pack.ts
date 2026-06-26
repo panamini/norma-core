@@ -19,6 +19,11 @@ export const BASIC_PROPORTIONS_PACK_VERSION = "0.1.0" as const;
 export const BASIC_PROPORTIONS_PACK_CONTENT_IDENTITY =
   "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution" as const;
 export const SURFACE_BASIC_THIRD_GRID_RULE_SET_ID = "surface-basic-third-grid" as const;
+export const GEOMETRY_HARMONIES_PACK_ID = "norma.geometry-harmonies" as const;
+export const GEOMETRY_HARMONIES_PACK_VERSION = "0.1.0" as const;
+export const GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY =
+  "norma.geometry-harmonies@0.1.0:ratio-pack-v1:golden-section" as const;
+export const SURFACE_GOLDEN_SECTION_RULE_SET_ID = "surface-golden-section" as const;
 
 export type RatioPackSchemaVersion = typeof RATIO_PACK_V1_SCHEMA_VERSION;
 export type RatioPackIdentityRef = string;
@@ -381,6 +386,181 @@ export const BASIC_PROPORTIONS_PACK: RatioPack = Object.freeze({
     packVersion: BASIC_PROPORTIONS_PACK_VERSION,
     schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
     contentIdentity: BASIC_PROPORTIONS_PACK_CONTENT_IDENTITY,
+    final: false,
+  }),
+});
+
+const GEOMETRY_HARMONIES_PHI = (1 + Math.sqrt(5)) / 2;
+const GEOMETRY_HARMONIES_PHI_MINOR = 1 / (GEOMETRY_HARMONIES_PHI + 1);
+const GEOMETRY_HARMONIES_PHI_MAJOR = GEOMETRY_HARMONIES_PHI / (GEOMETRY_HARMONIES_PHI + 1);
+
+export const GEOMETRY_HARMONIES_PACK: RatioPack = Object.freeze({
+  kind: "ratio-pack",
+  id: GEOMETRY_HARMONIES_PACK_ID,
+  version: GEOMETRY_HARMONIES_PACK_VERSION,
+  schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
+  identity: Object.freeze({
+    kind: "ratio-pack-identity",
+    id: GEOMETRY_HARMONIES_PACK_ID,
+    concept: "Declared mathematical ratio systems",
+  }),
+  contentIdentity: GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY,
+  metadata: Object.freeze({
+    name: "Norma Geometry Harmonies",
+    description: "Declared mathematical ratios for deterministic structured examples.",
+    owner: "norma-core",
+  }),
+  provenance: Object.freeze({
+    kind: "ratio-pack-provenance",
+    source: "mathematical",
+    sourceRefs: Object.freeze([{ kind: "mathematical-ratio", ref: "golden-section" }]),
+  }),
+  compatibility: Object.freeze({
+    schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
+    coreVersionRange: "0.1.0-pr5",
+  }),
+  limits: Object.freeze({
+    noBeautyClaims: true,
+    noIntentInference: true,
+    noUiPreset: true,
+  }),
+  conventions: Object.freeze(["ratio-pack-v1", "declarative-rules-only"]),
+  ratios: Object.freeze([
+    Object.freeze({
+      kind: "ratio",
+      id: "phi-minor",
+      numerator: 1,
+      denominator: GEOMETRY_HARMONIES_PHI + 1,
+      normalizedValue: GEOMETRY_HARMONIES_PHI_MINOR,
+      familyRef: "golden-section",
+    }),
+    Object.freeze({
+      kind: "ratio",
+      id: "phi-major",
+      numerator: GEOMETRY_HARMONIES_PHI,
+      denominator: GEOMETRY_HARMONIES_PHI + 1,
+      normalizedValue: GEOMETRY_HARMONIES_PHI_MAJOR,
+      familyRef: "golden-section",
+    }),
+    Object.freeze({ kind: "ratio", id: "1/2", numerator: 1, denominator: 2, normalizedValue: 1 / 2, familyRef: "halves" }),
+  ]),
+  ratioFamilies: Object.freeze([
+    Object.freeze({ kind: "ratio-family", id: "golden-section", ratioRefs: Object.freeze(["phi-minor", "phi-major"]), scope: "surface-partition" }),
+    Object.freeze({ kind: "ratio-family", id: "halves", ratioRefs: Object.freeze(["1/2"]), scope: "surface-partition" }),
+  ]),
+  ratioSequences: Object.freeze([
+    Object.freeze({
+      kind: "ratio-sequence",
+      id: "phi:1",
+      parts: Object.freeze([GEOMETRY_HARMONIES_PHI, 1]),
+      normalizedParts: Object.freeze([GEOMETRY_HARMONIES_PHI_MAJOR, GEOMETRY_HARMONIES_PHI_MINOR]),
+    }),
+  ]),
+  partitionPatterns: Object.freeze([
+    Object.freeze({
+      kind: "partition-pattern",
+      id: "golden-section",
+      ratioRefs: Object.freeze(["phi-minor", "phi-major"]),
+      sequenceRef: "phi:1",
+      axis: "both",
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "partition-pattern",
+      id: "halves",
+      ratioRefs: Object.freeze(["1/2"]),
+      axis: "both",
+      declarationOnly: true,
+    }),
+  ]),
+  ruleDeclarations: Object.freeze([
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "verticalGoldenSection",
+      type: "divideSurfaceVertical",
+      target: "surface",
+      ratioRefs: Object.freeze(["phi-major"]),
+      sequenceRefs: Object.freeze(["phi:1"]),
+      partitionPatternRefs: Object.freeze(["golden-section"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "horizontalGoldenSection",
+      type: "divideSurfaceHorizontal",
+      target: "surface",
+      ratioRefs: Object.freeze(["phi-major"]),
+      sequenceRefs: Object.freeze(["phi:1"]),
+      partitionPatternRefs: Object.freeze(["golden-section"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "goldenSectionAxes",
+      type: "createGuidesFromCandidates",
+      target: "surface",
+      ratioRefs: Object.freeze(["phi-minor", "phi-major", "1/2"]),
+      partitionPatternRefs: Object.freeze(["golden-section", "halves"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "goldenSectionGrid",
+      type: "createSimpleGrid",
+      target: "surface",
+      ratioRefs: Object.freeze(["phi-major"]),
+      sequenceRefs: Object.freeze(["phi:1"]),
+      partitionPatternRefs: Object.freeze(["golden-section"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "goldenSectionDiagonals",
+      type: "createDiagonals",
+      target: "surface",
+      ratioRefs: Object.freeze(["1/2"]),
+      partitionPatternRefs: Object.freeze(["halves"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+    Object.freeze({
+      kind: "rule-declaration",
+      id: "goldenSectionIntersections",
+      type: "deriveIntersections",
+      target: "surface",
+      ratioRefs: Object.freeze(["phi-minor", "phi-major", "1/2"]),
+      sequenceRefs: Object.freeze(["phi:1"]),
+      partitionPatternRefs: Object.freeze(["golden-section", "halves"]),
+      requiresCoreSupport: true,
+      declarationOnly: true,
+    }),
+  ]),
+  ruleSets: Object.freeze([
+    Object.freeze({
+      kind: "rule-set",
+      id: SURFACE_GOLDEN_SECTION_RULE_SET_ID,
+      ruleRefs: Object.freeze([
+        "verticalGoldenSection",
+        "horizontalGoldenSection",
+        "goldenSectionAxes",
+        "goldenSectionGrid",
+        "goldenSectionDiagonals",
+        "goldenSectionIntersections",
+      ]),
+      declarationOnly: true,
+    }),
+  ]),
+  preLock: Object.freeze({
+    kind: "pack-lock-prelock",
+    ref: `prelock:${GEOMETRY_HARMONIES_PACK_ID}@${GEOMETRY_HARMONIES_PACK_VERSION}`,
+    packId: GEOMETRY_HARMONIES_PACK_ID,
+    packVersion: GEOMETRY_HARMONIES_PACK_VERSION,
+    schemaVersion: RATIO_PACK_V1_SCHEMA_VERSION,
+    contentIdentity: GEOMETRY_HARMONIES_PACK_CONTENT_IDENTITY,
     final: false,
   }),
 });

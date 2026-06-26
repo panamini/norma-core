@@ -38,3 +38,13 @@ node bin/norma-core-report.mjs examples/structured-analyze/basic-grid-alignment.
 The command writes only the deterministic bundle files listed above. It does not mutate the input, start an MCP runtime, call a hosted service, or infer geometry from text or images.
 
 If the explicit input supplies a non-basic ratio pack, the report summary reflects that supplied pack. The report kit does not define the pack, choose a pack, or create a fallback pack.
+
+## Geometry Harmony Example
+
+The first Geometry Harmony example is:
+
+```bash
+node bin/norma-core-report.mjs examples/structured-analyze/geometry-harmony-basic.json /tmp/norma-geometry-harmony-report
+```
+
+It supplies `norma.geometry-harmonies@0.1.0`, `surface-golden-section`, explicit tolerances, an explicit PackLock, and an explicit OperationContext. The report states which composition is closer to the declared proportional system. It does not add a recommendation, beauty score, hosted surface, or MCP runtime change.
