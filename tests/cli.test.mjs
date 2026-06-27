@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -241,11 +241,21 @@ test("R8.2 analyze CLI writes deterministic report bundles for supported valid s
       assert.equal(firstJson.scenario, scenarioName, scenarioName);
       assert.equal(firstJson.outputDir, firstDir, scenarioName);
       assert.deepEqual(firstJson.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES, scenarioName);
+      assert.equal(secondJson.kind, "norma-cli-analyze-result", scenarioName);
+      assert.equal(secondJson.command, "analyze", scenarioName);
+      assert.equal(secondJson.status, "ok", scenarioName);
+      assert.equal(secondJson.resultStatus, "valid", scenarioName);
       assert.equal(secondJson.scenario, scenarioName, scenarioName);
       assert.equal(secondJson.outputDir, secondDir, scenarioName);
+      assert.deepEqual(secondJson.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES, scenarioName);
 
       assert.deepEqual(
         readdirSync(firstDir).sort(),
+        [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
+        scenarioName,
+      );
+      assert.deepEqual(
+        readdirSync(secondDir).sort(),
         [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
         scenarioName,
       );
@@ -270,6 +280,31 @@ test("R8.2 analyze CLI writes deterministic report bundles for supported valid s
   }
 });
 
+test("R8.2 analyze CLI accepts an explicit scenario file path outside the bundled names", () => {
+  withTempDir((dir) => {
+    const inputPath = join(dir, "custom-scenario.json");
+    const outputDir = join(dir, "custom-output");
+    writeFileSync(inputPath, readFileSync(scenarioPath("alignment-basic"), "utf8"));
+
+    const result = runAnalyzeCli(["analyze", inputPath, "--out", outputDir]);
+
+    assert.equal(result.status, 0);
+    const json = parseCliJson(result);
+
+    assert.equal(json.kind, "norma-cli-analyze-result");
+    assert.equal(json.command, "analyze");
+    assert.equal(json.status, "ok");
+    assert.equal(json.resultStatus, "valid");
+    assert.equal(json.scenario, "custom-scenario");
+    assert.equal(json.scenarioPath, inputPath);
+    assert.deepEqual(json.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
+    assert.deepEqual(
+      readdirSync(outputDir).sort(),
+      [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
+    );
+  });
+});
+
 test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
   withTempDir((dir) => {
     const outputDir = join(dir, "invalid-case-output");
@@ -289,6 +324,45 @@ test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
     assert.equal(errorJson.diagnostics.some((diagnostic) => diagnostic.code === "InvalidInputShape"), true);
     assert.equal(existsSync(outputDir), false);
     assert.deepEqual(readdirSync(dir), []);
+  });
+});
+
+test("R8.2 analyze CLI refuses to replace non-report output directories", () => {
+  withTempDir((dir) => {
+    const outputDir = join(dir, "not-a-report");
+    mkdirSync(outputDir);
+    const keepPath = join(outputDir, "keep.txt");
+    writeFileSync(keepPath, "do not delete\n");
+
+    const result = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+
+    assert.equal(result.status, 3);
+    const errorJson = parseAnalyzeCliError(result);
+
+    assert.equal(errorJson.kind, "norma-cli-analyze-error");
+    assert.equal(errorJson.command, "analyze");
+    assert.equal(errorJson.status, "error");
+    assert.equal(errorJson.exitCode, 3);
+    assert.equal(errorJson.error.code, "ReportWriteFailed");
+    assert.equal(readFileSync(keepPath, "utf8"), "do not delete\n");
+    assert.deepEqual(readdirSync(outputDir), ["keep.txt"]);
+  });
+});
+
+test("R8.2 analyze CLI can replace its own prior report bundle", () => {
+  withTempDir((dir) => {
+    const outputDir = join(dir, "existing-report");
+
+    const first = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const second = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+
+    assert.equal(first.status, 0);
+    assert.equal(second.status, 0);
+    assert.deepEqual(
+      readdirSync(outputDir).sort(),
+      [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
+    );
+    assert.deepEqual(parseCliJson(second).files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
   });
 });
 

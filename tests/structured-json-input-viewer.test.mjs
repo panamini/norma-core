@@ -280,8 +280,8 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
     assert.equal(existsSync(join(repoRoot, forbiddenPath)), false, `${forbiddenPath} must remain absent`);
   }
 
-  const changedFiles = gitChangedFiles();
-  const sharedApproved = sharedExactApprovedChangedFiles(changedFiles) ?? sharedExactApprovedChangedFiles(branchChangedFiles());
+  const changedFiles = branchChangedFiles();
+  const sharedApproved = sharedExactApprovedChangedFiles(changedFiles);
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
     if (
       !isExactPr71ApprovedChangeSet(changedFiles) &&

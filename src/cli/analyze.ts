@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +33,7 @@ interface CliIo {
 }
 
 interface ScenarioRef {
-  readonly name: SupportedScenarioName;
+  readonly name: string;
   readonly path: string;
 }
 
@@ -170,11 +170,15 @@ function resolveScenario(specifier: string): ScenarioRef {
   const fileName = basename(normalizedSpecifier);
   const scenarioName = fileName.endsWith(".json") ? fileName.slice(0, -".json".length) : fileName;
 
+  const directPath = resolve(process.cwd(), specifier);
+  if (isExplicitScenarioPath(specifier) && existsSync(directPath)) {
+    return { name: scenarioName, path: directPath };
+  }
+
   if (!isSupportedScenarioName(scenarioName)) {
     throw new CliInputError(`Unsupported scenario: ${specifier}. ${analyzeUsage()}`);
   }
 
-  const directPath = resolve(process.cwd(), specifier);
   if (existsSync(directPath)) {
     return { name: scenarioName, path: directPath };
   }
@@ -203,18 +207,61 @@ async function writeBundleAtomically(
   artifacts: Record<(typeof LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES)[number], string>,
 ): Promise<void> {
   const parentDir = dirname(outputDir);
+
+  if (outputDir === parentDir) {
+    throw new Error("Output directory cannot be a filesystem root.");
+  }
+
   await mkdir(parentDir, { recursive: true });
+  await assertSafeOutputTarget(outputDir);
   const tempDir = await mkdtemp(join(parentDir, `.${basename(outputDir)}-tmp-`));
+  const backupDir = `${tempDir}-previous`;
+  let outputMovedToBackup = false;
 
   try {
     for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
       await writeFile(join(tempDir, fileName), artifacts[fileName], "utf8");
     }
-    await rm(outputDir, { recursive: true, force: true });
-    await rename(tempDir, outputDir);
+
+    if (existsSync(outputDir)) {
+      await rename(outputDir, backupDir);
+      outputMovedToBackup = true;
+    }
+
+    try {
+      await rename(tempDir, outputDir);
+      outputMovedToBackup = false;
+      await rm(backupDir, { recursive: true, force: true });
+    } catch (error) {
+      if (outputMovedToBackup && !existsSync(outputDir)) {
+        await rename(backupDir, outputDir);
+        outputMovedToBackup = false;
+      }
+      throw error;
+    }
   } catch (error) {
     await rm(tempDir, { recursive: true, force: true });
+    if (outputMovedToBackup && !existsSync(outputDir)) {
+      await rename(backupDir, outputDir);
+    }
     throw error;
+  }
+}
+
+async function assertSafeOutputTarget(outputDir: string): Promise<void> {
+  if (!existsSync(outputDir)) {
+    return;
+  }
+
+  const outputStat = await stat(outputDir);
+  if (!outputStat.isDirectory()) {
+    throw new Error("Output path already exists and is not a directory.");
+  }
+
+  const entries = (await readdir(outputDir)).sort(compareStrings);
+  const expectedEntries = [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(compareStrings);
+  if (!sameStringList(entries, expectedEntries)) {
+    throw new Error("Output directory already exists and is not a Norma analyze report bundle.");
   }
 }
 
@@ -243,6 +290,18 @@ function writeJson(target: WritableLike, value: unknown): void {
 
 function isSupportedScenarioName(value: string): value is SupportedScenarioName {
   return SUPPORTED_SCENARIO_NAMES.includes(value as SupportedScenarioName);
+}
+
+function isExplicitScenarioPath(value: string): boolean {
+  return value.includes("/") || value.includes("\\") || value.endsWith(".json");
+}
+
+function sameStringList(first: readonly string[], second: readonly string[]): boolean {
+  return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+
+function compareStrings(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
 }
 
 function analyzeUsage(): string {
