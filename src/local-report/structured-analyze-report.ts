@@ -9,7 +9,6 @@ import {
   CORE_VERSION,
 } from "../core-constants.js";
 import {
-  DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
   serializeCanonicalJson,
   STABLE_SERIALIZATION_POLICY,
 } from "../serialization.js";
@@ -17,12 +16,19 @@ import {
   BASIC_PROPORTIONS_PACK_ID,
 } from "../ratio-pack.js";
 import type {
+  Measurement,
+  PositionMeasurement,
+} from "../measurements.js";
+import type {
   StructuredCompositionAnalysisInputV1,
   StructuredCompositionAnalysisResultV1,
 } from "../structured-composition-analysis.js";
 import {
   analyzeStructuredCompositionV1,
 } from "../structured-composition-analysis.js";
+import {
+  createVisualComparisonReportHtml,
+} from "./visual-viewer.js";
 
 export const LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_VERSION = "local-structured-analyze-report-kit.v1" as const;
 
@@ -109,6 +115,22 @@ export interface LocalStructuredAnalyzeReportBundle {
   readonly artifacts: LocalStructuredAnalyzeReportArtifacts;
 }
 
+interface GuideOverlay {
+  readonly id: string;
+  readonly axis: "x" | "y";
+  readonly position: number;
+  readonly label: string;
+}
+
+interface EvaluationOverlay {
+  readonly score: number | null;
+  readonly selected: boolean;
+  readonly ratioStatus: string | null;
+  readonly ratioValue: number | null;
+  readonly alignmentStatus: string | null;
+  readonly alignmentValue: number | null;
+}
+
 export function createLocalStructuredAnalyzeReportBundle(
   input: unknown,
 ): LocalStructuredAnalyzeReportBundle {
@@ -116,7 +138,7 @@ export function createLocalStructuredAnalyzeReportBundle(
   const summary = createSummary(input, result);
   const visualSvg = createVisualSvg(input, result, summary);
   const summaryMarkdown = createSummaryMarkdown(summary);
-  const reportHtml = createReportHtml(summary, visualSvg);
+  const reportHtml = createReportHtml(summary, result, visualSvg);
 
   return {
     result,
@@ -245,44 +267,12 @@ function createSummaryMarkdown(summary: LocalStructuredAnalyzeReportSummaryV1): 
   ].join("\n");
 }
 
-function createReportHtml(summary: LocalStructuredAnalyzeReportSummaryV1, visualSvg: string): string {
-  const summaryJson = serializeCanonicalJson(summary, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
-
-  return [
-    "<!doctype html>",
-    "<html lang=\"en\">",
-    "<head>",
-    "<meta charset=\"utf-8\">",
-    "<title>Local Structured Analyze Report</title>",
-    "<style>",
-    "body{font-family:Arial,sans-serif;margin:32px;color:#111827;background:#ffffff;}",
-    "main{max-width:960px;margin:0 auto;}",
-    "h1{font-size:24px;line-height:1.2;margin:0 0 16px;}",
-    "dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;}",
-    "dt{font-weight:700;}dd{margin:0;}",
-    "pre{overflow:auto;background:#f3f4f6;padding:16px;border:1px solid #d1d5db;}",
-    "svg{display:block;max-width:100%;height:auto;margin:24px 0;border:1px solid #d1d5db;}",
-    "</style>",
-    "</head>",
-    "<body>",
-    "<main>",
-    "<h1>Local Structured Analyze Report</h1>",
-    "<dl>",
-    `<dt>analysisId</dt><dd>${escapeHtml(summary.analysisId)}</dd>`,
-    `<dt>status</dt><dd>${escapeHtml(summary.status)}</dd>`,
-    `<dt>operation</dt><dd>${escapeHtml(`${summary.operation.name}@${summary.operation.version}`)}</dd>`,
-    `<dt>boundary</dt><dd>${escapeHtml(summary.operation.boundary)}</dd>`,
-    `<dt>decision</dt><dd>${escapeHtml(summary.decision?.summary ?? "none")}</dd>`,
-    `<dt>diagnostics</dt><dd>${summary.diagnostics.errorCount} errors, ${summary.diagnostics.warningCount} warnings</dd>`,
-    "</dl>",
-    visualSvg,
-    "<h2>Summary JSON</h2>",
-    `<pre>${escapeHtml(summaryJson)}</pre>`,
-    "</main>",
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
+function createReportHtml(
+  summary: LocalStructuredAnalyzeReportSummaryV1,
+  result: StructuredCompositionAnalysisResultV1,
+  visualSvg: string,
+): string {
+  return createVisualComparisonReportHtml({ summary, result, visualSvg });
 }
 
 function createVisualSvg(
@@ -301,20 +291,24 @@ function createVisualSvg(
 
   const gap = Math.max(24, surfaceBounds.width * 0.08);
   const labelHeight = 36;
+  const metricHeight = result.status === "valid" ? 64 : 20;
   const width = surfaceBounds.width * 2 + gap;
-  const height = surfaceBounds.height + labelHeight;
+  const height = surfaceBounds.height + labelHeight + metricHeight;
   const aOffset = 0;
   const bOffset = surfaceBounds.width + gap;
+  const guideOverlays = guideOverlaysFromResult(result);
+  const evaluationA = evaluationOverlayFromResult(result, "A");
+  const evaluationB = evaluationOverlayFromResult(result, "B");
 
   return [
     `<svg xmlns="${SVG_NAMESPACE}" viewBox="0 0 ${numberAttr(width)} ${numberAttr(height)}" role="img" aria-labelledby="title desc">`,
-    `<title id="title">Local structured analysis visual for ${escapeXml(summary.analysisId)}</title>`,
-    `<desc id="desc">Deterministic rendering of explicit Composition2D rectangles for composition A and composition B.</desc>`,
+    `<title id="title">Local structured analysis visual comparison for ${escapeXml(summary.analysisId)}</title>`,
+    `<desc id="desc">Deterministic rendering of explicit Composition2D rectangles, surface boxes, anchors, and result-derived alignment guides for composition A and composition B.</desc>`,
     "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>",
     label("Composition A", aOffset, 0),
     label("Composition B", bOffset, 0),
-    renderComposition(compositionA, surfaceBounds, aOffset, labelHeight, "#2563eb"),
-    renderComposition(compositionB, surfaceBounds, bOffset, labelHeight, "#059669"),
+    renderComposition(compositionA, surfaceBounds, aOffset, labelHeight, "#2563eb", guideOverlays, evaluationA),
+    renderComposition(compositionB, surfaceBounds, bOffset, labelHeight, "#059669", guideOverlays, evaluationB),
     `<text x="0" y="${numberAttr(height - 6)}" font-size="12" fill="#374151">status: ${escapeXml(result.status)}</text>`,
     "</svg>",
     "",
@@ -339,15 +333,20 @@ function renderComposition(
   xOffset: number,
   yOffset: number,
   fill: string,
+  guides: readonly GuideOverlay[],
+  evaluation: EvaluationOverlay | null,
 ): string {
   const elements = composition.elements
     .filter(isRenderableElement)
     .sort((first, second) => compareStableStrings(first.id, second.id));
+  const selected = evaluation?.selected === true;
 
   return [
-    `<g data-composition="${escapeXml(composition.id)}">`,
-    `<rect x="${numberAttr(xOffset)}" y="${numberAttr(yOffset)}" width="${numberAttr(surfaceBounds.width)}" height="${numberAttr(surfaceBounds.height)}" fill="#f9fafb" stroke="#111827" stroke-width="1"/>`,
+    `<g data-composition="${escapeXml(composition.id)}" data-selected="${selected ? "true" : "false"}">`,
+    `<rect data-overlay="surface" x="${numberAttr(xOffset)}" y="${numberAttr(yOffset)}" width="${numberAttr(surfaceBounds.width)}" height="${numberAttr(surfaceBounds.height)}" fill="#f9fafb" stroke="${selected ? "#047857" : "#111827"}" stroke-width="${selected ? "3" : "1"}"/>`,
+    `<g data-overlay="alignment-guides">${guides.map((guide) => renderGuide(guide, surfaceBounds, xOffset, yOffset)).join("")}</g>`,
     ...elements.map((element) => renderElement(element.id, element.geometry, surfaceBounds, xOffset, yOffset, fill)),
+    renderEvaluationFooter(evaluation, surfaceBounds, xOffset, yOffset),
     "</g>",
   ].join("\n");
 }
@@ -362,15 +361,151 @@ function renderElement(
 ): string {
   const x = xOffset + rect.x - surfaceBounds.x;
   const y = yOffset + surfaceBounds.height - (rect.y - surfaceBounds.y) - rect.height;
+  const right = x + rect.width;
+  const bottom = y + rect.height;
+  const centerX = x + rect.width / 2;
+  const centerY = y + rect.height / 2;
 
   return [
-    `<rect data-element="${escapeXml(id)}" x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(rect.width)}" height="${numberAttr(rect.height)}" fill="${fill}" fill-opacity="0.35" stroke="${fill}" stroke-width="2"/>`,
+    `<g data-element="${escapeXml(id)}" data-overlay="element">`,
     `<title>${escapeXml(id)}</title>`,
+    `<rect data-overlay="element-rect" x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(rect.width)}" height="${numberAttr(rect.height)}" fill="${fill}" fill-opacity="0.28" stroke="${fill}" stroke-width="2"/>`,
+    `<rect data-overlay="bounding-box" x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(rect.width)}" height="${numberAttr(rect.height)}" fill="none" stroke="#111827" stroke-opacity="0.58" stroke-width="1" stroke-dasharray="6 4"/>`,
+    renderAnchor(id, "top-left", x, y),
+    renderAnchor(id, "top-right", right, y),
+    renderAnchor(id, "bottom-left", x, bottom),
+    renderAnchor(id, "bottom-right", right, bottom),
+    renderAnchor(id, "center", centerX, centerY),
+    "</g>",
   ].join("");
 }
 
 function label(value: string, x: number, y: number): string {
   return `<text x="${numberAttr(x)}" y="${numberAttr(y + 22)}" font-size="16" font-weight="700" fill="#111827">${escapeXml(value)}</text>`;
+}
+
+function renderGuide(
+  guide: GuideOverlay,
+  surfaceBounds: Rect,
+  xOffset: number,
+  yOffset: number,
+): string {
+  if (guide.axis === "x") {
+    const x = xOffset + guide.position - surfaceBounds.x;
+    if (x < xOffset || x > xOffset + surfaceBounds.width) {
+      return "";
+    }
+
+    return [
+      `<line data-overlay="alignment-guide" data-guide="${escapeXml(guide.id)}" x1="${numberAttr(x)}" y1="${numberAttr(yOffset)}" x2="${numberAttr(x)}" y2="${numberAttr(yOffset + surfaceBounds.height)}" stroke="#6d28d9" stroke-width="1" stroke-dasharray="5 5" stroke-opacity="0.72"/>`,
+      `<text x="${numberAttr(x + 4)}" y="${numberAttr(yOffset + 14)}" font-size="10" fill="#6d28d9">${escapeXml(guide.label)}</text>`,
+    ].join("");
+  }
+
+  const y = yOffset + surfaceBounds.height - (guide.position - surfaceBounds.y);
+  if (y < yOffset || y > yOffset + surfaceBounds.height) {
+    return "";
+  }
+
+  return [
+    `<line data-overlay="alignment-guide" data-guide="${escapeXml(guide.id)}" x1="${numberAttr(xOffset)}" y1="${numberAttr(y)}" x2="${numberAttr(xOffset + surfaceBounds.width)}" y2="${numberAttr(y)}" stroke="#6d28d9" stroke-width="1" stroke-dasharray="5 5" stroke-opacity="0.72"/>`,
+    `<text x="${numberAttr(xOffset + 4)}" y="${numberAttr(y - 4)}" font-size="10" fill="#6d28d9">${escapeXml(guide.label)}</text>`,
+  ].join("");
+}
+
+function renderAnchor(elementId: string, anchor: string, x: number, y: number): string {
+  return `<circle data-overlay="anchor" data-element-ref="${escapeXml(elementId)}" data-anchor="${escapeXml(anchor)}" cx="${numberAttr(x)}" cy="${numberAttr(y)}" r="3" fill="#111827" fill-opacity="0.72"/>`;
+}
+
+function renderEvaluationFooter(
+  evaluation: EvaluationOverlay | null,
+  surfaceBounds: Rect,
+  xOffset: number,
+  yOffset: number,
+): string {
+  if (evaluation === null) {
+    return "";
+  }
+
+  const footerY = yOffset + surfaceBounds.height + 18;
+  const selectedText = evaluation.selected ? "selected" : "not selected";
+
+  return [
+    `<text x="${numberAttr(xOffset)}" y="${numberAttr(footerY)}" font-size="12" font-weight="700" fill="${evaluation.selected ? "#047857" : "#374151"}">score ${escapeXml(formatScore(evaluation.score))} - ${escapeXml(selectedText)}</text>`,
+    `<text x="${numberAttr(xOffset)}" y="${numberAttr(footerY + 18)}" font-size="12" fill="#374151">ratio ${escapeXml(formatScore(evaluation.ratioValue))} ${escapeXml(evaluation.ratioStatus ?? "n/a")} - alignment ${escapeXml(formatScore(evaluation.alignmentValue))} ${escapeXml(evaluation.alignmentStatus ?? "n/a")}</text>`,
+  ].join("");
+}
+
+function guideOverlaysFromResult(result: StructuredCompositionAnalysisResultV1): readonly GuideOverlay[] {
+  if (result.status !== "valid") {
+    return [];
+  }
+
+  return result.measurements.a.constructionMeasurements
+    .filter(isGuidePositionMeasurement)
+    .map((measurement) => ({
+      id: measurement.id,
+      axis: measurement.axis,
+      position: measurement.position,
+      label: guideLabel(measurement.inputRefs.find((ref) => ref.kind === "guide")?.ref ?? measurement.id),
+    }))
+    .sort((first, second) => compareGuideOverlays(first, second));
+}
+
+function isGuidePositionMeasurement(measurement: Measurement): measurement is PositionMeasurement {
+  if (measurement.measurementType !== "position") {
+    return false;
+  }
+
+  return measurement.metric === "guide-position"
+    && Number.isFinite(measurement.position)
+    && (measurement.axis === "x" || measurement.axis === "y");
+}
+
+function evaluationOverlayFromResult(
+  result: StructuredCompositionAnalysisResultV1,
+  label: "A" | "B",
+): EvaluationOverlay | null {
+  if (result.status !== "valid") {
+    return null;
+  }
+
+  const evaluation = label === "A" ? result.evaluations.a : result.evaluations.b;
+  const ratioScore = evaluation.componentScores.find((score) => score.componentId === "area_ratio_match") ?? null;
+  const alignmentScore = evaluation.componentScores.find((score) => score.componentId === "alignment") ?? null;
+
+  return {
+    score: evaluation.score?.value ?? null,
+    selected: result.decision.selectedEvaluationRef === evaluation.id,
+    ratioStatus: ratioScore?.status ?? null,
+    ratioValue: ratioScore?.value ?? null,
+    alignmentStatus: alignmentScore?.status ?? null,
+    alignmentValue: alignmentScore?.value ?? null,
+  };
+}
+
+function guideLabel(ref: string): string {
+  return ref.replace(/^guide:/u, "");
+}
+
+function compareGuideOverlays(first: GuideOverlay, second: GuideOverlay): number {
+  if (first.axis !== second.axis) {
+    return first.axis < second.axis ? -1 : 1;
+  }
+
+  if (first.position !== second.position) {
+    return first.position - second.position;
+  }
+
+  return compareStableStrings(first.id, second.id);
+}
+
+function formatScore(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "n/a";
+  }
+
+  return value.toFixed(3).replace(/0+$/u, "").replace(/\.$/u, "");
 }
 
 function diagnosticCodes(diagnostics: readonly Diagnostic[]): readonly string[] {

@@ -22,6 +22,7 @@ import {
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeVisualViewerChangedFiles,
 } from "./changed-file-guard.mjs";
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
@@ -74,6 +75,13 @@ test("shared exact changed-file guard accepts the Structured Analyze CLI UX laye
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeCliUxLayerChangedFiles),
     structuredAnalyzeCliUxLayerChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the Structured Analyze visual viewer set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeVisualViewerChangedFiles),
+    structuredAnalyzeVisualViewerChangedFiles,
   );
 });
 
@@ -134,6 +142,13 @@ test("shared exact changed-file guard rejects an extra unrelated file", () => {
 test("shared exact changed-file guard rejects extra files in the Geometry Harmony pack/report example set", () => {
   assert.equal(
     sharedExactApprovedChangedFiles([...geometryHarmonyPackReportExamplesChangedFiles, "src/mcp/stdio-protocol.ts"]),
+    null,
+  );
+});
+
+test("shared exact changed-file guard rejects extra files in the Structured Analyze visual viewer set", () => {
+  assert.equal(
+    sharedExactApprovedChangedFiles([...structuredAnalyzeVisualViewerChangedFiles, "src/cli/analyze.ts"]),
     null,
   );
 });
