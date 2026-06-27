@@ -587,8 +587,12 @@ test("R6C spawned STDIO process survives malformed Structured Analyze calls", as
     { jsonrpc: "2.0", id: "r6c-spawn-after-bad", method: "tools/call", params: { name: "norma.getVersion", arguments: {} } },
   ];
 
-  const stdoutLines = await readStdoutLinesBeforeClosingStdin(child, messages);
-  child.stdin.end();
+  let stdoutLines;
+  try {
+    stdoutLines = await readStdoutLinesBeforeClosingStdin(child, messages);
+  } finally {
+    closeChildInput(child);
+  }
 
   assert.equal(JSON.parse(stdoutLines[1]).result.tools.length, 6);
   assert.equal(JSON.parse(stdoutLines[2]).result.structuredContent.tool, analyzeToolName);
@@ -616,8 +620,12 @@ test("R12 spawned STDIO Structured Analyze responses are byte-stable for identic
     { jsonrpc: "2.0", id: "r12-spawn-analyze-2", method: "tools/call", params: { name: analyzeToolName, arguments: { input } } },
   ];
 
-  const stdoutLines = await readStdoutLinesBeforeClosingStdin(child, messages);
-  child.stdin.end();
+  let stdoutLines;
+  try {
+    stdoutLines = await readStdoutLinesBeforeClosingStdin(child, messages, { timeoutMs: 30_000 });
+  } finally {
+    closeChildInput(child);
+  }
   const first = JSON.parse(stdoutLines[1]);
   const second = JSON.parse(stdoutLines[2]);
 
@@ -860,41 +868,71 @@ function schemaMatches(value, schema, path) {
   }
 }
 
-function readStdoutLinesBeforeClosingStdin(child, messages) {
+function closeChildInput(child) {
+  if (!child.stdin.destroyed && !child.stdin.writableEnded) {
+    child.stdin.end();
+  }
+}
+
+function stopChildAfterTimeout(child) {
+  closeChildInput(child);
+  if (child.exitCode === null && child.signalCode === null && !child.killed) {
+    child.kill();
+  }
+}
+
+function readStdoutLinesBeforeClosingStdin(child, messages, { timeoutMs = 10_000 } = {}) {
   let stdout = "";
   let stderr = "";
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
 
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`Timed out waiting for stdout before stdin closed. stderr: ${stderr}`));
-    }, 10_000);
+    let settled = false;
+    const settle = (complete, value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      child.stdout.off("data", onStdoutData);
+      child.stderr.off("data", onStderrData);
+      child.off("error", onError);
+      child.off("exit", onExit);
+      complete(value);
+    };
 
-    child.stdout.on("data", (chunk) => {
+    const timeout = setTimeout(() => {
+      stopChildAfterTimeout(child);
+      settle(reject, new Error(`Timed out waiting for stdout before stdin closed. stderr: ${stderr}`));
+    }, timeoutMs);
+
+    const onStdoutData = (chunk) => {
       stdout += chunk;
       const parts = stdout.split("\n");
       const completedLines = stdout.endsWith("\n") ? parts : parts.slice(0, -1);
       const lines = completedLines.filter((line) => line.length > 0);
       if (lines.length >= messages.length) {
-        clearTimeout(timeout);
-        resolve(lines.slice(0, messages.length));
+        settle(resolve, lines.slice(0, messages.length));
       }
-    });
+    };
 
-    child.stderr.on("data", (chunk) => {
+    const onStderrData = (chunk) => {
       stderr += chunk;
-    });
+    };
 
-    child.on("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
+    const onError = (error) => {
+      settle(reject, error);
+    };
 
-    child.on("exit", (code, signal) => {
-      clearTimeout(timeout);
-      reject(new Error(`MCP wrapper exited before responses were read. code=${code} signal=${signal} stderr=${stderr}`));
-    });
+    const onExit = (code, signal) => {
+      settle(reject, new Error(`MCP wrapper exited before responses were read. code=${code} signal=${signal} stderr=${stderr}`));
+    };
+
+    child.stdout.on("data", onStdoutData);
+    child.stderr.on("data", onStderrData);
+    child.on("error", onError);
+    child.on("exit", onExit);
 
     child.stdin.write(messages.map((message) => JSON.stringify(message)).join("\n"));
     child.stdin.write("\n");

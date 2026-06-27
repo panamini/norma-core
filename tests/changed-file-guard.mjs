@@ -141,6 +141,8 @@ export const structuredAnalyzeStdioTimeoutStabilityChangedFiles = Object.freeze(
   "tests/mcp-structured-composition-analysis-contract.test.mjs",
 ].sort());
 
+export const structuredAnalyzeStdioTimeoutCleanupChangedFiles = structuredAnalyzeStdioTimeoutStabilityChangedFiles;
+
 export const ratioPackAuthoringContractChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",

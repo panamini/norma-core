@@ -28,6 +28,7 @@ import {
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -131,6 +132,13 @@ test("shared exact changed-file guard accepts the Structured Analyze STDIO timeo
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeStdioTimeoutStabilityChangedFiles),
     structuredAnalyzeStdioTimeoutStabilityChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the Structured Analyze STDIO timeout cleanup set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeStdioTimeoutCleanupChangedFiles),
+    structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   );
 });
 
