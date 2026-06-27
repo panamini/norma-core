@@ -120,7 +120,6 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "<summary>Result Source</summary>",
     "<p>The full deterministic Structured Analyze result remains in local file <code>result.json</code>. This viewer renders selected decision, evaluation, comparison, and replay fields from that result without duplicating the full payload.</p>",
     "</details>",
-    `<script type="application/json" id="norma-summary-json">${escapeScriptJson(summaryJson)}</script>`,
     "</main>",
     "</body>",
     "</html>",
@@ -346,15 +345,6 @@ function percentAttr(value: number | null): string {
   }
 
   return String(Math.max(0, Math.min(100, Math.round(value * 100))));
-}
-
-function escapeScriptJson(value: string): string {
-  return value
-    .replaceAll("&", "\\u0026")
-    .replaceAll("<", "\\u003C")
-    .replaceAll(">", "\\u003E")
-    .replaceAll("\u2028", "\\u2028")
-    .replaceAll("\u2029", "\\u2029");
 }
 
 function escapeHtml(value: string): string {

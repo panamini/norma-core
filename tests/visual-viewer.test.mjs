@@ -28,7 +28,8 @@ test("visual viewer renders side-by-side Structured Analyze report overlays", as
   assert.match(reportHtml, /summary\.json/u);
   assert.match(reportHtml, /visual\.svg/u);
   assert.match(reportHtml, /Result Source/u);
-  assert.match(reportHtml, /id="norma-summary-json"/u);
+  assert.doesNotMatch(reportHtml, /id="norma-summary-json"/u);
+  assert.doesNotMatch(reportHtml, /<script\s+type="application\/json"/iu);
   assert.match(reportHtml, /area ratio match/u);
   assert.match(reportHtml, /alignment/u);
   assert.match(visualSvg, /data-overlay="surface"/u);
@@ -47,15 +48,21 @@ test("visual viewer remains fully local with no external assets or network calls
 
   assert.doesNotMatch(reportHtml, /<script\b[^>]*\bsrc=/iu);
   assert.doesNotMatch(reportHtml, /<link\b/iu);
+  assert.doesNotMatch(reportHtml, /\b(?:src|href|action|poster)\s*=\s*["']\s*(?:https?:)?\/\//iu);
+  assert.doesNotMatch(reportHtml, /\b(?:src|href|action|poster)\s*=\s*["']\s*javascript:/iu);
+  assert.doesNotMatch(reportHtml, /\burl\(\s*["']?\s*(?:https?:)?\/\//iu);
+  assert.doesNotMatch(reportHtml, /\burl\(\s*["']?\s*javascript:/iu);
+  assert.doesNotMatch(reportHtml, /<meta\b[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*>/iu);
   assert.doesNotMatch(reportHtml, /\bfetch\s*\(/u);
   assert.doesNotMatch(reportHtml, /\bXMLHttpRequest\b/u);
   assert.doesNotMatch(reportHtml, /\bimport\s*\(/u);
 });
 
 test("visual viewer output is deterministic for the same Structured Analyze input", async () => {
-  const input = await readJson(alignmentScenarioPath);
-  const first = createLocalStructuredAnalyzeReportBundle(input);
-  const second = createLocalStructuredAnalyzeReportBundle(input);
+  const firstInput = await readJson(alignmentScenarioPath);
+  const secondInput = await readJson(alignmentScenarioPath);
+  const first = createLocalStructuredAnalyzeReportBundle(firstInput);
+  const second = createLocalStructuredAnalyzeReportBundle(secondInput);
 
   assert.equal(first.artifacts["report.html"], second.artifacts["report.html"]);
   assert.equal(first.artifacts["visual.svg"], second.artifacts["visual.svg"]);
