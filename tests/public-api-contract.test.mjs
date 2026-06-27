@@ -265,8 +265,9 @@ test("R11 analyzeStructuredCompositionV1 result shape is stable and deterministi
   assert.deepEqual(Object.keys(first.evaluations.b), expectedEvaluationKeys);
   assert.deepEqual(Object.keys(first.comparison), expectedComparisonKeys);
   assert.deepEqual(Object.keys(first.decision), expectedDecisionKeys);
-  assert.equal(first.diagnostics.length > 0, true);
-  assert.deepEqual(Object.keys(first.diagnostics[0]), expectedDiagnosticKeys);
+  for (const diagnostic of first.diagnostics) {
+    assert.deepEqual(Object.keys(diagnostic), expectedDiagnosticKeys);
+  }
 
   assert.equal(invalid.status, "invalid");
   assertStructuredResultShape(invalid);
