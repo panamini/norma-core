@@ -148,6 +148,13 @@ export const ratioPackAuthoringContractChangedFiles = Object.freeze([
   "tests/ratio-pack-authoring-contract.test.mjs",
 ].sort());
 
+export const ratioPackStrictContractChangedFiles = Object.freeze([
+  "src/ratio-pack.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/ratio-pack-contract.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -177,6 +184,7 @@ const sharedExactApprovedChangedFileSets = [
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
   ratioPackAuthoringContractChangedFiles,
+  ratioPackStrictContractChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,

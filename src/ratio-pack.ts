@@ -1444,6 +1444,10 @@ function isAgentCreatedRuleDeclaration(value: Record<string, unknown>): boolean 
     return true;
   }
 
+  if (isAgentCreatedRuleSource(value.source)) {
+    return true;
+  }
+
   const source = value.source;
   return isRecord(source) && isAgentCreatedRuleSource(source.kind);
 }
