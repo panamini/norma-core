@@ -163,6 +163,7 @@ test("R10 CLI leaves input immutable and serializes only the engine result", asy
   }
 });
 
+/** Runs the public CLI analyze path and returns its command envelope. */
 async function runCliAnalyze(inputPath, outputDir) {
   const { stdout } = await execFileAsync(process.execPath, [
     analyzeCommandPath,
@@ -175,6 +176,7 @@ async function runCliAnalyze(inputPath, outputDir) {
   return JSON.parse(stdout);
 }
 
+/** Runs the report-kit command path and returns its command envelope. */
 async function runReportKit(inputPath, outputDir) {
   const { stdout } = await execFileAsync(process.execPath, [
     reportCommandPath,
@@ -187,6 +189,7 @@ async function runReportKit(inputPath, outputDir) {
   return JSON.parse(stdout);
 }
 
+/** Calls the MCP tool handler and exposes the structured analysis result. */
 function callMcpAnalyze(input) {
   const responseText = handleMcpJsonRpcMessage(JSON.stringify({
     jsonrpc: "2.0",
@@ -213,6 +216,7 @@ function callMcpAnalyze(input) {
   };
 }
 
+/** Extracts order-sensitive fields that must remain stable across runs. */
 function orderingSignature(result) {
   assert.equal(result.status, "valid");
 
@@ -237,6 +241,7 @@ function orderingSignature(result) {
   };
 }
 
+/** Extracts order-sensitive measurement fields without recomputing values. */
 function measurementSetSignature(measurementSet) {
   return {
     id: measurementSet.id,
@@ -259,6 +264,7 @@ function measurementSetSignature(measurementSet) {
   };
 }
 
+/** Extracts order-sensitive evaluation refs and component score order. */
 function evaluationSignature(evaluation) {
   return {
     id: evaluation.id,
@@ -282,6 +288,7 @@ function evaluationSignature(evaluation) {
   };
 }
 
+/** Extracts comparison refs, deltas, and decision order for drift checks. */
 function comparisonSignature(comparison) {
   return {
     id: comparison.id,
@@ -308,6 +315,7 @@ function comparisonSignature(comparison) {
   };
 }
 
+/** Extracts decision refs whose order is part of the result contract. */
 function decisionSignature(decision) {
   return {
     status: decision.status,
@@ -316,6 +324,7 @@ function decisionSignature(decision) {
   };
 }
 
+/** Builds a stable compact key for a measurement object. */
 function measurementKey(measurement) {
   return [
     measurement.id,
@@ -326,6 +335,7 @@ function measurementKey(measurement) {
   ].join("::");
 }
 
+/** Builds a stable compact key for a diagnostic object. */
 function diagnosticKey(diagnostic) {
   return [
     diagnostic.severity,
@@ -336,10 +346,12 @@ function diagnosticKey(diagnostic) {
   ].join("::");
 }
 
+/** Builds a stable compact key for a structured source reference. */
 function refKey(ref) {
   return `${ref.kind}:${ref.ref}`;
 }
 
+/** Recursively verifies canonical object key ordering after serialization. */
 function assertLexicographicObjectKeys(value, path = "$") {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertLexicographicObjectKeys(item, `${path}[${index}]`));
@@ -357,10 +369,12 @@ function assertLexicographicObjectKeys(value, path = "$") {
   }
 }
 
+/** Returns the SHA-256 fingerprint used by the regression guard. */
 function hashText(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+/** Reads a JSON fixture into a fresh object instance. */
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
 }
