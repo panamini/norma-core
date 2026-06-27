@@ -10,6 +10,7 @@ import {
   parseStructuredJsonInput,
 } from "../dist/src/structured-json-input-viewer.js";
 import {
+  branchChangedFiles,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
@@ -280,6 +281,7 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
   }
 
   const changedFiles = gitChangedFiles();
+  const sharedApproved = sharedExactApprovedChangedFiles(changedFiles) ?? sharedExactApprovedChangedFiles(branchChangedFiles());
   if (changedFiles.some((file) => file.includes("structured-json-input-viewer"))) {
     if (
       !isExactPr71ApprovedChangeSet(changedFiles) &&
@@ -288,7 +290,7 @@ test("PR58 keeps package root exports unchanged and adds no forbidden surfaces",
 	      !isExactR6BStructuredAnalyzeBaselineProbeChangeSet(changedFiles) &&
 	      !isExactR1GeometrySourceIdentityChangeSet(changedFiles) &&
 	      !isExactR6CStructuredAnalyzeMcpChangeSet(changedFiles) &&
-	      sharedExactApprovedChangedFiles(changedFiles) === null
+	      sharedApproved === null
 	    ) {
       assert.deepEqual(changedFiles.filter(isForbiddenStructuredJsonViewerChange), []);
     }

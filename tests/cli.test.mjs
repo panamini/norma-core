@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -7,9 +7,19 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import * as core from "@norma/core";
+import {
+  LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES,
+} from "../dist/src/local-report/structured-analyze-report.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
+const scenarioDir = join(repoRoot, "examples", "structured-analyze", "scenarios");
+const validAnalyzeScenarios = Object.freeze([
+  "alignment-basic",
+  "ratio-comparison",
+  "symmetry-test",
+  "boundary-case",
+]);
 
 function runCli(args) {
   return spawnSync(process.execPath, ["bin/norma-core.mjs", ...args], {
@@ -19,9 +29,25 @@ function runCli(args) {
   });
 }
 
+function runAnalyzeCli(args) {
+  return spawnSync(process.execPath, ["bin/norma-cli.mjs", ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
 function parseCliJson(result) {
   assert.equal(result.stderr, "");
   const trimmed = result.stdout.trim();
+  assert.notEqual(trimmed, "");
+  assert.equal(trimmed.split("\n").length, 1);
+  return JSON.parse(trimmed);
+}
+
+function parseAnalyzeCliError(result) {
+  assert.equal(result.stdout, "");
+  const trimmed = result.stderr.trim();
   assert.notEqual(trimmed, "");
   assert.equal(trimmed.split("\n").length, 1);
   return JSON.parse(trimmed);
@@ -70,6 +96,14 @@ function replayRunInput(input, demo) {
     packLock: demo.packLock,
     operationContext: demo.operationContext,
   };
+}
+
+function scenarioPath(name) {
+  return join(scenarioDir, `${name}.json`);
+}
+
+function readJsonFile(filePath) {
+  return JSON.parse(readFileSync(filePath, "utf8"));
 }
 
 test("PR27 CLI version prints JSON core version", () => {
@@ -182,6 +216,79 @@ test("PR27 CLI verify-artifact-freshness returns structured JSON for invalid min
     assert.equal(json.result.kind, "artifact-freshness-verification");
     assert.equal(json.result.status, "invalid");
     assert.equal(json.result.errors.some((error) => error.code === "InvalidArtifactInput"), true);
+  });
+});
+
+test("R8.2 analyze CLI writes deterministic report bundles for supported valid scenarios", () => {
+  for (const scenarioName of validAnalyzeScenarios) {
+    withTempDir((dir) => {
+      const firstDir = join(dir, `${scenarioName}-first`);
+      const secondDir = join(dir, `${scenarioName}-second`);
+      const scenarioFile = scenarioPath(scenarioName);
+
+      const first = runAnalyzeCli(["analyze", scenarioName, "--out", firstDir]);
+      const second = runAnalyzeCli(["analyze", scenarioFile, "--out", secondDir]);
+
+      assert.equal(first.status, 0, scenarioName);
+      assert.equal(second.status, 0, scenarioName);
+      const firstJson = parseCliJson(first);
+      const secondJson = parseCliJson(second);
+
+      assert.equal(firstJson.kind, "norma-cli-analyze-result", scenarioName);
+      assert.equal(firstJson.command, "analyze", scenarioName);
+      assert.equal(firstJson.status, "ok", scenarioName);
+      assert.equal(firstJson.resultStatus, "valid", scenarioName);
+      assert.equal(firstJson.scenario, scenarioName, scenarioName);
+      assert.equal(firstJson.outputDir, firstDir, scenarioName);
+      assert.deepEqual(firstJson.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES, scenarioName);
+      assert.equal(secondJson.scenario, scenarioName, scenarioName);
+      assert.equal(secondJson.outputDir, secondDir, scenarioName);
+
+      assert.deepEqual(
+        readdirSync(firstDir).sort(),
+        [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
+        scenarioName,
+      );
+      assert.deepEqual(
+        readJsonFile(join(firstDir, "result.json")),
+        core.analyzeStructuredCompositionV1(readJsonFile(scenarioFile)),
+        scenarioName,
+      );
+      assert.equal(readJsonFile(join(firstDir, "summary.json")).status, "valid", scenarioName);
+      assert.match(readFileSync(join(firstDir, "summary.md"), "utf8"), /# Local Structured Analyze Report/u, scenarioName);
+      assert.match(readFileSync(join(firstDir, "visual.svg"), "utf8"), /^<svg/u, scenarioName);
+      assert.match(readFileSync(join(firstDir, "report.html"), "utf8"), /<!doctype html>/u, scenarioName);
+
+      for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
+        assert.equal(
+          readFileSync(join(firstDir, fileName), "utf8"),
+          readFileSync(join(secondDir, fileName), "utf8"),
+          `${scenarioName}:${fileName}`,
+        );
+      }
+    });
+  }
+});
+
+test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
+  withTempDir((dir) => {
+    const outputDir = join(dir, "invalid-case-output");
+    const result = runAnalyzeCli(["analyze", "invalid-case", "--out", outputDir]);
+
+    assert.equal(result.status, 2);
+    const errorJson = parseAnalyzeCliError(result);
+
+    assert.equal(errorJson.kind, "norma-cli-analyze-error");
+    assert.equal(errorJson.command, "analyze");
+    assert.equal(errorJson.status, "error");
+    assert.equal(errorJson.exitCode, 2);
+    assert.equal(errorJson.scenario, "invalid-case");
+    assert.equal(errorJson.outputDir, outputDir);
+    assert.equal(errorJson.resultStatus, "invalid");
+    assert.equal(errorJson.error.code, "InvalidScenario");
+    assert.equal(errorJson.diagnostics.some((diagnostic) => diagnostic.code === "InvalidInputShape"), true);
+    assert.equal(existsSync(outputDir), false);
+    assert.deepEqual(readdirSync(dir), []);
   });
 });
 

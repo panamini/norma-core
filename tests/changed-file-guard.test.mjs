@@ -19,6 +19,7 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
+  structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -66,6 +67,13 @@ test("shared exact changed-file guard accepts the Structured Analyze scenario pa
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackChangedFiles),
     structuredAnalyzeScenarioPackChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the Structured Analyze CLI UX layer set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeCliUxLayerChangedFiles),
+    structuredAnalyzeCliUxLayerChangedFiles,
   );
 });
 

@@ -245,7 +245,7 @@ test("PR57 keeps package metadata scripts dependencies and exports unchanged", (
   assert.equal(Object.hasOwn(pkg, "dependencies"), false);
   assert.equal(Object.hasOwn(pkg, "bin"), false);
   assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ["."]);
-  assert.deepEqual(Object.keys(pkg.scripts ?? {}).sort(), ["build", "check", "norma:report", "pretest", "test"]);
+  assert.deepEqual(Object.keys(pkg.scripts ?? {}).sort(), ["build", "check", "norma:analyze", "norma:report", "pretest", "test"]);
   assert.equal(indexSource.includes("structured-json-input-viewer"), false);
   assert.equal(indexSource.includes("parseStructuredJsonInput"), false);
 });
