@@ -30,10 +30,11 @@ const HARMONIC_TRIADS_RULE_SET_ID = "surface-harmonic-triads";
 
 test("R13 follow-up rejects malformed authored ratio-pack contract fields", async () => {
   const pack = await readHarmonicTriadsPack();
+  const authoredPack = structuredClone(pack);
   const validResult = core.validateRatioPackV1(pack);
 
   assertOk(validResult);
-  assert.deepEqual(ratioPackContractFields(validResult.output), ratioPackContractFields(pack));
+  assert.deepEqual(ratioPackContractFields(validResult.output), ratioPackContractFields(authoredPack));
 
   const cases = [
     ["missing id", { id: "" }, "MissingRatioPackIdentity"],
