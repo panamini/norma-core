@@ -1,0 +1,237 @@
+{
+  "kind": "ratio-pack",
+  "id": "norma.harmonic-triads",
+  "version": "0.1.0",
+  "schemaVersion": "ratio-pack-v1",
+  "identity": {
+    "kind": "ratio-pack-identity",
+    "id": "norma.harmonic-triads",
+    "concept": "Synthetic harmonic triad partitions"
+  },
+  "contentIdentity": "norma.harmonic-triads@0.1.0:ratio-pack-v1:synthetic-1-2-1",
+  "metadata": {
+    "name": "Norma Harmonic Triads",
+    "description": "Minimal synthetic 1:2:1 partition pack for explicit authoring contract tests.",
+    "owner": "norma-core-tests"
+  },
+  "provenance": {
+    "kind": "ratio-pack-provenance",
+    "source": "mathematical",
+    "sourceRefs": [
+      {
+        "kind": "test-fixture",
+        "ref": "r13-ratio-pack-authoring-contract"
+      }
+    ]
+  },
+  "compatibility": {
+    "schemaVersion": "ratio-pack-v1",
+    "coreVersionRange": "0.1.0-pr12"
+  },
+  "limits": {
+    "noBeautyClaims": true,
+    "noIntentInference": true,
+    "noUiPreset": true
+  },
+  "conventions": [
+    "ratio-pack-v1",
+    "declarative-rules-only"
+  ],
+  "ratios": [
+    {
+      "kind": "ratio",
+      "id": "1/4",
+      "numerator": 1,
+      "denominator": 4,
+      "normalizedValue": 0.25,
+      "familyRef": "harmonic-triad"
+    },
+    {
+      "kind": "ratio",
+      "id": "1/2",
+      "numerator": 1,
+      "denominator": 2,
+      "normalizedValue": 0.5,
+      "familyRef": "harmonic-triad"
+    },
+    {
+      "kind": "ratio",
+      "id": "3/4",
+      "numerator": 3,
+      "denominator": 4,
+      "normalizedValue": 0.75,
+      "familyRef": "harmonic-triad"
+    }
+  ],
+  "ratioFamilies": [
+    {
+      "kind": "ratio-family",
+      "id": "harmonic-triad",
+      "ratioRefs": [
+        "1/4",
+        "1/2",
+        "3/4"
+      ],
+      "scope": "surface-partition"
+    }
+  ],
+  "ratioSequences": [
+    {
+      "kind": "ratio-sequence",
+      "id": "1:2:1",
+      "parts": [
+        1,
+        2,
+        1
+      ],
+      "normalizedParts": [
+        0.25,
+        0.5,
+        0.25
+      ]
+    }
+  ],
+  "partitionPatterns": [
+    {
+      "kind": "partition-pattern",
+      "id": "triadic-quartile",
+      "ratioRefs": [
+        "1/4",
+        "1/2",
+        "3/4"
+      ],
+      "sequenceRef": "1:2:1",
+      "axis": "both",
+      "declarationOnly": true
+    }
+  ],
+  "ruleDeclarations": [
+    {
+      "kind": "rule-declaration",
+      "id": "verticalHarmonicTriad",
+      "type": "divideSurfaceVertical",
+      "target": "surface",
+      "ratioRefs": [
+        "1/4",
+        "3/4"
+      ],
+      "sequenceRefs": [
+        "1:2:1"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "horizontalHarmonicTriad",
+      "type": "divideSurfaceHorizontal",
+      "target": "surface",
+      "ratioRefs": [
+        "1/4",
+        "3/4"
+      ],
+      "sequenceRefs": [
+        "1:2:1"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "harmonicTriadAxes",
+      "type": "createGuidesFromCandidates",
+      "target": "surface",
+      "ratioRefs": [
+        "1/4",
+        "1/2",
+        "3/4"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "harmonicTriadGrid",
+      "type": "createSimpleGrid",
+      "target": "surface",
+      "ratioRefs": [
+        "1/4",
+        "3/4"
+      ],
+      "sequenceRefs": [
+        "1:2:1"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "harmonicTriadDiagonals",
+      "type": "createDiagonals",
+      "target": "surface",
+      "ratioRefs": [
+        "1/2"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "harmonicTriadIntersections",
+      "type": "deriveIntersections",
+      "target": "surface",
+      "ratioRefs": [
+        "1/4",
+        "1/2",
+        "3/4"
+      ],
+      "sequenceRefs": [
+        "1:2:1"
+      ],
+      "partitionPatternRefs": [
+        "triadic-quartile"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    }
+  ],
+  "ruleSets": [
+    {
+      "kind": "rule-set",
+      "id": "surface-harmonic-triads",
+      "ruleRefs": [
+        "verticalHarmonicTriad",
+        "horizontalHarmonicTriad",
+        "harmonicTriadAxes",
+        "harmonicTriadGrid",
+        "harmonicTriadDiagonals",
+        "harmonicTriadIntersections"
+      ],
+      "declarationOnly": true
+    }
+  ],
+  "preLock": {
+    "kind": "pack-lock-prelock",
+    "ref": "prelock:norma.harmonic-triads@0.1.0",
+    "packId": "norma.harmonic-triads",
+    "packVersion": "0.1.0",
+    "schemaVersion": "ratio-pack-v1",
+    "contentIdentity": "norma.harmonic-triads@0.1.0:ratio-pack-v1:synthetic-1-2-1",
+    "final": false
+  }
+}

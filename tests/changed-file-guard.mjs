@@ -141,6 +141,13 @@ export const structuredAnalyzeStdioTimeoutStabilityChangedFiles = Object.freeze(
   "tests/mcp-structured-composition-analysis-contract.test.mjs",
 ].sort());
 
+export const ratioPackAuthoringContractChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/ratio-packs/norma-harmonic-triads-0.1.0.json",
+  "tests/ratio-pack-authoring-contract.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -169,6 +176,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
+  ratioPackAuthoringContractChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
