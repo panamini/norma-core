@@ -250,8 +250,8 @@ test("R11 package root entrypoint and runtime export surface are frozen", async 
 
 test("R11 analyzeStructuredCompositionV1 result shape is stable and deterministic", async () => {
   const input = await readJson(alignmentScenarioPath);
-  const first = packageRoot.analyzeStructuredCompositionV1(input);
-  const second = packageRoot.analyzeStructuredCompositionV1(input);
+  const first = packageRoot.analyzeStructuredCompositionV1(structuredClone(input));
+  const second = packageRoot.analyzeStructuredCompositionV1(structuredClone(input));
   const invalid = packageRoot.analyzeStructuredCompositionV1(null);
 
   assert.deepEqual(second, first);
@@ -265,6 +265,7 @@ test("R11 analyzeStructuredCompositionV1 result shape is stable and deterministi
   assert.deepEqual(Object.keys(first.evaluations.b), expectedEvaluationKeys);
   assert.deepEqual(Object.keys(first.comparison), expectedComparisonKeys);
   assert.deepEqual(Object.keys(first.decision), expectedDecisionKeys);
+  assert.equal(first.diagnostics.length > 0, true);
   assert.deepEqual(Object.keys(first.diagnostics[0]), expectedDiagnosticKeys);
 
   assert.equal(invalid.status, "invalid");
@@ -273,13 +274,14 @@ test("R11 analyzeStructuredCompositionV1 result shape is stable and deterministi
   assert.equal(invalid.evaluations, null);
   assert.equal(invalid.comparison, null);
   assert.equal(invalid.decision, null);
+  assert.equal(invalid.diagnostics.length > 0, true);
   assert.deepEqual(Object.keys(invalid.diagnostics[0]), expectedDiagnosticKeys);
 });
 
 test("R11 MCP structured analyze result remains direct engine output", async () => {
   const input = await readJson(alignmentScenarioPath);
-  const directResult = packageRoot.analyzeStructuredCompositionV1(input);
-  const response = callMcpAnalyze(input);
+  const directResult = packageRoot.analyzeStructuredCompositionV1(structuredClone(input));
+  const response = callMcpAnalyze(structuredClone(input));
 
   assert.equal(response.result.isError, false);
   assert.equal(response.result.structuredContent.tool, analyzeToolName);
@@ -290,7 +292,7 @@ test("R11 MCP structured analyze result remains direct engine output", async () 
 
 test("R11 CLI analyze result.json remains direct engine output", async () => {
   const input = await readJson(alignmentScenarioPath);
-  const directResult = packageRoot.analyzeStructuredCompositionV1(input);
+  const directResult = packageRoot.analyzeStructuredCompositionV1(structuredClone(input));
   const outputParentDir = await mkdtemp(join(tmpdir(), "norma-r11-cli-contract-"));
   const outputDir = join(outputParentDir, "report");
 
@@ -319,8 +321,8 @@ test("R11 CLI analyze result.json remains direct engine output", async () => {
 
 test("R11 local report kit keeps result.json semantic authority in the engine result", async () => {
   const input = await readJson(alignmentScenarioPath);
-  const directResult = packageRoot.analyzeStructuredCompositionV1(input);
-  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const directResult = packageRoot.analyzeStructuredCompositionV1(structuredClone(input));
+  const bundle = createLocalStructuredAnalyzeReportBundle(structuredClone(input));
   const summary = JSON.parse(bundle.artifacts["summary.json"]);
 
   assert.deepEqual(bundle.result, directResult);
