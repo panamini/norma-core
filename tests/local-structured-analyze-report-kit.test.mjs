@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +22,7 @@ const repoRoot = dirname(testDir);
 const exampleInputPath = join(repoRoot, "examples/structured-analyze/basic-grid-alignment.json");
 const geometryHarmonyExampleInputPath = join(repoRoot, "examples/structured-analyze/geometry-harmony-basic.json");
 const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
+const expectedOutputFiles = [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort();
 
 test("local structured analyze report bundle calls the direct core operation", async () => {
   const input = await readJson(exampleInputPath);
@@ -110,7 +111,7 @@ test("local structured analyze report command writes the deterministic output bu
     assert.match(visualSvg, /Composition B/u);
     assert.match(reportHtml, /<!doctype html>/u);
     assert.match(reportHtml, /Local Structured Analyze Report/u);
-    assert.match(reportHtml, /result\.json<\/code> is the canonical Norma truth/u);
+    assert.match(reportHtml, /result\.json<\/code> is the canonical source of truth/u);
     assert.match(reportHtml, /local read-only inspection artifact/u);
   } finally {
     await rm(outputDir, { recursive: true, force: true });
@@ -136,6 +137,7 @@ test("local structured analyze report command writes the Geometry Harmony exampl
     assert.equal(commandResult.status, "ok");
     assert.equal(commandResult.resultStatus, "valid");
     assert.deepEqual(commandResult.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
+    assert.deepEqual((await readdir(outputDir)).sort(), expectedOutputFiles);
 
     const result = await readJson(join(outputDir, "result.json"));
     const summary = await readJson(join(outputDir, "summary.json"));
@@ -145,18 +147,34 @@ test("local structured analyze report command writes the Geometry Harmony exampl
 
     assert.deepEqual(result, directResult);
     assert.equal(summary.status, "valid");
-    assert.equal(summary.input.ratioPackId, "norma.geometry-harmonies");
-    assert.equal(summary.input.ratioPackVersion, "0.1.0");
-    assert.equal(summary.input.ratioPackRef, "norma.geometry-harmonies@0.1.0");
-    assert.equal(summary.input.ruleSetRef, "surface-golden-section");
-    assert.equal(summary.input.evaluationProfileRef, "evaluation-profile:basic-grid-alignment");
+    assert.equal(summary.input.ratioPackId, input.ratioPack.id);
+    assert.equal(summary.input.ratioPackVersion, input.ratioPack.version);
+    assert.equal(summary.input.ratioPackRef, `${input.ratioPack.id}@${input.ratioPack.version}`);
+    assert.equal(summary.input.ruleSetRef, input.ruleSetRef);
+    assert.equal(summary.input.evaluationProfileRef, input.evaluationProfile.ref);
     assert.equal(summary.scope.geometryHarmoniesPack, true);
     assert.equal(summary.scope.newRatioPack, true);
     assert.match(summaryMarkdown, /- geometry harmonies pack supplied/u);
     assert.match(summaryMarkdown, /- non-basic ratio pack supplied/u);
+    assert.match(summaryMarkdown, /result\.json is the canonical source of truth/u);
+    assert.match(summaryMarkdown, /derived local inspection artifacts/u);
+    assert.match(summaryMarkdown, /visual\.svg is representational only and cannot change result equality/u);
     assert.match(visualSvg, /^<svg/u);
-    assert.match(reportHtml, /norma\.geometry-harmonies@0\.1\.0/u);
-    assert.doesNotMatch(`${summaryMarkdown}\n${reportHtml}`, /\bbetter\b|\bbeautiful\b|\brecommends?\b/iu);
+    assert.match(visualSvg, /xmlns="http:\/\/www\.w3\.org\/2000\/svg"/u);
+    assert.ok(reportHtml.includes(`${input.ratioPack.id}@${input.ratioPack.version}`));
+    assert.match(reportHtml, /result\.json<\/code> is the canonical source of truth/u);
+    assert.match(reportHtml, /local read-only inspection artifact/u);
+    assert.match(reportHtml, /derived local views/u);
+    assert.match(reportHtml, /representational only and cannot change result equality/u);
+    assertReportHtmlOffline(reportHtml);
+
+    const htmlWithChangedVisual = createVisualComparisonReportHtml({
+      summary,
+      result,
+      visualSvg: visualSvg.replace("Composition A", "Composition Alpha"),
+    });
+    assert.notEqual(htmlWithChangedVisual, reportHtml);
+    assert.deepEqual(result, directResult);
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
@@ -319,9 +337,9 @@ test("local structured analyze report command is deterministic for the same inpu
     await execFileAsync(process.execPath, [reportCommandPath, exampleInputPath, secondDir], { cwd: repoRoot });
 
     for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
-      assert.equal(
-        await readFile(join(firstDir, fileName), "utf8"),
-        await readFile(join(secondDir, fileName), "utf8"),
+      assert.deepEqual(
+        await readFile(join(firstDir, fileName)),
+        await readFile(join(secondDir, fileName)),
         fileName,
       );
     }
@@ -394,6 +412,26 @@ async function readJson(filePath) {
 
 function canonicalSnapshot(value) {
   return core.serializeCanonicalJson(value);
+}
+
+function assertReportHtmlOffline(reportHtml) {
+  const forbiddenPatterns = [
+    [/fetch\(/u, "fetch("],
+    [/XMLHttpRequest/u, "XMLHttpRequest"],
+    [/http:\/\//u, "http://"],
+    [/https:\/\//u, "https://"],
+    [/<script\b[^>]*\bsrc\s*=/iu, "<script ... src="],
+    [/localStorage/u, "localStorage"],
+    [/sessionStorage/u, "sessionStorage"],
+    [/\brecommendations?\b/iu, "recommendation language"],
+    [/\boptim(?:ize|ise|ization|isation)\b/iu, "optimization language"],
+    [/\bbeauty score\b/iu, "beauty score language"],
+    [/\binference\b/iu, "inference language"],
+  ];
+
+  for (const [pattern, label] of forbiddenPatterns) {
+    assert.doesNotMatch(reportHtml, pattern, label);
+  }
 }
 
 function usePackIdentity(input, packIdentity) {

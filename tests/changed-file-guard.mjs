@@ -77,6 +77,15 @@ export const localStructuredAnalyzeReportKitScopeSummaryChangedFiles = Object.fr
   "tests/local-structured-analyze-report-kit.test.mjs",
 ].sort());
 
+export const localStructuredAnalyzeDemoSmokeChangedFiles = Object.freeze([
+  "docs/local-structured-analyze-report-kit.md",
+  "src/local-report/structured-analyze-report.ts",
+  "src/local-report/visual-viewer.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-report-kit.test.mjs",
+].sort());
+
 export const geometryHarmonyPackReportExamplesChangedFiles = Object.freeze([
   "docs/local-structured-analyze-report-kit.md",
   "examples/structured-analyze/geometry-harmony-basic.json",
@@ -198,6 +207,7 @@ const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
+  localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
