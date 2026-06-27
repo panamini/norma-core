@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -186,6 +187,7 @@ const finalToolNames = [
   ...discoveredTools.map((tool) => tool.name),
   structuredAnalyzeToolName,
 ];
+const frozenToolInventoryHash = "3bb733561747a1aff3c194f25fc6283511ae7138347ad5b9847dc8ac97e502c4";
 const structuredAnalyzeAnnotations = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -257,6 +259,24 @@ test("R6C tools/list returns the five existing tools plus Structured Analyze", (
   assert.deepEqual(response.result.tools.slice(0, 5), discoveredTools);
   assert.deepEqual(response.result.tools.map((tool) => tool.name), finalToolNames);
   assert.equal(Object.hasOwn(response.result, "nextCursor"), false);
+});
+
+test("TOOL INVENTORY FREEZE keeps tools/list descriptors exact", () => {
+  const response = parseToolsListResponse({
+    jsonrpc: "2.0",
+    id: "tools-list-freeze",
+    method: "tools/list",
+  });
+
+  assert.deepEqual(response.result.tools.map((tool) => tool.name), [
+    "norma.getVersion",
+    "norma.serializeCanonicalJson",
+    "norma.verifyRun",
+    "norma.verifyArtifactFreshness",
+    "norma.replayMvpDemo",
+    "norma.analyzeStructuredCompositionV1",
+  ]);
+  assert.equal(toolsInventoryHash(response.result.tools), frozenToolInventoryHash);
 });
 
 test("PR38 tools/list schemas are exact", () => {
@@ -534,6 +554,10 @@ function parseToolsListResponse(message) {
   assert.ok(Array.isArray(response.result.tools));
 
   return response;
+}
+
+function toolsInventoryHash(tools) {
+  return createHash("sha256").update(JSON.stringify(tools)).digest("hex");
 }
 
 function parseRequiredResponse(message) {
