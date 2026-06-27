@@ -115,6 +115,12 @@ export const structuredAnalyzeScenarioConsistencyHardeningChangedFiles = Object.
   "tests/scenarios.test.mjs",
 ].sort());
 
+export const structuredAnalyzeDeterminismRegressionChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/determinism-regression.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -142,6 +148,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
+  structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
