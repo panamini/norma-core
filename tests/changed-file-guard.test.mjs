@@ -16,6 +16,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
@@ -99,6 +100,13 @@ test("shared exact changed-file guard accepts the R11 public API contract freeze
   assert.deepEqual(
     sharedExactApprovedChangedFiles(publicApiContractFreezeChangedFiles),
     publicApiContractFreezeChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R12 MCP protocol contract lock set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(mcpProtocolContractLockV2ChangedFiles),
+    mcpProtocolContractLockV2ChangedFiles,
   );
 });
 

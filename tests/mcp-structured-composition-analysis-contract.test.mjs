@@ -510,22 +510,40 @@ test("R6C transport-invalid tool arguments return sanitized invalid params error
   ];
 
   for (const params of invalidRequests) {
-    const response = parseRequiredResponse({
+    assertTransportInvalidAnalyzeResponse({
       jsonrpc: "2.0",
       id: "r6c-invalid-params",
       method: "tools/call",
       params,
     });
+  }
+});
 
-    assert.deepEqual(response, {
+test("R12 transport-invalid Structured Analyze inputs never expose engine results", () => {
+  const input = createR3CaseAInput();
+  const malformedInputs = [
+    { id: "r12-missing-params" },
+    { id: "r12-string-params", params: "bad" },
+    { id: "r12-null-params", params: null },
+    { id: "r12-missing-name", params: { arguments: { input } } },
+    { id: "r12-wrong-name-type", params: { name: 42, arguments: { input } } },
+    { id: "r12-wrong-arguments-type", params: { name: analyzeToolName, arguments: [] } },
+    { id: "r12-missing-input", params: { name: analyzeToolName, arguments: {} } },
+    { id: "r12-unknown-wrapper-field", params: { name: analyzeToolName, arguments: { input, unknown: true } } },
+    { id: "r12-wrong-operation-name", params: { name: analyzeToolName, arguments: { input: { ...input, operationName: "wrong" } } } },
+    { id: "r12-wrong-operation-version", params: { name: analyzeToolName, arguments: { input: { ...input, operationVersion: "wrong" } } } },
+    { id: "r12-missing-composition", params: { name: analyzeToolName, arguments: { input: { ...input, compositionA: undefined } } } },
+    { id: "r12-malformed-nested-type", params: { name: analyzeToolName, arguments: { input: { ...input, surface: { ...input.surface, bounds: "bad" } } } } },
+    { id: "r12-nested-meta", params: { name: analyzeToolName, arguments: { input: { ...input, _meta: { progressToken: "hidden" } } } } },
+  ];
+
+  for (const malformedInput of malformedInputs) {
+    assertTransportInvalidAnalyzeResponse({
       jsonrpc: "2.0",
-      id: "r6c-invalid-params",
-      error: {
-        code: -32602,
-        message: "Invalid params",
-      },
+      id: malformedInput.id,
+      method: "tools/call",
+      ...(Object.hasOwn(malformedInput, "params") ? { params: malformedInput.params } : {}),
     });
-    assert.equal(JSON.stringify(response).includes("DuplicateGeometrySourceId"), false);
   }
 });
 
@@ -560,6 +578,28 @@ test("R6C spawned STDIO process survives malformed Structured Analyze calls", as
   assert.equal(JSON.parse(stdoutLines[4]).result.structuredContent.tool, "norma.getVersion");
 });
 
+test("R12 spawned STDIO Structured Analyze responses are byte-stable for identical input", async () => {
+  const child = spawn(process.execPath, [wrapperPath], {
+    cwd: repoRoot,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const input = createR3CaseAInput();
+  const messages = [
+    { jsonrpc: "2.0", id: "r12-spawn-init", method: "initialize" },
+    { jsonrpc: "2.0", id: "r12-spawn-analyze-1", method: "tools/call", params: { name: analyzeToolName, arguments: { input } } },
+    { jsonrpc: "2.0", id: "r12-spawn-analyze-2", method: "tools/call", params: { name: analyzeToolName, arguments: { input } } },
+  ];
+
+  const stdoutLines = await readStdoutLinesBeforeClosingStdin(child, messages);
+  child.stdin.end();
+  const first = JSON.parse(stdoutLines[1]);
+  const second = JSON.parse(stdoutLines[2]);
+
+  assert.deepEqual(second.result.structuredContent, first.result.structuredContent);
+  assert.equal(second.result.content[0].text, first.result.content[0].text);
+  assert.deepEqual(JSON.parse(first.result.content[0].text), first.result.structuredContent);
+});
+
 function assertDirectMcpParity(input, id) {
   const before = core.serializeCanonicalJson(input);
   const direct = core.analyzeStructuredCompositionV1(input);
@@ -571,6 +611,7 @@ function assertDirectMcpParity(input, id) {
   assert.equal(response.result.isError, false);
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
+  assert.deepEqual(Object.keys(response.result.structuredContent), ["kind", "tool", "status", "result"]);
   assert.deepEqual(response.result.structuredContent, {
     kind: "norma-mcp-tool-result",
     tool: analyzeToolName,
@@ -580,6 +621,8 @@ function assertDirectMcpParity(input, id) {
   assert.deepEqual(response.result.structuredContent.result, direct);
   assert.equal(response.result.content[0].text, core.serializeCanonicalJson(response.result.structuredContent));
   assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent);
+  assert.equal(repeatedResponse.result.content[0].text, response.result.content[0].text);
+  assert.deepEqual(repeatedResponse.result.structuredContent, response.result.structuredContent);
   assertConformsToSchema(response.result.structuredContent, outputSchema);
 
   return { direct, response, repeatedResponse };
@@ -621,6 +664,36 @@ function parseToolResultResponse(message) {
   assert.ok(response.result);
   assert.ok(Object.hasOwn(response.result, "structuredContent"));
   return response;
+}
+
+function assertTransportInvalidAnalyzeResponse(message) {
+  const response = parseRequiredResponse(message);
+
+  assert.deepEqual(response, {
+    jsonrpc: "2.0",
+    id: message.id,
+    error: {
+      code: -32602,
+      message: "Invalid params",
+    },
+  });
+  assert.equal(Object.hasOwn(response, "result"), false);
+  assert.equal(Object.hasOwn(response, "structuredContent"), false);
+  const responseText = JSON.stringify(response);
+  for (const forbiddenLeak of [
+    "structured-composition-analysis-result",
+    "norma-mcp-tool-result",
+    "DuplicateGeometrySourceId",
+    "InvalidInputShape",
+    "diagnostics",
+    "measurements",
+    "evaluations",
+    "comparison",
+    "decision",
+    "replayReadiness",
+  ]) {
+    assert.equal(responseText.includes(forbiddenLeak), false, forbiddenLeak);
+  }
 }
 
 function parseRequiredResponse(message) {
@@ -767,7 +840,9 @@ function readStdoutLinesBeforeClosingStdin(child, messages) {
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
-      const lines = stdout.split("\n").filter((line) => line.length > 0);
+      const parts = stdout.split("\n");
+      const completedLines = stdout.endsWith("\n") ? parts : parts.slice(0, -1);
+      const lines = completedLines.filter((line) => line.length > 0);
       if (lines.length >= messages.length) {
         clearTimeout(timeout);
         resolve(lines.slice(0, messages.length));
