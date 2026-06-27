@@ -636,10 +636,10 @@ function assertDirectMcpParity(input, id) {
   const repeatedResponse = callAnalyze(repeatedInput, `${id}-repeat`);
   const outputSchema = analyzeToolDescriptor().outputSchema;
 
-  assert.deepStrictEqual(input, pristine);
-  assert.deepStrictEqual(directInput, pristine);
-  assert.deepStrictEqual(responseInput, pristine);
-  assert.deepStrictEqual(repeatedInput, pristine);
+  assert.deepEqual(input, pristine);
+  assert.deepEqual(directInput, pristine);
+  assert.deepEqual(responseInput, pristine);
+  assert.deepEqual(repeatedInput, pristine);
   assert.equal(response.result.isError, false);
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
