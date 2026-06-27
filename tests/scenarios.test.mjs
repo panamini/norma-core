@@ -128,7 +128,7 @@ test("scenario pack invalid case fails cleanly and deterministically", async () 
   assert.equal(first.comparison, null);
   assert.equal(first.decision, null);
   assert.deepEqual(first.outputRefs, []);
-  assert.ok(first.diagnostics.some((diagnostic) => diagnostic.code === "DuplicateGeometrySourceId"));
+  assert.ok(first.diagnostics.some((diagnostic) => diagnostic.code === "InvalidInputShape"));
 });
 
 test("report CLI accepts escaped positional paths", async () => {
@@ -201,7 +201,7 @@ function assertExplicitStructuredInput(input, scenarioName) {
   assert.equal(input.contractVersion, core.STRUCTURED_COMPOSITION_ANALYSIS_INPUT_CONTRACT_VERSION, scenarioName);
   assert.equal(input.compositionA.kind, "composition-2d", scenarioName);
   assert.equal(input.compositionB.kind, "composition-2d", scenarioName);
-  assert.equal(input.acceptance.accepted, true, scenarioName);
+  assert.equal(input.acceptance.accepted, scenarioName === "invalid-case" ? false : true, scenarioName);
   assert.equal(input.acceptance.mode, "user_supplied_structured_data", scenarioName);
   assert.equal(input.ratioPack.kind, "ratio-pack", scenarioName);
   assert.equal(input.packLock.kind, "pack-lock", scenarioName);

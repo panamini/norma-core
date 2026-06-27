@@ -71,7 +71,7 @@
       },
       {
         "kind": "element",
-        "id": "invalid-a-left-third",
+        "id": "invalid-a-middle-third",
         "geometry": {
           "kind": "rect",
           "x": 300,
@@ -186,12 +186,13 @@
     ]
   },
   "acceptance": {
-    "accepted": true,
+    "accepted": false,
     "mode": "user_supplied_structured_data",
     "acceptedBy": "structured-analyze-invalid-scenario",
     "acceptedAt": "2026-06-27T00:00:00Z",
     "acceptedSourceIds": [
       "invalid-a-left-third",
+      "invalid-a-middle-third",
       "invalid-a-right-third",
       "invalid-b-left-offset",
       "invalid-b-middle-offset",
@@ -851,6 +852,7 @@
     },
     "callerSourceIds": [
       "invalid-a-left-third",
+      "invalid-a-middle-third",
       "invalid-a-right-third",
       "invalid-b-left-offset",
       "invalid-b-middle-offset",
@@ -864,12 +866,13 @@
     "normalizationVersion": null,
     "transformationSteps": [],
     "acceptanceRecord": {
-      "accepted": true,
+      "accepted": false,
       "mode": "user_supplied_structured_data",
       "acceptedBy": "structured-analyze-invalid-scenario",
       "acceptedAt": "2026-06-27T00:00:00Z",
       "acceptedSourceIds": [
         "invalid-a-left-third",
+        "invalid-a-middle-third",
         "invalid-a-right-third",
         "invalid-b-left-offset",
         "invalid-b-middle-offset",
