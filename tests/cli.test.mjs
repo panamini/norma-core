@@ -388,6 +388,30 @@ test("R8.2 analyze CLI refuses to replace non-report output directories", () => 
   });
 });
 
+test("R8.2 analyze CLI refuses matching report names when entries are directories", () => {
+  withTempDir((dir) => {
+    const outputDir = join(dir, "report-shaped-directory-tree");
+    mkdirSync(outputDir);
+    for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
+      mkdirSync(join(outputDir, fileName));
+    }
+
+    const result = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
+
+    assert.equal(result.status, 3);
+    const errorJson = parseAnalyzeCliError(result);
+
+    assert.equal(errorJson.error.code, "ReportWriteFailed");
+    assert.deepEqual(
+      readdirSync(outputDir).sort(),
+      [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort(),
+    );
+    for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
+      assert.deepEqual(readdirSync(join(outputDir, fileName)), []);
+    }
+  });
+});
+
 test("R8.2 analyze CLI can replace its own prior report bundle", () => {
   withTempDir((dir) => {
     const outputDir = join(dir, "existing-report");

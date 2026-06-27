@@ -267,6 +267,13 @@ async function assertSafeOutputTarget(outputDir: string): Promise<void> {
   if (!sameStringList(entries, expectedEntries)) {
     throw new Error("Output directory already exists and is not a Norma analyze report bundle.");
   }
+
+  for (const entry of expectedEntries) {
+    const entryStat = await stat(join(outputDir, entry));
+    if (!entryStat.isFile()) {
+      throw new Error("Output directory already exists and is not a Norma analyze report bundle.");
+    }
+  }
 }
 
 function errorEnvelope(

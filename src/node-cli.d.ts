@@ -13,7 +13,7 @@ declare module "node:fs/promises" {
   export function readdir(path: string): Promise<string[]>;
   export function rename(oldPath: string, newPath: string): Promise<void>;
   export function rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
-  export function stat(path: string): Promise<{ isDirectory(): boolean }>;
+  export function stat(path: string): Promise<{ isDirectory(): boolean; isFile(): boolean }>;
   export function writeFile(path: string, data: string, encoding: "utf8"): Promise<void>;
 }
 
