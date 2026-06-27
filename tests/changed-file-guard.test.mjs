@@ -26,6 +26,7 @@ import {
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
 } from "./changed-file-guard.mjs";
 
@@ -121,6 +122,13 @@ test("shared exact changed-file guard accepts the semgrep-filtered Structured An
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles),
     structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the Structured Analyze STDIO timeout stability set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeStdioTimeoutStabilityChangedFiles),
+    structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   );
 });
 

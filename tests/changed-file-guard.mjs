@@ -135,6 +135,12 @@ export const mcpProtocolContractLockV2ChangedFiles = Object.freeze([
   "tests/mcp-tools-list-contract.test.mjs",
 ].sort());
 
+export const structuredAnalyzeStdioTimeoutStabilityChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-structured-composition-analysis-contract.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -168,6 +174,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
