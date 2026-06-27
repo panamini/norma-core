@@ -51,6 +51,7 @@ class ScenarioLoadError extends Error {
 }
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
+// Runtime path is dist/src/cli/analyze.js; three levels up is the repository root.
 const repoRoot = resolve(moduleDir, "../../..");
 const scenarioDir = join(repoRoot, "examples", "structured-analyze", "scenarios");
 const defaultOutputRoot = join(repoRoot, ".norma", "analyze");

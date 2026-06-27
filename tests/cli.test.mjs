@@ -23,6 +23,9 @@ const validAnalyzeScenarios = Object.freeze(
     .sort(),
 );
 assert.ok(validAnalyzeScenarios.length > 0, "expected at least one valid analyze scenario");
+const primaryValidAnalyzeScenario = validAnalyzeScenarios.includes("alignment-basic")
+  ? "alignment-basic"
+  : validAnalyzeScenarios[0];
 
 function runCli(args) {
   return spawnSync(process.execPath, ["bin/norma-core.mjs", ...args], {
@@ -287,7 +290,7 @@ test("R8.2 analyze CLI accepts an explicit scenario file path outside the bundle
   withTempDir((dir) => {
     const inputPath = join(dir, "custom-scenario.json");
     const outputDir = join(dir, "custom-output");
-    writeFileSync(inputPath, readFileSync(scenarioPath("alignment-basic"), "utf8"));
+    writeFileSync(inputPath, readFileSync(scenarioPath(primaryValidAnalyzeScenario), "utf8"));
 
     const result = runAnalyzeCli(["analyze", inputPath, "--out", outputDir]);
 
@@ -347,11 +350,11 @@ test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
 test("R8.2 analyze CLI refuses stale files inside an existing report directory", () => {
   withTempDir((dir) => {
     const outputDir = join(dir, "existing-report-with-stale-file");
-    const first = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const first = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
     const stalePath = join(outputDir, "stale.txt");
     writeFileSync(stalePath, "stale\n");
 
-    const second = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const second = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
 
     assert.equal(first.status, 0);
     assert.equal(second.status, 3);
@@ -370,7 +373,7 @@ test("R8.2 analyze CLI refuses to replace non-report output directories", () => 
     const keepPath = join(outputDir, "keep.txt");
     writeFileSync(keepPath, "do not delete\n");
 
-    const result = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const result = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
 
     assert.equal(result.status, 3);
     const errorJson = parseAnalyzeCliError(result);
@@ -389,8 +392,8 @@ test("R8.2 analyze CLI can replace its own prior report bundle", () => {
   withTempDir((dir) => {
     const outputDir = join(dir, "existing-report");
 
-    const first = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
-    const second = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const first = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
+    const second = runAnalyzeCli(["analyze", primaryValidAnalyzeScenario, "--out", outputDir]);
 
     assert.equal(first.status, 0);
     assert.equal(second.status, 0);
