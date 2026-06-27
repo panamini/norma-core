@@ -18,6 +18,7 @@ import {
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
+  ratioPackAuthoringContractChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -129,6 +130,13 @@ test("shared exact changed-file guard accepts the Structured Analyze STDIO timeo
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeStdioTimeoutStabilityChangedFiles),
     structuredAnalyzeStdioTimeoutStabilityChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R13 ratio pack authoring contract set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(ratioPackAuthoringContractChangedFiles),
+    ratioPackAuthoringContractChangedFiles,
   );
 });
 
