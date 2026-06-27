@@ -609,7 +609,7 @@ test("R12 spawned STDIO Structured Analyze responses are byte-stable for identic
     cwd: repoRoot,
     stdio: ["pipe", "pipe", "pipe"],
   });
-  const input = createR3CaseAInput();
+  const input = createDuplicateCompositionBElementIdInput();
   const messages = [
     { jsonrpc: "2.0", id: "r12-spawn-init", method: "initialize" },
     { jsonrpc: "2.0", id: "r12-spawn-analyze-1", method: "tools/call", params: { name: analyzeToolName, arguments: { input } } },
@@ -623,6 +623,7 @@ test("R12 spawned STDIO Structured Analyze responses are byte-stable for identic
 
   assert.deepEqual(second.result.structuredContent, first.result.structuredContent);
   assert.equal(second.result.content[0].text, first.result.content[0].text);
+  assert.equal(first.result.structuredContent.status, "invalid");
   assert.deepEqual(JSON.parse(first.result.content[0].text), first.result.structuredContent);
 });
 
