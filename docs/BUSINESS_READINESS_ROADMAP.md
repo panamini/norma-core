@@ -188,6 +188,52 @@ runtime, add secrets, submit a public ChatGPT app, add tools, change output
 schemas, add image/vision/CAD/plugin/UI behavior, publish the package, or fix
 CI billing/account state.
 
+## R15 Post-R14 Roadmap Checkpoint
+
+Decision reference:
+`docs/decisions/2026-06-27-post-r14-roadmap-checkpoint.md`.
+
+R15 records the current roadmap state after PR #135 / R14 merged at
+`dcb113cb2abfcafbf1155b47a2a7c41d2fd50974`.
+
+The recent Structured Analyze protection and inspection rail is complete through
+R14:
+
+- R10 added deterministic regression protection across the pipeline.
+- R11 froze the public API contract and package export surface.
+- R12 locked the MCP protocol contract and execution boundary.
+- R13 added ratio-pack registry, authoring, and strict pass-through guards.
+- R14 upgraded the local Structured Analyze `report.html` into a static,
+  read-only inspection dashboard.
+
+The current operating model remains local, private, and manual. The canonical
+Structured Analyze truth is still `result.json`, produced by the deterministic
+engine. The local report dashboard is an inspection artifact only; it does not
+define, recompute, infer, correct, optimize, recommend, or override Norma
+results.
+
+The following remain explicitly not approved:
+
+- hosted MCP;
+- public ChatGPT app submission;
+- public package publication;
+- package export expansion;
+- remote API runtime;
+- image, vision, camera, CAD, or provider runtime;
+- recommendation, optimization, beauty scoring, or prompt-derived source truth.
+
+The next implementation rail is:
+
+1. R16 - local demo/onboarding smoke for the Structured Analyze report workflow.
+2. R17 - package/local consumer readiness refresh, only if a real gap remains
+   after R16.
+3. R18+ - broader product, package, remote, or public-surface gates only after
+   explicit checkpoint approval.
+
+R16 should prove a local user can run the Geometry Harmony example, generate the
+five-file report bundle, inspect `report.html`, and understand `result.json` as
+canonical truth. R15 itself is docs/tests only and does not implement R16.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:

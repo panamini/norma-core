@@ -15,6 +15,12 @@ const roadmapStatusDocPath = join(
   "decisions",
   "2026-06-15-roadmap-status-update.md",
 );
+const postR14RoadmapCheckpointDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-27-post-r14-roadmap-checkpoint.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -79,6 +85,70 @@ const blockedRuntimeAndDeploymentPaths = [
   "Caddyfile",
   "caddyfile",
 ];
+
+test("R15 post-R14 roadmap checkpoint records the current merged Structured Analyze rail", () => {
+  assert.equal(existsSync(postR14RoadmapCheckpointDocPath), true);
+
+  const checkpointDoc = readDoc(postR14RoadmapCheckpointDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+
+  for (const doc of [checkpointDoc, businessRoadmapDoc]) {
+    assertDocMentions(doc, [
+      "PR #135",
+      "R14",
+      "dcb113cb2abfcafbf1155b47a2a7c41d2fd50974",
+      "R10",
+      "R11",
+      "R12",
+      "R13",
+      "R14",
+      "result.json",
+      "report.html",
+      "local",
+      "private",
+      "manual",
+    ]);
+  }
+});
+
+test("R15 post-R14 roadmap checkpoint keeps blocked surfaces blocked", () => {
+  const checkpointDoc = readDoc(postR14RoadmapCheckpointDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const combinedDocs = `${checkpointDoc}\n${businessRoadmapDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "hosted MCP",
+    "public ChatGPT app submission",
+    "public package publication",
+    "package export expansion",
+    "remote API runtime",
+    "image, vision, camera, CAD, or provider runtime",
+    "recommendation",
+    "optimization",
+    "beauty scoring",
+    "prompt-derived source truth",
+  ]);
+
+  assert.doesNotMatch(combinedDocs, /\bhosted MCP\s+is\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bpublic ChatGPT app submission\s+is\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bpublic package publication\s+is\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bremote API runtime\s+is\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bimage, vision, camera, CAD, or provider runtime\s+is\s+approved\b/i);
+});
+
+test("R15 post-R14 roadmap checkpoint names R16 as the next implementation rail", () => {
+  const checkpointDoc = readDoc(postR14RoadmapCheckpointDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+
+  for (const doc of [checkpointDoc, businessRoadmapDoc]) {
+    assertDocMentions(doc, [
+      "R16 - local demo/onboarding smoke for the Structured Analyze report workflow",
+      "R17 - package/local consumer readiness refresh",
+      "R18+ - broader product, package, remote, or public-surface gates",
+      "R15 itself is docs/tests only and does not implement R16",
+    ]);
+  }
+});
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
   assert.equal(existsSync(roadmapStatusDocPath), true);
