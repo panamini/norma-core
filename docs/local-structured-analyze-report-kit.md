@@ -18,6 +18,8 @@ This kit is a local-only command wrapper around the direct `analyzeStructuredCom
 `result.json` is the canonical Norma output. `report.html` is a static local
 read-only inspection dashboard over the same existing result, summary, and
 visual artifact data.
+`summary.json`, `summary.md`, `visual.svg`, and `report.html` are derived local
+views. They cannot redefine `result.json` as the canonical source of truth.
 
 ## Non-Scope
 
@@ -46,6 +48,8 @@ contract, operation boundary, pack/rule/profile references, decision,
 measurements, evaluations, component deltas, diagnostics, provenance/source
 references, replay readiness, local artifact list, and `visual.svg` without
 changing CLI, MCP, engine, or package behavior.
+It does not require hosting, an SDK surface, external network access, or MCP
+runtime changes.
 
 If the explicit input supplies a non-basic ratio pack, the report summary reflects that supplied pack. The report kit does not define the pack, choose a pack, or create a fallback pack.
 
@@ -58,3 +62,6 @@ node bin/norma-core-report.mjs examples/structured-analyze/geometry-harmony-basi
 ```
 
 It supplies `norma.geometry-harmonies@0.1.0`, `surface-golden-section`, explicit tolerances, an explicit PackLock, and an explicit OperationContext. The report states which composition is closer to the declared proportional system. It does not add a recommendation, beauty score, hosted surface, or MCP runtime change.
+`result.json` remains the canonical source of truth for the example. The other files are derived
+inspection views, and `visual.svg` is representational only; it does not change
+result equality or add an optimization, recommendation, or inference layer.

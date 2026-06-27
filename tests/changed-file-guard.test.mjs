@@ -14,6 +14,7 @@ import {
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
@@ -64,6 +65,13 @@ test("shared exact changed-file guard accepts the local report-kit scope summary
   assert.deepEqual(
     sharedExactApprovedChangedFiles(localStructuredAnalyzeReportKitScopeSummaryChangedFiles),
     localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R16 local Structured Analyze demo smoke set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoSmokeChangedFiles),
+    localStructuredAnalyzeDemoSmokeChangedFiles,
   );
 });
 
@@ -217,6 +225,26 @@ test("shared exact changed-file guard rejects an extra unrelated file", () => {
     sharedExactApprovedChangedFiles([...localStructuredAnalyzeReportKitScopeSummaryChangedFiles, "tests/unrelated.test.mjs"]),
     null,
   );
+});
+
+test("shared exact changed-file guard rejects runtime extras in the R16 demo smoke set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "bin/norma-core-report.mjs",
+    "package.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localStructuredAnalyzeDemoSmokeChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("shared exact changed-file guard rejects extra files in the Geometry Harmony pack/report example set", () => {

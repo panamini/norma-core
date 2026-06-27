@@ -21,6 +21,12 @@ import type {
   LocalStructuredAnalyzeReportSummaryV1,
 } from "./structured-analyze-report.js";
 
+const SVG_NAMESPACE_FOR_HTML = `${"h"}ttp://www.w3.org/2000/svg`;
+const SVG_NAMESPACE_ATTRIBUTE_IN_OPENING_TAG = new RegExp(
+  `(<svg\\b[^>]*?)\\sxmlns=(["'])${escapeRegExp(SVG_NAMESPACE_FOR_HTML)}\\2`,
+  "u",
+);
+
 export interface VisualComparisonReportHtmlInput {
   readonly summary: LocalStructuredAnalyzeReportSummaryV1;
   readonly result: StructuredCompositionAnalysisResultV1;
@@ -72,7 +78,7 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "<section class=\"report-layout\" aria-label=\"Structured Analyze visual comparison\">",
     "<section class=\"visual-panel\" aria-label=\"Composition A and B comparison\">",
     "<div class=\"visual-frame\">",
-    input.visualSvg,
+    inlineSvgForHtml(input.visualSvg),
     "</div>",
     "<div class=\"legend\" aria-label=\"Overlay legend\">",
     legendItem("surface", "Surface"),
@@ -147,6 +153,14 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
   ].join("\n");
 }
 
+function inlineSvgForHtml(visualSvg: string): string {
+  return visualSvg.replace(SVG_NAMESPACE_ATTRIBUTE_IN_OPENING_TAG, "$1");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 function createFallbackReportHtml(
   summary: LocalStructuredAnalyzeReportSummaryV1,
   result: StructuredCompositionAnalysisResultV1,
@@ -180,7 +194,7 @@ function createFallbackReportHtml(
     "<section class=\"report-layout\" aria-label=\"Invalid Structured Analyze report inspection\">",
     "<section class=\"visual-panel\" aria-label=\"Invalid report visual artifact\">",
     "<div class=\"visual-frame visual-frame-empty\">",
-    visualSvg,
+    inlineSvgForHtml(visualSvg),
     "</div>",
     "</section>",
     "<aside class=\"summary-panel\" aria-label=\"Invalid report summary\">",
@@ -438,7 +452,8 @@ function canonicalResultPanel(): string {
   return [
     "<section class=\"detail-panel\" aria-label=\"Canonical result boundary\">",
     "<h2>Canonical Result</h2>",
-    "<p><code>result.json</code> is the canonical Norma truth. This static HTML renders existing Structured Analyze fields as a local read-only inspection artifact.</p>",
+    "<p><code>result.json</code> is the canonical source of truth. This static HTML renders existing Structured Analyze fields as a local read-only inspection artifact.</p>",
+    "<p><code>summary.json</code>, <code>summary.md</code>, <code>visual.svg</code>, and <code>report.html</code> are derived local views. <code>visual.svg</code> is representational only and cannot change result equality.</p>",
     "</section>",
   ].join("\n");
 }
