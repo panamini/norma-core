@@ -12,6 +12,9 @@ import {
   LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES,
   createLocalStructuredAnalyzeReportBundle,
 } from "../dist/src/local-report/structured-analyze-report.js";
+import {
+  createVisualComparisonReportHtml,
+} from "../dist/src/local-report/visual-viewer.js";
 
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -107,6 +110,8 @@ test("local structured analyze report command writes the deterministic output bu
     assert.match(visualSvg, /Composition B/u);
     assert.match(reportHtml, /<!doctype html>/u);
     assert.match(reportHtml, /Local Structured Analyze Report/u);
+    assert.match(reportHtml, /result\.json<\/code> is the canonical Norma truth/u);
+    assert.match(reportHtml, /local read-only inspection artifact/u);
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
@@ -204,6 +209,12 @@ test("local structured analyze report command writes invalid bundle for primitiv
     assert.equal((await readJson(join(outputDir, "result.json"))).status, "invalid");
     assert.equal((await readJson(join(outputDir, "summary.json"))).status, "invalid");
     assert.match(await readFile(join(outputDir, "visual.svg"), "utf8"), /No rectangular Composition2D visual available/u);
+    const reportHtml = await readFile(join(outputDir, "report.html"), "utf8");
+    assert.match(reportHtml, /<dt>status<\/dt><dd>invalid<\/dd>/u);
+    assert.match(reportHtml, /Diagnostics \/ Errors \/ Warnings/u);
+    assert.match(reportHtml, /InvalidInputShape/u);
+    assert.doesNotMatch(reportHtml, /class="evaluation-grid"/u);
+    assert.doesNotMatch(reportHtml, /A is closer to the declared system/u);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -341,8 +352,39 @@ test("local structured analyze report command is deterministic for the Geometry 
   }
 });
 
+test("local structured analyze report generation preserves input and result objects", async () => {
+  const input = await readJson(exampleInputPath);
+  const inputBefore = canonicalSnapshot(input);
+  const directResult = core.analyzeStructuredCompositionV1(input);
+  const directResultBefore = canonicalSnapshot(directResult);
+  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const reportKitResultBefore = canonicalSnapshot(bundle.result);
+
+  assert.equal(canonicalSnapshot(input), inputBefore);
+  assert.deepEqual(bundle.result, directResult);
+
+  createVisualComparisonReportHtml({
+    summary: bundle.summary,
+    result: directResult,
+    visualSvg: bundle.artifacts["visual.svg"],
+  });
+  createVisualComparisonReportHtml({
+    summary: bundle.summary,
+    result: bundle.result,
+    visualSvg: bundle.artifacts["visual.svg"],
+  });
+
+  assert.equal(canonicalSnapshot(input), inputBefore);
+  assert.equal(canonicalSnapshot(directResult), directResultBefore);
+  assert.equal(canonicalSnapshot(bundle.result), reportKitResultBefore);
+});
+
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function canonicalSnapshot(value) {
+  return JSON.stringify(value);
 }
 
 function usePackIdentity(input, packIdentity) {

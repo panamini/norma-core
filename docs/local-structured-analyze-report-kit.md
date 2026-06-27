@@ -15,6 +15,10 @@ This kit is a local-only command wrapper around the direct `analyzeStructuredCom
   - `report.html`
 - input-derived pack, rule-set, and evaluation-profile references in the summary
 
+`result.json` is the canonical Norma output. `report.html` is a static local
+read-only inspection dashboard over the same existing result, summary, and
+visual artifact data.
+
 ## Non-Scope
 
 - no MCP runtime change
@@ -36,6 +40,12 @@ node bin/norma-core-report.mjs examples/structured-analyze/basic-grid-alignment.
 ```
 
 The command writes only the deterministic bundle files listed above. It does not mutate the input, start an MCP runtime, call a hosted service, or infer geometry from text or images.
+
+The generated `report.html` is self-contained and local. It renders the input
+contract, operation boundary, pack/rule/profile references, decision,
+measurements, evaluations, component deltas, diagnostics, provenance/source
+references, replay readiness, local artifact list, and `visual.svg` without
+changing CLI, MCP, engine, or package behavior.
 
 If the explicit input supplies a non-basic ratio pack, the report summary reflects that supplied pack. The report kit does not define the pack, choose a pack, or create a fallback pack.
 

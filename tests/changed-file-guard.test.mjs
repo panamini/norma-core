@@ -25,6 +25,7 @@ import {
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
+  structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
@@ -120,6 +121,13 @@ test("shared exact changed-file guard accepts the Structured Analyze visual view
   );
 });
 
+test("shared exact changed-file guard accepts the R14 report dashboard inspection set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeReportDashboardInspectionChangedFiles),
+    structuredAnalyzeReportDashboardInspectionChangedFiles,
+  );
+});
+
 test("shared exact changed-file guard accepts the semgrep-filtered Structured Analyze scenario pack set exactly", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles),
@@ -207,6 +215,25 @@ test("shared exact changed-file guard rejects extra files in the Structured Anal
     sharedExactApprovedChangedFiles([...structuredAnalyzeVisualViewerChangedFiles, "src/cli/analyze.ts"]),
     null,
   );
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the R14 report dashboard inspection set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "package.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...structuredAnalyzeReportDashboardInspectionChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {

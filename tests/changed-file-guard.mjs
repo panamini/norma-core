@@ -175,6 +175,15 @@ export const structuredAnalyzeVisualViewerChangedFiles = Object.freeze([
   "tests/visual-viewer.test.mjs",
 ].sort());
 
+export const structuredAnalyzeReportDashboardInspectionChangedFiles = Object.freeze([
+  "docs/local-structured-analyze-report-kit.md",
+  "src/local-report/visual-viewer.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-report-kit.test.mjs",
+  "tests/visual-viewer.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -191,6 +200,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
+  structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
