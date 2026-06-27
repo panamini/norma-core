@@ -563,6 +563,7 @@ function parseToolsListResponse(message) {
   assert.equal(response.jsonrpc, "2.0");
   assert.ok(Object.hasOwn(response, "result"));
   assert.ok(Array.isArray(response.result.tools));
+  assert.equal(response.result.tools.length, finalToolNames.length);
 
   return response;
 }

@@ -121,6 +121,13 @@ export const structuredAnalyzeDeterminismRegressionChangedFiles = Object.freeze(
   "tests/determinism-regression.test.mjs",
 ].sort());
 
+export const publicApiContractFreezeChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-tools-list-contract.test.mjs",
+  "tests/public-api-contract.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -147,6 +154,7 @@ const sharedExactApprovedChangedFileSets = [
   geometryHarmonyPackReportExamplesChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  publicApiContractFreezeChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,

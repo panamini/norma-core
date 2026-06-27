@@ -16,6 +16,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  publicApiContractFreezeChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -91,6 +92,13 @@ test("shared exact changed-file guard accepts the R10 determinism regression set
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeDeterminismRegressionChangedFiles),
     structuredAnalyzeDeterminismRegressionChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R11 public API contract freeze set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(publicApiContractFreezeChangedFiles),
+    publicApiContractFreezeChangedFiles,
   );
 });
 
