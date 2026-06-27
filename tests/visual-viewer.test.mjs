@@ -44,6 +44,15 @@ test("visual viewer renders side-by-side Structured Analyze report overlays", as
   assert.match(reportHtml, /tie tolerance/u);
   assert.match(reportHtml, /A count/u);
   assert.match(reportHtml, /B count/u);
+  const aMeasurementIds = compositionMeasurementIds(bundle.result.measurements.a, "A");
+  const bMeasurementIds = compositionMeasurementIds(bundle.result.measurements.b, "B");
+  assert.notDeepEqual(aMeasurementIds, bMeasurementIds);
+  assert.equal(detailValue(reportHtml, "A count"), String(aMeasurementIds.length));
+  assert.equal(detailValue(reportHtml, "A ids"), aMeasurementIds.join(", "));
+  assert.equal(detailValue(reportHtml, "B count"), String(bMeasurementIds.length));
+  assert.equal(detailValue(reportHtml, "B ids"), bMeasurementIds.join(", "));
+  assert.doesNotMatch(detailValue(reportHtml, "A ids"), /measurement:B/u);
+  assert.doesNotMatch(detailValue(reportHtml, "B ids"), /measurement:A/u);
   assert.match(reportHtml, /result\.json/u);
   assert.match(reportHtml, /summary\.json/u);
   assert.match(reportHtml, /summary\.md/u);
@@ -146,4 +155,26 @@ test("visual viewer preserves the invalid input fallback report behavior", () =>
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function compositionMeasurementIds(measurementSet, label) {
+  return measurementSet.compositions
+    .find((composition) => composition.label === label)
+    .measurements
+    .map((measurement) => measurement.id)
+    .sort(compareStableStrings);
+}
+
+function detailValue(reportHtml, label) {
+  const match = reportHtml.match(new RegExp(`<dt>${escapeRegExp(label)}<\\/dt><dd>([^<]*)<\\/dd>`, "u"));
+  assert.ok(match, `${label} detail value`);
+  return match[1];
+}
+
+function compareStableStrings(first, second) {
+  return first < second ? -1 : first > second ? 1 : 0;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }

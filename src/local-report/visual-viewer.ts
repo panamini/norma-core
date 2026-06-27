@@ -368,8 +368,8 @@ function replayPanel(result: StructuredCompositionAnalysisResultV1): string {
 }
 
 function measurementsPanel(measurements: { readonly a: MeasurementSet; readonly b: MeasurementSet }): string {
-  const aIds = measurementIds(measurements.a);
-  const bIds = measurementIds(measurements.b);
+  const aIds = compositionMeasurementIds(measurements.a, "A");
+  const bIds = compositionMeasurementIds(measurements.b, "B");
 
   return [
     "<section class=\"detail-panel\" aria-label=\"Measurement Counts\">",
@@ -462,11 +462,10 @@ function diagnosticList(title: "errors" | "warnings", diagnostics: readonly Diag
   ].join("\n");
 }
 
-function measurementIds(measurementSet: MeasurementSet): readonly string[] {
-  return [
-    ...measurementSet.constructionMeasurements.map((measurement) => measurement.id),
-    ...measurementSet.compositions.flatMap((composition) => composition.measurements.map((measurement) => measurement.id)),
-  ].sort(compareStableStrings);
+function compositionMeasurementIds(measurementSet: MeasurementSet, label: "A" | "B"): readonly string[] {
+  return (measurementSet.compositions.find((composition) => composition.label === label)?.measurements ?? [])
+    .map((measurement) => measurement.id)
+    .sort(compareStableStrings);
 }
 
 function componentDeltaRow(delta: ComponentDelta): string {
