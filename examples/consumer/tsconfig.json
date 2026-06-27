@@ -9,5 +9,8 @@
     "skipLibCheck": false,
     "noEmit": true
   },
-  "files": ["v1-5-trust-layer.ts"]
+  "files": [
+    "v1-5-trust-layer.ts",
+    "structured-analyze-v1.ts"
+  ]
 }

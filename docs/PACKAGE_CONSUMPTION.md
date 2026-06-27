@@ -2,7 +2,7 @@
 
 ## Status
 
-PR25 scope.
+PR25 scope, refreshed by R18 for the existing Structured Analyze public engine surface.
 
 Local/build-based consumption only.
 
@@ -10,11 +10,11 @@ Package remains private.
 
 No SDK runtime.
 
-No CLI.
+No new CLI behavior.
 
 No API.
 
-No MCP.
+No new MCP behavior.
 
 No adapter.
 
@@ -22,10 +22,11 @@ No package publish.
 
 ## Import
 
-After `npm run build`, local consumers can import approved trust-layer operations through the package root export:
+After `npm run build`, local consumers can import approved trust-layer operations and the existing Structured Analyze operation through the package root export:
 
 ```js
 import {
+  analyzeStructuredCompositionV1,
   verifyArtifactFreshness,
   verifyRun,
   replayRun,
@@ -36,6 +37,9 @@ import {
 ```
 
 The root export resolves to `./dist/src/index.js` with types at `./dist/src/index.d.ts`.
+
+Local consumers must import from `@norma/core`. They must not import from `src/*`
+or `dist/src/*`.
 
 ## MVP Demo Helper Exports
 
@@ -50,9 +54,14 @@ These helpers support local verification examples. They do not create a new SDK,
 
 Approved V1.5 trust-layer operations:
 
+- `analyzeStructuredCompositionV1`
 - `verifyArtifactFreshness`
 - `verifyRun`
 - `replayRun` MVP-only
+
+`analyzeStructuredCompositionV1` is an approved package-root import for
+local/private consumption. This refresh does not add a new export; it documents
+and tests the existing package-root surface.
 
 Package-root deterministic serialization helpers:
 
@@ -78,6 +87,11 @@ Preserve errors.
 
 Preserve provenance.
 
+Preserve diagnostics.
+
+Preserve output refs, `packLockRef`, `operationContextRef`, and
+`replayReadiness` for Structured Analyze results.
+
 Preserve mismatches when replaying.
 
 Preserve `artifactFreshness` when supplied.
@@ -88,9 +102,16 @@ Do not hide critical warnings or blocking errors.
 
 Structured source objects are source truth.
 
+For Structured Analyze, the result returned by
+`analyzeStructuredCompositionV1` is canonical engine truth. When report tooling
+writes `result.json`, that file is the canonical persisted view of the same
+engine result.
+
 Refs are traceability, not source truth.
 
-Artifacts are derived projections, not source truth.
+Report artifacts such as `summary.json`, `summary.md`, `visual.svg`, and
+`report.html` are derived local inspection views, not package API and not
+source truth.
 
 Prompt text is never source truth.
 
@@ -113,9 +134,9 @@ Replay requires explicit structured MVP source truth.
 PR25 does not add:
 
 - SDK runtime
-- CLI
+- CLI behavior
 - API
-- MCP
+- MCP behavior
 - adapter
 - cloud
 - UI

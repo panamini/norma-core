@@ -205,6 +205,18 @@ export const postR14RoadmapCheckpointChangedFiles = Object.freeze([
 
 export const roadmapConvergenceAfterR16ChangedFiles = postR14RoadmapCheckpointChangedFiles;
 
+export const structuredAnalyzeConsumerReadinessChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/CONSUMER_COMPATIBILITY.md",
+  "docs/PACKAGE_CONSUMPTION.md",
+  "examples/consumer/structured-analyze-v1.ts",
+  "examples/consumer/tsconfig.json",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/consumer-compatibility.test.mjs",
+  "tests/package-consumption.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -223,6 +235,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeConsumerReadinessChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

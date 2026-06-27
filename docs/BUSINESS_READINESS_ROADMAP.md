@@ -250,18 +250,34 @@ one PR at a time. Swarm or multi-agent work is allowed only for read-only
 review, planning, or independent checks. Implementation must remain
 single-owner per branch/PR.
 
-Current recommended next choices are:
+Current recommended next choices after R18 are:
 
-1. Local consumer readiness refresh, if package consumption clarity is still
-   needed.
-2. A later explicit package publication decision, only if maintainers want
+1. A later explicit package publication decision, only if maintainers want
    publication.
-3. Product/UI/dashboard work only after a separate product-scope approval.
-4. Hosted/remote MCP only after explicit threat-model and deployment approval.
+2. Product/UI/dashboard work only after a separate product-scope approval.
+3. Hosted/remote MCP only after explicit threat-model and deployment approval.
 
 Public npm publication remains blocked. Hosted MCP remains blocked.
 UI/dashboard work remains blocked until explicitly approved. Engine behavior
 must not change for roadmap convergence.
+
+## R18 Local Consumer Readiness Refresh
+
+R18 proves local/private package consumer readiness for the existing Structured
+Analyze engine surface. It is docs, tests, and a TypeScript consumer example
+only.
+
+R18 may document and test that a local consumer can import
+`analyzeStructuredCompositionV1` from `@norma/core` after `npm run build`, call
+it with explicit Structured Analyze input, and preserve result semantics.
+
+R18 must not change engine behavior, package exports, package metadata,
+lockfiles, CLI behavior, MCP behavior, report-kit behavior, visual viewer
+behavior, scenarios, public npm publication state, SDK runtime, API runtime,
+hosted/cloud behavior, media/CAD/provider behavior, or product/UI behavior.
+
+Structured Analyze result output remains canonical engine truth. Report
+artifacts are derived local inspection views and are not package API.
 
 ## Current State After PR25
 

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const examplePath = join(repoRoot, "examples", "consumer", "v1-5-trust-layer.ts");
+const structuredAnalyzeExamplePath = join(repoRoot, "examples", "consumer", "structured-analyze-v1.ts");
 const consumerTsconfigPath = join(repoRoot, "examples", "consumer", "tsconfig.json");
 const compatibilityDocPath = join(repoRoot, "docs", "CONSUMER_COMPATIBILITY.md");
 const distIndexPath = join(repoRoot, "dist", "src", "index.js");
@@ -15,6 +16,7 @@ const distTypesPath = join(repoRoot, "dist", "src", "index.d.ts");
 const consumerTypecheckTimeoutMs = 10_000;
 
 const approvedPackageRootExports = [
+  "analyzeStructuredCompositionV1",
   "CORE_VERSION",
   "STABLE_SERIALIZATION_VERSION",
   "DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY",
@@ -43,6 +45,24 @@ test("PR31 typed consumer example imports only from the package root", () => {
   assert.doesNotMatch(source, /\bcreateClient\b/);
   assert.doesNotMatch(source, /\bconsole\.log\b/);
   assert.match(source, /\bexport\s+const\s+consumerSummary\b/);
+});
+
+test("R18 typed Structured Analyze consumer example imports only from the package root", () => {
+  const source = readFileSync(structuredAnalyzeExamplePath, "utf8");
+  const importSources = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((match) => match[1]);
+
+  assert.deepEqual([...new Set(importSources)], ["@norma/core"]);
+  assert.match(source, /\banalyzeStructuredCompositionV1\b/);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:\.\.\/)*src(?:\/|["'])/);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:\.\.\/)*dist(?:\/|["'])/);
+  assert.doesNotMatch(source, /\bclass\s+NormaClient\b/);
+  assert.doesNotMatch(source, /\bcreateSdk\b/);
+  assert.doesNotMatch(source, /\bcreateClient\b/);
+  assert.doesNotMatch(source, /\bcreateAdapter\b/);
+  assert.doesNotMatch(source, /\bcreateApi\b/);
+  assert.doesNotMatch(source, /\bcreateMcp\b/);
+  assert.doesNotMatch(source, /\bconsole\./);
+  assert.match(source, /\bexport\s+const\s+structuredAnalyzeConsumerSummary\b/);
 });
 
 test("PR31 typed consumer example compiles against built package types", () => {
