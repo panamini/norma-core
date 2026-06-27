@@ -186,6 +186,14 @@ export const structuredAnalyzeReportDashboardInspectionChangedFiles = Object.fre
   "tests/visual-viewer.test.mjs",
 ].sort());
 
+export const postR14RoadmapCheckpointChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-27-post-r14-roadmap-checkpoint.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -194,6 +202,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
+  postR14RoadmapCheckpointChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,

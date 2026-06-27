@@ -17,6 +17,7 @@ import {
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
+  postR14RoadmapCheckpointChangedFiles,
   publicApiContractFreezeChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
@@ -129,6 +130,13 @@ test("shared exact changed-file guard accepts the R14 report dashboard inspectio
   );
 });
 
+test("shared exact changed-file guard accepts the R15 post-R14 roadmap checkpoint set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(postR14RoadmapCheckpointChangedFiles),
+    postR14RoadmapCheckpointChangedFiles,
+  );
+});
+
 test("shared exact changed-file guard accepts the semgrep-filtered Structured Analyze scenario pack set exactly", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles),
@@ -236,6 +244,25 @@ test("shared exact changed-file guard rejects forbidden extras in the R14 report
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...structuredAnalyzeReportDashboardInspectionChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime extras in the R15 roadmap checkpoint set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "package.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...postR14RoadmapCheckpointChangedFiles,
         forbiddenFile,
       ]),
       null,
