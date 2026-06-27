@@ -171,8 +171,11 @@ function resolveScenario(specifier: string): ScenarioRef {
   const scenarioName = fileName.endsWith(".json") ? fileName.slice(0, -".json".length) : fileName;
 
   const directPath = resolve(process.cwd(), specifier);
-  if (isExplicitScenarioPath(specifier) && existsSync(directPath)) {
-    return { name: scenarioName, path: directPath };
+  if (isExplicitScenarioPath(specifier)) {
+    if (existsSync(directPath)) {
+      return { name: scenarioName, path: directPath };
+    }
+    throw new CliInputError(`Scenario file not found: ${specifier}.`);
   }
 
   if (!isSupportedScenarioName(scenarioName)) {
@@ -231,7 +234,11 @@ async function writeBundleAtomically(
     try {
       await rename(tempDir, outputDir);
       outputMovedToBackup = false;
-      await rm(backupDir, { recursive: true, force: true });
+      try {
+        await rm(backupDir, { recursive: true, force: true });
+      } catch {
+        // The new report bundle is already committed; backup cleanup is best effort.
+      }
     } catch (error) {
       if (outputMovedToBackup && !existsSync(outputDir)) {
         await rename(backupDir, outputDir);

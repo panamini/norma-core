@@ -14,12 +14,14 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const scenarioDir = join(repoRoot, "examples", "structured-analyze", "scenarios");
-const validAnalyzeScenarios = Object.freeze([
-  "alignment-basic",
-  "ratio-comparison",
-  "symmetry-test",
-  "boundary-case",
-]);
+const invalidAnalyzeScenarioName = "invalid-case";
+const validAnalyzeScenarios = Object.freeze(
+  readdirSync(scenarioDir)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .map((fileName) => fileName.slice(0, -".json".length))
+    .filter((scenarioName) => scenarioName !== invalidAnalyzeScenarioName)
+    .sort(),
+);
 
 function runCli(args) {
   return spawnSync(process.execPath, ["bin/norma-core.mjs", ...args], {
@@ -305,10 +307,24 @@ test("R8.2 analyze CLI accepts an explicit scenario file path outside the bundle
   });
 });
 
+test("R8.2 analyze CLI rejects missing explicit scenario paths without bundled fallback", () => {
+  const result = runAnalyzeCli(["analyze", "./missing/alignment-basic.json"]);
+
+  assert.equal(result.status, 1);
+  const errorJson = parseAnalyzeCliError(result);
+
+  assert.equal(errorJson.kind, "norma-cli-analyze-error");
+  assert.equal(errorJson.command, "analyze");
+  assert.equal(errorJson.status, "error");
+  assert.equal(errorJson.exitCode, 1);
+  assert.equal(errorJson.error.code, "InvalidCliInput");
+  assert.match(errorJson.error.message, /Scenario file not found/u);
+});
+
 test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
   withTempDir((dir) => {
     const outputDir = join(dir, "invalid-case-output");
-    const result = runAnalyzeCli(["analyze", "invalid-case", "--out", outputDir]);
+    const result = runAnalyzeCli(["analyze", invalidAnalyzeScenarioName, "--out", outputDir]);
 
     assert.equal(result.status, 2);
     const errorJson = parseAnalyzeCliError(result);
@@ -317,13 +333,32 @@ test("R8.2 analyze CLI rejects invalid scenario without report output", () => {
     assert.equal(errorJson.command, "analyze");
     assert.equal(errorJson.status, "error");
     assert.equal(errorJson.exitCode, 2);
-    assert.equal(errorJson.scenario, "invalid-case");
+    assert.equal(errorJson.scenario, invalidAnalyzeScenarioName);
     assert.equal(errorJson.outputDir, outputDir);
     assert.equal(errorJson.resultStatus, "invalid");
     assert.equal(errorJson.error.code, "InvalidScenario");
     assert.equal(errorJson.diagnostics.some((diagnostic) => diagnostic.code === "InvalidInputShape"), true);
     assert.equal(existsSync(outputDir), false);
     assert.deepEqual(readdirSync(dir), []);
+  });
+});
+
+test("R8.2 analyze CLI refuses stale files inside an existing report directory", () => {
+  withTempDir((dir) => {
+    const outputDir = join(dir, "existing-report-with-stale-file");
+    const first = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+    const stalePath = join(outputDir, "stale.txt");
+    writeFileSync(stalePath, "stale\n");
+
+    const second = runAnalyzeCli(["analyze", "alignment-basic", "--out", outputDir]);
+
+    assert.equal(first.status, 0);
+    assert.equal(second.status, 3);
+    const errorJson = parseAnalyzeCliError(second);
+
+    assert.equal(errorJson.error.code, "ReportWriteFailed");
+    assert.equal(readFileSync(stalePath, "utf8"), "stale\n");
+    assert.equal(existsSync(join(outputDir, "result.json")), true);
   });
 });
 
