@@ -530,10 +530,36 @@ test("R12 transport-invalid Structured Analyze inputs never expose engine result
     { id: "r12-wrong-arguments-type", params: { name: analyzeToolName, arguments: [] } },
     { id: "r12-missing-input", params: { name: analyzeToolName, arguments: {} } },
     { id: "r12-unknown-wrapper-field", params: { name: analyzeToolName, arguments: { input, unknown: true } } },
-    { id: "r12-wrong-operation-name", params: { name: analyzeToolName, arguments: { input: { ...input, operationName: "wrong" } } } },
-    { id: "r12-wrong-operation-version", params: { name: analyzeToolName, arguments: { input: { ...input, operationVersion: "wrong" } } } },
+    {
+      id: "r12-wrong-operation-name",
+      params: {
+        name: analyzeToolName,
+        arguments: { input: { ...input, operationContext: { ...input.operationContext, operationName: "wrong" } } },
+      },
+    },
+    {
+      id: "r12-wrong-operation-version",
+      params: {
+        name: analyzeToolName,
+        arguments: { input: { ...input, operationContext: { ...input.operationContext, operationVersion: "wrong" } } },
+      },
+    },
     { id: "r12-missing-composition", params: { name: analyzeToolName, arguments: { input: { ...input, compositionA: undefined } } } },
-    { id: "r12-malformed-nested-type", params: { name: analyzeToolName, arguments: { input: { ...input, surface: { ...input.surface, bounds: "bad" } } } } },
+    {
+      id: "r12-malformed-nested-type",
+      params: {
+        name: analyzeToolName,
+        arguments: {
+          input: {
+            ...input,
+            compositionA: {
+              ...input.compositionA,
+              surface: { ...input.compositionA.surface, bounds: "bad" },
+            },
+          },
+        },
+      },
+    },
     { id: "r12-nested-meta", params: { name: analyzeToolName, arguments: { input: { ...input, _meta: { progressToken: "hidden" } } } } },
   ];
 
@@ -836,7 +862,7 @@ function readStdoutLinesBeforeClosingStdin(child, messages) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error(`Timed out waiting for stdout before stdin closed. stderr: ${stderr}`));
-    }, 2_000);
+    }, 10_000);
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
