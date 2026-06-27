@@ -7,10 +7,13 @@ import type {
   Evaluation,
   EvaluationComponentId,
 } from "../evaluation.js";
-import {
-  DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
-  serializeCanonicalJson,
-} from "../serialization.js";
+import type {
+  Diagnostic,
+  SourceReference,
+} from "../index.js";
+import type {
+  MeasurementSet,
+} from "../measurements.js";
 import type {
   StructuredCompositionAnalysisResultV1,
 } from "../structured-composition-analysis.js";
@@ -26,10 +29,9 @@ export interface VisualComparisonReportHtmlInput {
 
 export function createVisualComparisonReportHtml(input: VisualComparisonReportHtmlInput): string {
   if (input.result.status !== "valid") {
-    return createFallbackReportHtml(input.summary, input.visualSvg);
+    return createFallbackReportHtml(input.summary, input.result, input.visualSvg);
   }
 
-  const summaryJson = serializeCanonicalJson(input.summary, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
   const evaluationA = input.result.evaluations.a;
   const evaluationB = input.result.evaluations.b;
   const selectedComposition = selectedCompositionLabel(
@@ -82,8 +84,12 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "</div>",
     "</section>",
     "<aside class=\"summary-panel\" aria-label=\"Structured summary\">",
-    "<h2>Summary</h2>",
+    "<h2>Input Contract</h2>",
     "<dl>",
+    metric("analysis id", input.summary.analysisId),
+    metric("contract", input.summary.input.contractVersion ?? "unknown"),
+    metric("composition A", input.summary.input.compositionAId ?? "unknown"),
+    metric("composition B", input.summary.input.compositionBId ?? "unknown"),
     metric("operation", `${input.summary.operation.name}@${input.summary.operation.version}`),
     metric("boundary", input.summary.operation.boundary),
     metric("ratio pack", input.summary.input.ratioPackRef ?? "unknown"),
@@ -93,12 +99,35 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "</dl>",
     "</aside>",
     "</section>",
+    "<section class=\"detail-grid\" aria-label=\"Structured Analyze inspection details\">",
+    detailPanel("Operation Boundary", [
+      ["operation", `${input.summary.operation.name}@${input.summary.operation.version}`],
+      ["boundary", input.summary.operation.boundary],
+      ["pack lock", input.result.packLockRef.id],
+      ["operation context", input.result.operationContextRef.id],
+    ]),
+    detailPanel("Ratio Pack / Rule Set / Evaluation Profile", [
+      ["ratio pack", input.summary.input.ratioPackRef ?? "unknown"],
+      ["rule set", input.summary.input.ruleSetRef ?? "unknown"],
+      ["evaluation profile", input.summary.input.evaluationProfileRef ?? "unknown"],
+      ["tie tolerance", formatScore(input.result.comparison.tieTolerance)],
+    ]),
+    decisionPanel(input.result.decision, selectedComposition),
+    replayPanel(input.result),
+    "</section>",
+    measurementsPanel(input.result.measurements),
     "<section class=\"evaluation-grid\" aria-label=\"Evaluation results\">",
     evaluationCard("Composition A", evaluationA, input.result.decision.selectedEvaluationRef),
     evaluationCard("Composition B", evaluationB, input.result.decision.selectedEvaluationRef),
     "</section>",
     "<section class=\"ratio-compare\" aria-label=\"Ratio and alignment comparison\">",
-    "<h2>Ratio and Alignment</h2>",
+    "<h2>Comparison Deltas</h2>",
+    "<dl class=\"comparison-summary\">",
+    metric("comparison", input.result.comparison.status),
+    metric("score delta", formatSignedScore(input.result.comparison.scoreDelta)),
+    metric("tie tolerance", formatScore(input.result.comparison.tieTolerance)),
+    metric("decision", input.result.decision.summary),
+    "</dl>",
     "<div class=\"comparison-bars\">",
     scoreBar("A ratio", ratioA),
     scoreBar("B ratio", ratioB),
@@ -107,24 +136,10 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "</div>",
     componentDeltaTable(input.result.comparison),
     "</section>",
-    "<section class=\"source-panel\" aria-label=\"Local report source files\">",
-    "<h2>Local Source Files</h2>",
-    "<ul>",
-    "<li>result.json</li>",
-    "<li>summary.json</li>",
-    "<li>summary.md</li>",
-    "<li>visual.svg</li>",
-    "<li>report.html</li>",
-    "</ul>",
-    "</section>",
-    "<details class=\"json-panel\">",
-    "<summary>Summary JSON</summary>",
-    `<pre>${escapeHtml(summaryJson)}</pre>`,
-    "</details>",
-    "<details class=\"json-panel\">",
-    "<summary>Result Source</summary>",
-    "<p>The full deterministic Structured Analyze result remains in local file <code>result.json</code>. This viewer renders selected decision, evaluation, comparison, and replay fields from that result without duplicating the full payload.</p>",
-    "</details>",
+    diagnosticsPanel(input.result),
+    provenancePanel(input.summary, input.result),
+    artifactPanel(input.summary.outputFiles),
+    canonicalResultPanel(),
     "</main>",
     "</body>",
     "</html>",
@@ -134,40 +149,72 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
 
 function createFallbackReportHtml(
   summary: LocalStructuredAnalyzeReportSummaryV1,
+  result: StructuredCompositionAnalysisResultV1,
   visualSvg: string,
 ): string {
-  const summaryJson = serializeCanonicalJson(summary, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
-
   return [
     "<!doctype html>",
     "<html lang=\"en\">",
     "<head>",
     "<meta charset=\"utf-8\">",
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
     "<title>Local Structured Analyze Report</title>",
     "<style>",
-    "body{font-family:Arial,sans-serif;margin:32px;color:#111827;background:#ffffff;}",
-    "main{max-width:960px;margin:0 auto;}",
-    "h1{font-size:24px;line-height:1.2;margin:0 0 16px;}",
-    "dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;}",
-    "dt{font-weight:700;}dd{margin:0;}",
-    "pre{overflow:auto;background:#f3f4f6;padding:16px;border:1px solid #d1d5db;}",
-    "svg{display:block;max-width:100%;height:auto;margin:24px 0;border:1px solid #d1d5db;}",
+    reportCss(),
     "</style>",
     "</head>",
     "<body>",
-    "<main>",
-    "<h1>Local Structured Analyze Report</h1>",
-    "<dl>",
-    `<dt>analysisId</dt><dd>${escapeHtml(summary.analysisId)}</dd>`,
-    `<dt>status</dt><dd>${escapeHtml(summary.status)}</dd>`,
-    `<dt>operation</dt><dd>${escapeHtml(`${summary.operation.name}@${summary.operation.version}`)}</dd>`,
-    `<dt>boundary</dt><dd>${escapeHtml(summary.operation.boundary)}</dd>`,
-    `<dt>decision</dt><dd>${escapeHtml(summary.decision?.summary ?? "none")}</dd>`,
-    `<dt>diagnostics</dt><dd>${summary.diagnostics.errorCount} errors, ${summary.diagnostics.warningCount} warnings</dd>`,
+    "<main class=\"report-shell report-shell-invalid\">",
+    "<header class=\"report-header\">",
+    "<div>",
+    "<p class=\"kicker\">Local Structured Analyze Report</p>",
+    `<h1>${escapeHtml(summary.analysisId)}</h1>`,
+    "</div>",
+    "<dl class=\"status-strip\" aria-label=\"Report status\">",
+    metric("status", summary.status),
+    metric("decision", "none"),
+    metric("selected", "none"),
+    metric("replay", "none"),
     "</dl>",
+    "</header>",
+    "<section class=\"report-layout\" aria-label=\"Invalid Structured Analyze report inspection\">",
+    "<section class=\"visual-panel\" aria-label=\"Invalid report visual artifact\">",
+    "<div class=\"visual-frame visual-frame-empty\">",
     visualSvg,
-    "<h2>Summary JSON</h2>",
-    `<pre>${escapeHtml(summaryJson)}</pre>`,
+    "</div>",
+    "</section>",
+    "<aside class=\"summary-panel\" aria-label=\"Invalid report summary\">",
+    "<h2>Input Contract</h2>",
+    "<dl>",
+    metric("analysis id", summary.analysisId),
+    metric("contract", summary.input.contractVersion ?? "unknown"),
+    metric("operation", `${summary.operation.name}@${summary.operation.version}`),
+    metric("boundary", summary.operation.boundary),
+    metric("ratio pack", summary.input.ratioPackRef ?? "unknown"),
+    metric("rule set", summary.input.ruleSetRef ?? "unknown"),
+    metric("evaluation profile", summary.input.evaluationProfileRef ?? "unknown"),
+    metric("diagnostics", `${summary.diagnostics.errorCount} errors, ${summary.diagnostics.warningCount} warnings`),
+    "</dl>",
+    "</aside>",
+    "</section>",
+    "<section class=\"detail-grid\" aria-label=\"Invalid result inspection details\">",
+    detailPanel("Operation Boundary", [
+      ["operation", `${summary.operation.name}@${summary.operation.version}`],
+      ["boundary", summary.operation.boundary],
+      ["pack lock", result.packLockRef?.id ?? "none"],
+      ["operation context", result.operationContextRef?.id ?? "none"],
+    ]),
+    detailPanel("Replay Readiness", [
+      ["status", summary.replayReadiness.status ?? result.replayReadiness?.status ?? "none"],
+      ["run", result.replayReadiness?.run.runRef.id ?? "none"],
+      ["result status", result.status],
+      ["output refs", formatSourceRefs(result.outputRefs)],
+    ]),
+    "</section>",
+    diagnosticsPanel(result),
+    provenancePanel(summary, result),
+    artifactPanel(summary.outputFiles),
+    canonicalResultPanel(),
     "</main>",
     "</body>",
     "</html>",
@@ -185,22 +232,26 @@ function reportCss(): string {
     "h1{font-size:24px;line-height:1.25;margin:0;}",
     "h2{font-size:16px;line-height:1.3;margin:0 0 12px;}",
     ".status-strip{display:grid;grid-template-columns:repeat(4,minmax(112px,1fr));gap:8px;margin:0;}",
-    ".status-strip div,.summary-panel,.visual-panel,.evaluation-card,.ratio-compare,.source-panel,.json-panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;}",
+    ".status-strip div,.summary-panel,.visual-panel,.evaluation-card,.ratio-compare,.source-panel,.json-panel,.detail-panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;}",
     ".status-strip div{padding:10px;}",
     "dt{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);}dd{margin:4px 0 0;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}",
     ".report-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start;}",
     ".visual-panel{padding:14px;overflow:hidden;}",
     ".visual-frame{overflow:auto;border:1px solid var(--line);background:#fff;}",
     ".visual-frame svg{display:block;width:100%;min-width:760px;height:auto;margin:0;border:0;}",
+    ".visual-frame-empty svg{min-width:0;}",
     ".legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px;font-size:12px;color:var(--muted);}",
     ".legend-item{display:inline-flex;align-items:center;gap:6px;}",
     ".legend-swatch{width:14px;height:8px;border:2px solid var(--line);display:inline-block;}",
     ".legend-surface{background:#f9fafb;border-color:var(--ink);}.legend-element{background:#dbeafe;border-color:var(--blue);}.legend-bbox{background:#fff;border-style:dashed;border-color:var(--ink);}.legend-guide{background:#fff;border-color:var(--violet);}.legend-anchor{width:8px;height:8px;border-radius:50%;background:var(--ink);border-color:var(--ink);}.legend-selected{background:#ecfdf5;border-color:var(--green);}",
     ".summary-panel{padding:16px;}",
     ".summary-panel dl{display:grid;grid-template-columns:1fr;gap:10px;margin:0;}",
+    ".detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:16px;}",
+    ".detail-panel{padding:16px;}.detail-panel dl{display:grid;gap:10px;margin:0;}.detail-panel p{margin:0;color:var(--muted);font-size:13px;line-height:1.45;}",
     ".evaluation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px;}",
     ".evaluation-card{padding:16px;}",
     ".evaluation-card[data-selected=\"true\"]{border-color:var(--green);box-shadow:inset 0 0 0 2px rgba(4,120,87,.18);}",
+    ".evaluation-card dl,.comparison-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px;}",
     ".score-line{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:13px;color:var(--muted);}",
     ".components{display:grid;gap:8px;}",
     ".component-row{display:grid;grid-template-columns:132px 1fr 64px;gap:10px;align-items:center;font-size:12px;}",
@@ -214,9 +265,11 @@ function reportCss(): string {
     ".comparison-bars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}",
     ".score-bar{display:grid;gap:6px;font-size:12px;}",
     "table{width:100%;border-collapse:collapse;font-size:12px;}th,td{text-align:left;padding:8px;border-top:1px solid var(--line);vertical-align:top;}th{font-size:11px;text-transform:uppercase;color:var(--muted);}",
-    ".source-panel{padding:16px;margin-top:16px;}.source-panel ul{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0;padding-left:18px;font-size:13px;color:var(--muted);}",
+    ".source-panel{padding:16px;margin-top:16px;}.source-panel ul,.diagnostic-list{display:grid;gap:8px;margin:0;padding-left:18px;font-size:13px;color:var(--muted);}.source-panel ul{display:flex;flex-wrap:wrap;gap:8px 18px;}",
+    ".diagnostic-list{margin-top:10px;}.diagnostic-list strong{color:var(--ink);}.empty-state{font-size:13px;color:var(--muted);margin:10px 0 0;}",
     ".json-panel{margin-top:16px;padding:0;}.json-panel summary{cursor:pointer;padding:14px 16px;font-weight:700;}.json-panel pre{margin:0;padding:16px;overflow:auto;border-top:1px solid var(--line);background:#f3f4f6;font-size:12px;}.json-panel p{margin:0;padding:0 16px 16px;font-size:13px;line-height:1.45;color:var(--muted);}",
-    "@media (max-width:900px){.report-shell{padding:18px;}.report-header{display:block;}.status-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;}.report-layout,.evaluation-grid{grid-template-columns:1fr;}.comparison-bars{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+    "@media (max-width:1100px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}",
+    "@media (max-width:900px){.report-shell{padding:18px;}.report-header{display:block;}.status-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;}.report-layout,.evaluation-grid,.detail-grid{grid-template-columns:1fr;}.comparison-bars,.evaluation-card dl,.comparison-summary{grid-template-columns:repeat(2,minmax(0,1fr));}}",
   ].join("");
 }
 
@@ -231,11 +284,17 @@ function evaluationCard(
   return [
     `<article class="evaluation-card" data-selected="${selected ? "true" : "false"}">`,
     `<h2>${escapeHtml(title)}</h2>`,
+    "<dl>",
+    metric("evaluation ref", evaluation.id),
+    metric("profile ref", evaluation.profileRef),
+    metric("pack ref", evaluation.packRef),
+    "</dl>",
     "<div class=\"score-line\">",
     `<span>status: ${escapeHtml(evaluation.status)}</span>`,
     `<span>score: ${formatScore(score)}</span>`,
     `<span>confidence: ${formatScore(confidence)}</span>`,
     "</div>",
+    "<h2>Evaluation Components</h2>",
     "<div class=\"components\">",
     ...evaluation.componentScores.map(componentRow),
     "</div>",
@@ -279,6 +338,136 @@ function componentDeltaTable(comparison: Comparison): string {
   ].join("\n");
 }
 
+function detailPanel(title: string, rows: readonly (readonly [string, string])[]): string {
+  return [
+    `<section class="detail-panel" aria-label="${escapeHtml(title)}">`,
+    `<h2>${escapeHtml(title)}</h2>`,
+    "<dl>",
+    ...rows.map(([label, value]) => metric(label, value)),
+    "</dl>",
+    "</section>",
+  ].join("\n");
+}
+
+function decisionPanel(decision: Comparison["decision"], selectedComposition: string | null): string {
+  return detailPanel("Decision", [
+    ["status", decision.status],
+    ["summary", decision.summary],
+    ["selected composition", selectedComposition ?? "none"],
+    ["selected evaluation", decision.selectedEvaluationRef ?? "none"],
+  ]);
+}
+
+function replayPanel(result: StructuredCompositionAnalysisResultV1): string {
+  return detailPanel("Replay Readiness", [
+    ["status", result.replayReadiness?.status ?? "none"],
+    ["run", result.replayReadiness?.run.runRef.id ?? "none"],
+    ["pack lock", result.packLockRef?.id ?? "none"],
+    ["operation context", result.operationContextRef?.id ?? "none"],
+  ]);
+}
+
+function measurementsPanel(measurements: { readonly a: MeasurementSet; readonly b: MeasurementSet }): string {
+  const aIds = compositionMeasurementIds(measurements.a, "A");
+  const bIds = compositionMeasurementIds(measurements.b, "B");
+
+  return [
+    "<section class=\"detail-panel\" aria-label=\"Measurement Counts\">",
+    "<h2>Measurement Counts</h2>",
+    "<dl>",
+    metric("A measurement set", measurements.a.id),
+    metric("A count", String(aIds.length)),
+    metric("A ids", formatList(aIds)),
+    metric("B measurement set", measurements.b.id),
+    metric("B count", String(bIds.length)),
+    metric("B ids", formatList(bIds)),
+    "</dl>",
+    "</section>",
+  ].join("\n");
+}
+
+function diagnosticsPanel(result: StructuredCompositionAnalysisResultV1): string {
+  const diagnosticCodes = [...new Set(result.diagnostics.map((diagnostic) => diagnostic.code))].sort(compareStableStrings);
+
+  return [
+    "<section class=\"detail-panel\" aria-label=\"Diagnostics errors and warnings\">",
+    "<h2>Diagnostics / Errors / Warnings</h2>",
+    "<dl>",
+    metric("diagnostics", String(result.diagnostics.length)),
+    metric("errors", String(result.errors.length)),
+    metric("warnings", String(result.warnings.length)),
+    metric("codes", formatList(diagnosticCodes)),
+    "</dl>",
+    diagnosticList("errors", result.errors),
+    diagnosticList("warnings", result.warnings),
+    "</section>",
+  ].join("\n");
+}
+
+function provenancePanel(
+  summary: LocalStructuredAnalyzeReportSummaryV1,
+  result: StructuredCompositionAnalysisResultV1,
+): string {
+  return [
+    "<section class=\"detail-panel\" aria-label=\"Provenance and source refs\">",
+    "<h2>Provenance / Source Refs</h2>",
+    "<dl>",
+    metric("source kind", summary.input.sourceKind ?? result.provenance?.sourceKind ?? "none"),
+    metric("external source", formatSourceRef(summary.input.externalSourceRef ?? result.provenance?.externalSourceRef ?? null)),
+    metric("input refs", formatSourceRefs(result.inputRefs)),
+    metric("output refs", formatSourceRefs(result.outputRefs)),
+    metric("caller source ids", formatList(result.provenance?.callerSourceIds ?? [])),
+    metric("transformation steps", String(result.provenance?.transformationSteps.length ?? 0)),
+    "</dl>",
+    "</section>",
+  ].join("\n");
+}
+
+function artifactPanel(files: readonly string[]): string {
+  return [
+    "<section class=\"source-panel\" aria-label=\"Local Artifacts\">",
+    "<h2>Local Artifacts</h2>",
+    "<ul>",
+    ...files.map((file) => `<li>${escapeHtml(file)}</li>`),
+    "</ul>",
+    "</section>",
+  ].join("\n");
+}
+
+function canonicalResultPanel(): string {
+  return [
+    "<section class=\"detail-panel\" aria-label=\"Canonical result boundary\">",
+    "<h2>Canonical Result</h2>",
+    "<p><code>result.json</code> is the canonical Norma truth. This static HTML renders existing Structured Analyze fields as a local read-only inspection artifact.</p>",
+    "</section>",
+  ].join("\n");
+}
+
+function diagnosticList(title: "errors" | "warnings", diagnostics: readonly Diagnostic[]): string {
+  if (diagnostics.length === 0) {
+    return `<p class="empty-state">No ${title}.</p>`;
+  }
+
+  return [
+    `<ul class="diagnostic-list" aria-label="${title}">`,
+    ...diagnostics.map((diagnostic) => [
+      "<li>",
+      `<strong>${escapeHtml(diagnostic.code)}</strong>`,
+      ` ${escapeHtml(diagnostic.severity)}`,
+      `: ${escapeHtml(diagnostic.message)}`,
+      diagnostic.targetRef === null ? "" : ` <span>target ${escapeHtml(diagnostic.targetRef)}</span>`,
+      "</li>",
+    ].join("")),
+    "</ul>",
+  ].join("\n");
+}
+
+function compositionMeasurementIds(measurementSet: MeasurementSet, label: "A" | "B"): readonly string[] {
+  return (measurementSet.compositions.find((composition) => composition.label === label)?.measurements ?? [])
+    .map((measurement) => measurement.id)
+    .sort(compareStableStrings);
+}
+
 function componentDeltaRow(delta: ComponentDelta): string {
   return [
     "<tr>",
@@ -320,6 +509,22 @@ function componentLabel(componentId: EvaluationComponentId): string {
 
 function metric(label: string, value: string): string {
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+function formatSourceRefs(refs: readonly SourceReference[]): string {
+  return refs.length === 0 ? "none" : refs.map(formatSourceRef).join(", ");
+}
+
+function formatSourceRef(ref: SourceReference | null): string {
+  return ref === null ? "none" : `${ref.kind}:${ref.ref}`;
+}
+
+function formatList(values: readonly string[]): string {
+  return values.length === 0 ? "none" : values.join(", ");
+}
+
+function compareStableStrings(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
 }
 
 function legendItem(kind: string, label: string): string {

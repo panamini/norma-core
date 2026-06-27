@@ -23,15 +23,41 @@ test("visual viewer renders side-by-side Structured Analyze report overlays", as
 
   assert.equal(bundle.result.status, "valid");
   assert.match(reportHtml, /class="report-layout"/u);
+  assert.match(reportHtml, /Input Contract/u);
+  assert.match(reportHtml, /Operation Boundary/u);
+  assert.match(reportHtml, /Ratio Pack \/ Rule Set \/ Evaluation Profile/u);
+  assert.match(reportHtml, /Decision/u);
+  assert.match(reportHtml, /Measurement Counts/u);
+  assert.match(reportHtml, /Evaluation Components/u);
+  assert.match(reportHtml, /Comparison Deltas/u);
+  assert.match(reportHtml, /Diagnostics \/ Errors \/ Warnings/u);
+  assert.match(reportHtml, /Provenance \/ Source Refs/u);
+  assert.match(reportHtml, /Replay Readiness/u);
+  assert.match(reportHtml, /Local Artifacts/u);
+  assert.match(reportHtml, /Canonical Result/u);
   assert.match(reportHtml, /Composition A/u);
   assert.match(reportHtml, /Composition B/u);
   assert.match(reportHtml, /A is closer to the declared system/u);
-  assert.match(reportHtml, /Ratio and Alignment/u);
+  assert.match(reportHtml, /norma\.basic-proportions@0\.1\.0/u);
+  assert.match(reportHtml, /surface-basic-third-grid/u);
+  assert.match(reportHtml, /evaluation-profile:basic-grid-alignment/u);
+  assert.match(reportHtml, /tie tolerance/u);
+  assert.match(reportHtml, /A count/u);
+  assert.match(reportHtml, /B count/u);
+  const aMeasurementIds = compositionMeasurementIds(bundle.result.measurements.a, "A");
+  const bMeasurementIds = compositionMeasurementIds(bundle.result.measurements.b, "B");
+  assert.notDeepEqual(aMeasurementIds, bMeasurementIds);
+  assert.equal(detailValue(reportHtml, "A count"), String(aMeasurementIds.length));
+  assert.equal(detailValue(reportHtml, "A ids"), aMeasurementIds.join(", "));
+  assert.equal(detailValue(reportHtml, "B count"), String(bMeasurementIds.length));
+  assert.equal(detailValue(reportHtml, "B ids"), bMeasurementIds.join(", "));
+  assert.doesNotMatch(detailValue(reportHtml, "A ids"), /measurement:B/u);
+  assert.doesNotMatch(detailValue(reportHtml, "B ids"), /measurement:A/u);
   assert.match(reportHtml, /result\.json/u);
   assert.match(reportHtml, /summary\.json/u);
   assert.match(reportHtml, /summary\.md/u);
   assert.match(reportHtml, /visual\.svg/u);
-  assert.match(reportHtml, /Result Source/u);
+  assert.match(reportHtml, /report\.html/u);
   assert.doesNotMatch(reportHtml, /id="norma-summary-json"/u);
   assert.doesNotMatch(reportHtml, /<script\s+type="application\/json"/iu);
   assert.match(reportHtml, /area ratio match/u);
@@ -51,7 +77,11 @@ test("visual viewer remains fully local with no external assets or network calls
   const reportHtml = createLocalStructuredAnalyzeReportBundle(input).artifacts["report.html"];
 
   assert.doesNotMatch(reportHtml, /<script\b[^>]*\bsrc=/iu);
+  assert.doesNotMatch(reportHtml, /<script\b/iu);
   assert.doesNotMatch(reportHtml, /<link\b/iu);
+  assert.doesNotMatch(reportHtml, /<form\b/iu);
+  assert.doesNotMatch(reportHtml, /<input\b/iu);
+  assert.doesNotMatch(reportHtml, /\baction\s*=/iu);
   assert.doesNotMatch(reportHtml, /\b(?:src|href|action|poster)\s*=\s*["']\s*(?:https?:)?\/\//iu);
   assert.doesNotMatch(reportHtml, /\b(?:src|href|action|poster)\s*=\s*["']\s*javascript:/iu);
   assert.doesNotMatch(reportHtml, /\burl\(\s*["']?\s*(?:https?:)?\/\//iu);
@@ -60,6 +90,9 @@ test("visual viewer remains fully local with no external assets or network calls
   assert.doesNotMatch(reportHtml, /\bfetch\s*\(/u);
   assert.doesNotMatch(reportHtml, /\bXMLHttpRequest\b/u);
   assert.doesNotMatch(reportHtml, /\bimport\s*\(/u);
+  assert.doesNotMatch(reportHtml, /\blocalStorage\b/u);
+  assert.doesNotMatch(reportHtml, /\bsessionStorage\b/u);
+  assert.doesNotMatch(reportHtml, /\brecommend(?:ation|s|ed)?\b|\bbeauty\b|\bbeautiful\b|\boptimization\b|\boptimize\b/iu);
 });
 
 test("visual viewer selected label uses direct evaluation references", async () => {
@@ -108,12 +141,40 @@ test("visual viewer preserves the invalid input fallback report behavior", () =>
 
   assert.equal(bundle.result.status, "invalid");
   assert.match(reportHtml, /Local Structured Analyze Report/u);
+  assert.match(reportHtml, /<dt>status<\/dt><dd>invalid<\/dd>/u);
   assert.match(reportHtml, /No rectangular Composition2D visual available/u);
-  assert.match(reportHtml, /Summary JSON/u);
-  assert.doesNotMatch(reportHtml, /class="report-layout"/u);
-  assert.doesNotMatch(reportHtml, /Result Source/u);
+  assert.match(reportHtml, /Diagnostics \/ Errors \/ Warnings/u);
+  assert.match(reportHtml, /InvalidInputShape/u);
+  assert.match(reportHtml, /errors/u);
+  assert.match(reportHtml, /warnings/u);
+  assert.match(reportHtml, /Local Artifacts/u);
+  assert.doesNotMatch(reportHtml, /class="evaluation-grid"/u);
+  assert.doesNotMatch(reportHtml, /A is closer to the declared system/u);
+  assert.doesNotMatch(reportHtml, /<article class="evaluation-card" data-selected="true"|<g data-composition="[^"]+" data-selected="true"/u);
 });
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+function compositionMeasurementIds(measurementSet, label) {
+  return measurementSet.compositions
+    .find((composition) => composition.label === label)
+    .measurements
+    .map((measurement) => measurement.id)
+    .sort(compareStableStrings);
+}
+
+function detailValue(reportHtml, label) {
+  const match = reportHtml.match(new RegExp(`<dt>${escapeRegExp(label)}<\\/dt><dd>([^<]*)<\\/dd>`, "u"));
+  assert.ok(match, `${label} detail value`);
+  return match[1];
+}
+
+function compareStableStrings(first, second) {
+  return first < second ? -1 : first > second ? 1 : 0;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
