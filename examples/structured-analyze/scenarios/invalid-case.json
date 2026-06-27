@@ -6,7 +6,7 @@
     "id": "composition:invalid-case:A",
     "coordinateSystem": {
       "kind": "coordinate-system",
-      "id": "alignment-basic:2d-metric",
+      "id": "invalid-case:2d-metric",
       "origin": "bottom-left",
       "xAxis": "right",
       "yAxis": "up",
@@ -15,7 +15,7 @@
     },
     "surface": {
       "kind": "surface-space",
-      "id": "surface:alignment-basic:900x600",
+      "id": "surface:invalid-case:900x600",
       "bounds": {
         "kind": "rect",
         "x": 0,
@@ -25,7 +25,7 @@
       },
       "coordinateSystem": {
         "kind": "coordinate-system",
-        "id": "alignment-basic:2d-metric",
+        "id": "invalid-case:2d-metric",
         "origin": "bottom-left",
         "xAxis": "right",
         "yAxis": "up",
@@ -34,33 +34,33 @@
       },
       "metricPolicy": {
         "kind": "metric-policy",
-        "id": "alignment-basic:pixel-length-policy",
+        "id": "invalid-case:pixel-length-policy",
         "quantity": "length",
         "unit": "px"
       },
       "tolerancePolicy": {
         "kind": "tolerance-policy",
-        "id": "alignment-basic:tolerance-policy",
+        "id": "invalid-case:tolerance-policy",
         "coordinateTolerance": 0,
         "metricTolerance": 1
       }
     },
     "metricPolicy": {
       "kind": "metric-policy",
-      "id": "alignment-basic:pixel-length-policy",
+      "id": "invalid-case:pixel-length-policy",
       "quantity": "length",
       "unit": "px"
     },
     "tolerancePolicy": {
       "kind": "tolerance-policy",
-      "id": "alignment-basic:tolerance-policy",
+      "id": "invalid-case:tolerance-policy",
       "coordinateTolerance": 0,
       "metricTolerance": 1
     },
     "elements": [
       {
         "kind": "element",
-        "id": "alignment-a-left-third",
+        "id": "invalid-a-left-third",
         "geometry": {
           "kind": "rect",
           "x": 0,
@@ -71,7 +71,7 @@
       },
       {
         "kind": "element",
-        "id": "alignment-a-left-third",
+        "id": "invalid-a-left-third",
         "geometry": {
           "kind": "rect",
           "x": 300,
@@ -82,7 +82,7 @@
       },
       {
         "kind": "element",
-        "id": "alignment-a-right-third",
+        "id": "invalid-a-right-third",
         "geometry": {
           "kind": "rect",
           "x": 600,
@@ -98,7 +98,7 @@
     "id": "composition:invalid-case:B",
     "coordinateSystem": {
       "kind": "coordinate-system",
-      "id": "alignment-basic:2d-metric",
+      "id": "invalid-case:2d-metric",
       "origin": "bottom-left",
       "xAxis": "right",
       "yAxis": "up",
@@ -107,7 +107,7 @@
     },
     "surface": {
       "kind": "surface-space",
-      "id": "surface:alignment-basic:900x600",
+      "id": "surface:invalid-case:900x600",
       "bounds": {
         "kind": "rect",
         "x": 0,
@@ -117,7 +117,7 @@
       },
       "coordinateSystem": {
         "kind": "coordinate-system",
-        "id": "alignment-basic:2d-metric",
+        "id": "invalid-case:2d-metric",
         "origin": "bottom-left",
         "xAxis": "right",
         "yAxis": "up",
@@ -126,33 +126,33 @@
       },
       "metricPolicy": {
         "kind": "metric-policy",
-        "id": "alignment-basic:pixel-length-policy",
+        "id": "invalid-case:pixel-length-policy",
         "quantity": "length",
         "unit": "px"
       },
       "tolerancePolicy": {
         "kind": "tolerance-policy",
-        "id": "alignment-basic:tolerance-policy",
+        "id": "invalid-case:tolerance-policy",
         "coordinateTolerance": 0,
         "metricTolerance": 1
       }
     },
     "metricPolicy": {
       "kind": "metric-policy",
-      "id": "alignment-basic:pixel-length-policy",
+      "id": "invalid-case:pixel-length-policy",
       "quantity": "length",
       "unit": "px"
     },
     "tolerancePolicy": {
       "kind": "tolerance-policy",
-      "id": "alignment-basic:tolerance-policy",
+      "id": "invalid-case:tolerance-policy",
       "coordinateTolerance": 0,
       "metricTolerance": 1
     },
     "elements": [
       {
         "kind": "element",
-        "id": "alignment-b-left-offset",
+        "id": "invalid-b-left-offset",
         "geometry": {
           "kind": "rect",
           "x": 18,
@@ -163,7 +163,7 @@
       },
       {
         "kind": "element",
-        "id": "alignment-b-middle-offset",
+        "id": "invalid-b-middle-offset",
         "geometry": {
           "kind": "rect",
           "x": 318,
@@ -174,7 +174,7 @@
       },
       {
         "kind": "element",
-        "id": "alignment-b-right-offset",
+        "id": "invalid-b-right-offset",
         "geometry": {
           "kind": "rect",
           "x": 618,
@@ -191,14 +191,14 @@
     "acceptedBy": "structured-analyze-invalid-scenario",
     "acceptedAt": "2026-06-27T00:00:00Z",
     "acceptedSourceIds": [
-      "alignment-a-left-third",
-      "alignment-a-right-third",
-      "alignment-b-left-offset",
-      "alignment-b-middle-offset",
-      "alignment-b-right-offset",
+      "invalid-a-left-third",
+      "invalid-a-right-third",
+      "invalid-b-left-offset",
+      "invalid-b-middle-offset",
+      "invalid-b-right-offset",
       "composition:invalid-case:A",
       "composition:invalid-case:B",
-      "surface:alignment-basic:900x600"
+      "surface:invalid-case:900x600"
     ],
     "acceptanceRecordId": "acceptance:invalid-case"
   },
@@ -598,7 +598,7 @@
   },
   "evaluationTolerances": {
     "kind": "evaluation-tolerances",
-    "id": "alignment-basic:evaluation-tolerances",
+    "id": "invalid-case:evaluation-tolerances",
     "guideProximity": 0.1,
     "alignment": 0,
     "containment": 0,
@@ -608,20 +608,20 @@
   },
   "comparisonTolerances": {
     "kind": "tie-policy",
-    "id": "alignment-basic:comparison-tolerances",
+    "id": "invalid-case:comparison-tolerances",
     "scoreTolerance": 0.01
   },
   "tolerancePolicy": {
     "kind": "tolerance-policy",
-    "id": "alignment-basic:tolerance-policy",
+    "id": "invalid-case:tolerance-policy",
     "coordinateTolerance": 0,
     "metricTolerance": 1
   },
   "operationContext": {
     "kind": "operation-context",
-    "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:alignment-basic:2d-metric:alignment-basic:pixel-length-policy:alignment-basic:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:alignment-basic:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true",
+    "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:invalid-case:2d-metric:invalid-case:pixel-length-policy:invalid-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:invalid-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true",
     "ref": {
-      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:alignment-basic:2d-metric:alignment-basic:pixel-length-policy:alignment-basic:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:alignment-basic:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:invalid-case:2d-metric:invalid-case:pixel-length-policy:invalid-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:invalid-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
     },
     "coreVersion": "0.1.0-pr12",
     "operationName": "core.structured-composition-analysis.analyze",
@@ -630,7 +630,7 @@
     "coordinatePolicy": {
       "value": {
         "kind": "coordinate-system",
-        "id": "alignment-basic:2d-metric",
+        "id": "invalid-case:2d-metric",
         "origin": "bottom-left",
         "xAxis": "right",
         "yAxis": "up",
@@ -641,14 +641,14 @@
       "sourceRefs": [
         {
           "kind": "coordinate-policy",
-          "ref": "alignment-basic:2d-metric"
+          "ref": "invalid-case:2d-metric"
         }
       ]
     },
     "metricPolicy": {
       "value": {
         "kind": "metric-policy",
-        "id": "alignment-basic:pixel-length-policy",
+        "id": "invalid-case:pixel-length-policy",
         "quantity": "length",
         "unit": "px"
       },
@@ -656,14 +656,14 @@
       "sourceRefs": [
         {
           "kind": "metric-policy",
-          "ref": "alignment-basic:pixel-length-policy"
+          "ref": "invalid-case:pixel-length-policy"
         }
       ]
     },
     "tolerancePolicy": {
       "value": {
         "kind": "tolerance-policy",
-        "id": "alignment-basic:tolerance-policy",
+        "id": "invalid-case:tolerance-policy",
         "coordinateTolerance": 0,
         "metricTolerance": 1
       },
@@ -671,7 +671,7 @@
       "sourceRefs": [
         {
           "kind": "tolerance-policy",
-          "ref": "alignment-basic:tolerance-policy"
+          "ref": "invalid-case:tolerance-policy"
         }
       ]
     },
@@ -721,18 +721,18 @@
       ]
     },
     "featureFlags": {
-      "alignment-basic:deterministic": true,
+      "invalid-case:deterministic": true,
       "explicitStructuredJsonInput": true,
       "localStructuredAnalyzeScenarioPack": true
     },
     "sourceRefs": [
       {
         "kind": "structured-analysis-input",
-        "ref": "alignment-basic:structured-input"
+        "ref": "invalid-case:structured-input"
       },
       {
         "kind": "surface",
-        "ref": "surface:alignment-basic:900x600"
+        "ref": "surface:invalid-case:900x600"
       },
       {
         "kind": "ratio-pack",
@@ -748,23 +748,23 @@
       },
       {
         "kind": "tolerance-policy",
-        "ref": "alignment-basic:tolerance-policy"
+        "ref": "invalid-case:tolerance-policy"
       },
       {
         "kind": "evaluation-tolerances",
-        "ref": "alignment-basic:evaluation-tolerances"
+        "ref": "invalid-case:evaluation-tolerances"
       },
       {
         "kind": "coordinate-system",
-        "ref": "alignment-basic:2d-metric"
+        "ref": "invalid-case:2d-metric"
       },
       {
         "kind": "metric-policy",
-        "ref": "alignment-basic:pixel-length-policy"
+        "ref": "invalid-case:pixel-length-policy"
       },
       {
         "kind": "coordinate-policy",
-        "ref": "alignment-basic:2d-metric"
+        "ref": "invalid-case:2d-metric"
       },
       {
         "kind": "rounding-policy",
@@ -785,11 +785,11 @@
       "inputRefs": [
         {
           "kind": "structured-analysis-input",
-          "ref": "alignment-basic:structured-input"
+          "ref": "invalid-case:structured-input"
         },
         {
           "kind": "surface",
-          "ref": "surface:alignment-basic:900x600"
+          "ref": "surface:invalid-case:900x600"
         },
         {
           "kind": "ratio-pack",
@@ -805,23 +805,23 @@
         },
         {
           "kind": "tolerance-policy",
-          "ref": "alignment-basic:tolerance-policy"
+          "ref": "invalid-case:tolerance-policy"
         },
         {
           "kind": "evaluation-tolerances",
-          "ref": "alignment-basic:evaluation-tolerances"
+          "ref": "invalid-case:evaluation-tolerances"
         },
         {
           "kind": "coordinate-system",
-          "ref": "alignment-basic:2d-metric"
+          "ref": "invalid-case:2d-metric"
         },
         {
           "kind": "metric-policy",
-          "ref": "alignment-basic:pixel-length-policy"
+          "ref": "invalid-case:pixel-length-policy"
         },
         {
           "kind": "coordinate-policy",
-          "ref": "alignment-basic:2d-metric"
+          "ref": "invalid-case:2d-metric"
         },
         {
           "kind": "rounding-policy",
@@ -850,14 +850,14 @@
       "ref": "invalid-case"
     },
     "callerSourceIds": [
-      "alignment-a-left-third",
-      "alignment-a-right-third",
-      "alignment-b-left-offset",
-      "alignment-b-middle-offset",
-      "alignment-b-right-offset",
+      "invalid-a-left-third",
+      "invalid-a-right-third",
+      "invalid-b-left-offset",
+      "invalid-b-middle-offset",
+      "invalid-b-right-offset",
       "composition:invalid-case:A",
       "composition:invalid-case:B",
-      "surface:alignment-basic:900x600"
+      "surface:invalid-case:900x600"
     ],
     "adapter": null,
     "mappingVersion": "structured-analyze-scenario-pack-v1",
@@ -869,19 +869,19 @@
       "acceptedBy": "structured-analyze-invalid-scenario",
       "acceptedAt": "2026-06-27T00:00:00Z",
       "acceptedSourceIds": [
-        "alignment-a-left-third",
-        "alignment-a-right-third",
-        "alignment-b-left-offset",
-        "alignment-b-middle-offset",
-        "alignment-b-right-offset",
+        "invalid-a-left-third",
+        "invalid-a-right-third",
+        "invalid-b-left-offset",
+        "invalid-b-middle-offset",
+        "invalid-b-right-offset",
         "composition:invalid-case:A",
         "composition:invalid-case:B",
-        "surface:alignment-basic:900x600"
+        "surface:invalid-case:900x600"
       ],
       "acceptanceRecordId": "acceptance:invalid-case"
     },
     "operationContextRef": {
-      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:alignment-basic:2d-metric:alignment-basic:pixel-length-policy:alignment-basic:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:alignment-basic:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:invalid-case:2d-metric:invalid-case:pixel-length-policy:invalid-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:invalid-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
     }
   }
 }
