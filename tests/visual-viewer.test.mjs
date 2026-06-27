@@ -7,6 +7,9 @@ import test from "node:test";
 import {
   createLocalStructuredAnalyzeReportBundle,
 } from "../dist/src/local-report/structured-analyze-report.js";
+import {
+  createVisualComparisonReportHtml,
+} from "../dist/src/local-report/visual-viewer.js";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -26,6 +29,7 @@ test("visual viewer renders side-by-side Structured Analyze report overlays", as
   assert.match(reportHtml, /Ratio and Alignment/u);
   assert.match(reportHtml, /result\.json/u);
   assert.match(reportHtml, /summary\.json/u);
+  assert.match(reportHtml, /summary\.md/u);
   assert.match(reportHtml, /visual\.svg/u);
   assert.match(reportHtml, /Result Source/u);
   assert.doesNotMatch(reportHtml, /id="norma-summary-json"/u);
@@ -56,6 +60,36 @@ test("visual viewer remains fully local with no external assets or network calls
   assert.doesNotMatch(reportHtml, /\bfetch\s*\(/u);
   assert.doesNotMatch(reportHtml, /\bXMLHttpRequest\b/u);
   assert.doesNotMatch(reportHtml, /\bimport\s*\(/u);
+});
+
+test("visual viewer selected label uses direct evaluation references", async () => {
+  const input = await readJson(alignmentScenarioPath);
+  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const result = {
+    ...bundle.result,
+    decision: {
+      ...bundle.result.decision,
+      selectedEvaluationRef: "selected-evaluation-beta",
+    },
+    evaluations: {
+      a: {
+        ...bundle.result.evaluations.a,
+        id: "selected-evaluation-alpha",
+      },
+      b: {
+        ...bundle.result.evaluations.b,
+        id: "selected-evaluation-beta",
+      },
+    },
+  };
+
+  const reportHtml = createVisualComparisonReportHtml({
+    summary: bundle.summary,
+    result,
+    visualSvg: bundle.artifacts["visual.svg"],
+  });
+
+  assert.match(reportHtml, /<dt>selected<\/dt><dd>Composition B<\/dd>/u);
 });
 
 test("visual viewer output is deterministic for the same Structured Analyze input", async () => {

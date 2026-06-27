@@ -32,7 +32,11 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
   const summaryJson = serializeCanonicalJson(input.summary, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
   const evaluationA = input.result.evaluations.a;
   const evaluationB = input.result.evaluations.b;
-  const selectedComposition = selectedCompositionLabel(input.result.decision.selectedEvaluationRef);
+  const selectedComposition = selectedCompositionLabel(
+    input.result.decision.selectedEvaluationRef,
+    evaluationA.id,
+    evaluationB.id,
+  );
   const ratioA = scoreForComponent(evaluationA, "area_ratio_match");
   const ratioB = scoreForComponent(evaluationB, "area_ratio_match");
   const alignmentA = scoreForComponent(evaluationA, "alignment");
@@ -108,6 +112,7 @@ export function createVisualComparisonReportHtml(input: VisualComparisonReportHt
     "<ul>",
     "<li>result.json</li>",
     "<li>summary.json</li>",
+    "<li>summary.md</li>",
     "<li>visual.svg</li>",
     "<li>report.html</li>",
     "</ul>",
@@ -289,16 +294,20 @@ function scoreForComponent(evaluation: Evaluation, componentId: EvaluationCompon
   return evaluation.componentScores.find((score) => score.componentId === componentId) ?? null;
 }
 
-function selectedCompositionLabel(selectedEvaluationRef: string | null): string | null {
+function selectedCompositionLabel(
+  selectedEvaluationRef: string | null,
+  evaluationAId: string,
+  evaluationBId: string,
+): string | null {
   if (selectedEvaluationRef === null) {
     return null;
   }
 
-  if (selectedEvaluationRef.includes("evaluation:A:")) {
+  if (selectedEvaluationRef === evaluationAId) {
     return "Composition A";
   }
 
-  if (selectedEvaluationRef.includes("evaluation:B:")) {
+  if (selectedEvaluationRef === evaluationBId) {
     return "Composition B";
   }
 
