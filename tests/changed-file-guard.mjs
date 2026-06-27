@@ -109,6 +109,12 @@ export const structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles = Ob
     .sort(),
 );
 
+export const structuredAnalyzeScenarioConsistencyHardeningChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/scenarios.test.mjs",
+].sort());
+
 export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "bin/norma-cli.mjs",
   "package.json",
@@ -136,6 +142,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
+  structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

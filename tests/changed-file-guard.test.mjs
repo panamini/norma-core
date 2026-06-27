@@ -20,6 +20,7 @@ import {
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
+  structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
@@ -75,6 +76,13 @@ test("shared exact changed-file guard accepts the Structured Analyze CLI UX laye
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeCliUxLayerChangedFiles),
     structuredAnalyzeCliUxLayerChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R9 scenario consistency hardening set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeScenarioConsistencyHardeningChangedFiles),
+    structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   );
 });
 

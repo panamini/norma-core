@@ -17,7 +17,9 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const scenarioDir = join(repoRoot, "examples", "structured-analyze", "scenarios");
+const analyzeCommandPath = join(repoRoot, "bin", "norma-cli.mjs");
 const reportCommandPath = join(repoRoot, "bin", "norma-core-report.mjs");
+const analyzeToolName = "norma.analyzeStructuredCompositionV1";
 
 const validScenarios = Object.freeze([
   {
@@ -70,12 +72,16 @@ test("scenario pack valid inputs analyze and produce deterministic report bundle
     assert.equal(directResult.decision.status, scenario.decisionStatus, scenario.name);
     assert.equal(`${input.ratioPack.id}@${input.ratioPack.version}`, scenario.ratioPackRef, scenario.name);
 
-    const firstDir = await mkdtemp(join(tmpdir(), `norma-scenario-${scenario.name}-a-`));
-    const secondDir = await mkdtemp(join(tmpdir(), `norma-scenario-${scenario.name}-b-`));
+    const firstReportDir = await mkdtemp(join(tmpdir(), `norma-scenario-${scenario.name}-report-a-`));
+    const secondReportDir = await mkdtemp(join(tmpdir(), `norma-scenario-${scenario.name}-report-b-`));
+    const cliParentDir = await mkdtemp(join(tmpdir(), `norma-scenario-${scenario.name}-cli-`));
+    const cliDir = join(cliParentDir, "report");
 
     try {
-      const firstCommand = await runReportCommand(inputPath, firstDir);
-      const secondCommand = await runReportCommand(inputPath, secondDir);
+      const firstCommand = await runReportCommand(inputPath, firstReportDir);
+      const secondCommand = await runReportCommand(inputPath, secondReportDir);
+      const cliCommand = await runAnalyzeCommand(inputPath, cliDir);
+      const mcpResult = callMcpAnalyzeResult(input, scenario.name);
 
       assert.equal(firstCommand.status, "ok", scenario.name);
       assert.equal(firstCommand.resultStatus, "valid", scenario.name);
@@ -84,14 +90,30 @@ test("scenario pack valid inputs analyze and produce deterministic report bundle
       assert.equal(secondCommand.resultStatus, firstCommand.resultStatus, scenario.name);
       assert.equal(secondCommand.analysisId, firstCommand.analysisId, scenario.name);
       assert.deepEqual(secondCommand.files, firstCommand.files, scenario.name);
+      assert.equal(cliCommand.status, "ok", scenario.name);
+      assert.equal(cliCommand.resultStatus, "valid", scenario.name);
+      assert.deepEqual(cliCommand.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES, scenario.name);
+      assert.deepEqual(mcpResult, directResult, scenario.name);
 
-      const result = await readJson(join(firstDir, "result.json"));
-      const summary = await readJson(join(firstDir, "summary.json"));
-      const summaryMarkdown = await readFile(join(firstDir, "summary.md"), "utf8");
-      const visualSvg = await readFile(join(firstDir, "visual.svg"), "utf8");
-      const reportHtml = await readFile(join(firstDir, "report.html"), "utf8");
+      const result = await readJson(join(firstReportDir, "result.json"));
+      const cliResult = await readJson(join(cliDir, "result.json"));
+      const summary = await readJson(join(firstReportDir, "summary.json"));
+      const summaryMarkdown = await readFile(join(firstReportDir, "summary.md"), "utf8");
+      const visualSvg = await readFile(join(firstReportDir, "visual.svg"), "utf8");
+      const reportHtml = await readFile(join(firstReportDir, "report.html"), "utf8");
 
       assert.deepEqual(result, directResult, scenario.name);
+      assert.deepEqual(cliResult, directResult, scenario.name);
+      assert.equal(
+        await readFile(join(cliDir, "result.json"), "utf8"),
+        `${core.serializeCanonicalJson(directResult)}\n`,
+        scenario.name,
+      );
+      assert.equal(
+        await readFile(join(firstReportDir, "result.json"), "utf8"),
+        await readFile(join(cliDir, "result.json"), "utf8"),
+        scenario.name,
+      );
       assert.equal(summary.status, "valid", scenario.name);
       assert.equal(summary.input.ratioPackRef, scenario.ratioPackRef, scenario.name);
       assert.equal(summary.scope.directAnalyzeStructuredCompositionV1, true, scenario.name);
@@ -102,14 +124,15 @@ test("scenario pack valid inputs analyze and produce deterministic report bundle
 
       for (const fileName of LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES) {
         assert.equal(
-          await readFile(join(firstDir, fileName), "utf8"),
-          await readFile(join(secondDir, fileName), "utf8"),
+          await readFile(join(firstReportDir, fileName), "utf8"),
+          await readFile(join(secondReportDir, fileName), "utf8"),
           `${scenario.name}:${fileName}`,
         );
       }
     } finally {
-      await rm(firstDir, { recursive: true, force: true });
-      await rm(secondDir, { recursive: true, force: true });
+      await rm(firstReportDir, { recursive: true, force: true });
+      await rm(secondReportDir, { recursive: true, force: true });
+      await rm(cliParentDir, { recursive: true, force: true });
     }
   }
 });
@@ -120,9 +143,11 @@ test("scenario pack invalid case fails cleanly and deterministically", async () 
 
   const first = core.analyzeStructuredCompositionV1(input);
   const second = core.analyzeStructuredCompositionV1(input);
+  const mcpResult = callMcpAnalyzeResult(input, "invalid-case");
 
   assert.deepEqual(second, first);
   assert.equal(first.status, "invalid");
+  assert.equal(mcpResult.status, "invalid");
   assert.equal(first.measurements, null);
   assert.equal(first.evaluations, null);
   assert.equal(first.comparison, null);
@@ -186,6 +211,41 @@ async function runReportCommand(inputPath, outputDir) {
   ], { cwd: repoRoot });
 
   return JSON.parse(stdout);
+}
+
+async function runAnalyzeCommand(scenarioSpecifier, outputDir) {
+  const { stdout } = await execFileAsync(process.execPath, [
+    analyzeCommandPath,
+    "analyze",
+    scenarioSpecifier,
+    "--out",
+    outputDir,
+  ], { cwd: repoRoot });
+
+  return JSON.parse(stdout);
+}
+
+function callMcpAnalyzeResult(input, id) {
+  const responseText = handleMcpJsonRpcMessage(JSON.stringify({
+    jsonrpc: "2.0",
+    id: `r9-scenario-${id}`,
+    method: "tools/call",
+    params: {
+      name: analyzeToolName,
+      arguments: {
+        input,
+      },
+    },
+  }));
+  assert.notEqual(responseText, null, id);
+
+  const response = JSON.parse(responseText);
+  assert.equal(Object.hasOwn(response, "error"), false, id);
+  assert.equal(response.result.structuredContent.tool, analyzeToolName, id);
+  assert.equal(response.result.structuredContent.result.status, response.result.structuredContent.status, id);
+  assert.deepEqual(JSON.parse(response.result.content[0].text), response.result.structuredContent, id);
+
+  return response.result.structuredContent.result;
 }
 
 async function readJson(path) {
