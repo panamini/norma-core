@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -129,6 +129,29 @@ test("scenario pack invalid case fails cleanly and deterministically", async () 
   assert.equal(first.decision, null);
   assert.deepEqual(first.outputRefs, []);
   assert.ok(first.diagnostics.some((diagnostic) => diagnostic.code === "DuplicateGeometrySourceId"));
+});
+
+test("report CLI accepts escaped positional paths", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "norma-scenario-escaped-positional-"));
+  const inputPath = join(tempDir, "--input.json");
+  const outputDir = join(tempDir, "out");
+
+  try {
+    await writeFile(inputPath, await readFile(scenarioPath("alignment-basic"), "utf8"));
+    const { stdout } = await execFileAsync(process.execPath, [
+      reportCommandPath,
+      "--",
+      inputPath,
+      outputDir,
+    ], { cwd: repoRoot });
+    const command = JSON.parse(stdout);
+
+    assert.equal(command.status, "ok");
+    assert.equal(command.resultStatus, "valid");
+    assert.deepEqual(command.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("scenario pack leaves the MCP tool inventory at six tools", () => {

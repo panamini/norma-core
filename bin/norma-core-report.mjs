@@ -41,12 +41,12 @@ try {
   process.exitCode = error instanceof CliUsageError ? 1 : 3;
 }
 
-function parseReportArgs(args) {
+function parseReportArgs(args, allowEscapedPositionals = false) {
   if (args[0] === "--") {
-    return parseReportArgs(args.slice(1));
+    return parseReportArgs(args.slice(1), true);
   }
 
-  if (args.length === 2 && !args.some((arg) => arg.startsWith("--"))) {
+  if (args.length === 2 && (allowEscapedPositionals || !args.some((arg) => arg.startsWith("--")))) {
     return { inputPath: args[0], outputDir: args[1] };
   }
 
