@@ -20,6 +20,7 @@ import {
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
+  structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
@@ -83,6 +84,13 @@ test("shared exact changed-file guard accepts the R9 scenario consistency harden
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioConsistencyHardeningChangedFiles),
     structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R10 determinism regression set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeDeterminismRegressionChangedFiles),
+    structuredAnalyzeDeterminismRegressionChangedFiles,
   );
 });
 
