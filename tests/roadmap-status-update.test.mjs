@@ -136,18 +136,55 @@ test("R15 post-R14 roadmap checkpoint keeps blocked surfaces blocked", () => {
   assert.doesNotMatch(combinedDocs, /\bimage, vision, camera, CAD, or provider runtime\s+is\s+approved\b/i);
 });
 
-test("R15 post-R14 roadmap checkpoint names R16 as the next implementation rail", () => {
+test("R17 roadmap convergence records the current execution mode after R16", () => {
   const checkpointDoc = readDoc(postR14RoadmapCheckpointDocPath);
   const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
 
   for (const doc of [checkpointDoc, businessRoadmapDoc]) {
     assertDocMentions(doc, [
-      "R16 - local demo/onboarding smoke for the Structured Analyze report workflow",
-      "R17 - package/local consumer readiness refresh",
-      "R18+ - broader product, package, remote, or public-surface gates",
-      "R15 itself is docs/tests only and does not implement R16",
+      "## Current Execution Mode After R16",
+      "Historical note: before R16, the next implementation rail was",
+      "R16 was intended to prove",
+    ]);
+
+    const currentExecutionModeSection = sectionForHeading(doc, "## Current Execution Mode After R16");
+
+    assertDocMentions(currentExecutionModeSection, [
+      "R16 is merged",
+      "R17 is this docs-only roadmap convergence checkpoint",
+      "not obligated to execute 17 more historical PRs",
+      "Future work should be selected by current gaps, not old numbering",
+      "Work remains one PR at a time",
+      "Swarm or multi-agent work is allowed only for read-only review, planning, or independent checks",
+      "single-owner per branch/PR",
+      "Local consumer readiness refresh",
+      "A later explicit package publication decision, only if maintainers want publication",
+      "Product/UI/dashboard work only after a separate product-scope approval",
+      "Hosted/remote MCP only after explicit threat-model and deployment approval",
+      "Public npm publication remains blocked",
+      "Hosted MCP remains blocked",
+      "UI/dashboard work remains blocked until explicitly approved",
+      "Engine behavior must not change",
     ]);
   }
+});
+
+test("R17 roadmap convergence treats old PR31 PR32 and PR33 labels as historical", () => {
+  const checkpointDoc = readDoc(postR14RoadmapCheckpointDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const combinedDocs = `${checkpointDoc}\n${businessRoadmapDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "historical roadmap labels",
+    "remaining work items",
+    "old PR27-PR33 roadmap is historical context",
+    "## Historical Immediate PR Sequence",
+    "Do not treat this PR27-PR33 sequence as mandatory remaining work after R16",
+  ]);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+complete\s+PR33\b/i);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR31\b/i);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR32\b/i);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR33\b/i);
 });
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
@@ -442,7 +479,7 @@ function assertHeadingsInOrder(doc, headings) {
 
 function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
-    assert.match(doc, new RegExp(escapeRegExp(snippet), "i"), `${snippet} should be documented`);
+    assert.match(doc, new RegExp(escapeRegExp(snippet).replace(/\s+/g, "\\s+"), "i"), `${snippet} should be documented`);
   }
 }
 
@@ -452,6 +489,14 @@ function sectionBetween(doc, startHeading, endHeading) {
   const end = doc.indexOf(endHeading, start + startHeading.length);
   assert.notEqual(end, -1, `${endHeading} should exist`);
   assert.ok(end > start, `${endHeading} should appear after ${startHeading}`);
+  return doc.slice(start, end);
+}
+
+function sectionForHeading(doc, heading) {
+  const start = doc.indexOf(heading);
+  assert.notEqual(start, -1, `${heading} should exist`);
+  const nextHeading = doc.slice(start + heading.length).match(/\n##\s+/);
+  const end = nextHeading ? start + heading.length + nextHeading.index : doc.length;
   return doc.slice(start, end);
 }
 

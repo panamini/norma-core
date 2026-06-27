@@ -22,6 +22,7 @@ import {
   publicApiContractFreezeChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
+  roadmapConvergenceAfterR16ChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -142,6 +143,13 @@ test("shared exact changed-file guard accepts the R15 post-R14 roadmap checkpoin
   assert.deepEqual(
     sharedExactApprovedChangedFiles(postR14RoadmapCheckpointChangedFiles),
     postR14RoadmapCheckpointChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R17 roadmap convergence after R16 set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(roadmapConvergenceAfterR16ChangedFiles),
+    roadmapConvergenceAfterR16ChangedFiles,
   );
 });
 
@@ -291,6 +299,27 @@ test("shared exact changed-file guard rejects runtime extras in the R15 roadmap 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...postR14RoadmapCheckpointChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime extras in the R17 roadmap convergence set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "bin/norma-core-report.mjs",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "package.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...roadmapConvergenceAfterR16ChangedFiles,
         forbiddenFile,
       ]),
       null,

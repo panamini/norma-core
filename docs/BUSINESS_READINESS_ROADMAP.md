@@ -222,7 +222,7 @@ The following remain explicitly not approved:
 - image, vision, camera, CAD, or provider runtime;
 - recommendation, optimization, beauty scoring, or prompt-derived source truth.
 
-The next implementation rail is:
+Historical note: before R16, the next implementation rail was:
 
 1. R16 - local demo/onboarding smoke for the Structured Analyze report workflow.
 2. R17 - package/local consumer readiness refresh, only if a real gap remains
@@ -230,9 +230,38 @@ The next implementation rail is:
 3. R18+ - broader product, package, remote, or public-surface gates only after
    explicit checkpoint approval.
 
-R16 should prove a local user can run the Geometry Harmony example, generate the
-five-file report bundle, inspect `report.html`, and understand `result.json` as
-canonical truth. R15 itself is docs/tests only and does not implement R16.
+R16 was intended to prove a local user could run the Geometry Harmony example,
+generate the five-file report bundle, inspect `report.html`, and understand
+`result.json` as canonical truth. R15 itself was docs/tests only and did not
+implement R16.
+
+## Current Execution Mode After R16
+
+R16 is merged.
+
+R17 is this docs-only roadmap convergence checkpoint.
+
+The old PR27-PR33 roadmap is historical context. The project is not obligated to
+execute 17 more historical PRs, and old PR31, PR32, and PR33 references are
+historical roadmap labels rather than mandatory remaining work items.
+
+Future work should be selected by current gaps, not old numbering. Work remains
+one PR at a time. Swarm or multi-agent work is allowed only for read-only
+review, planning, or independent checks. Implementation must remain
+single-owner per branch/PR.
+
+Current recommended next choices are:
+
+1. Local consumer readiness refresh, if package consumption clarity is still
+   needed.
+2. A later explicit package publication decision, only if maintainers want
+   publication.
+3. Product/UI/dashboard work only after a separate product-scope approval.
+4. Hosted/remote MCP only after explicit threat-model and deployment approval.
+
+Public npm publication remains blocked. Hosted MCP remains blocked.
+UI/dashboard work remains blocked until explicitly approved. Engine behavior
+must not change for roadmap convergence.
 
 ## Current State After PR25
 
@@ -537,9 +566,10 @@ Exit criteria:
 - beta criteria and launch criteria are explicit;
 - no forbidden source-truth shortcuts are introduced.
 
-## Immediate PR Sequence
+## Historical Immediate PR Sequence
 
-The next concrete sequence after PR26 should be:
+The following was the concrete sequence after PR26 in the old roadmap. It is
+historical context, not the current execution queue:
 
 1. PR27 thin local CLI.
 2. PR28 CLI examples + smoke docs + JSON output contract.
@@ -548,6 +578,9 @@ The next concrete sequence after PR26 should be:
 5. PR31 typed consumer examples and compatibility policy.
 6. PR32 public package publishing gate, still no publish unless approved.
 7. PR33 MCP contract docs only.
+
+Do not treat this PR27-PR33 sequence as mandatory remaining work after R16.
+Use the Current Execution Mode After R16 section instead.
 
 MCP implementation must not start before MCP contract docs are reviewed.
 
