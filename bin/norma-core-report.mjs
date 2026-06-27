@@ -6,14 +6,10 @@ import {
   createLocalStructuredAnalyzeReportBundle,
 } from "../dist/src/local-report/structured-analyze-report.js";
 
-const [inputPath, outputDir] = process.argv.slice(2);
-
 class CliUsageError extends Error {}
 
 try {
-  if (typeof inputPath !== "string" || typeof outputDir !== "string" || process.argv.length !== 4) {
-    throw new CliUsageError("Usage: node bin/norma-core-report.mjs <structured-input.json> <output-dir>");
-  }
+  const { inputPath, outputDir } = parseReportArgs(process.argv.slice(2));
 
   const input = JSON.parse(await readFile(inputPath, "utf8"));
   const bundle = createLocalStructuredAnalyzeReportBundle(input);
@@ -43,4 +39,52 @@ try {
     },
   })}\n`);
   process.exitCode = error instanceof CliUsageError ? 1 : 3;
+}
+
+function parseReportArgs(args, allowEscapedPositionals = false) {
+  if (args[0] === "--") {
+    return parseReportArgs(args.slice(1), true);
+  }
+
+  if (args.length === 2 && (allowEscapedPositionals || !args.some((arg) => arg.startsWith("--")))) {
+    return { inputPath: args[0], outputDir: args[1] };
+  }
+
+  let inputPath = null;
+  let outputDir = null;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const value = args[index + 1];
+
+    if ((arg === "--input" || arg === "--out") && (typeof value !== "string" || value.startsWith("--"))) {
+      throw new CliUsageError(reportUsage());
+    }
+
+    if (arg === "--input") {
+      if (inputPath !== null) throw new CliUsageError(reportUsage());
+      inputPath = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--out") {
+      if (outputDir !== null) throw new CliUsageError(reportUsage());
+      outputDir = value;
+      index += 1;
+      continue;
+    }
+
+    throw new CliUsageError(reportUsage());
+  }
+
+  if (inputPath === null || outputDir === null) {
+    throw new CliUsageError(reportUsage());
+  }
+
+  return { inputPath, outputDir };
+}
+
+function reportUsage() {
+  return "Usage: node bin/norma-core-report.mjs <structured-input.json> <output-dir> or node bin/norma-core-report.mjs --input <structured-input.json> --out <output-dir>";
 }

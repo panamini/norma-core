@@ -1,0 +1,890 @@
+{
+  "contractVersion": "structured-composition-analysis-input.v1",
+  "analysisId": "analysis:boundary-case",
+  "compositionA": {
+    "kind": "composition-2d",
+    "id": "composition:boundary-case:A",
+    "coordinateSystem": {
+      "kind": "coordinate-system",
+      "id": "boundary-case:2d-metric",
+      "origin": "bottom-left",
+      "xAxis": "right",
+      "yAxis": "up",
+      "dimensions": 2,
+      "coordinateScale": "metric"
+    },
+    "surface": {
+      "kind": "surface-space",
+      "id": "surface:boundary-case:1x1",
+      "bounds": {
+        "kind": "rect",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "coordinateSystem": {
+        "kind": "coordinate-system",
+        "id": "boundary-case:2d-metric",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up",
+        "dimensions": 2,
+        "coordinateScale": "metric"
+      },
+      "metricPolicy": {
+        "kind": "metric-policy",
+        "id": "boundary-case:pixel-length-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "tolerancePolicy": {
+        "kind": "tolerance-policy",
+        "id": "boundary-case:tolerance-policy",
+        "coordinateTolerance": 0,
+        "metricTolerance": 1
+      }
+    },
+    "metricPolicy": {
+      "kind": "metric-policy",
+      "id": "boundary-case:pixel-length-policy",
+      "quantity": "length",
+      "unit": "px"
+    },
+    "tolerancePolicy": {
+      "kind": "tolerance-policy",
+      "id": "boundary-case:tolerance-policy",
+      "coordinateTolerance": 0,
+      "metricTolerance": 1
+    },
+    "elements": [
+      {
+        "kind": "element",
+        "id": "boundary-a-third-1",
+        "geometry": {
+          "kind": "rect",
+          "x": 0,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      },
+      {
+        "kind": "element",
+        "id": "boundary-a-third-2",
+        "geometry": {
+          "kind": "rect",
+          "x": 0.3333333333333333,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      },
+      {
+        "kind": "element",
+        "id": "boundary-a-third-3",
+        "geometry": {
+          "kind": "rect",
+          "x": 0.6666666666666666,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      }
+    ]
+  },
+  "compositionB": {
+    "kind": "composition-2d",
+    "id": "composition:boundary-case:B",
+    "coordinateSystem": {
+      "kind": "coordinate-system",
+      "id": "boundary-case:2d-metric",
+      "origin": "bottom-left",
+      "xAxis": "right",
+      "yAxis": "up",
+      "dimensions": 2,
+      "coordinateScale": "metric"
+    },
+    "surface": {
+      "kind": "surface-space",
+      "id": "surface:boundary-case:1x1",
+      "bounds": {
+        "kind": "rect",
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "coordinateSystem": {
+        "kind": "coordinate-system",
+        "id": "boundary-case:2d-metric",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up",
+        "dimensions": 2,
+        "coordinateScale": "metric"
+      },
+      "metricPolicy": {
+        "kind": "metric-policy",
+        "id": "boundary-case:pixel-length-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "tolerancePolicy": {
+        "kind": "tolerance-policy",
+        "id": "boundary-case:tolerance-policy",
+        "coordinateTolerance": 0,
+        "metricTolerance": 1
+      }
+    },
+    "metricPolicy": {
+      "kind": "metric-policy",
+      "id": "boundary-case:pixel-length-policy",
+      "quantity": "length",
+      "unit": "px"
+    },
+    "tolerancePolicy": {
+      "kind": "tolerance-policy",
+      "id": "boundary-case:tolerance-policy",
+      "coordinateTolerance": 0,
+      "metricTolerance": 1
+    },
+    "elements": [
+      {
+        "kind": "element",
+        "id": "boundary-b-third-1",
+        "geometry": {
+          "kind": "rect",
+          "x": 0,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      },
+      {
+        "kind": "element",
+        "id": "boundary-b-third-2",
+        "geometry": {
+          "kind": "rect",
+          "x": 0.3333333333333333,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      },
+      {
+        "kind": "element",
+        "id": "boundary-b-third-3",
+        "geometry": {
+          "kind": "rect",
+          "x": 0.6666666666666666,
+          "y": 0,
+          "width": 0.3333333333333333,
+          "height": 1
+        }
+      }
+    ]
+  },
+  "acceptance": {
+    "accepted": true,
+    "mode": "user_supplied_structured_data",
+    "acceptedBy": "structured-analyze-scenario-pack",
+    "acceptedAt": "2026-06-27T00:00:00Z",
+    "acceptedSourceIds": [
+      "boundary-a-third-1",
+      "boundary-a-third-2",
+      "boundary-a-third-3",
+      "boundary-b-third-1",
+      "boundary-b-third-2",
+      "boundary-b-third-3",
+      "composition:boundary-case:A",
+      "composition:boundary-case:B",
+      "surface:boundary-case:1x1"
+    ],
+    "acceptanceRecordId": "acceptance:boundary-case"
+  },
+  "ratioPack": {
+    "kind": "ratio-pack",
+    "id": "norma.basic-proportions",
+    "version": "0.1.0",
+    "schemaVersion": "ratio-pack-v1",
+    "identity": {
+      "kind": "ratio-pack-identity",
+      "id": "norma.basic-proportions",
+      "concept": "Basic proportional partitions"
+    },
+    "contentIdentity": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+    "metadata": {
+      "name": "Norma Basic Proportions",
+      "description": "Minimal declarative proportions pack for halves and thirds.",
+      "owner": "norma-core"
+    },
+    "provenance": {
+      "kind": "ratio-pack-provenance",
+      "source": "norma-basic",
+      "sourceRefs": [
+        {
+          "kind": "spec",
+          "ref": "PR4 Minimal ratio pack model"
+        }
+      ]
+    },
+    "compatibility": {
+      "schemaVersion": "ratio-pack-v1",
+      "coreVersionRange": "0.1.0-pr5"
+    },
+    "limits": {
+      "noBeautyClaims": true,
+      "noIntentInference": true,
+      "noUiPreset": true
+    },
+    "conventions": [
+      "ratio-pack-v1",
+      "declarative-rules-only"
+    ],
+    "ratios": [
+      {
+        "kind": "ratio",
+        "id": "1/2",
+        "numerator": 1,
+        "denominator": 2,
+        "normalizedValue": 0.5,
+        "familyRef": "halves"
+      },
+      {
+        "kind": "ratio",
+        "id": "1/3",
+        "numerator": 1,
+        "denominator": 3,
+        "normalizedValue": 0.3333333333333333,
+        "familyRef": "thirds"
+      },
+      {
+        "kind": "ratio",
+        "id": "2/3",
+        "numerator": 2,
+        "denominator": 3,
+        "normalizedValue": 0.6666666666666666,
+        "familyRef": "thirds"
+      }
+    ],
+    "ratioFamilies": [
+      {
+        "kind": "ratio-family",
+        "id": "halves",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "scope": "surface-partition"
+      },
+      {
+        "kind": "ratio-family",
+        "id": "thirds",
+        "ratioRefs": [
+          "1/3",
+          "2/3"
+        ],
+        "scope": "surface-partition"
+      }
+    ],
+    "ratioSequences": [
+      {
+        "kind": "ratio-sequence",
+        "id": "1:1:1",
+        "parts": [
+          1,
+          1,
+          1
+        ],
+        "normalizedParts": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      }
+    ],
+    "partitionPatterns": [
+      {
+        "kind": "partition-pattern",
+        "id": "halves",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "axis": "both",
+        "declarationOnly": true
+      },
+      {
+        "kind": "partition-pattern",
+        "id": "thirds",
+        "ratioRefs": [
+          "1/3",
+          "2/3"
+        ],
+        "sequenceRef": "1:1:1",
+        "axis": "both",
+        "declarationOnly": true
+      }
+    ],
+    "ruleDeclarations": [
+      {
+        "kind": "rule-declaration",
+        "id": "verticalThirds",
+        "type": "divideSurfaceVertical",
+        "target": "surface",
+        "ratioRefs": [
+          "1/3",
+          "2/3"
+        ],
+        "sequenceRefs": [
+          "1:1:1"
+        ],
+        "partitionPatternRefs": [
+          "thirds"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "horizontalThirds",
+        "type": "divideSurfaceHorizontal",
+        "target": "surface",
+        "ratioRefs": [
+          "1/3",
+          "2/3"
+        ],
+        "sequenceRefs": [
+          "1:1:1"
+        ],
+        "partitionPatternRefs": [
+          "thirds"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "centerAxes",
+        "type": "createGuidesFromCandidates",
+        "target": "surface",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "partitionPatternRefs": [
+          "halves"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "thirdGrid",
+        "type": "createSimpleGrid",
+        "target": "surface",
+        "ratioRefs": [
+          "1/3",
+          "2/3"
+        ],
+        "sequenceRefs": [
+          "1:1:1"
+        ],
+        "partitionPatternRefs": [
+          "thirds"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "surfaceDiagonals",
+        "type": "createDiagonals",
+        "target": "surface",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "partitionPatternRefs": [
+          "halves"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "deriveIntersections",
+        "type": "deriveIntersections",
+        "target": "surface",
+        "ratioRefs": [
+          "1/2",
+          "1/3",
+          "2/3"
+        ],
+        "sequenceRefs": [
+          "1:1:1"
+        ],
+        "partitionPatternRefs": [
+          "halves",
+          "thirds"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      }
+    ],
+    "ruleSets": [
+      {
+        "kind": "rule-set",
+        "id": "surface-basic-third-grid",
+        "ruleRefs": [
+          "verticalThirds",
+          "horizontalThirds",
+          "centerAxes",
+          "thirdGrid",
+          "surfaceDiagonals",
+          "deriveIntersections"
+        ],
+        "declarationOnly": true
+      }
+    ],
+    "preLock": {
+      "kind": "pack-lock-prelock",
+      "ref": "prelock:norma.basic-proportions@0.1.0",
+      "packId": "norma.basic-proportions",
+      "packVersion": "0.1.0",
+      "schemaVersion": "ratio-pack-v1",
+      "contentIdentity": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+      "final": false
+    }
+  },
+  "packLock": {
+    "kind": "pack-lock",
+    "id": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+    "ref": {
+      "id": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+    },
+    "coreVersion": "0.1.0-pr12",
+    "packId": "norma.basic-proportions",
+    "packVersion": "0.1.0",
+    "packSchemaVersion": "ratio-pack-v1",
+    "contentIdentity": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution",
+    "sourceRefs": [
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.basic-proportions@0.1.0"
+      },
+      {
+        "kind": "spec",
+        "ref": "PR4 Minimal ratio pack model"
+      }
+    ],
+    "provenance": {
+      "operationName": "core.runtime-v1.pack-lock.create",
+      "operationVersion": "0.1.0",
+      "inputRefs": [
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        },
+        {
+          "kind": "pack-content-identity",
+          "ref": "norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+        },
+        {
+          "kind": "spec",
+          "ref": "PR4 Minimal ratio pack model"
+        }
+      ],
+      "source": {
+        "kind": "core",
+        "ref": "norma-core/runtime-readiness-v1"
+      }
+    },
+    "status": "effective_pr11"
+  },
+  "ruleSetRef": "surface-basic-third-grid",
+  "evaluationProfile": {
+    "kind": "evaluation-profile",
+    "id": "basic-grid-alignment",
+    "ref": "evaluation-profile:basic-grid-alignment",
+    "version": "0.1.0-pr8",
+    "allowMinimalScore": true,
+    "components": [
+      {
+        "id": "guide_proximity",
+        "measurementSources": [
+          {
+            "measurementType": "distance",
+            "metric": "edge-to-guide-distance"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "alignment",
+        "measurementSources": [
+          {
+            "measurementType": "alignment",
+            "metric": "edge-guide-alignment"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "containment",
+        "measurementSources": [
+          {
+            "measurementType": "containment",
+            "metric": "surface-contains-element"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "overlap_penalty",
+        "measurementSources": [
+          {
+            "measurementType": "overlap",
+            "metric": "element-overlap-area"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "coverage_match",
+        "measurementSources": [
+          {
+            "measurementType": "coverage",
+            "metric": "surface-coverage-by-elements"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "area_ratio_match",
+        "measurementSources": [
+          {
+            "measurementType": "area",
+            "metric": "element-area"
+          }
+        ],
+        "weight": 1
+      }
+    ],
+    "limits": {
+      "noBeautyScore": true,
+      "noIntentInference": true,
+      "noComparison": true,
+      "noDecision": true,
+      "noRecommendation": true,
+      "noRatioDefinitions": true,
+      "noRuleDefinitions": true,
+      "noMeasurementDefinitions": true,
+      "requiresExplicitTolerances": true
+    },
+    "provenance": {
+      "kind": "evaluation-provenance",
+      "evaluationRef": "evaluation-profile:basic-grid-alignment",
+      "operationRef": "core.evaluation.basic.evaluate@0.1.0",
+      "inputRefs": [
+        {
+          "kind": "spec",
+          "ref": "PR8 Evaluation profile and scoring minimal"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "kind": "spec",
+          "ref": "PR8 Evaluation profile and scoring minimal"
+        }
+      ]
+    }
+  },
+  "evaluationTolerances": {
+    "kind": "evaluation-tolerances",
+    "id": "boundary-case:evaluation-tolerances",
+    "guideProximity": 0.1,
+    "alignment": 0,
+    "containment": 0,
+    "overlap": 0.01,
+    "coverage": 0.02,
+    "areaRatio": 0.05
+  },
+  "comparisonTolerances": {
+    "kind": "tie-policy",
+    "id": "boundary-case:comparison-tolerances",
+    "scoreTolerance": 0.01
+  },
+  "tolerancePolicy": {
+    "kind": "tolerance-policy",
+    "id": "boundary-case:tolerance-policy",
+    "coordinateTolerance": 0,
+    "metricTolerance": 1
+  },
+  "operationContext": {
+    "kind": "operation-context",
+    "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:boundary-case:2d-metric:boundary-case:pixel-length-policy:boundary-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:boundary-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true",
+    "ref": {
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:boundary-case:2d-metric:boundary-case:pixel-length-policy:boundary-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:boundary-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
+    },
+    "coreVersion": "0.1.0-pr12",
+    "operationName": "core.structured-composition-analysis.analyze",
+    "operationVersion": "0.1.0-r6",
+    "geometryModelVersion": "geometry-v1",
+    "coordinatePolicy": {
+      "value": {
+        "kind": "coordinate-system",
+        "id": "boundary-case:2d-metric",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up",
+        "dimensions": 2,
+        "coordinateScale": "metric"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "coordinate-policy",
+          "ref": "boundary-case:2d-metric"
+        }
+      ]
+    },
+    "metricPolicy": {
+      "value": {
+        "kind": "metric-policy",
+        "id": "boundary-case:pixel-length-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "metric-policy",
+          "ref": "boundary-case:pixel-length-policy"
+        }
+      ]
+    },
+    "tolerancePolicy": {
+      "value": {
+        "kind": "tolerance-policy",
+        "id": "boundary-case:tolerance-policy",
+        "coordinateTolerance": 0,
+        "metricTolerance": 1
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "tolerance-policy",
+          "ref": "boundary-case:tolerance-policy"
+        }
+      ]
+    },
+    "roundingPolicy": {
+      "value": {
+        "kind": "rounding-policy",
+        "id": "runtime.rounding.none",
+        "mode": "none",
+        "precision": null
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "rounding-policy",
+          "ref": "runtime.rounding.none"
+        }
+      ]
+    },
+    "numericPolicy": {
+      "value": {
+        "kind": "numeric-policy",
+        "id": "runtime.numeric.finite-number",
+        "precision": "number",
+        "finiteOnly": true
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "numeric-policy",
+          "ref": "runtime.numeric.finite-number"
+        }
+      ]
+    },
+    "orderingPolicy": {
+      "value": {
+        "kind": "ordering-policy",
+        "id": "runtime.ordering.output-refs-v1",
+        "outputRefs": "kind-rank-then-ref",
+        "featureFlags": "key-ascending"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "ordering-policy",
+          "ref": "runtime.ordering.output-refs-v1"
+        }
+      ]
+    },
+    "featureFlags": {
+      "boundary-case:deterministic": true,
+      "explicitStructuredJsonInput": true,
+      "localStructuredAnalyzeScenarioPack": true
+    },
+    "sourceRefs": [
+      {
+        "kind": "structured-analysis-input",
+        "ref": "boundary-case:structured-input"
+      },
+      {
+        "kind": "surface",
+        "ref": "surface:boundary-case:1x1"
+      },
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.basic-proportions@0.1.0"
+      },
+      {
+        "kind": "rule-set",
+        "ref": "surface-basic-third-grid"
+      },
+      {
+        "kind": "evaluation-profile",
+        "ref": "evaluation-profile:basic-grid-alignment"
+      },
+      {
+        "kind": "tolerance-policy",
+        "ref": "boundary-case:tolerance-policy"
+      },
+      {
+        "kind": "evaluation-tolerances",
+        "ref": "boundary-case:evaluation-tolerances"
+      },
+      {
+        "kind": "coordinate-system",
+        "ref": "boundary-case:2d-metric"
+      },
+      {
+        "kind": "metric-policy",
+        "ref": "boundary-case:pixel-length-policy"
+      },
+      {
+        "kind": "coordinate-policy",
+        "ref": "boundary-case:2d-metric"
+      },
+      {
+        "kind": "rounding-policy",
+        "ref": "runtime.rounding.none"
+      },
+      {
+        "kind": "numeric-policy",
+        "ref": "runtime.numeric.finite-number"
+      },
+      {
+        "kind": "ordering-policy",
+        "ref": "runtime.ordering.output-refs-v1"
+      }
+    ],
+    "provenance": {
+      "operationName": "core.runtime-v1.operation-context.create",
+      "operationVersion": "0.1.0",
+      "inputRefs": [
+        {
+          "kind": "structured-analysis-input",
+          "ref": "boundary-case:structured-input"
+        },
+        {
+          "kind": "surface",
+          "ref": "surface:boundary-case:1x1"
+        },
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.basic-proportions@0.1.0"
+        },
+        {
+          "kind": "rule-set",
+          "ref": "surface-basic-third-grid"
+        },
+        {
+          "kind": "evaluation-profile",
+          "ref": "evaluation-profile:basic-grid-alignment"
+        },
+        {
+          "kind": "tolerance-policy",
+          "ref": "boundary-case:tolerance-policy"
+        },
+        {
+          "kind": "evaluation-tolerances",
+          "ref": "boundary-case:evaluation-tolerances"
+        },
+        {
+          "kind": "coordinate-system",
+          "ref": "boundary-case:2d-metric"
+        },
+        {
+          "kind": "metric-policy",
+          "ref": "boundary-case:pixel-length-policy"
+        },
+        {
+          "kind": "coordinate-policy",
+          "ref": "boundary-case:2d-metric"
+        },
+        {
+          "kind": "rounding-policy",
+          "ref": "runtime.rounding.none"
+        },
+        {
+          "kind": "numeric-policy",
+          "ref": "runtime.numeric.finite-number"
+        },
+        {
+          "kind": "ordering-policy",
+          "ref": "runtime.ordering.output-refs-v1"
+        }
+      ],
+      "source": {
+        "kind": "core",
+        "ref": "norma-core/runtime-readiness-v1"
+      }
+    }
+  },
+  "provenance": {
+    "kind": "structured-composition-analysis-provenance",
+    "sourceKind": "user_supplied_structured_data",
+    "externalSourceRef": {
+      "kind": "scenario-fixture",
+      "ref": "boundary-case"
+    },
+    "callerSourceIds": [
+      "boundary-a-third-1",
+      "boundary-a-third-2",
+      "boundary-a-third-3",
+      "boundary-b-third-1",
+      "boundary-b-third-2",
+      "boundary-b-third-3",
+      "composition:boundary-case:A",
+      "composition:boundary-case:B",
+      "surface:boundary-case:1x1"
+    ],
+    "adapter": null,
+    "mappingVersion": "structured-analyze-scenario-pack-v1",
+    "normalizationVersion": null,
+    "transformationSteps": [],
+    "acceptanceRecord": {
+      "accepted": true,
+      "mode": "user_supplied_structured_data",
+      "acceptedBy": "structured-analyze-scenario-pack",
+      "acceptedAt": "2026-06-27T00:00:00Z",
+      "acceptedSourceIds": [
+        "boundary-a-third-1",
+        "boundary-a-third-2",
+        "boundary-a-third-3",
+        "boundary-b-third-1",
+        "boundary-b-third-2",
+        "boundary-b-third-3",
+        "composition:boundary-case:A",
+        "composition:boundary-case:B",
+        "surface:boundary-case:1x1"
+      ],
+      "acceptanceRecordId": "acceptance:boundary-case"
+    },
+    "operationContextRef": {
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:boundary-case:2d-metric:boundary-case:pixel-length-policy:boundary-case:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:boundary-case:deterministic:true_explicitStructuredJsonInput:true_localStructuredAnalyzeScenarioPack:true"
+    }
+  }
+}

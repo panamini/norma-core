@@ -435,7 +435,10 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
     isR6CStructuredAnalyzeMcpChangeSet ? r6cStructuredAnalyzeMcpChangedFiles : [],
   ];
 
-  assert.deepEqual(changed.filter((file) => file === "package.json" || file === "package-lock.json"), []);
+  assert.deepEqual(
+    changed.filter((file) => (file === "package.json" || file === "package-lock.json") && !isSharedApprovedFile(file)),
+    [],
+  );
   assert.deepEqual(
     changed.filter((file) => (
 	      file === "src/index.ts" &&

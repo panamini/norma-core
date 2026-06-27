@@ -488,10 +488,12 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
     changed,
     r6bStructuredAnalyzeGuardMaintenanceChangedFiles,
   );
+  const sharedApproved = sharedExactApprovedChangedFiles(changed);
+  const isSharedApprovedFile = (relativePath) => sharedApproved?.includes(relativePath) === true;
   const mcpRemoteChanges = changed.filter((relativePath) => /^docs\/MCP_REMOTE_.*\.md$/.test(relativePath));
 
-  assert.equal(changed.includes("package.json"), false);
-  assert.equal(changed.includes("package-lock.json"), false);
+  assert.equal(changed.includes("package.json") && !isSharedApprovedFile("package.json"), false);
+  assert.equal(changed.includes("package-lock.json") && !isSharedApprovedFile("package-lock.json"), false);
   assert.deepEqual(
     changed.filter((relativePath) => (
 	      relativePath === "src/index.ts" &&

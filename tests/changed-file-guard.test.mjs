@@ -19,6 +19,8 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
+  structuredAnalyzeScenarioPackChangedFiles,
+  structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
 } from "./changed-file-guard.mjs";
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
@@ -57,6 +59,20 @@ test("shared exact changed-file guard accepts the Geometry Harmony pack/report e
   assert.deepEqual(
     sharedExactApprovedChangedFiles(geometryHarmonyPackReportExamplesChangedFiles),
     geometryHarmonyPackReportExamplesChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the Structured Analyze scenario pack set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackChangedFiles),
+    structuredAnalyzeScenarioPackChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the semgrep-filtered Structured Analyze scenario pack set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles),
+    structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   );
 });
 
