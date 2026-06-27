@@ -44,13 +44,13 @@ test("R10 keeps Structured Analyze result identical across engine CLI MCP and re
     const inputBytes = await readFile(scenarioPath, "utf8");
     await writeFile(inputPath, inputBytes, "utf8");
     const input = JSON.parse(inputBytes);
-    const directResult = core.analyzeStructuredCompositionV1(input);
+    const directResult = core.analyzeStructuredCompositionV1(structuredClone(input));
     const directCanonical = core.serializeCanonicalJson(directResult);
 
     const cliCommand = await runCliAnalyze(inputPath, cliOutputDir);
     const reportCommand = await runReportKit(inputPath, reportOutputDir);
-    const mcpToolResult = callMcpAnalyze(input);
-    const reportBundle = createLocalStructuredAnalyzeReportBundle(input);
+    const mcpToolResult = callMcpAnalyze(structuredClone(input));
+    const reportBundle = createLocalStructuredAnalyzeReportBundle(structuredClone(input));
     const cliResultJson = await readFile(join(cliOutputDir, "result.json"), "utf8");
     const reportResultJson = await readFile(join(reportOutputDir, "result.json"), "utf8");
 
@@ -113,11 +113,12 @@ test("R10 canonical result serialization has stable key order and fixed fingerpr
 
 test("R10 visual viewer artifacts cannot change Structured Analyze result equality", async () => {
   const input = await readJson(scenarioPath);
-  const directResult = core.analyzeStructuredCompositionV1(input);
+  const directResult = core.analyzeStructuredCompositionV1(structuredClone(input));
   const directCanonical = core.serializeCanonicalJson(directResult);
-  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const bundle = createLocalStructuredAnalyzeReportBundle(structuredClone(input));
   const visualSvg = bundle.artifacts["visual.svg"];
   const originalReportHtml = bundle.artifacts["report.html"];
+  assert.ok(visualSvg.includes("Composition A"), "expected label present in visual SVG");
   const modifiedVisualSvg = visualSvg.replace("Composition A", "Composition Alpha");
   const modifiedReportHtml = createVisualComparisonReportHtml({
     summary: bundle.summary,
