@@ -49,7 +49,7 @@ Explicitly not approved:
 
 ## Next Sequence
 
-The next implementation rail is:
+Historical note: before R16, the next implementation rail was:
 
 1. R16 - local demo/onboarding smoke for the Structured Analyze report workflow.
 2. R17 - package/local consumer readiness refresh, only if a real gap remains
@@ -65,6 +65,32 @@ R16 should prove that a local user can:
 - identify `result.json` as canonical truth;
 - see that no hosted, public, image, vision, CAD, or recommendation behavior is
   involved.
+
+## Current Execution Mode After R16
+
+R16 is merged.
+
+The project is not obligated to execute 17 more historical PRs. Old PR31,
+PR32, and PR33 references are historical roadmap labels, not mandatory
+remaining work items and not an automatic checklist.
+
+Future work should be selected by current gaps, not old numbering. Work remains
+one PR at a time. Swarm or multi-agent work is allowed only for read-only
+review, planning, or independent checks. Implementation must remain
+single-owner per branch/PR.
+
+Current recommended next choices are:
+
+1. R17 - local consumer readiness refresh, if package consumption clarity is
+   still needed.
+2. A later explicit package publication decision, only if maintainers want
+   publication.
+3. Product/UI/dashboard work only after a separate product-scope approval.
+4. Hosted/remote MCP only after explicit threat-model and deployment approval.
+
+Public npm publication remains blocked. Hosted MCP remains blocked.
+UI/dashboard work remains blocked until explicitly approved. Engine behavior
+must not change for roadmap convergence.
 
 ## Non-Goals
 
@@ -85,7 +111,10 @@ The checkpoint is valid only if tests prove:
 
 - the roadmap names PR #135 / R14 and its merge commit;
 - R10 through R14 are recorded in order;
-- the next sequence starts with R16 local demo/onboarding smoke;
+- R16 is recorded as merged;
+- historical PR31, PR32, and PR33 labels are not treated as mandatory remaining
+  work;
+- the current sequence selects future work from current gaps, one PR at a time;
 - hosted MCP, public app submission, package publication, remote API runtime,
   image/vision/CAD/provider runtime, and recommendation-style behavior remain
   blocked.

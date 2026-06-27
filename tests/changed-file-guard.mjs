@@ -203,6 +203,8 @@ export const postR14RoadmapCheckpointChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const roadmapConvergenceAfterR16ChangedFiles = postR14RoadmapCheckpointChangedFiles;
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -213,6 +215,7 @@ const sharedExactApprovedChangedFileSets = [
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
   postR14RoadmapCheckpointChangedFiles,
+  roadmapConvergenceAfterR16ChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,

@@ -234,6 +234,32 @@ R16 should prove a local user can run the Geometry Harmony example, generate the
 five-file report bundle, inspect `report.html`, and understand `result.json` as
 canonical truth. R15 itself is docs/tests only and does not implement R16.
 
+## Current Execution Mode After R16
+
+R16 is merged.
+
+The old PR27-PR33 roadmap is historical context. The project is not obligated to
+execute 17 more historical PRs, and old PR31, PR32, and PR33 references are
+historical roadmap labels rather than mandatory remaining work items.
+
+Future work should be selected by current gaps, not old numbering. Work remains
+one PR at a time. Swarm or multi-agent work is allowed only for read-only
+review, planning, or independent checks. Implementation must remain
+single-owner per branch/PR.
+
+Current recommended next choices are:
+
+1. R17 - local consumer readiness refresh, if package consumption clarity is
+   still needed.
+2. A later explicit package publication decision, only if maintainers want
+   publication.
+3. Product/UI/dashboard work only after a separate product-scope approval.
+4. Hosted/remote MCP only after explicit threat-model and deployment approval.
+
+Public npm publication remains blocked. Hosted MCP remains blocked.
+UI/dashboard work remains blocked until explicitly approved. Engine behavior
+must not change for roadmap convergence.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
