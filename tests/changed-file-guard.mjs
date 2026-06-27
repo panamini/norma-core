@@ -121,6 +121,14 @@ export const structuredAnalyzeCliUxLayerChangedFiles = Object.freeze([
   "tests/structured-json-input-viewer.test.mjs",
 ].sort());
 
+export const structuredAnalyzeVisualViewerChangedFiles = Object.freeze([
+  "src/local-report/structured-analyze-report.ts",
+  "src/local-report/visual-viewer.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/visual-viewer.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -130,6 +138,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeVisualViewerChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
