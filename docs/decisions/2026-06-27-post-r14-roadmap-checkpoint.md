@@ -57,7 +57,7 @@ Historical note: before R16, the next implementation rail was:
 3. R18+ - broader product, package, remote, or public-surface gates only after
    explicit checkpoint approval.
 
-R16 should prove that a local user can:
+R16 was intended to prove that a local user could:
 
 - run the Geometry Harmony example;
 - generate the deterministic report bundle;
@@ -70,6 +70,8 @@ R16 should prove that a local user can:
 
 R16 is merged.
 
+R17 is this docs-only roadmap convergence checkpoint.
+
 The project is not obligated to execute 17 more historical PRs. Old PR31,
 PR32, and PR33 references are historical roadmap labels, not mandatory
 remaining work items and not an automatic checklist.
@@ -81,8 +83,8 @@ single-owner per branch/PR.
 
 Current recommended next choices are:
 
-1. R17 - local consumer readiness refresh, if package consumption clarity is
-   still needed.
+1. Local consumer readiness refresh, if package consumption clarity is still
+   needed.
 2. A later explicit package publication decision, only if maintainers want
    publication.
 3. Product/UI/dashboard work only after a separate product-scope approval.

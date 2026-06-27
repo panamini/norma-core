@@ -143,14 +143,17 @@ test("R17 roadmap convergence records the current execution mode after R16", () 
   for (const doc of [checkpointDoc, businessRoadmapDoc]) {
     assertDocMentions(doc, [
       "## Current Execution Mode After R16",
+      "Historical note: before R16, the next implementation rail was",
+      "R16 was intended to prove",
       "R16 is merged",
+      "R17 is this docs-only roadmap convergence checkpoint",
       "not obligated to execute 17 more historical PRs",
       "Future work should be selected by current gaps, not old numbering",
       "one PR at a time",
       "planning",
       "independent checks",
       "single-owner per branch/PR",
-      "R17 - local consumer readiness refresh",
+      "Local consumer readiness refresh",
       "A later explicit package publication decision, only if maintainers want publication",
       "Product/UI/dashboard work only after a separate product-scope approval",
       "Hosted/remote MCP only after explicit threat-model and deployment approval",
@@ -171,6 +174,8 @@ test("R17 roadmap convergence treats old PR31 PR32 and PR33 labels as historical
     "historical roadmap labels",
     "remaining work items",
     "old PR27-PR33 roadmap is historical context",
+    "## Historical Immediate PR Sequence",
+    "Do not treat this PR27-PR33 sequence as mandatory remaining work after R16",
   ]);
   assert.doesNotMatch(combinedDocs, /\bmust\s+complete\s+PR33\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR31\b/i);
