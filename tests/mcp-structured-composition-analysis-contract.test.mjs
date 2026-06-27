@@ -627,13 +627,19 @@ test("R12 spawned STDIO Structured Analyze responses are byte-stable for identic
 });
 
 function assertDirectMcpParity(input, id) {
-  const before = core.serializeCanonicalJson(input);
-  const direct = core.analyzeStructuredCompositionV1(input);
-  const response = callAnalyze(input, id);
-  const repeatedResponse = callAnalyze(input, `${id}-repeat`);
+  const pristine = structuredClone(input);
+  const directInput = structuredClone(pristine);
+  const responseInput = structuredClone(pristine);
+  const repeatedInput = structuredClone(pristine);
+  const direct = core.analyzeStructuredCompositionV1(directInput);
+  const response = callAnalyze(responseInput, id);
+  const repeatedResponse = callAnalyze(repeatedInput, `${id}-repeat`);
   const outputSchema = analyzeToolDescriptor().outputSchema;
 
-  assert.equal(core.serializeCanonicalJson(input), before);
+  assert.deepEqual(input, pristine);
+  assert.deepEqual(directInput, pristine);
+  assert.deepEqual(responseInput, pristine);
+  assert.deepEqual(repeatedInput, pristine);
   assert.equal(response.result.isError, false);
   assert.equal(response.result.content.length, 1);
   assert.equal(response.result.content[0].type, "text");
