@@ -358,24 +358,33 @@ test("local structured analyze report generation preserves input and result obje
   const directResult = core.analyzeStructuredCompositionV1(input);
   const directResultBefore = canonicalSnapshot(directResult);
   const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const summaryBefore = canonicalSnapshot(bundle.summary);
   const reportKitResultBefore = canonicalSnapshot(bundle.result);
-
-  assert.equal(canonicalSnapshot(input), inputBefore);
-  assert.deepEqual(bundle.result, directResult);
-
-  createVisualComparisonReportHtml({
+  const firstReportHtml = createVisualComparisonReportHtml({
     summary: bundle.summary,
     result: directResult,
     visualSvg: bundle.artifacts["visual.svg"],
   });
-  createVisualComparisonReportHtml({
+
+  assert.equal(canonicalSnapshot(input), inputBefore);
+  assert.deepEqual(bundle.result, directResult);
+
+  const secondReportHtml = createVisualComparisonReportHtml({
+    summary: bundle.summary,
+    result: directResult,
+    visualSvg: bundle.artifacts["visual.svg"],
+  });
+  const reportKitResultHtml = createVisualComparisonReportHtml({
     summary: bundle.summary,
     result: bundle.result,
     visualSvg: bundle.artifacts["visual.svg"],
   });
 
+  assert.equal(firstReportHtml, secondReportHtml);
+  assert.equal(reportKitResultHtml, bundle.artifacts["report.html"]);
   assert.equal(canonicalSnapshot(input), inputBefore);
   assert.equal(canonicalSnapshot(directResult), directResultBefore);
+  assert.equal(canonicalSnapshot(bundle.summary), summaryBefore);
   assert.equal(canonicalSnapshot(bundle.result), reportKitResultBefore);
 });
 
@@ -384,7 +393,7 @@ async function readJson(filePath) {
 }
 
 function canonicalSnapshot(value) {
-  return JSON.stringify(value);
+  return core.serializeCanonicalJson(value);
 }
 
 function usePackIdentity(input, packIdentity) {

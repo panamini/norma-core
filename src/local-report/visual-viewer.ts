@@ -205,10 +205,10 @@ function createFallbackReportHtml(
       ["operation context", result.operationContextRef?.id ?? "none"],
     ]),
     detailPanel("Replay Readiness", [
-      ["status", "none"],
-      ["run", "none"],
+      ["status", summary.replayReadiness.status ?? result.replayReadiness?.status ?? "none"],
+      ["run", result.replayReadiness?.run.runRef.id ?? "none"],
       ["result status", result.status],
-      ["output refs", "none"],
+      ["output refs", formatSourceRefs(result.outputRefs)],
     ]),
     "</section>",
     diagnosticsPanel(result),
@@ -387,7 +387,7 @@ function measurementsPanel(measurements: { readonly a: MeasurementSet; readonly 
 }
 
 function diagnosticsPanel(result: StructuredCompositionAnalysisResultV1): string {
-  const diagnosticCodes = result.diagnostics.map((diagnostic) => diagnostic.code).sort(compareStableStrings);
+  const diagnosticCodes = [...new Set(result.diagnostics.map((diagnostic) => diagnostic.code))].sort(compareStableStrings);
 
   return [
     "<section class=\"detail-panel\" aria-label=\"Diagnostics errors and warnings\">",
