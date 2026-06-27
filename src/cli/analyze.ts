@@ -182,10 +182,6 @@ function resolveScenario(specifier: string): ScenarioRef {
     throw new CliInputError(`Unsupported scenario: ${specifier}. ${analyzeUsage()}`);
   }
 
-  if (existsSync(directPath)) {
-    return { name: scenarioName, path: directPath };
-  }
-
   const bundledScenarioPath = join(scenarioDir, `${scenarioName}.json`);
   if (existsSync(bundledScenarioPath)) {
     return { name: scenarioName, path: bundledScenarioPath };

@@ -22,6 +22,7 @@ const validAnalyzeScenarios = Object.freeze(
     .filter((scenarioName) => scenarioName !== invalidAnalyzeScenarioName)
     .sort(),
 );
+assert.ok(validAnalyzeScenarios.length > 0, "expected at least one valid analyze scenario");
 
 function runCli(args) {
   return spawnSync(process.execPath, ["bin/norma-core.mjs", ...args], {
