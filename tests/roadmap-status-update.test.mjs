@@ -145,13 +145,17 @@ test("R17 roadmap convergence records the current execution mode after R16", () 
       "## Current Execution Mode After R16",
       "Historical note: before R16, the next implementation rail was",
       "R16 was intended to prove",
+    ]);
+
+    const currentExecutionModeSection = sectionForHeading(doc, "## Current Execution Mode After R16");
+
+    assertDocMentions(currentExecutionModeSection, [
       "R16 is merged",
       "R17 is this docs-only roadmap convergence checkpoint",
       "not obligated to execute 17 more historical PRs",
       "Future work should be selected by current gaps, not old numbering",
-      "one PR at a time",
-      "planning",
-      "independent checks",
+      "Work remains one PR at a time",
+      "Swarm or multi-agent work is allowed only for read-only review, planning, or independent checks",
       "single-owner per branch/PR",
       "Local consumer readiness refresh",
       "A later explicit package publication decision, only if maintainers want publication",
@@ -485,6 +489,14 @@ function sectionBetween(doc, startHeading, endHeading) {
   const end = doc.indexOf(endHeading, start + startHeading.length);
   assert.notEqual(end, -1, `${endHeading} should exist`);
   assert.ok(end > start, `${endHeading} should appear after ${startHeading}`);
+  return doc.slice(start, end);
+}
+
+function sectionForHeading(doc, heading) {
+  const start = doc.indexOf(heading);
+  assert.notEqual(start, -1, `${heading} should exist`);
+  const nextHeading = doc.slice(start + heading.length).match(/\n##\s+/);
+  const end = nextHeading ? start + heading.length + nextHeading.index : doc.length;
   return doc.slice(start, end);
 }
 
