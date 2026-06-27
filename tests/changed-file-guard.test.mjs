@@ -19,6 +19,7 @@ import {
   mcpProtocolContractLockV2ChangedFiles,
   publicApiContractFreezeChangedFiles,
   ratioPackAuthoringContractChangedFiles,
+  ratioPackStrictContractChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -137,6 +138,13 @@ test("shared exact changed-file guard accepts the R13 ratio pack authoring contr
   assert.deepEqual(
     sharedExactApprovedChangedFiles(ratioPackAuthoringContractChangedFiles),
     ratioPackAuthoringContractChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R13 strict ratio pack contract set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(ratioPackStrictContractChangedFiles),
+    ratioPackStrictContractChangedFiles,
   );
 });
 
