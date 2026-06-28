@@ -2,13 +2,16 @@
 
 ## Status
 
-This is a consumer compatibility policy for V1.5 local/private use.
+This is a consumer compatibility policy for V1.5 local/private use, refreshed
+by R18 for the existing Structured Analyze public engine surface.
 
 It does not publish the package. It does not create SDK runtime. It does not change package metadata. It does not authorize public npm publication. It does not authorize API, MCP, adapter, UI, cloud, media, CAD, plugin, or marketplace work.
 
 ## Consumer Scope
 
-The approved consumer is a local TypeScript or JavaScript consumer inside this repo or local workspace, importing from the package root after `npm run build`, and using approved trust-layer exports only.
+The approved consumer is a local TypeScript or JavaScript consumer inside this
+repo or local workspace, importing from the package root after `npm run build`,
+and using approved package-root exports only.
 
 This is not public npm readiness, a full SDK, a client library, a remote API, an MCP tool surface, or a UI/product surface.
 
@@ -24,6 +27,7 @@ Do not import from internal paths such as `src/*` or `dist/src/*`.
 
 The approved package-root imports exported on main are:
 
+- `analyzeStructuredCompositionV1`
 - `CORE_VERSION`
 - `STABLE_SERIALIZATION_VERSION`
 - `DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY`
@@ -44,15 +48,30 @@ The approved package-root imports exported on main are:
 
 The compile-time example lives at `examples/consumer/v1-5-trust-layer.ts`.
 
-It demonstrates local/private package-root consumption. It is not a published SDK and does not add a client wrapper.
+The Structured Analyze compile-time example lives at
+`examples/consumer/structured-analyze-v1.ts`.
+
+They demonstrate local/private package-root consumption. They are not published
+SDKs and do not add client wrappers, adapters, APIs, MCP tools, or UI helpers.
 
 The example imports only from `@norma/core`, type-checks `verifyArtifactFreshness`, `verifyRun`, and `replayRun`, preserves diagnostics in the exported `consumerSummary`, and avoids runtime console output.
+
+The Structured Analyze example imports only from `@norma/core`, calls the
+existing `analyzeStructuredCompositionV1` export, and exports
+`structuredAnalyzeConsumerSummary` with status, comparison, decision,
+diagnostics, warnings, errors, provenance, output refs, `packLockRef`,
+`operationContextRef`, and replay-readiness status. Console output is not a
+contract.
 
 ## Result Handling Rules
 
 Do not reduce results to a boolean `valid`.
 
-Consumers must inspect `status`, preserve warnings, preserve errors, preserve provenance, preserve mismatches, preserve `artifactFreshness`, and preserve unknown fields unless they are explicitly unsupported.
+Consumers must inspect `status`, preserve diagnostics, preserve warnings,
+preserve errors, preserve provenance, preserve output refs, preserve
+`packLockRef`, preserve `operationContextRef`, preserve `replayReadiness`,
+preserve mismatches, preserve `artifactFreshness`, and preserve unknown fields
+unless they are explicitly unsupported.
 
 Unknown statuses are non-success by default and must be handled conservatively.
 
@@ -78,9 +97,16 @@ Compatibility can be affected by:
 
 Structured source objects are source truth.
 
+For Structured Analyze, the object returned by
+`analyzeStructuredCompositionV1` is canonical engine truth. If the local
+report-kit writes `result.json`, that file is the canonical persisted engine
+result.
+
 Refs are traceability, not source truth.
 
-Artifacts are derived projections, not source truth.
+Report artifacts are derived local inspection views. They are not package API,
+and they do not redefine, recompute, infer, correct, optimize, recommend, or
+override `result.json`.
 
 Prompt text is never source truth.
 
@@ -167,7 +193,7 @@ The consumer compatibility test also verifies that `dist/src/index.js` and `dist
 - no package metadata change;
 - no SDK runtime;
 - no API;
-- no MCP;
+- no MCP behavior;
 - no adapter;
 - no UI;
 - no cloud;
@@ -180,6 +206,6 @@ The consumer compatibility test also verifies that `dist/src/index.js` and `dist
 
 ## Next PR
 
-Next recommended PR: PR32 - public package publishing gate.
-
-PR32 still must not publish unless maintainers explicitly approve publication in that PR.
+No public package publication is approved by this compatibility refresh. A
+later publication decision still requires explicit maintainer approval and the
+public package publishing gate.

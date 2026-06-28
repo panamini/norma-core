@@ -8,6 +8,7 @@ import * as core from "@norma/core";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
+const geometryHarmonyExamplePath = join(repoRoot, "examples", "structured-analyze", "geometry-harmony-basic.json");
 
 const expectedFunctionExports = [
   "analyzeStructuredCompositionV1",
@@ -128,4 +129,25 @@ test("PR25 runs a minimal package-root MVP verification smoke path", () => {
   });
   assert.ok(Array.isArray(verification.warnings));
   assert.ok(Array.isArray(verification.errors));
+});
+
+test("R18 runs Geometry Harmony Structured Analyze through the package root", () => {
+  const input = JSON.parse(readFileSync(geometryHarmonyExamplePath, "utf8"));
+  const result = core.analyzeStructuredCompositionV1(input);
+
+  assert.equal(result.status, "valid");
+  assert.equal(result.comparison.status, "a_closer");
+  assert.equal(result.decision.status, "a_closer");
+  assert.equal(result.validation.status, "valid");
+  assert.ok(Array.isArray(result.diagnostics));
+  assert.ok(result.diagnostics.length > 0);
+  assert.ok(Array.isArray(result.warnings));
+  assert.ok(result.warnings.length > 0);
+  assert.equal(result.warnings.every((warning) => warning.code === "MeasurementOutOfTolerance"), true);
+  assert.deepEqual(result.errors, []);
+  assert.ok(result.provenance);
+  assert.ok(result.outputRefs.length > 0);
+  assert.deepEqual(result.packLockRef, input.packLock.ref);
+  assert.deepEqual(result.operationContextRef, input.operationContext.ref);
+  assert.equal(result.replayReadiness.status, "ready");
 });

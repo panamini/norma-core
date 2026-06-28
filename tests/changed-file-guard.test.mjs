@@ -27,6 +27,7 @@ import {
   r7StructuredAnalyzeHardeningChangedFiles,
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
+  structuredAnalyzeConsumerReadinessChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
@@ -150,6 +151,13 @@ test("shared exact changed-file guard accepts the R17 roadmap convergence after 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(roadmapConvergenceAfterR16ChangedFiles),
     roadmapConvergenceAfterR16ChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R18 Structured Analyze consumer readiness set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeConsumerReadinessChangedFiles),
+    structuredAnalyzeConsumerReadinessChangedFiles,
   );
 });
 
@@ -320,6 +328,27 @@ test("shared exact changed-file guard rejects runtime extras in the R17 roadmap 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...roadmapConvergenceAfterR16ChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime and package extras in the R18 consumer readiness set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...structuredAnalyzeConsumerReadinessChangedFiles,
         forbiddenFile,
       ]),
       null,
