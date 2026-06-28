@@ -30,6 +30,7 @@ import {
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeConsumerReadinessChangedFiles,
   structuredAnalyzeDeterminismRegressionChangedFiles,
+  structuredAnalyzeProductScopeAlignmentChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
@@ -166,6 +167,13 @@ test("shared exact changed-file guard accepts the R19 local inspection surface b
   assert.deepEqual(
     sharedExactApprovedChangedFiles(localInspectionSurfaceBoundaryChangedFiles),
     localInspectionSurfaceBoundaryChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R20 product-scope alignment set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeProductScopeAlignmentChangedFiles),
+    structuredAnalyzeProductScopeAlignmentChangedFiles,
   );
 });
 
@@ -385,6 +393,49 @@ test("shared exact changed-file guard rejects forbidden extras in the R19 local 
       ]),
       null,
       forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime and viewer extras in the R20 product-scope alignment set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "docs/decisions/2026-06-16-read-only-result-viewer-product-requirements.md",
+    "docs/plans/2026-06-16-read-only-result-viewer-plan.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...structuredAnalyzeProductScopeAlignmentChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("R20 product-scope alignment changed-file guard is an exact scoped set", () => {
+  assert.deepEqual(structuredAnalyzeProductScopeAlignmentChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-06-28-structured-analyze-product-scope-alignment.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/roadmap-status-update.test.mjs",
+    "tests/structured-analyze-product-scope-alignment.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "tests/**", "src/**", "viewer/**"]) {
+    assert.equal(
+      structuredAnalyzeProductScopeAlignmentChangedFiles.includes(broadPath),
+      false,
+      broadPath,
     );
   }
 });

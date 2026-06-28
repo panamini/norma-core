@@ -229,6 +229,15 @@ export const localInspectionSurfaceBoundaryChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const structuredAnalyzeProductScopeAlignmentChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-28-structured-analyze-product-scope-alignment.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+  "tests/structured-analyze-product-scope-alignment.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -249,6 +258,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeConsumerReadinessChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
+  structuredAnalyzeProductScopeAlignmentChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

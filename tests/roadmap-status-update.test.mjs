@@ -27,6 +27,12 @@ const localInspectionSurfaceBoundaryDocPath = join(
   "decisions",
   "2026-06-28-local-inspection-surface-boundary.md",
 );
+const structuredAnalyzeProductScopeAlignmentDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-28-structured-analyze-product-scope-alignment.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -260,6 +266,36 @@ test("R19 roadmap approval guard catches punctuation-separated approval wording"
     () => assertNoApproval("API runtime: approved", "API runtime"),
     /API runtime approval wording must remain absent/,
   );
+});
+
+test("R20 roadmap records product-scope alignment without approving UI or runtime scope", () => {
+  assert.equal(existsSync(structuredAnalyzeProductScopeAlignmentDocPath), true);
+
+  const decisionDoc = readDoc(structuredAnalyzeProductScopeAlignmentDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const r20RoadmapSection = sectionForHeading(
+    businessRoadmapDoc,
+    "## R20 Structured Analyze Product-Scope Alignment Checkpoint",
+  );
+  const combinedDocs = `${decisionDoc}\n${r20RoadmapSection}`;
+
+  assertDocMentions(combinedDocs, [
+    "PR #141",
+    "R19",
+    "documentation alignment checkpoint only",
+    "documentation interpretation checkpoint",
+    "current authoritative local inspection boundary",
+    "PR55 and PR56",
+    "does not imply current approval for new UI implementation or any new product surface",
+    "Future product or UI work requires a separate explicit approval PR",
+    "does not define or modify engine correctness or runtime contracts",
+  ]);
+
+  assertNoApproval(combinedDocs, "UI implementation");
+  assertNoApproval(combinedDocs, "new product surface");
+  assertNoApproval(combinedDocs, "product surface");
+  assertNoApproval(combinedDocs, "hosted dashboard");
+  assert.doesNotMatch(combinedDocs, /\bnew runtime contract\b/i);
 });
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
