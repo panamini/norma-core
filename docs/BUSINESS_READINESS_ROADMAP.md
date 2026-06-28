@@ -305,6 +305,31 @@ R19 does not approve a hosted dashboard, public webapp, SDK, API runtime, public
 npm publication, hosted MCP, remote MCP, recommendation logic, optimization
 logic, scoring logic, inference logic, or correction logic.
 
+## R20 Structured Analyze Product-Scope Alignment Checkpoint
+
+R20 is a documentation interpretation checkpoint after PR #141 / R19. It aligns
+existing product and viewer documentation with the current R19 local inspection
+boundary.
+
+Decision reference:
+`docs/decisions/2026-06-28-structured-analyze-product-scope-alignment.md`.
+
+R19 remains the current authoritative local inspection boundary. `result.json`
+and direct engine output remain canonical Norma truth. `summary.json`,
+`summary.md`, `visual.svg`, `report.html`, and viewer output remain derived
+inspection artifacts.
+
+PR55 and PR56 viewer documentation remains useful product and viewer context,
+but it does not imply current approval for new UI implementation or any new
+product surface.
+
+R20 does not approve UI implementation, any new product surface, a hosted
+dashboard direction, product requirements, runtime behavior, engine correctness,
+runtime contracts, package exports, schemas, examples, package metadata, or
+lockfile changes.
+
+Future product or UI work requires a separate explicit approval PR.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
