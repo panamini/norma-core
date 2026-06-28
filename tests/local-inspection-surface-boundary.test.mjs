@@ -107,6 +107,25 @@ test("R19 docs do not approve product, remote, package, or new logic surfaces", 
   assertNoApproval(combinedDocs, "correction logic");
 });
 
+test("R19 approval guard catches punctuation-separated approval wording", () => {
+  assert.throws(
+    () => assertNoApproval("Approved: hosted dashboard", "hosted dashboard"),
+    /hosted dashboard approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("Approved, public webapp", "public webapp"),
+    /public webapp approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("hosted MCP: approved", "hosted MCP"),
+    /hosted MCP approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("remote MCP is approved", "remote MCP"),
+    /remote MCP approval wording must remain absent/,
+  );
+});
+
 test("R19 onboarding and examples no longer describe current inspection surfaces as inert or hypothetical", () => {
   const onboardingDoc = readDoc(onboardingDocPath);
   const readOnlyViewerWorkflowDoc = readDoc(readOnlyViewerWorkflowDocPath);
@@ -136,9 +155,23 @@ function assertDocMentions(doc, snippets) {
 }
 
 function assertNoApproval(doc, surface) {
+  for (const approvalPattern of approvalPatterns(surface)) {
+    assert.doesNotMatch(
+      doc,
+      approvalPattern,
+      `${surface} approval wording must remain absent`,
+    );
+  }
+}
+
+function approvalPatterns(surface) {
   const surfacePattern = escapeRegExp(surface).replace(/\s+/g, "\\s+");
-  assert.doesNotMatch(doc, new RegExp(`\\b${surfacePattern}\\s+(?:is|are|was|were)\\s+approved\\b`, "i"));
-  assert.doesNotMatch(doc, new RegExp(`\\bapproved\\s+${surfacePattern}\\b`, "i"));
+  const separator = "[\\s:;,.-]+";
+
+  return [
+    new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+  ];
 }
 
 function escapeRegExp(value) {

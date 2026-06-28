@@ -235,12 +235,31 @@ test("R19 roadmap records local inspection surfaces without approving product or
     "correction logic",
   ]);
 
-  assert.doesNotMatch(combinedDocs, /\bhosted dashboard\s+(?:is|are)\s+approved\b/i);
-  assert.doesNotMatch(combinedDocs, /\bpublic webapp\s+(?:is|are)\s+approved\b/i);
-  assert.doesNotMatch(combinedDocs, /\bAPI runtime\s+(?:is|are)\s+approved\b/i);
-  assert.doesNotMatch(combinedDocs, /\bhosted MCP\s+(?:is|are)\s+approved\b/i);
-  assert.doesNotMatch(combinedDocs, /\bremote MCP\s+(?:is|are)\s+approved\b/i);
-  assert.doesNotMatch(combinedDocs, /\bpublic npm publication\s+(?:is|are)\s+approved\b/i);
+  for (const surface of [
+    "hosted dashboard",
+    "public webapp",
+    "API runtime",
+    "hosted MCP",
+    "remote MCP",
+    "public npm publication",
+  ]) {
+    assertNoApproval(combinedDocs, surface);
+  }
+});
+
+test("R19 roadmap approval guard catches punctuation-separated approval wording", () => {
+  assert.throws(
+    () => assertNoApproval("Approved: hosted dashboard", "hosted dashboard"),
+    /hosted dashboard approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("Approved, public webapp", "public webapp"),
+    /public webapp approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("API runtime: approved", "API runtime"),
+    /API runtime approval wording must remain absent/,
+  );
 });
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
@@ -537,6 +556,26 @@ function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
     assert.match(doc, new RegExp(escapeRegExp(snippet).replace(/\s+/g, "\\s+"), "i"), `${snippet} should be documented`);
   }
+}
+
+function assertNoApproval(doc, surface) {
+  for (const approvalPattern of approvalPatterns(surface)) {
+    assert.doesNotMatch(
+      doc,
+      approvalPattern,
+      `${surface} approval wording must remain absent`,
+    );
+  }
+}
+
+function approvalPatterns(surface) {
+  const surfacePattern = escapeRegExp(surface).replace(/\s+/g, "\\s+");
+  const separator = "[\\s:;,.-]+";
+
+  return [
+    new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+  ];
 }
 
 function sectionBetween(doc, startHeading, endHeading) {
