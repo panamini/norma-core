@@ -34,7 +34,9 @@ const requiredVisibilityTerms = [
 ];
 
 const requiredBoundaryTerms = [
-  "inert documentation only",
+  "current local inspection workflow",
+  "current local-only inspection workflow",
+  "inspection-only views",
   "package-private",
   "not public API",
   "displayability is not source-truth validation",
@@ -108,13 +110,19 @@ test("PR63 creates exactly the approved onboarding and examples docs", () => {
   }
 });
 
-test("PR63 docs keep the workflow inert and package-private", () => {
+test("PR63 docs keep the workflow local and package-private", () => {
   const allDocs = allApprovedDocs();
+  const r19UpdatedDocs = [
+    readDoc("docs/onboarding/README.md"),
+    readDoc("docs/examples/read-only-result-viewer-workflow.md"),
+  ].join("\n");
 
   for (const term of requiredBoundaryTerms) {
     assert.match(allDocs, new RegExp(escapeRegExp(term), "i"), `${term} should be documented`);
   }
 
+  assert.doesNotMatch(r19UpdatedDocs, /inert documentation only/i);
+  assert.doesNotMatch(r19UpdatedDocs, /\bhypothetical\b/i);
   assert.match(allDocs, /helpers? are package-private/i);
   assert.doesNotMatch(allDocs, /package-private helpers? (?:are|as) public API/i);
 });

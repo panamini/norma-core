@@ -21,6 +21,12 @@ const postR14RoadmapCheckpointDocPath = join(
   "decisions",
   "2026-06-27-post-r14-roadmap-checkpoint.md",
 );
+const localInspectionSurfaceBoundaryDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-28-local-inspection-surface-boundary.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -185,6 +191,75 @@ test("R17 roadmap convergence treats old PR31 PR32 and PR33 labels as historical
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR31\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR32\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR33\b/i);
+});
+
+test("R19 roadmap records local inspection surfaces without approving product or remote scope", () => {
+  assert.equal(existsSync(localInspectionSurfaceBoundaryDocPath), true);
+
+  const decisionDoc = readDoc(localInspectionSurfaceBoundaryDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const r19RoadmapSection = sectionForHeading(businessRoadmapDoc, "## R19 Local Inspection Surface Boundary Checkpoint");
+  const combinedDocs = `${decisionDoc}\n${r19RoadmapSection}`;
+
+  assertDocMentions(combinedDocs, [
+    "PR #140",
+    "R18",
+    "Norma Core currently has local inspection surfaces",
+    "Package consumption remains local/private",
+    "analyzeStructuredCompositionV1",
+    "result.json",
+    "direct engine output",
+    "canonical Norma truth",
+    "summary.json",
+    "summary.md",
+    "visual.svg",
+    "report.html",
+    "viewer output",
+    "derived local inspection artifacts only",
+    "adds no features",
+    "changes no runtime behavior",
+  ]);
+
+  assertDocMentions(combinedDocs, [
+    "hosted dashboard",
+    "public webapp",
+    "SDK",
+    "API runtime",
+    "public npm publication",
+    "hosted MCP",
+    "remote MCP",
+    "recommendation logic",
+    "optimization logic",
+    "scoring logic",
+    "inference logic",
+    "correction logic",
+  ]);
+
+  for (const surface of [
+    "hosted dashboard",
+    "public webapp",
+    "API runtime",
+    "hosted MCP",
+    "remote MCP",
+    "public npm publication",
+  ]) {
+    assertNoApproval(combinedDocs, surface);
+  }
+});
+
+test("R19 roadmap approval guard catches punctuation-separated approval wording", () => {
+  assert.throws(
+    () => assertNoApproval("Approved: hosted dashboard", "hosted dashboard"),
+    /hosted dashboard approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("Approved, public webapp", "public webapp"),
+    /public webapp approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("API runtime: approved", "API runtime"),
+    /API runtime approval wording must remain absent/,
+  );
 });
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {
@@ -481,6 +556,26 @@ function assertDocMentions(doc, snippets) {
   for (const snippet of snippets) {
     assert.match(doc, new RegExp(escapeRegExp(snippet).replace(/\s+/g, "\\s+"), "i"), `${snippet} should be documented`);
   }
+}
+
+function assertNoApproval(doc, surface) {
+  for (const approvalPattern of approvalPatterns(surface)) {
+    assert.doesNotMatch(
+      doc,
+      approvalPattern,
+      `${surface} approval wording must remain absent`,
+    );
+  }
+}
+
+function approvalPatterns(surface) {
+  const surfacePattern = escapeRegExp(surface).replace(/\s+/g, "\\s+");
+  const separator = "[\\s:;,.-]+";
+
+  return [
+    new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+  ];
 }
 
 function sectionBetween(doc, startHeading, endHeading) {

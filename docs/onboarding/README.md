@@ -1,6 +1,6 @@
 # Onboarding
 
-This page documents the current read-only result-viewer workflow as inert documentation only.
+This page documents the current local inspection workflow for existing Norma result and viewer data.
 
 It does not add a product surface, executable example, package root surface, route, hosted service, remote tool behavior, or release action.
 
@@ -60,6 +60,12 @@ When present, these result details must stay visible:
 The workflow must not collapse these details to a generic boolean.
 
 The workflow must not hide, mute, downgrade, suppress, group away, summarize away, or discard these details when they are present.
+
+## Local Inspection Boundary
+
+Current local report and viewer surfaces are inspection-only views over existing Norma output.
+
+The engine result remains canonical truth. Report, visual, summary, and viewer output can make that truth easier to inspect, but they do not define, recompute, infer, correct, optimize, recommend, score, or override Norma results.
 
 ## Blocked Inputs
 
