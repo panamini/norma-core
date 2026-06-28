@@ -1,6 +1,6 @@
 # Read-Only Result Viewer Workflow
 
-This example is inert documentation only.
+This example documents a current local-only inspection workflow for existing result-envelope data.
 
 It shows a high-level inspection sequence for existing result-envelope data. It does not execute Norma operations, load files, retrieve network content, read shell or environment state, or create source truth.
 

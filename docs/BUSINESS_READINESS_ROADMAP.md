@@ -250,6 +250,8 @@ one PR at a time. Swarm or multi-agent work is allowed only for read-only
 review, planning, or independent checks. Implementation must remain
 single-owner per branch/PR.
 
+Local consumer readiness refresh is complete through R18.
+
 Current recommended next choices after R18 are:
 
 1. A later explicit package publication decision, only if maintainers want
@@ -278,6 +280,30 @@ hosted/cloud behavior, media/CAD/provider behavior, or product/UI behavior.
 
 Structured Analyze result output remains canonical engine truth. Report
 artifacts are derived local inspection views and are not package API.
+
+## R19 Local Inspection Surface Boundary Checkpoint
+
+R19 clarifies the current local viewer/report/dashboard boundary after PR #140 /
+R18. It is documentation and tests only; it adds no features, changes no runtime
+behavior, and creates no product UI, hosted dashboard, SDK, API runtime, package
+export, public npm publication path, or hosted/remote MCP surface.
+
+Decision reference:
+`docs/decisions/2026-06-28-local-inspection-surface-boundary.md`.
+
+Norma Core currently has local inspection surfaces. Package consumption remains
+local/private, and `analyzeStructuredCompositionV1` remains the approved
+Structured Analyze package-root entry point.
+
+`result.json` and direct engine output remain canonical Norma truth.
+`summary.json`, `summary.md`, `visual.svg`, `report.html`, and viewer output
+are derived local inspection artifacts only. They may display existing result
+data, but they must not define, recompute, infer, correct, optimize, recommend,
+score, or override Norma results.
+
+R19 does not approve a hosted dashboard, public webapp, SDK, API runtime, public
+npm publication, hosted MCP, remote MCP, recommendation logic, optimization
+logic, scoring logic, inference logic, or correction logic.
 
 ## Current State After PR25
 

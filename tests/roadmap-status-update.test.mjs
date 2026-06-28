@@ -21,6 +21,12 @@ const postR14RoadmapCheckpointDocPath = join(
   "decisions",
   "2026-06-27-post-r14-roadmap-checkpoint.md",
 );
+const localInspectionSurfaceBoundaryDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-28-local-inspection-surface-boundary.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -185,6 +191,56 @@ test("R17 roadmap convergence treats old PR31 PR32 and PR33 labels as historical
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR31\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR32\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR33\b/i);
+});
+
+test("R19 roadmap records local inspection surfaces without approving product or remote scope", () => {
+  assert.equal(existsSync(localInspectionSurfaceBoundaryDocPath), true);
+
+  const decisionDoc = readDoc(localInspectionSurfaceBoundaryDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const r19RoadmapSection = sectionForHeading(businessRoadmapDoc, "## R19 Local Inspection Surface Boundary Checkpoint");
+  const combinedDocs = `${decisionDoc}\n${r19RoadmapSection}`;
+
+  assertDocMentions(combinedDocs, [
+    "PR #140",
+    "R18",
+    "Norma Core currently has local inspection surfaces",
+    "Package consumption remains local/private",
+    "analyzeStructuredCompositionV1",
+    "result.json",
+    "direct engine output",
+    "canonical Norma truth",
+    "summary.json",
+    "summary.md",
+    "visual.svg",
+    "report.html",
+    "viewer output",
+    "derived local inspection artifacts only",
+    "adds no features",
+    "changes no runtime behavior",
+  ]);
+
+  assertDocMentions(combinedDocs, [
+    "hosted dashboard",
+    "public webapp",
+    "SDK",
+    "API runtime",
+    "public npm publication",
+    "hosted MCP",
+    "remote MCP",
+    "recommendation logic",
+    "optimization logic",
+    "scoring logic",
+    "inference logic",
+    "correction logic",
+  ]);
+
+  assert.doesNotMatch(combinedDocs, /\bhosted dashboard\s+(?:is|are)\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bpublic webapp\s+(?:is|are)\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bAPI runtime\s+(?:is|are)\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bhosted MCP\s+(?:is|are)\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bremote MCP\s+(?:is|are)\s+approved\b/i);
+  assert.doesNotMatch(combinedDocs, /\bpublic npm publication\s+(?:is|are)\s+approved\b/i);
 });
 
 test("PR48 roadmap status update exists under docs/decisions with required headings", () => {

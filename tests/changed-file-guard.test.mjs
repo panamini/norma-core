@@ -14,6 +14,7 @@ import {
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  localInspectionSurfaceBoundaryChangedFiles,
   localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
@@ -158,6 +159,13 @@ test("shared exact changed-file guard accepts the R18 Structured Analyze consume
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeConsumerReadinessChangedFiles),
     structuredAnalyzeConsumerReadinessChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R19 local inspection surface boundary set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localInspectionSurfaceBoundaryChangedFiles),
+    localInspectionSurfaceBoundaryChangedFiles,
   );
 });
 
@@ -349,6 +357,30 @@ test("shared exact changed-file guard rejects runtime and package extras in the 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...structuredAnalyzeConsumerReadinessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the R19 local inspection boundary set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/report-dashboard.html",
+    "examples/consumer/structured-analyze-v1.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "docs/local-structured-analyze-report-kit.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localInspectionSurfaceBoundaryChangedFiles,
         forbiddenFile,
       ]),
       null,
