@@ -343,6 +343,27 @@ test("R22 displays pasted Structured Analyze result JSON above the structured-in
   assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "largePayload");
 });
 
+test("R22 rejects large unrelated pasted JSON before parsing", () => {
+  const inputText = json({ unrelated: "x".repeat(70_000) });
+  const originalParse = JSON.parse;
+  let parseCalls = 0;
+
+  JSON.parse = (...args) => {
+    parseCalls += 1;
+    return originalParse(...args);
+  };
+
+  try {
+    const model = createReadOnlyViewerModel({ kind: "jsonText", value: inputText });
+
+    assertUnsupportedShapeModel(model);
+    assert.equal(model.errors.some((notice) => notice.code === "BodyTooLarge"), true);
+    assert.equal(parseCalls, 0);
+  } finally {
+    JSON.parse = originalParse;
+  }
+});
+
 test("R22 rejects pasted Structured Analyze JSON that exceeds structural safety limits", () => {
   for (const { result, code } of [
     {
@@ -373,9 +394,7 @@ test("R22 rejects pasted Structured Analyze JSON that exceeds structural safety 
   ]) {
     const model = createReadOnlyViewerModel({ kind: "jsonText", value: json(result) });
 
-    assert.equal(model.status, "unsupported");
-    assert.equal(model.classification, "unsupported-shape");
-    assert.equal(model.displayable, false);
+    assertUnsupportedShapeModel(model);
     assert.equal(model.errors.some((notice) => notice.code === code), true);
     assert.equal(row(model, "structuredAnalyzePayloads", "measurements"), undefined);
   }
@@ -394,6 +413,54 @@ test("R22 displays completed analyzeStructuredCompositionV1 MCP responses", () =
   assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
 });
 
+test("R22 displays real analyzeStructuredCompositionV1 MCP statuses", () => {
+  for (const status of ["valid", "invalid"]) {
+    const result = {
+      ...structuredAnalyzeResult(),
+      status,
+      validation: { status },
+    };
+    const model = createReadOnlyViewerModel({
+      kind: "jsonText",
+      value: json(analyzeJsonRpcResponse(result)),
+    });
+
+    assert.equal(model.status, "displayable");
+    assert.equal(model.classification, "structured-analyze-like-result");
+    assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, status);
+    assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, status);
+  }
+});
+
+test("R22 rejects execution-shaped Structured Analyze MCP wrappers before unwrapping", () => {
+  for (const field of ["method", "params"]) {
+    const model = createReadOnlyViewerModel({
+      kind: "jsonText",
+      value: json({
+        ...analyzeMcpToolResult(structuredAnalyzeResult()),
+        [field]: field === "method" ? "tools/call" : { name: "norma.analyzeStructuredCompositionV1" },
+      }),
+    });
+
+    assertUnsupportedInputModel(model, "Arbitrary method wrappers are not accepted.");
+    assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId"), undefined);
+  }
+});
+
+test("R22 preserves replay MVP demo input rejection on Structured Analyze-shaped pastes", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "jsonText",
+    value: json({
+      ...structuredAnalyzeResult(),
+      path: "/replay-mvp-demo",
+      run: { id: "run:must-not-be-displayable" },
+    }),
+  });
+
+  assertUnsupportedInputModel(model, "Caller-supplied /replay-mvp-demo replay inputs remain blocked.");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId"), undefined);
+});
+
 test("R22 rejects Structured Analyze-shaped source-truth inputs", () => {
   for (const field of ["prompt", "filePath", "url"]) {
     const model = createReadOnlyViewerModel({
@@ -404,11 +471,7 @@ test("R22 rejects Structured Analyze-shaped source-truth inputs", () => {
       },
     });
 
-    assert.equal(model.status, "unsupported");
-    assert.equal(model.classification, "unsupported-shape");
-    assert.equal(model.displayable, false);
-    assert.equal(model.errors.some((notice) => notice.code === "UnsupportedInput"), true);
-    assert.equal(model.errors.some((notice) => notice.message === "Unsupported source-truth or execution-shaped input."), true);
+    assertUnsupportedInputModel(model, "Unsupported source-truth or execution-shaped input.");
     assertNotIncludes(String(row(model, "unknownFields", field)?.value), `${field}:must-not-be-displayable`);
   }
 });
@@ -579,6 +642,18 @@ function assertNotIncludes(value, snippet) {
   assert.equal(value.includes(snippet), false, `${value} should not include ${snippet}`);
 }
 
+function assertUnsupportedInputModel(model, message) {
+  assertUnsupportedShapeModel(model);
+  assert.equal(model.errors.some((notice) => notice.code === "UnsupportedInput"), true);
+  assert.equal(model.errors.some((notice) => notice.message === message), true);
+}
+
+function assertUnsupportedShapeModel(model) {
+  assert.equal(model.status, "unsupported");
+  assert.equal(model.classification, "unsupported-shape");
+  assert.equal(model.displayable, false);
+}
+
 function structuredAnalyzeResult() {
   return JSON.parse(readFileSync(join(fixtureRoot, "structured-analyze-result.json"), "utf8"));
 }
@@ -714,7 +789,7 @@ function mcpToolResult(result, overrides = {}) {
 function analyzeMcpToolResult(result) {
   return {
     kind: "norma-mcp-tool-result",
-    status: "ok",
+    status: result.status,
     tool: "norma.analyzeStructuredCompositionV1",
     result,
   };

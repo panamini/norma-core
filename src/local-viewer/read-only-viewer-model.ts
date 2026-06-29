@@ -158,16 +158,13 @@ function modelFromJsonText(inputText: string): ReadOnlyViewerModel {
     });
   }
 
-  const parsedJson = parseJsonValue(inputText);
-  if (parsedJson.ok) {
-    const structuredAnalyzeModel = structuredAnalyzeModelFromPastedJson(parsedJson.value);
+  const structuredModel = parseStructuredJsonInput(inputText);
+  if (structuredModel.status === "rejected") {
+    const structuredAnalyzeModel = structuredAnalyzeModelFromRejectedJsonText(inputText, structuredModel.rejectionReasons);
     if (structuredAnalyzeModel !== null) {
       return structuredAnalyzeModel;
     }
-  }
 
-  const structuredModel = parseStructuredJsonInput(inputText);
-  if (structuredModel.status === "rejected") {
     return modelFromStructuredJsonRejection(inputText, structuredModel.rejectionReasons);
   }
 
@@ -218,6 +215,11 @@ function structuredAnalyzeModelFromValue(
   value: unknown,
   sourceMode: ReadOnlyViewerSourceMode,
 ): ReadOnlyViewerModel | null {
+  const wrapperUnsupportedModel = structuredAnalyzeWrapperUnsupportedModel(value, sourceMode);
+  if (wrapperUnsupportedModel !== null) {
+    return wrapperUnsupportedModel;
+  }
+
   const payload = structuredAnalyzePayloadFromValue(value);
   if (payload === null) {
     return null;
@@ -232,11 +234,24 @@ function structuredAnalyzeModelFromValue(
 }
 
 function structuredAnalyzeModelFromPastedJson(value: unknown): ReadOnlyViewerModel | null {
+  const wrapperUnsupportedModel = structuredAnalyzeWrapperUnsupportedModel(value, "explicit-json-text");
+  if (wrapperUnsupportedModel !== null) {
+    return wrapperUnsupportedModel;
+  }
+
   const payload = structuredAnalyzePayloadFromValue(value);
   if (payload === null) {
     return null;
   }
 
+  const rejectionModel = structuredAnalyzePastedPayloadRejectionModel(value, payload);
+  return rejectionModel ?? structuredAnalyzeDisplayModel(payload.result, "explicit-json-text");
+}
+
+function structuredAnalyzePastedPayloadRejectionModel(
+  value: unknown,
+  payload: StructuredAnalyzePayload,
+): ReadOnlyViewerModel | null {
   const limitIssue = structuredAnalyzeJsonLimitIssue(payload.result, payload.sourcePath);
   if (limitIssue !== null) {
     return modelFromStructuredJsonRejectionForParsedValue(value, [limitIssue]);
@@ -247,13 +262,41 @@ function structuredAnalyzeModelFromPastedJson(value: unknown): ReadOnlyViewerMod
     return modelFromDisplayRejection([unsupported], "explicit-json-text", value);
   }
 
-  return structuredAnalyzeDisplayModel(payload.result, "explicit-json-text");
+  return null;
+}
+
+function structuredAnalyzeWrapperUnsupportedModel(
+  value: unknown,
+  sourceMode: ReadOnlyViewerSourceMode,
+): ReadOnlyViewerModel | null {
+  if (!isJsonObject(value)) {
+    return null;
+  }
+
+  const wrapperUnsupported = structuredAnalyzeUnsupportedInputIssue(value, []);
+  return wrapperUnsupported === null ? null : modelFromDisplayRejection([wrapperUnsupported], sourceMode, value);
+}
+
+function structuredAnalyzeModelFromRejectedJsonText(
+  inputText: string,
+  rejectionReasons: readonly StructuredJsonRejectionReason[],
+): ReadOnlyViewerModel | null {
+  if (!shouldAttemptStructuredAnalyzeJsonFallback(inputText, rejectionReasons)) {
+    return null;
+  }
+
+  const parsedJson = parseJsonValue(inputText);
+  return parsedJson.ok ? structuredAnalyzeModelFromPastedJson(parsedJson.value) : null;
 }
 
 function modelFromStructuredJsonRejection(
   inputText: string,
   rejectionReasons: readonly StructuredJsonRejectionReason[],
 ): ReadOnlyViewerModel {
+  if (rejectionReasons[0]?.code === "BodyTooLarge") {
+    return modelFromStructuredJsonRejectionForParsedValue(null, rejectionReasons);
+  }
+
   return modelFromStructuredJsonRejectionForParsedValue(parseKnownJson(inputText), rejectionReasons);
 }
 
@@ -499,6 +542,18 @@ function parseKnownJson(inputText: string): unknown {
   return parsed.ok ? parsed.value : null;
 }
 
+function shouldAttemptStructuredAnalyzeJsonFallback(
+  inputText: string,
+  rejectionReasons: readonly StructuredJsonRejectionReason[],
+): boolean {
+  const firstReason = rejectionReasons[0];
+  if (firstReason?.code === "MalformedJson") {
+    return false;
+  }
+
+  return inputText.includes(STRUCTURED_ANALYZE_RESULT_KIND) || inputText.includes(STRUCTURED_ANALYZE_MCP_TOOL);
+}
+
 function displayValue(value: unknown): string | number | boolean | null {
   if (value === null || typeof value === "string" || typeof value === "boolean") {
     return value;
@@ -738,13 +793,24 @@ function structuredAnalyzePayloadFromMcpToolResult(
   if (
     value.kind !== "norma-mcp-tool-result" ||
     value.tool !== STRUCTURED_ANALYZE_MCP_TOOL ||
-    value.status !== "ok" ||
     !isStructuredAnalyzeLikeResult(value.result)
   ) {
     return null;
   }
 
+  if (!isStructuredAnalyzeMcpResultStatus(value.status, value.result.status)) {
+    return null;
+  }
+
   return { result: value.result, sourcePath: [...sourcePath, "result"] };
+}
+
+function isStructuredAnalyzeMcpResultStatus(status: unknown, resultStatus: unknown): boolean {
+  if (status === "ok") {
+    return true;
+  }
+
+  return (resultStatus === "valid" || resultStatus === "invalid") && status === resultStatus;
 }
 
 function structuredAnalyzeMcpContent(value: JsonObject): JsonObject | null {
@@ -769,6 +835,17 @@ function structuredAnalyzeUnsupportedInputIssue(
   value: JsonObject,
   sourcePath: readonly string[],
 ): VerificationReplayResultRejectionReason | null {
+  return unsupportedStructuredAnalyzeInputFieldIssue(value, sourcePath) ??
+    blockedStructuredAnalyzeReplayPathIssue(value, sourcePath) ??
+    blockedStructuredAnalyzeReplayMvpDemoIssue(value, sourcePath) ??
+    blockedStructuredAnalyzeReplayToolIssue(value, sourcePath) ??
+    arbitraryStructuredAnalyzeMethodWrapperIssue(value, sourcePath);
+}
+
+function unsupportedStructuredAnalyzeInputFieldIssue(
+  value: JsonObject,
+  sourcePath: readonly string[],
+): VerificationReplayResultRejectionReason | null {
   const unsupportedKey = Object.keys(value).find(isUnsupportedStructuredAnalyzeInputKey);
   if (unsupportedKey !== undefined) {
     return displayRejectionReason(
@@ -778,24 +855,66 @@ function structuredAnalyzeUnsupportedInputIssue(
     );
   }
 
-  const blockedPathInput =
-    value.path === "/replay-run" ||
-    value[BLOCKED_REPLAY_RUN_PATH_FIELD] === "/replay-run" ||
-    value[BLOCKED_STRUCTURED_ANALYZE_PATH_FIELD] === "POST /replay-run";
-  if (blockedPathInput) {
-    const pathKey = Object.hasOwn(value, "path")
-      ? "path"
-      : Object.hasOwn(value, BLOCKED_REPLAY_RUN_PATH_FIELD)
-        ? BLOCKED_REPLAY_RUN_PATH_FIELD
-        : BLOCKED_STRUCTURED_ANALYZE_PATH_FIELD;
-    return displayRejectionReason("UnsupportedInput", "/replay-run remains blocked.", [...sourcePath, pathKey]);
+  return null;
+}
+
+function blockedStructuredAnalyzeReplayPathIssue(
+  value: JsonObject,
+  sourcePath: readonly string[],
+): VerificationReplayResultRejectionReason | null {
+  const pathKey = blockedStructuredAnalyzeReplayPathKey(value);
+  if (pathKey === null) {
+    return null;
   }
 
+  return displayRejectionReason("UnsupportedInput", "/replay-run remains blocked.", [...sourcePath, pathKey]);
+}
+
+function blockedStructuredAnalyzeReplayPathKey(value: JsonObject): string | null {
+  if (value.path === "/replay-run") {
+    return "path";
+  }
+
+  if (value[BLOCKED_REPLAY_RUN_PATH_FIELD] === "/replay-run") {
+    return BLOCKED_REPLAY_RUN_PATH_FIELD;
+  }
+
+  return value[BLOCKED_STRUCTURED_ANALYZE_PATH_FIELD] === "POST /replay-run"
+    ? BLOCKED_STRUCTURED_ANALYZE_PATH_FIELD
+    : null;
+}
+
+function blockedStructuredAnalyzeReplayMvpDemoIssue(
+  value: JsonObject,
+  sourcePath: readonly string[],
+): VerificationReplayResultRejectionReason | null {
+  if (value.path === "/replay-mvp-demo" && Object.hasOwn(value, "run")) {
+    return displayRejectionReason(
+      "UnsupportedInput",
+      "Caller-supplied /replay-mvp-demo replay inputs remain blocked.",
+      [...sourcePath, "run"],
+    );
+  }
+
+  return null;
+}
+
+function blockedStructuredAnalyzeReplayToolIssue(
+  value: JsonObject,
+  sourcePath: readonly string[],
+): VerificationReplayResultRejectionReason | null {
   const blockedReplayTool = "norma." + "replay" + "Run";
   if (value.tool === blockedReplayTool || value.name === blockedReplayTool || value.method === blockedReplayTool) {
     return displayRejectionReason("UnsupportedInput", "norma.replay" + "Run remains blocked.", sourcePath);
   }
 
+  return null;
+}
+
+function arbitraryStructuredAnalyzeMethodWrapperIssue(
+  value: JsonObject,
+  sourcePath: readonly string[],
+): VerificationReplayResultRejectionReason | null {
   if (typeof value.method === "string" || Object.hasOwn(value, "params")) {
     return displayRejectionReason("UnsupportedInput", "Arbitrary method wrappers are not accepted.", sourcePath);
   }
