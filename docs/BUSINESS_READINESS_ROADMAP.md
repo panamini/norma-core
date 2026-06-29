@@ -330,6 +330,41 @@ lockfile changes.
 
 Future product or UI work requires a separate explicit approval PR.
 
+## R21 Local Structured Analyze Product-Surface Approval Gate
+
+R21 is an approval gate only after PR #142 / R20. It records one narrow future
+implementation direction and does not implement UI or change runtime behavior.
+
+Decision reference:
+`docs/decisions/2026-06-28-local-structured-analyze-product-surface-approval.md`.
+
+R21 approves only the future product-surface implementation scope for a separate
+local-only, static, read-only Structured Analyze inspection surface. The future
+surface may inspect existing deterministic outputs such as direct engine result
+objects, `result.json`, and existing report bundle artifacts.
+
+R19 remains the current authoritative local inspection boundary. R20 remains the
+current documentation interpretation checkpoint. PR55 and PR56 remain useful
+product and viewer context, but R21 does not rewrite them.
+
+The future implementation must be separate, optional, local-only, static,
+read-only, and scoped. A possible next implementation PR is:
+
+```text
+R22: local Structured Analyze inspection surface implementation
+```
+
+R21 does not implement UI, define Norma truth, execute analysis, recompute
+results, mutate input, infer geometry, select hidden packs, create ratios,
+create tolerances, optimize, recommend, score, correct, fetch remote data, host a
+service, publish a package, or define or modify engine correctness or runtime
+contracts.
+
+R21 does not approve hosted dashboard, public webapp, SDK, API runtime, public
+npm publication, hosted MCP, remote MCP, image/vision/CAD/provider input,
+recommendation logic, optimization logic, scoring logic, inference logic, or
+correction logic.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
