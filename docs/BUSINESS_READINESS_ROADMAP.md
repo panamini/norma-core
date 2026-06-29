@@ -12,6 +12,8 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
+This roadmap is synced through R25. R22 through R25 are complete, R25 is the latest completed local inspection/static safety guard checkpoint, and the old PR27-PR46 ladder remains historical/gated context, not the current execution queue.
+
 ## Current State After PR74
 
 PR70 through PR74 completed the local read-only viewer and current-state checkpoint track:
@@ -417,7 +419,9 @@ hosted behavior, public product behavior, SDK/API behavior, remote MCP, image,
 vision, camera, CAD, provider input, prompt inference, correction,
 recommendation, optimization, or scoring.
 
-## Current State After PR25
+## Current State After R25
+
+Decision reference: `docs/decisions/2026-06-30-post-r25-roadmap-truth-sync.md`.
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
 
@@ -429,6 +433,18 @@ The repository currently has the V1.5 trust-layer foundation needed for local pa
 - package-root consumption documentation;
 - package-root consumption tests;
 - private local package-root import through `@norma/core` after build.
+
+R22 through R25 completed the local inspection surface track:
+
+- R22 implemented the local Structured Analyze inspection surface.
+- R23 added the local inspection onboarding fixture.
+- R24 added the Structured Analyze scenario regression harness.
+- R25 added the local inspection surface static safety guard.
+
+R25 is the latest completed local inspection/static safety guard checkpoint.
+R26 is this docs-only roadmap truth-sync checkpoint.
+The local inspection surface remains local-only, static, read-only, paste-based, and non-computational.
+The old PR27-PR46 ladder remains historical/gated context, not the current execution queue.
 
 The package root is local/build-based and remains private. It is not yet a public npm package.
 

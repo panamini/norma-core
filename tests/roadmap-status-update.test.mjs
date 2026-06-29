@@ -39,6 +39,12 @@ const localStructuredAnalyzeProductSurfaceApprovalDocPath = join(
   "decisions",
   "2026-06-28-local-structured-analyze-product-surface-approval.md",
 );
+const postR25RoadmapTruthSyncDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-30-post-r25-roadmap-truth-sync.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -203,6 +209,42 @@ test("R17 roadmap convergence treats old PR31 PR32 and PR33 labels as historical
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR31\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR32\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+execute\s+PR33\b/i);
+});
+
+test("R26 roadmap truth sync records the post-R25 current state and historical queue boundary", () => {
+  assert.equal(existsSync(postR25RoadmapTruthSyncDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const postR25RoadmapTruthSyncDoc = readDoc(postR25RoadmapTruthSyncDocPath);
+
+  assert.match(businessRoadmapDoc, /^## Current State After R25$/m);
+  assert.doesNotMatch(businessRoadmapDoc, /^## Current State After PR25$/m);
+
+  assertDocMentions(businessRoadmapDoc, [
+    "Decision reference: `docs/decisions/2026-06-30-post-r25-roadmap-truth-sync.md`.",
+    "This roadmap is synced through R25",
+    "R22 through R25 are complete",
+    "R25 is the latest completed local inspection/static safety guard checkpoint",
+    "R26 is this docs-only roadmap truth-sync checkpoint",
+    "The old PR27-PR46 ladder remains historical/gated context, not the current execution queue",
+  ]);
+
+  assertDocMentions(postR25RoadmapTruthSyncDoc, [
+    "Roadmap reference: `docs/BUSINESS_READINESS_ROADMAP.md`.",
+    "R22 through R25 are complete",
+    "R25 is the latest completed local inspection/static safety guard checkpoint",
+    "R26 is this docs-only roadmap truth-sync checkpoint",
+    "PR #147",
+    "3889cf84d6df41391996d9d16cb76b5c48638a2d",
+    "This checkpoint does not approve:",
+    "runtime behavior changes",
+    "package or lockfile changes",
+    "viewer behavior changes",
+    "engine behavior changes",
+    "CLI behavior changes",
+    "MCP behavior changes",
+    "report-kit behavior changes",
+  ]);
 });
 
 test("R19 roadmap records local inspection surfaces without approving product or remote scope", () => {
