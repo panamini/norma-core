@@ -281,6 +281,10 @@ test("R22 displays Structured Analyze result objects as local read-only inspecti
   assert.equal(row(model, "structuredAnalyzeIdentity", "kind")?.value, "structured-composition-analysis-result");
   assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, "valid");
   assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, "valid");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:B:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:B:r22-static-viewer");
   assert.equal(row(model, "structuredAnalyzeDecisionComparison", "comparison.status")?.value, "a_closer");
   assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "a_closer");
   assertRowIncludes(model, "structuredAnalyzeDecisionComparison", "decision.summary", "Use composition A");
@@ -312,8 +316,61 @@ test("R22 displays pasted Structured Analyze result JSON through the local viewe
   assert.equal(model.classification, "structured-analyze-like-result");
   assert.equal(model.sourceMode, "explicit-json-text");
   assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:B:r22-static-viewer");
   assertRowIncludes(model, "structuredAnalyzeDiagnostics", "warnings", "Visible warning remains visible.");
   assertRowIncludes(model, "structuredAnalyzeDiagnostics", "errors", "Visible error remains visible.");
+});
+
+test("R22 displays pasted Structured Analyze result JSON above the structured-input body limit", () => {
+  const largeResult = {
+    ...structuredAnalyzeResult(),
+    measurements: {
+      ...structuredAnalyzeResult().measurements,
+      largePayload: "x".repeat(70_000),
+    },
+  };
+  const inputText = json(largeResult);
+
+  assert.equal(inputText.length > 65_536, true);
+
+  const model = createReadOnlyViewerModel({ kind: "jsonText", value: inputText });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "largePayload");
+});
+
+test("R22 displays completed analyzeStructuredCompositionV1 MCP responses", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "jsonText",
+    value: json(analyzeJsonRpcResponse(structuredAnalyzeResult())),
+  });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assert.equal(model.sourceMode, "explicit-json-text");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+});
+
+test("R22 rejects Structured Analyze-shaped source-truth inputs", () => {
+  for (const field of ["prompt", "filePath", "url"]) {
+    const model = createReadOnlyViewerModel({
+      kind: "structured",
+      value: {
+        ...structuredAnalyzeResult(),
+        [field]: `${field}:must-not-be-displayable`,
+      },
+    });
+
+    assert.equal(model.status, "unsupported");
+    assert.equal(model.classification, "unsupported-shape");
+    assert.equal(model.displayable, false);
+    assert.equal(model.errors.some((notice) => notice.code === "UnsupportedInput"), true);
+    assert.equal(model.errors.some((notice) => notice.message === "Unsupported source-truth or execution-shaped input."), true);
+    assertNotIncludes(String(row(model, "unknownFields", field)?.value), `${field}:must-not-be-displayable`);
+  }
 });
 
 test("R22 displays partial Structured Analyze-like results without claiming success", () => {
@@ -334,6 +391,8 @@ test("R22 displays partial Structured Analyze-like results without claiming succ
   assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, "invalid");
   assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "absent");
   assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, "invalid");
+  assert.equal(row(model, "structuredAnalyzePayloads", "measurements")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzePayloads", "evaluations")?.value, "absent");
   assert.equal(row(model, "structuredAnalyzeDecisionComparison", "comparison.status")?.value, "absent");
   assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "absent");
   assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "absent");
@@ -476,6 +535,10 @@ function assertRowIncludes(model, sectionId, label, snippet) {
   assert.equal(String(value).includes(snippet), true, `${sectionId}.${label} should include ${snippet}`);
 }
 
+function assertNotIncludes(value, snippet) {
+  assert.equal(value.includes(snippet), false, `${value} should not include ${snippet}`);
+}
+
 function structuredAnalyzeResult() {
   return JSON.parse(readFileSync(join(fixtureRoot, "structured-analyze-result.json"), "utf8"));
 }
@@ -605,6 +668,33 @@ function mcpToolResult(result, overrides = {}) {
     tool: "norma.verifyRun",
     result,
     ...overrides,
+  };
+}
+
+function analyzeMcpToolResult(result) {
+  return {
+    kind: "norma-mcp-tool-result",
+    status: "ok",
+    tool: "norma.analyzeStructuredCompositionV1",
+    result,
+  };
+}
+
+function analyzeJsonRpcResponse(result) {
+  const structuredContent = analyzeMcpToolResult(result);
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      content: [
+        {
+          type: "text",
+          text: json(structuredContent),
+        },
+      ],
+      isError: false,
+      structuredContent,
+    },
   };
 }
 

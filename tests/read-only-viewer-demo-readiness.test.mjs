@@ -92,6 +92,8 @@ test("R22 renders pasted Structured Analyze result JSON through the mounted stat
   assertIncludes(text, "valid");
   assertIncludes(text, "a_closer");
   assertIncludes(text, "Use composition A for this deterministic fixture.");
+  assertIncludes(text, "measurements:A:r22-static-viewer");
+  assertIncludes(text, "evaluation:B:r22-static-viewer");
   assertIncludes(text, "SyntheticDiagnostic");
   assertIncludes(text, "SyntheticWarning");
   assertIncludes(text, "SyntheticError");
@@ -104,6 +106,19 @@ test("R22 renders pasted Structured Analyze result JSON through the mounted stat
   assertIncludes(text, "run-ref:r22-static-viewer");
   assertIncludes(text, "identity:r22-static-viewer");
   assertTruthBoundary(text);
+  assertReadOnlyOutput(mounted.output);
+});
+
+test("R22 renders completed Structured Analyze MCP responses through the mounted static pipeline", () => {
+  const mounted = mountedViewer();
+  const result = JSON.parse(readFileSync(join(fixtureRoot, fixturePaths.structuredAnalyze), "utf8"));
+  const text = renderInput(mounted, JSON.stringify(analyzeJsonRpcResponse(result)));
+
+  assertIncludes(text, "Structured Analyze result");
+  assertIncludes(text, "structured-analyze-like-result");
+  assertIncludes(text, "analysis:r22-static-viewer");
+  assertIncludes(text, "measurements:A:r22-static-viewer");
+  assertIncludes(text, "evaluation:A:r22-static-viewer");
   assertReadOnlyOutput(mounted.output);
 });
 
@@ -237,6 +252,29 @@ function renderInput(mounted, value) {
   mounted.input.value = value;
   mounted.renderButton.click();
   return textOf(mounted.output);
+}
+
+function analyzeJsonRpcResponse(result) {
+  const structuredContent = {
+    kind: "norma-mcp-tool-result",
+    status: "ok",
+    tool: "norma.analyzeStructuredCompositionV1",
+    result,
+  };
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(structuredContent),
+        },
+      ],
+      isError: false,
+      structuredContent,
+    },
+  };
 }
 
 function assertTruthBoundary(text) {
