@@ -15,6 +15,7 @@ import {
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
+  localInspectionSurfaceStaticSafetyGuardChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
@@ -94,6 +95,13 @@ test("shared exact changed-file guard accepts the R24 Structured Analyze scenari
   assert.deepEqual(
     sharedExactApprovedChangedFiles(structuredAnalyzeScenarioRegressionHarnessChangedFiles),
     structuredAnalyzeScenarioRegressionHarnessChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R25 local inspection surface static safety set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localInspectionSurfaceStaticSafetyGuardChangedFiles),
+    localInspectionSurfaceStaticSafetyGuardChangedFiles,
   );
 });
 
@@ -611,6 +619,22 @@ test("R24 Structured Analyze scenario regression changed-file guard is an exact 
   }
 });
 
+test("R25 local inspection surface static safety guard is an exact scoped set", () => {
+  assert.deepEqual(localInspectionSurfaceStaticSafetyGuardChangedFiles, [
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-inspection-surface-static-safety.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      localInspectionSurfaceStaticSafetyGuardChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
 test("shared exact changed-file guard rejects forbidden extras in the R23 inspection onboarding set", () => {
   for (const forbiddenFile of [
     "src/structured-composition-analysis.ts",
@@ -666,6 +690,39 @@ test("shared exact changed-file guard rejects forbidden extras in the R24 scenar
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...structuredAnalyzeScenarioRegressionHarnessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the R25 static safety set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "docs/examples/read-only-result-viewer-onboarding-fixture.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localInspectionSurfaceStaticSafetyGuardChangedFiles,
         forbiddenFile,
       ]),
       null,
