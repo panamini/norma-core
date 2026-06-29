@@ -33,6 +33,12 @@ const structuredAnalyzeProductScopeAlignmentDocPath = join(
   "decisions",
   "2026-06-28-structured-analyze-product-scope-alignment.md",
 );
+const localStructuredAnalyzeProductSurfaceApprovalDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-28-local-structured-analyze-product-surface-approval.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -295,6 +301,54 @@ test("R20 roadmap records product-scope alignment without approving UI or runtim
   assertNoApproval(combinedDocs, "new product surface");
   assertNoApproval(combinedDocs, "product surface");
   assertNoApproval(combinedDocs, "hosted dashboard");
+  assert.doesNotMatch(combinedDocs, /\bnew runtime contract\b/i);
+});
+
+test("R21 roadmap records local product-surface approval gate without runtime or remote scope", () => {
+  assert.equal(existsSync(localStructuredAnalyzeProductSurfaceApprovalDocPath), true);
+
+  const decisionDoc = readDoc(localStructuredAnalyzeProductSurfaceApprovalDocPath);
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const r21RoadmapSection = sectionForHeading(
+    businessRoadmapDoc,
+    "## R21 Local Structured Analyze Product-Surface Approval Gate",
+  );
+  const combinedDocs = `${decisionDoc}\n${r21RoadmapSection}`;
+
+  assertDocMentions(combinedDocs, [
+    "R21 is an approval gate only",
+    "PR #141",
+    "R19",
+    "PR #142",
+    "R20",
+    "future product-surface implementation scope",
+    "local-only, static, read-only Structured Analyze inspection surface",
+    "direct engine result object",
+    "result.json",
+    "existing report bundle artifacts",
+    "R19 remains the current authoritative local inspection boundary",
+    "R20 remains the current documentation interpretation checkpoint",
+    "R22: local Structured Analyze inspection surface implementation",
+    "The future implementation must be a separate PR",
+  ]);
+
+  for (const blockedSurface of [
+    "hosted dashboard",
+    "public webapp",
+    "SDK",
+    "API runtime",
+    "public npm publication",
+    "hosted MCP",
+    "remote MCP",
+    "image input",
+    "vision input",
+    "CAD input",
+    "provider input",
+  ]) {
+    assertNoApproval(combinedDocs, blockedSurface);
+  }
+
+  assert.doesNotMatch(combinedDocs, /\bR21\s+implements\s+UI\b/i);
   assert.doesNotMatch(combinedDocs, /\bnew runtime contract\b/i);
 });
 
@@ -611,6 +665,7 @@ function approvalPatterns(surface) {
   return [
     new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
     new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:R21|this\\s+decision|the\\s+decision|this\\s+PR|the\\s+PR)\\s+approv(?:e|es|ed|ing)\\b[^\\n.;]*\\b${surfacePattern}\\b`, "i"),
   ];
 }
 

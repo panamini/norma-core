@@ -238,6 +238,15 @@ export const structuredAnalyzeProductScopeAlignmentChangedFiles = Object.freeze(
   "tests/structured-analyze-product-scope-alignment.test.mjs",
 ].sort());
 
+export const localStructuredAnalyzeProductSurfaceApprovalChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-28-local-structured-analyze-product-surface-approval.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-product-surface-approval.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -259,6 +268,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeConsumerReadinessChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   structuredAnalyzeProductScopeAlignmentChangedFiles,
+  localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
