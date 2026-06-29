@@ -261,6 +261,16 @@ export const localStructuredAnalyzeInspectionSurfaceChangedFiles = Object.freeze
   "viewer/read-only-result-viewer.html",
 ].sort());
 
+export const localInspectionSurfaceOnboardingChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/examples/read-only-result-viewer-onboarding-fixture.json",
+  "docs/examples/read-only-result-viewer-workflow.md",
+  "docs/onboarding/README.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-inspection-onboarding-fixture.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -284,6 +294,7 @@ const sharedExactApprovedChangedFileSets = [
   structuredAnalyzeProductScopeAlignmentChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
+  localInspectionSurfaceOnboardingChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

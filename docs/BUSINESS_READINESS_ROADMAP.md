@@ -383,6 +383,24 @@ R22 does not add hosting, public product behavior, SDK behavior, API runtime,
 public npm readiness, remote MCP, correction, recommendation, optimization,
 scoring, prompt inference, or image inference.
 
+## R23 Local Inspection Surface Onboarding Fixture And Workflow Polish
+
+R23 adds a small local onboarding fixture and workflow documentation for the
+existing static read-only viewer.
+
+The fixture is existing Structured Analyze result JSON. It helps a local user
+try the paste-only inspection path without adding engine behavior, CLI behavior,
+MCP behavior, report-kit behavior, package exports, package metadata, lockfile
+changes, runtime routes, hosted behavior, or public product claims.
+
+Direct engine output and result JSON remain canonical truth. Viewer output
+remains derived inspection only.
+
+R23 does not run analysis, recompute results, mutate input, create source truth,
+accept path or URL input, infer geometry, accept image, vision, CAD, media, or
+provider input, correct output, optimize output, score output, infer from
+prompts, add hosted or remote behavior, or change SDK/API/package readiness.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
