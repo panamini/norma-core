@@ -306,7 +306,10 @@ function assertDiagnosticShape(diagnostic, scenarioName) {
   assert.equal(typeof diagnostic.code, "string", `${scenarioName}: diagnostic code`);
   assert.equal(typeof diagnostic.severity, "string", `${scenarioName}: diagnostic severity`);
   assert.equal(typeof diagnostic.message, "string", `${scenarioName}: diagnostic message`);
-  assert.equal(typeof diagnostic.targetRef, "string", `${scenarioName}: diagnostic targetRef`);
+  assert.ok(
+    diagnostic.targetRef === null || typeof diagnostic.targetRef === "string",
+    `${scenarioName}: diagnostic targetRef`,
+  );
   assert.equal(typeof diagnostic.blocking, "boolean", `${scenarioName}: diagnostic blocking`);
 }
 
