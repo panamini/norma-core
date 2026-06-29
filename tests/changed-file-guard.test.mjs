@@ -38,6 +38,7 @@ import {
   structuredAnalyzeScenarioConsistencyHardeningChangedFiles,
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
+  structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
@@ -86,6 +87,13 @@ test("shared exact changed-file guard accepts the R23 local inspection onboardin
   assert.deepEqual(
     sharedExactApprovedChangedFiles(localInspectionSurfaceOnboardingChangedFiles),
     localInspectionSurfaceOnboardingChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R24 Structured Analyze scenario regression set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(structuredAnalyzeScenarioRegressionHarnessChangedFiles),
+    structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   );
 });
 
@@ -586,6 +594,23 @@ test("R23 local inspection onboarding changed-file guard is an exact scoped set"
   }
 });
 
+test("R24 Structured Analyze scenario regression changed-file guard is an exact scoped set", () => {
+  assert.deepEqual(structuredAnalyzeScenarioRegressionHarnessChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/structured-analyze-scenario-regression.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      structuredAnalyzeScenarioRegressionHarnessChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
 test("shared exact changed-file guard rejects forbidden extras in the R23 inspection onboarding set", () => {
   for (const forbiddenFile of [
     "src/structured-composition-analysis.ts",
@@ -607,6 +632,40 @@ test("shared exact changed-file guard rejects forbidden extras in the R23 inspec
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...localInspectionSurfaceOnboardingChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the R24 scenario regression set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "examples/structured-analyze/scenarios/invalid-duplicate-id.json",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "examples/structured-analyze/scenarios/boundary-case.json",
+    "examples/structured-analyze/scenarios/invalid-case.json",
+    "examples/structured-analyze/scenarios/ratio-comparison.json",
+    "examples/structured-analyze/scenarios/symmetry-test.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...structuredAnalyzeScenarioRegressionHarnessChangedFiles,
         forbiddenFile,
       ]),
       null,

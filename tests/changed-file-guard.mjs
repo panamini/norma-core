@@ -271,6 +271,13 @@ export const localInspectionSurfaceOnboardingChangedFiles = Object.freeze([
   "tests/local-inspection-onboarding-fixture.test.mjs",
 ].sort());
 
+export const structuredAnalyzeScenarioRegressionHarnessChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/structured-analyze-scenario-regression.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -295,6 +302,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localInspectionSurfaceOnboardingChangedFiles,
+  structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
