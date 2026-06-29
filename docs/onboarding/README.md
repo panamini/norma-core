@@ -24,7 +24,7 @@ For a minimal local onboarding path, use the checked-in fixture at `docs/example
 
 In a fresh checkout, run the repository build script from the repository root before opening `viewer/read-only-result-viewer.html`; the static viewer imports its package-private model from `dist/src/local-viewer/read-only-viewer-model.js`.
 
-That fixture is existing Structured Analyze result JSON. Copy the JSON object text into the static viewer textarea in `viewer/read-only-result-viewer.html`.
+That fixture is existing invalid Structured Analyze result JSON. Copy the JSON object text into the static viewer textarea in `viewer/read-only-result-viewer.html`.
 
 Do not paste the fixture path, a URL, instructions, or any pointer into the viewer. The viewer accepts pasted JSON text only.
 

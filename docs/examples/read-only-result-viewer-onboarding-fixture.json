@@ -3,100 +3,155 @@
   "contractVersion": "structured-composition-analysis-result.v1",
   "operationName": "core.structured-composition-analysis.analyze",
   "operationVersion": "0.1.0-r6",
-  "status": "valid",
+  "status": "invalid",
   "analysisId": "analysis:r23-onboarding-fixture",
   "inputRefs": [
     {
-      "kind": "structured-analysis-input",
-      "ref": "input:r23-onboarding-fixture"
-    }
-  ],
-  "outputRefs": [
+      "kind": "acceptance-record",
+      "ref": "acceptance:r23-onboarding-fixture"
+    },
     {
-      "kind": "structured-analysis-result",
-      "ref": "output:r23-onboarding-fixture"
+      "kind": "analysis",
+      "ref": "analysis:r23-onboarding-fixture"
+    },
+    {
+      "kind": "composition-2d",
+      "ref": "composition:r23-onboarding-fixture:A"
+    },
+    {
+      "kind": "structured-source",
+      "ref": "composition:r23-onboarding-fixture:A"
+    },
+    {
+      "kind": "composition-2d",
+      "ref": "composition:r23-onboarding-fixture:B"
+    },
+    {
+      "kind": "structured-source",
+      "ref": "composition:r23-onboarding-fixture:B"
+    },
+    {
+      "kind": "structured-source",
+      "ref": "element:r23-onboarding-fixture:A:panel"
+    },
+    {
+      "kind": "structured-source",
+      "ref": "element:r23-onboarding-fixture:B:panel"
+    },
+    {
+      "kind": "evaluation-profile",
+      "ref": "evaluation-profile:basic-grid-alignment"
+    },
+    {
+      "kind": "ratio-pack",
+      "ref": "norma.basic-proportions@0.1.0"
+    },
+    {
+      "kind": "operation-context",
+      "ref": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:r23-onboarding-fixture:2d-metric:r23-onboarding-fixture:pixel-length-policy:r23-onboarding-fixture:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:r23OnboardingFixtureExplicit:true_structuredAnalyzeHarness:true"
+    },
+    {
+      "kind": "pack-lock",
+      "ref": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
+    },
+    {
+      "kind": "tie-policy",
+      "ref": "r23-onboarding-fixture:comparison-tolerances"
+    },
+    {
+      "kind": "evaluation-tolerances",
+      "ref": "r23-onboarding-fixture:evaluation-tolerances"
+    },
+    {
+      "kind": "tolerance-policy",
+      "ref": "r23-onboarding-fixture:tolerance-policy"
+    },
+    {
+      "kind": "rule-set",
+      "ref": "surface-basic-third-grid"
+    },
+    {
+      "kind": "structured-source",
+      "ref": "surface:r23-onboarding-fixture:120x80"
+    },
+    {
+      "kind": "surface",
+      "ref": "surface:r23-onboarding-fixture:120x80"
     }
   ],
+  "outputRefs": [],
   "validation": {
     "kind": "structured-composition-analysis-validation",
-    "status": "valid",
+    "status": "invalid",
     "diagnostics": [
       {
-        "code": "R23OnboardingValidation",
-        "message": "Validation detail remains visible."
+        "blocking": true,
+        "code": "MissingMeasurements",
+        "message": "Profile component overlap_penalty references missing overlap measurements.",
+        "provenance": null,
+        "severity": "error",
+        "source": {
+          "kind": "measurements",
+          "ref": "profile.components.overlap_penalty"
+        },
+        "targetRef": "profile.components.overlap_penalty"
       }
     ],
     "acceptedSourceIds": [
-      "source:r23-onboarding-fixture:A",
-      "source:r23-onboarding-fixture:B"
+      "composition:r23-onboarding-fixture:A",
+      "composition:r23-onboarding-fixture:B",
+      "element:r23-onboarding-fixture:A:panel",
+      "element:r23-onboarding-fixture:B:panel",
+      "surface:r23-onboarding-fixture:120x80"
     ],
     "effectiveSourceIds": [
-      "source:r23-onboarding-fixture:A",
-      "source:r23-onboarding-fixture:B"
+      "composition:r23-onboarding-fixture:A",
+      "composition:r23-onboarding-fixture:B",
+      "element:r23-onboarding-fixture:A:panel",
+      "element:r23-onboarding-fixture:B:panel",
+      "surface:r23-onboarding-fixture:120x80"
     ]
   },
-  "measurements": {
-    "a": {
-      "id": "measurements:A:r23-onboarding-fixture",
-      "kind": "measurement-set",
-      "summary": "Existing measurements for composition A remain visible."
-    },
-    "b": {
-      "id": "measurements:B:r23-onboarding-fixture",
-      "kind": "measurement-set",
-      "summary": "Existing measurements for composition B remain visible."
-    }
-  },
-  "evaluations": {
-    "a": {
-      "id": "evaluation:A:r23-onboarding-fixture",
-      "kind": "composition-evaluation",
-      "status": "evaluated"
-    },
-    "b": {
-      "id": "evaluation:B:r23-onboarding-fixture",
-      "kind": "composition-evaluation",
-      "status": "evaluated"
-    }
-  },
-  "comparison": {
-    "status": "a_closer",
-    "summary": "The existing comparison remains visible for inspection."
-  },
-  "decision": {
-    "status": "a_closer",
-    "summary": "The existing result records composition A as selected.",
-    "selectedEvaluationRef": "evaluation:A:r23-onboarding-fixture"
-  },
+  "measurements": null,
+  "evaluations": null,
+  "comparison": null,
+  "decision": null,
   "packLockRef": {
-    "id": "pack-lock:r23-onboarding-fixture"
+    "id": "pack-lock:norma.basic-proportions@0.1.0:norma.basic-proportions@0.1.0:ratio-pack-v1:mvp-rule-resolution"
   },
   "operationContextRef": {
-    "id": "operation-context:r23-onboarding-fixture"
+    "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:r23-onboarding-fixture:2d-metric:r23-onboarding-fixture:pixel-length-policy:r23-onboarding-fixture:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:r23OnboardingFixtureExplicit:true_structuredAnalyzeHarness:true"
   },
-  "replayReadiness": {
-    "status": "ready",
-    "run": {
-      "id": "run:r23-onboarding-fixture",
-      "runRef": {
-        "id": "run-ref:r23-onboarding-fixture"
-      },
-      "operationName": "core.structured-composition-analysis.analyze"
-    }
-  },
+  "replayReadiness": null,
   "diagnostics": [
     {
-      "code": "R23OnboardingDiagnostic",
-      "message": "Diagnostic remains visible."
+      "blocking": true,
+      "code": "MissingMeasurements",
+      "message": "Profile component overlap_penalty references missing overlap measurements.",
+      "provenance": null,
+      "severity": "error",
+      "source": {
+        "kind": "measurements",
+        "ref": "profile.components.overlap_penalty"
+      },
+      "targetRef": "profile.components.overlap_penalty"
     }
   ],
-  "warnings": [
+  "warnings": [],
+  "errors": [
     {
-      "code": "R23OnboardingWarning",
-      "message": "Warning remains visible."
+      "blocking": true,
+      "code": "MissingMeasurements",
+      "message": "Profile component overlap_penalty references missing overlap measurements.",
+      "provenance": null,
+      "severity": "error",
+      "source": {
+        "kind": "measurements",
+        "ref": "profile.components.overlap_penalty"
+      },
+      "targetRef": "profile.components.overlap_penalty"
     }
   ],
-  "errors": [],
   "provenance": {
     "kind": "structured-composition-analysis-provenance",
     "sourceKind": "user_supplied_structured_data",
@@ -105,8 +160,11 @@
       "ref": "r23-onboarding-fixture"
     },
     "callerSourceIds": [
-      "source:r23-onboarding-fixture:A",
-      "source:r23-onboarding-fixture:B"
+      "composition:r23-onboarding-fixture:A",
+      "composition:r23-onboarding-fixture:B",
+      "element:r23-onboarding-fixture:A:panel",
+      "element:r23-onboarding-fixture:B:panel",
+      "surface:r23-onboarding-fixture:120x80"
     ],
     "adapter": null,
     "mappingVersion": "r23-onboarding-fixture-mapping-v1",
@@ -118,18 +176,17 @@
       "acceptedBy": "local-onboarding-fixture",
       "acceptedAt": "2026-06-29T00:00:00Z",
       "acceptedSourceIds": [
-        "source:r23-onboarding-fixture:A",
-        "source:r23-onboarding-fixture:B"
+        "composition:r23-onboarding-fixture:A",
+        "composition:r23-onboarding-fixture:B",
+        "element:r23-onboarding-fixture:A:panel",
+        "element:r23-onboarding-fixture:B:panel",
+        "surface:r23-onboarding-fixture:120x80"
       ],
       "acceptanceRecordId": "acceptance:r23-onboarding-fixture"
     },
     "operationContextRef": {
-      "id": "operation-context:r23-onboarding-fixture"
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:r23-onboarding-fixture:2d-metric:r23-onboarding-fixture:pixel-length-policy:r23-onboarding-fixture:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:r23OnboardingFixtureExplicit:true_structuredAnalyzeHarness:true"
     }
   },
-  "serializationSummary": {
-    "serializationVersion": "stable-json-v1",
-    "meaningfulIdentity": "identity:r23-onboarding-fixture"
-  },
-  "unknownHtmlLikeText": "<script>alert(1)</script>"
+  "serializationSummary": null
 }

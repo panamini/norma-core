@@ -32,7 +32,7 @@ A small checked-in onboarding fixture is available at `docs/examples/read-only-r
 
 In a fresh checkout, run the repository build script from the repository root before opening the static HTML. This creates the local `dist/src/local-viewer/read-only-viewer-model.js` artifact that `viewer/read-only-result-viewer.html` imports.
 
-Use the fixture as existing Structured Analyze result JSON. Open the fixture as text in a local editor, copy the JSON object text, paste that JSON text into `viewer/read-only-result-viewer.html`, and render the local view.
+Use the fixture as existing invalid Structured Analyze result JSON. Open the fixture as text in a local editor, copy the JSON object text, paste that JSON text into `viewer/read-only-result-viewer.html`, and render the local view.
 
 Do not paste the fixture path, a URL, instructions, or any pointer into the viewer. The viewer accepts pasted JSON text only.
 

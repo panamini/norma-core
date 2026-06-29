@@ -15,8 +15,11 @@ const onboardingFixturePath = join(repoRoot, "docs", "examples", "read-only-resu
 const workflowDocPath = join(repoRoot, "docs", "examples", "read-only-result-viewer-workflow.md");
 const onboardingDocPath = join(repoRoot, "docs", "onboarding", "README.md");
 const onboardingSourceIds = [
-  "source:r23-onboarding-fixture:A",
-  "source:r23-onboarding-fixture:B",
+  "composition:r23-onboarding-fixture:A",
+  "composition:r23-onboarding-fixture:B",
+  "element:r23-onboarding-fixture:A:panel",
+  "element:r23-onboarding-fixture:B:panel",
+  "surface:r23-onboarding-fixture:120x80",
 ];
 
 test("R23 onboarding fixture is existing Structured Analyze result JSON inspectable by the viewer model", () => {
@@ -25,55 +28,40 @@ test("R23 onboarding fixture is existing Structured Analyze result JSON inspecta
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: fixtureText });
 
   assert.equal(fixture.kind, "structured-composition-analysis-result");
+  assert.equal(fixture.status, "invalid");
+  assert.deepEqual(fixture.outputRefs, []);
+  assert.equal(fixture.measurements, null);
+  assert.equal(fixture.evaluations, null);
+  assert.equal(fixture.comparison, null);
+  assert.equal(fixture.decision, null);
+  assert.equal(fixture.replayReadiness, null);
+  assert.equal(fixture.serializationSummary, null);
+  assert.equal(JSON.stringify(fixture).includes("stable-json-v1"), false);
+  assert.equal(Object.hasOwn(fixture, "unknownHtmlLikeText"), false);
+  assert.equal(Object.hasOwn(fixture, "summary"), false);
+  assert.equal(fixture.validation.status, "invalid");
   assert.deepEqual(fixture.validation.acceptedSourceIds, onboardingSourceIds);
   assert.deepEqual(fixture.validation.effectiveSourceIds, onboardingSourceIds);
-  assert.deepEqual(fixture.serializationSummary, {
-    serializationVersion: "stable-json-v1",
-    meaningfulIdentity: "identity:r23-onboarding-fixture",
-  });
-  assert.deepEqual(fixture.provenance, {
-    kind: "structured-composition-analysis-provenance",
-    sourceKind: "user_supplied_structured_data",
-    externalSourceRef: {
-      kind: "local-fixture",
-      ref: "r23-onboarding-fixture",
-    },
-    callerSourceIds: onboardingSourceIds,
-    adapter: null,
-    mappingVersion: "r23-onboarding-fixture-mapping-v1",
-    normalizationVersion: null,
-    transformationSteps: [],
-    acceptanceRecord: {
-      accepted: true,
-      mode: "user_supplied_structured_data",
-      acceptedBy: "local-onboarding-fixture",
-      acceptedAt: "2026-06-29T00:00:00Z",
-      acceptedSourceIds: onboardingSourceIds,
-      acceptanceRecordId: "acceptance:r23-onboarding-fixture",
-    },
-    operationContextRef: {
-      id: "operation-context:r23-onboarding-fixture",
-    },
-  });
-  assert.equal(fixture.measurements.a.id, "measurements:A:r23-onboarding-fixture");
-  assert.equal(fixture.measurements.b.id, "measurements:B:r23-onboarding-fixture");
-  assert.equal(fixture.measurements.compositionA, undefined);
-  assert.equal(fixture.measurements.compositionB, undefined);
-  assert.equal(fixture.evaluations.a.id, "evaluation:A:r23-onboarding-fixture");
-  assert.equal(fixture.evaluations.b.id, "evaluation:B:r23-onboarding-fixture");
-  assert.equal(fixture.evaluations.compositionA, undefined);
-  assert.equal(fixture.evaluations.compositionB, undefined);
+  assertDiagnostics(fixture.validation.diagnostics);
+  assertDiagnostics(fixture.diagnostics);
+  assert.deepEqual(fixture.warnings, []);
+  assertDiagnostics(fixture.errors);
+  assertAnalysisProvenance(fixture.provenance, fixture.operationContextRef);
   assert.equal(model.status, "displayable");
   assert.equal(model.classification, "structured-analyze-like-result");
   assert.equal(model.sourceMode, "explicit-json-text");
   assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r23-onboarding-fixture");
-  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r23-onboarding-fixture");
-  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:B:r23-onboarding-fixture");
-  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "diagnostics", "R23OnboardingDiagnostic");
-  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "warnings", "R23OnboardingWarning");
+  assert.equal(row(model, "structuredAnalyzePayloads", "measurements")?.value, null);
+  assert.equal(row(model, "structuredAnalyzePayloads", "evaluations")?.value, null);
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "diagnostics", "MissingMeasurements");
+  assert.equal(row(model, "structuredAnalyzeDiagnostics", "warnings")?.value, "[]");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "errors", "MissingMeasurements");
   assertRowIncludes(model, "structuredAnalyzeRefs", "provenance", "user_supplied_structured_data");
-  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "a_closer");
-  assert.equal(row(model, "unknownFields", "unknownHtmlLikeText")?.value, "<script>alert(1)</script>");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "comparison.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.run")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeSerialization", "serializationSummary")?.value, null);
   assert.deepEqual(model.errors, []);
   assertReadOnlyProvenance(model);
 });
@@ -88,8 +76,9 @@ test("R23 onboarding fixture remains inspectable when wrapped as a completed ana
   assert.equal(model.status, "displayable");
   assert.equal(model.classification, "structured-analyze-like-result");
   assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r23-onboarding-fixture");
-  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:B:r23-onboarding-fixture");
-  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:A:r23-onboarding-fixture");
+  assert.equal(row(model, "structuredAnalyzePayloads", "measurements")?.value, null);
+  assert.equal(row(model, "structuredAnalyzePayloads", "evaluations")?.value, null);
+  assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "absent");
   assertReadOnlyProvenance(model);
 });
 
@@ -101,9 +90,9 @@ test("R23 onboarding fixture renders through the static viewer tree as inert rea
   assertIncludes(text, "Structured Analyze result");
   assertIncludes(text, "structured-analyze-like-result");
   assertIncludes(text, "analysis:r23-onboarding-fixture");
-  assertIncludes(text, "measurements:A:r23-onboarding-fixture");
-  assertIncludes(text, "R23OnboardingWarning");
-  assertIncludes(text, "<script>alert(1)</script>");
+  assertIncludes(text, "MissingMeasurements");
+  assertIncludes(text, "Profile component overlap_penalty references missing overlap measurements.");
+  assertIncludes(text, "replayReadiness.status");
   assert.deepEqual(tree.provenance, [
     { label: "source truth", value: "explicit-structured-input" },
     { label: "artifacts", value: "derived display data only" },
@@ -119,7 +108,7 @@ test("R23 workflow docs point to the onboarding fixture without implying executi
 
   for (const required of [
     "read-only-result-viewer-onboarding-fixture.json",
-    "existing Structured Analyze result JSON",
+    "existing invalid Structured Analyze result JSON",
     "run the repository build script",
     "dist/src/local-viewer/read-only-viewer-model.js",
     "copy the JSON object text",
@@ -166,7 +155,7 @@ function fixtureJsonText() {
 function analyzeJsonRpcResponse(result) {
   const structuredContent = {
     kind: "norma-mcp-tool-result",
-    status: "ok",
+    status: result.status,
     tool: "norma.analyzeStructuredCompositionV1",
     result,
   };
@@ -185,6 +174,65 @@ function analyzeJsonRpcResponse(result) {
       structuredContent,
     },
   };
+}
+
+function assertDiagnostics(diagnostics) {
+  assert.equal(Array.isArray(diagnostics), true);
+  assert.equal(diagnostics.length > 0, true);
+  for (const diagnostic of diagnostics) {
+    assert.deepEqual(Object.keys(diagnostic).sort(), [
+      "blocking",
+      "code",
+      "message",
+      "provenance",
+      "severity",
+      "source",
+      "targetRef",
+    ]);
+    assert.equal(diagnostic.code, "MissingMeasurements");
+    assert.equal(diagnostic.severity, "error");
+    assert.equal(diagnostic.blocking, true);
+    assert.equal(diagnostic.targetRef, "profile.components.overlap_penalty");
+    assert.deepEqual(diagnostic.source, {
+      kind: "measurements",
+      ref: "profile.components.overlap_penalty",
+    });
+  }
+}
+
+function assertAnalysisProvenance(provenance, operationContextRef) {
+  assert.deepEqual(Object.keys(provenance).sort(), [
+    "acceptanceRecord",
+    "adapter",
+    "callerSourceIds",
+    "externalSourceRef",
+    "kind",
+    "mappingVersion",
+    "normalizationVersion",
+    "operationContextRef",
+    "sourceKind",
+    "transformationSteps",
+  ]);
+  assert.equal(provenance.kind, "structured-composition-analysis-provenance");
+  assert.equal(provenance.sourceKind, "user_supplied_structured_data");
+  assert.deepEqual(provenance.externalSourceRef, {
+    kind: "local-fixture",
+    ref: "r23-onboarding-fixture",
+  });
+  assert.deepEqual(provenance.callerSourceIds, onboardingSourceIds);
+  assert.equal(provenance.adapter, null);
+  assert.equal(provenance.mappingVersion, "r23-onboarding-fixture-mapping-v1");
+  assert.equal(provenance.normalizationVersion, null);
+  assert.deepEqual(provenance.transformationSteps, []);
+  assert.deepEqual(provenance.operationContextRef, operationContextRef);
+  assert.deepEqual(provenance.acceptanceRecord, {
+    accepted: true,
+    mode: "user_supplied_structured_data",
+    acceptedBy: "local-onboarding-fixture",
+    acceptedAt: "2026-06-29T00:00:00Z",
+    acceptedSourceIds: onboardingSourceIds,
+    acceptanceRecordId: "acceptance:r23-onboarding-fixture",
+  });
 }
 
 function section(model, sectionId) {
