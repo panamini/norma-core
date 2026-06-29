@@ -401,6 +401,22 @@ accept path or URL input, infer geometry, accept image, vision, CAD, media, or
 provider input, correct output, optimize output, score output, infer from
 prompts, add hosted or remote behavior, or change SDK/API/package readiness.
 
+## R24 Structured Analyze Scenario Regression Harness
+
+R24 adds a narrow direct-engine regression harness for existing Structured
+Analyze scenario fixtures.
+
+The harness verifies deterministic direct `analyzeStructuredCompositionV1`
+results, canonical serialization stability, input immutability, valid and
+invalid scenario boundaries, and compatibility with the existing local
+read-only inspection model without changing viewer behavior.
+
+R24 does not change engine behavior, MCP runtime, CLI runtime, viewer source,
+report-kit generation, package exports, schemas, dependencies, lockfiles,
+hosted behavior, public product behavior, SDK/API behavior, remote MCP, image,
+vision, camera, CAD, provider input, prompt inference, correction,
+recommendation, optimization, or scoring.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:
