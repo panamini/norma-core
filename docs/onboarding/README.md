@@ -18,6 +18,16 @@ The documentation flow is:
 4. Treat rejected, missing, stale, mismatched, warning-bearing, and error-bearing states as inspectable facts.
 5. Keep the source truth boundary separate from displayability.
 
+## Local Structured Analyze Fixture
+
+For a minimal local onboarding path, use the checked-in fixture at `docs/examples/read-only-result-viewer-onboarding-fixture.json`.
+
+That fixture is existing Structured Analyze result JSON. Copy the JSON object text into the static viewer textarea in `viewer/read-only-result-viewer.html`.
+
+Do not paste the fixture path, a URL, instructions, or any pointer into the viewer. The viewer accepts pasted JSON text only.
+
+The fixture exists only to make the current inspection workflow easier to try. It does not run analysis, recompute results, create source truth, read from the path, fetch data, correct output, optimize output, score output, or infer from prompts.
+
 ## Source Truth Rules
 
 Source truth remains in explicit structured source objects, direct engine output, result JSON, source refs, output refs, pack locks, operation context, tolerance policy, serialization version, operation version, provenance, diagnostics, warnings, errors, mismatches, result identity, and unknown fields.

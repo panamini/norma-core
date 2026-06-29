@@ -26,6 +26,18 @@ This support is local-only, static, read-only, and paste-based. It does not run 
 
 It also does not add hosting, public product behavior, SDK behavior, API runtime, public package readiness, remote tool behavior, correction, recommendation, optimization, scoring, prompt inference, or visual inference.
 
+## Onboarding Fixture
+
+A small checked-in onboarding fixture is available at `docs/examples/read-only-result-viewer-onboarding-fixture.json`.
+
+Use it as existing Structured Analyze result JSON. Open the fixture as text in a local editor, copy the JSON object text, paste that JSON text into `viewer/read-only-result-viewer.html`, and render the local view.
+
+Do not paste the fixture path, a URL, instructions, or any pointer into the viewer. The viewer accepts pasted JSON text only.
+
+The fixture is local-only, static, read-only inspection data. It does not run analysis, recompute results, create source truth, read from the path, fetch data, correct output, optimize output, score output, or infer from prompts.
+
+Direct engine output and result JSON remain canonical truth. Viewer output remains derived inspection only.
+
 ## Inert Result Envelope Snippet
 
 ```json

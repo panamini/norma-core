@@ -1,0 +1,106 @@
+{
+  "kind": "structured-composition-analysis-result",
+  "contractVersion": "structured-composition-analysis-result.v1",
+  "operationName": "core.structured-composition-analysis.analyze",
+  "operationVersion": "0.1.0-r6",
+  "status": "valid",
+  "analysisId": "analysis:r23-onboarding-fixture",
+  "inputRefs": [
+    {
+      "kind": "structured-analysis-input",
+      "ref": "input:r23-onboarding-fixture"
+    }
+  ],
+  "outputRefs": [
+    {
+      "kind": "structured-analysis-result",
+      "ref": "output:r23-onboarding-fixture"
+    }
+  ],
+  "validation": {
+    "kind": "structured-composition-analysis-validation",
+    "status": "valid",
+    "diagnostics": [
+      {
+        "code": "R23OnboardingValidation",
+        "message": "Validation detail remains visible."
+      }
+    ]
+  },
+  "measurements": {
+    "compositionA": {
+      "id": "measurements:A:r23-onboarding-fixture",
+      "kind": "measurement-set",
+      "summary": "Existing measurements for composition A remain visible."
+    },
+    "compositionB": {
+      "id": "measurements:B:r23-onboarding-fixture",
+      "kind": "measurement-set",
+      "summary": "Existing measurements for composition B remain visible."
+    }
+  },
+  "evaluations": {
+    "compositionA": {
+      "id": "evaluation:A:r23-onboarding-fixture",
+      "kind": "composition-evaluation",
+      "status": "evaluated"
+    },
+    "compositionB": {
+      "id": "evaluation:B:r23-onboarding-fixture",
+      "kind": "composition-evaluation",
+      "status": "evaluated"
+    }
+  },
+  "comparison": {
+    "status": "a_closer",
+    "summary": "The existing comparison remains visible for inspection."
+  },
+  "decision": {
+    "status": "a_closer",
+    "summary": "The existing result records composition A as selected.",
+    "selectedEvaluationRef": "evaluation:A:r23-onboarding-fixture"
+  },
+  "packLockRef": {
+    "id": "pack-lock:r23-onboarding-fixture"
+  },
+  "operationContextRef": {
+    "id": "operation-context:r23-onboarding-fixture"
+  },
+  "replayReadiness": {
+    "status": "ready",
+    "run": {
+      "id": "run:r23-onboarding-fixture",
+      "runRef": {
+        "id": "run-ref:r23-onboarding-fixture"
+      },
+      "operationName": "core.structured-composition-analysis.analyze"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "R23OnboardingDiagnostic",
+      "message": "Diagnostic remains visible."
+    }
+  ],
+  "warnings": [
+    {
+      "code": "R23OnboardingWarning",
+      "message": "Warning remains visible."
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "kind": "structured-composition-analysis-provenance",
+    "sourceKind": "user_supplied_structured_data",
+    "externalSourceRef": {
+      "kind": "local-fixture",
+      "ref": "r23-onboarding-fixture"
+    }
+  },
+  "serializationSummary": {
+    "serializationVersion": "stable-json-v1",
+    "canonicalOrdering": true,
+    "identity": "identity:r23-onboarding-fixture"
+  },
+  "unknownHtmlLikeText": "<script>alert(1)</script>"
+}

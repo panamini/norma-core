@@ -14,6 +14,7 @@ import {
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
+  localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
@@ -78,6 +79,13 @@ test("shared exact changed-file guard accepts the R16 local Structured Analyze d
   assert.deepEqual(
     sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoSmokeChangedFiles),
     localStructuredAnalyzeDemoSmokeChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R23 local inspection onboarding set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localInspectionSurfaceOnboardingChangedFiles),
+    localInspectionSurfaceOnboardingChangedFiles,
   );
 });
 
@@ -554,6 +562,55 @@ test("R22 local Structured Analyze inspection surface changed-file guard is an e
       localStructuredAnalyzeInspectionSurfaceChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("R23 local inspection onboarding changed-file guard is an exact scoped set", () => {
+  assert.deepEqual(localInspectionSurfaceOnboardingChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/read-only-result-viewer-onboarding-fixture.json",
+    "docs/examples/read-only-result-viewer-workflow.md",
+    "docs/onboarding/README.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-inspection-onboarding-fixture.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "tests/**", "src/**", "viewer/**"]) {
+    assert.equal(
+      localInspectionSurfaceOnboardingChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the R23 inspection onboarding set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localInspectionSurfaceOnboardingChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
