@@ -19,6 +19,7 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 // fallow-ignore-next-line code-duplication
 const repoRoot = dirname(testDir);
+const fixtureRoot = join(testDir, "fixtures", "viewer");
 
 const pr71ApprovedChangedFiles = [
   "src/index.ts",
@@ -268,6 +269,243 @@ test("PR67 displays pasted MCP verification result wrappers consistently with st
   assertProvenance(jsonTextModel);
 });
 
+test("R22 displays Structured Analyze result objects as local read-only inspection data", () => {
+  const model = createReadOnlyViewerModel({ kind: "structured", value: structuredAnalyzeResult() });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assert.equal(model.sourceMode, "explicit-structured-object");
+  assert.equal(model.displayable, true);
+  assert.equal(model.notDisplayableReason, null);
+  assert.equal(model.title, "Structured Analyze result");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "kind")?.value, "structured-composition-analysis-result");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, "valid");
+  assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, "valid");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:B:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:B:r22-static-viewer");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "comparison.status")?.value, "a_closer");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "a_closer");
+  assertRowIncludes(model, "structuredAnalyzeDecisionComparison", "decision.summary", "Use composition A");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "diagnostics", "SyntheticDiagnostic");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "warnings", "SyntheticWarning");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "errors", "SyntheticError");
+  assertRowIncludes(model, "structuredAnalyzeRefs", "provenance", "user_supplied_structured_data");
+  assertRowIncludes(model, "structuredAnalyzeRefs", "inputRefs", "input:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzeRefs", "outputRefs", "output:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzeRefs", "packLockRef", "pack-lock:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzeRefs", "operationContextRef", "operation-context:r22-static-viewer");
+  assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "ready");
+  assertRowIncludes(model, "structuredAnalyzeReplayReadiness", "replayReadiness.run", "run-ref:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzeSerialization", "serializationSummary", "identity:r22-static-viewer");
+  assert.equal(row(model, "unknownFields", "unknownHtml")?.value, "<img src=x onerror=alert(1)>");
+  assertRowIncludes(model, "unknownFields", "unknownObject", "<script>alert(1)</script>");
+  assert.deepEqual(model.warnings, []);
+  assert.deepEqual(model.errors, []);
+  assertProvenance(model);
+});
+
+test("R22 displays pasted Structured Analyze result JSON through the local viewer model", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "jsonText",
+    value: readFileSync(join(fixtureRoot, "structured-analyze-result.json"), "utf8"),
+  });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assert.equal(model.sourceMode, "explicit-json-text");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "evaluations", "evaluation:B:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "warnings", "Visible warning remains visible.");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "errors", "Visible error remains visible.");
+});
+
+test("R22 displays pasted Structured Analyze result JSON above the structured-input body limit", () => {
+  const largeResult = {
+    ...structuredAnalyzeResult(),
+    measurements: {
+      ...structuredAnalyzeResult().measurements,
+      largePayload: Object.fromEntries(
+        Array.from({ length: 7_000 }, (_, index) => [`measurement:${index}`, `value:${index}`]),
+      ),
+    },
+  };
+  const inputText = json(largeResult);
+
+  assert.equal(inputText.length > 65_536, true);
+
+  const model = createReadOnlyViewerModel({ kind: "jsonText", value: inputText });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "largePayload");
+});
+
+test("R22 rejects large unrelated pasted JSON before parsing", () => {
+  const inputText = json({ unrelated: "x".repeat(70_000) });
+  const originalParse = JSON.parse;
+  let parseCalls = 0;
+
+  JSON.parse = (...args) => {
+    parseCalls += 1;
+    return originalParse(...args);
+  };
+
+  try {
+    const model = createReadOnlyViewerModel({ kind: "jsonText", value: inputText });
+
+    assertUnsupportedShapeModel(model);
+    assert.equal(model.errors.some((notice) => notice.code === "BodyTooLarge"), true);
+    assert.equal(parseCalls, 0);
+  } finally {
+    JSON.parse = originalParse;
+  }
+});
+
+test("R22 rejects pasted Structured Analyze JSON that exceeds structural safety limits", () => {
+  for (const { result, code } of [
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: nestedObject(40),
+      },
+      code: "JsonDepthLimitExceeded",
+    },
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: {
+          oversizedArray: Array.from({ length: 1_025 }, (_, index) => index),
+        },
+      },
+      code: "JsonArrayLimitExceeded",
+    },
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: {
+          oversizedString: "x".repeat(16_385),
+        },
+      },
+      code: "JsonStringLimitExceeded",
+    },
+  ]) {
+    const model = createReadOnlyViewerModel({ kind: "jsonText", value: json(result) });
+
+    assertUnsupportedShapeModel(model);
+    assert.equal(model.errors.some((notice) => notice.code === code), true);
+    assert.equal(row(model, "structuredAnalyzePayloads", "measurements"), undefined);
+  }
+});
+
+test("R22 displays completed analyzeStructuredCompositionV1 MCP responses", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "jsonText",
+    value: json(analyzeJsonRpcResponse(structuredAnalyzeResult())),
+  });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assert.equal(model.sourceMode, "explicit-json-text");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "analysis:r22-static-viewer");
+  assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "measurements:A:r22-static-viewer");
+});
+
+test("R22 displays real analyzeStructuredCompositionV1 MCP statuses", () => {
+  for (const status of ["valid", "invalid"]) {
+    const result = {
+      ...structuredAnalyzeResult(),
+      status,
+      validation: { status },
+    };
+    const model = createReadOnlyViewerModel({
+      kind: "jsonText",
+      value: json(analyzeJsonRpcResponse(result)),
+    });
+
+    assert.equal(model.status, "displayable");
+    assert.equal(model.classification, "structured-analyze-like-result");
+    assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, status);
+    assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, status);
+  }
+});
+
+test("R22 rejects execution-shaped Structured Analyze MCP wrappers before unwrapping", () => {
+  for (const field of ["method", "params"]) {
+    const model = createReadOnlyViewerModel({
+      kind: "jsonText",
+      value: json({
+        ...analyzeMcpToolResult(structuredAnalyzeResult()),
+        [field]: field === "method" ? "tools/call" : { name: "norma.analyzeStructuredCompositionV1" },
+      }),
+    });
+
+    assertUnsupportedInputModel(model, "Arbitrary method wrappers are not accepted.");
+    assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId"), undefined);
+  }
+});
+
+test("R22 preserves replay MVP demo input rejection on Structured Analyze-shaped pastes", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "jsonText",
+    value: json({
+      ...structuredAnalyzeResult(),
+      path: "/replay-mvp-demo",
+      run: { id: "run:must-not-be-displayable" },
+    }),
+  });
+
+  assertUnsupportedInputModel(model, "Caller-supplied /replay-mvp-demo replay inputs remain blocked.");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId"), undefined);
+});
+
+test("R22 rejects Structured Analyze-shaped source-truth inputs", () => {
+  for (const field of ["prompt", "filePath", "url"]) {
+    const model = createReadOnlyViewerModel({
+      kind: "structured",
+      value: {
+        ...structuredAnalyzeResult(),
+        [field]: `${field}:must-not-be-displayable`,
+      },
+    });
+
+    assertUnsupportedInputModel(model, "Unsupported source-truth or execution-shaped input.");
+    assertNotIncludes(String(row(model, "unknownFields", field)?.value), `${field}:must-not-be-displayable`);
+  }
+});
+
+test("R22 displays partial Structured Analyze-like results without claiming success", () => {
+  const model = createReadOnlyViewerModel({
+    kind: "structured",
+    value: {
+      kind: "structured-composition-analysis-result",
+      status: "invalid",
+      validation: { status: "invalid" },
+      warnings: [{ code: "PartialWarning", message: "Partial warning remains visible." }],
+      errors: [{ code: "PartialError", message: "Partial error remains visible." }],
+      unknownHtml: "<img src=x onerror=alert(1)>",
+    },
+  });
+
+  assert.equal(model.status, "displayable");
+  assert.equal(model.classification, "structured-analyze-like-result");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "status")?.value, "invalid");
+  assert.equal(row(model, "structuredAnalyzeIdentity", "analysisId")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeValidation", "validation.status")?.value, "invalid");
+  assert.equal(row(model, "structuredAnalyzePayloads", "measurements")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzePayloads", "evaluations")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "comparison.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeDecisionComparison", "decision.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "absent");
+  assert.equal(row(model, "structuredAnalyzeSerialization", "serializationSummary")?.value, "absent");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "warnings", "PartialWarning");
+  assertRowIncludes(model, "structuredAnalyzeDiagnostics", "errors", "PartialError");
+  assert.equal(row(model, "unknownFields", "unknownHtml")?.value, "<img src=x onerror=alert(1)>");
+  assertProvenance(model);
+});
+
 test("PR67 displays replay-like structured results without calling replayRun", () => {
   const model = createReadOnlyViewerModel({ kind: "structured", value: runReplay() });
 
@@ -340,6 +578,15 @@ test("PR67 introduces no server route fetch file read upload DOM browser or view
     "plugin",
     "marketplace",
     "executeCoreOperation",
+    "analyzeStructuredCompositionV1",
+    "from \"../structured-composition-analysis",
+    "from '../structured-composition-analysis",
+    "../structured-composition-analysis.js",
+    "../index.js",
+    "@norma/core",
+    "../mcp/",
+    "../cli/",
+    "../local-report/",
     "replayRun",
   ]) {
     assert.equal(modelSource.includes(forbiddenSourceMarker), false, `${forbiddenSourceMarker} must stay absent`);
@@ -380,6 +627,35 @@ function assertProvenance(model) {
 
 function section(model, id) {
   return model.sections.find((item) => item.id === id);
+}
+
+function row(model, sectionId, label) {
+  return section(model, sectionId)?.rows.find((item) => item.label === label);
+}
+
+function assertRowIncludes(model, sectionId, label, snippet) {
+  const value = row(model, sectionId, label)?.value;
+  assert.equal(String(value).includes(snippet), true, `${sectionId}.${label} should include ${snippet}`);
+}
+
+function assertNotIncludes(value, snippet) {
+  assert.equal(value.includes(snippet), false, `${value} should not include ${snippet}`);
+}
+
+function assertUnsupportedInputModel(model, message) {
+  assertUnsupportedShapeModel(model);
+  assert.equal(model.errors.some((notice) => notice.code === "UnsupportedInput"), true);
+  assert.equal(model.errors.some((notice) => notice.message === message), true);
+}
+
+function assertUnsupportedShapeModel(model) {
+  assert.equal(model.status, "unsupported");
+  assert.equal(model.classification, "unsupported-shape");
+  assert.equal(model.displayable, false);
+}
+
+function structuredAnalyzeResult() {
+  return JSON.parse(readFileSync(join(fixtureRoot, "structured-analyze-result.json"), "utf8"));
 }
 
 // fallow-ignore-next-line code-duplication
@@ -508,6 +784,41 @@ function mcpToolResult(result, overrides = {}) {
     result,
     ...overrides,
   };
+}
+
+function analyzeMcpToolResult(result) {
+  return {
+    kind: "norma-mcp-tool-result",
+    status: result.status,
+    tool: "norma.analyzeStructuredCompositionV1",
+    result,
+  };
+}
+
+function analyzeJsonRpcResponse(result) {
+  const structuredContent = analyzeMcpToolResult(result);
+  return {
+    jsonrpc: "2.0",
+    id: 1,
+    result: {
+      content: [
+        {
+          type: "text",
+          text: json(structuredContent),
+        },
+      ],
+      isError: false,
+      structuredContent,
+    },
+  };
+}
+
+function nestedObject(depth) {
+  let value = "leaf";
+  for (let index = 0; index < depth; index += 1) {
+    value = { child: value };
+  }
+  return value;
 }
 
 function ref(kind = "run", value = `${kind}:test`) {

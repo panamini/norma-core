@@ -247,6 +247,20 @@ export const localStructuredAnalyzeProductSurfaceApprovalChangedFiles = Object.f
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const localStructuredAnalyzeInspectionSurfaceChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/examples/read-only-result-viewer-workflow.md",
+  "docs/onboarding/README.md",
+  "src/local-viewer/read-only-viewer-model.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/viewer/structured-analyze-result.json",
+  "tests/read-only-viewer-demo-readiness.test.mjs",
+  "tests/read-only-viewer-model.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "viewer/read-only-result-viewer.html",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -269,6 +283,7 @@ const sharedExactApprovedChangedFileSets = [
   localInspectionSurfaceBoundaryChangedFiles,
   structuredAnalyzeProductScopeAlignmentChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
+  localStructuredAnalyzeInspectionSurfaceChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

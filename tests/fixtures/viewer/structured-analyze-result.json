@@ -1,0 +1,122 @@
+{
+  "kind": "structured-composition-analysis-result",
+  "contractVersion": "structured-composition-analysis-result.v1",
+  "operationName": "core.structured-composition-analysis.analyze",
+  "operationVersion": "0.1.0-r6",
+  "status": "valid",
+  "analysisId": "analysis:r22-static-viewer",
+  "inputRefs": [
+    {
+      "kind": "structured-analysis-input",
+      "ref": "input:r22-static-viewer"
+    }
+  ],
+  "outputRefs": [
+    {
+      "kind": "structured-analysis-result",
+      "ref": "output:r22-static-viewer"
+    }
+  ],
+  "validation": {
+    "kind": "structured-composition-analysis-validation",
+    "status": "valid",
+    "diagnostics": [
+      {
+        "code": "SyntheticValidationDiagnostic",
+        "message": "Validation diagnostic remains visible."
+      }
+    ],
+    "acceptedSourceIds": [
+      "source:a",
+      "source:b"
+    ],
+    "effectiveSourceIds": [
+      "source:a",
+      "source:b"
+    ]
+  },
+  "measurements": {
+    "a": {
+      "id": "measurements:A:r22-static-viewer",
+      "kind": "measurement-set"
+    },
+    "b": {
+      "id": "measurements:B:r22-static-viewer",
+      "kind": "measurement-set"
+    }
+  },
+  "evaluations": {
+    "a": {
+      "id": "evaluation:A:r22-static-viewer",
+      "kind": "composition-evaluation"
+    },
+    "b": {
+      "id": "evaluation:B:r22-static-viewer",
+      "kind": "composition-evaluation"
+    }
+  },
+  "comparison": {
+    "status": "a_closer",
+    "summary": "Composition A is closer to the declared proportional system."
+  },
+  "decision": {
+    "status": "a_closer",
+    "summary": "Use composition A for this deterministic fixture.",
+    "selectedEvaluationRef": "evaluation:A:r22-static-viewer"
+  },
+  "packLockRef": {
+    "id": "pack-lock:r22-static-viewer"
+  },
+  "operationContextRef": {
+    "id": "operation-context:r22-static-viewer"
+  },
+  "replayReadiness": {
+    "status": "ready",
+    "run": {
+      "id": "run:r22-static-viewer",
+      "runRef": {
+        "id": "run-ref:r22-static-viewer"
+      },
+      "operationName": "core.structured-composition-analysis.analyze"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "SyntheticDiagnostic",
+      "message": "Top-level diagnostic remains visible."
+    }
+  ],
+  "warnings": [
+    {
+      "code": "SyntheticWarning",
+      "message": "Visible warning remains visible."
+    }
+  ],
+  "errors": [
+    {
+      "code": "SyntheticError",
+      "message": "Visible error remains visible."
+    }
+  ],
+  "provenance": {
+    "kind": "structured-composition-analysis-provenance",
+    "sourceKind": "user_supplied_structured_data",
+    "inputRefs": [
+      {
+        "kind": "structured-analysis-input",
+        "ref": "input:r22-static-viewer"
+      }
+    ],
+    "operationContextRef": {
+      "id": "operation-context:r22-static-viewer"
+    }
+  },
+  "serializationSummary": {
+    "serializationVersion": "stable-json-v1",
+    "meaningfulIdentity": "identity:r22-static-viewer"
+  },
+  "unknownHtml": "<img src=x onerror=alert(1)>",
+  "unknownObject": {
+    "nested": "<script>alert(1)</script>"
+  }
+}
