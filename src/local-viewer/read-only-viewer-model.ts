@@ -24,6 +24,7 @@ export type ReadOnlyViewerClassification =
   | "verification-like-result"
   | "replay-like-result"
   | "artifact-freshness-like-result"
+  | "structured-analyze-like-result"
   | "unknown-structured-object";
 
 export type ReadOnlyViewerSourceMode = "explicit-json-text" | "explicit-structured-object";
@@ -69,6 +70,11 @@ export interface ReadOnlyViewerProvenance {
 
 type JsonObject = Record<string, unknown>;
 
+interface PathValue {
+  readonly present: boolean;
+  readonly value: unknown;
+}
+
 const READ_ONLY_VIEWER_PROVENANCE: ReadOnlyViewerProvenance = Object.freeze({
   sourceTruth: "explicit-structured-input",
   artifactsAreDerived: true,
@@ -81,6 +87,34 @@ const UNKNOWN_STRUCTURED_OBJECT_NOTICE: ReadOnlyViewerNotice = Object.freeze({
   severity: "warning",
   message: "Input is structured but is not an approved local display shape.",
 });
+
+const STRUCTURED_ANALYZE_RESULT_KIND = "structured-composition-analysis-result";
+
+const STRUCTURED_ANALYZE_TOP_LEVEL_FIELDS = [
+  "kind",
+  "contractVersion",
+  "operationName",
+  "operationVersion",
+  "status",
+  "analysisId",
+  "inputRefs",
+  "outputRefs",
+  "validation",
+  "measurements",
+  "evaluations",
+  "comparison",
+  "decision",
+  "packLockRef",
+  "operationContextRef",
+  "replayReadiness",
+  "diagnostics",
+  "warnings",
+  "errors",
+  "provenance",
+  "serializationSummary",
+] as const;
+
+const STRUCTURED_ANALYZE_TOP_LEVEL_FIELD_SET = new Set<string>(STRUCTURED_ANALYZE_TOP_LEVEL_FIELDS);
 
 export function createReadOnlyViewerModel(input: ReadOnlyViewerInput): ReadOnlyViewerModel {
   if (input.kind === "jsonText") {
@@ -107,6 +141,15 @@ function modelFromJsonText(inputText: string): ReadOnlyViewerModel {
 
   const structuredModel = parseStructuredJsonInput(inputText);
   if (structuredModel.status === "rejected") {
+    const directModel = structuredAnalyzeModelFromRejectedJsonText(
+      inputText,
+      "explicit-json-text",
+      structuredModel.rejectionReasons,
+    );
+    if (directModel !== null) {
+      return directModel;
+    }
+
     return modelFromStructuredJsonRejection(inputText, structuredModel.rejectionReasons);
   }
 
@@ -140,12 +183,29 @@ function modelFromAcceptedStructuredJsonModel(
 }
 
 function modelFromStructuredValue(value: unknown, sourceMode: ReadOnlyViewerSourceMode): ReadOnlyViewerModel {
+  const structuredAnalyzeModel = structuredAnalyzeDisplayModel(value, sourceMode);
+  if (structuredAnalyzeModel !== null) {
+    return structuredAnalyzeModel;
+  }
+
   const displayModel = createVerificationReplayResultDisplayModel(value);
   if (displayModel.status === "displayable") {
     return displayableModel(displayModel, sourceMode);
   }
 
   return modelFromDisplayRejection(displayModel.rejectionReasons, sourceMode, value);
+}
+
+function structuredAnalyzeModelFromRejectedJsonText(
+  inputText: string,
+  sourceMode: ReadOnlyViewerSourceMode,
+  rejectionReasons: readonly StructuredJsonRejectionReason[],
+): ReadOnlyViewerModel | null {
+  if (rejectionReasons[0]?.code !== "UnknownEnvelope") {
+    return null;
+  }
+
+  return structuredAnalyzeDisplayModel(parseKnownJson(inputText), sourceMode);
 }
 
 function modelFromStructuredJsonRejection(
@@ -236,6 +296,30 @@ function displayableModel(
   };
 }
 
+function structuredAnalyzeDisplayModel(
+  value: unknown,
+  sourceMode: ReadOnlyViewerSourceMode,
+): ReadOnlyViewerModel | null {
+  if (!isStructuredAnalyzeLikeResult(value)) {
+    return null;
+  }
+
+  return {
+    kind: "readOnlyViewerModel",
+    status: "displayable",
+    classification: "structured-analyze-like-result",
+    sourceMode,
+    displayable: true,
+    notDisplayableReason: null,
+    title: "Structured Analyze result",
+    summary: "Existing Structured Analyze result JSON is displayable as local read-only derived inspection data.",
+    sections: structuredAnalyzeSections(value),
+    warnings: [],
+    errors: [],
+    provenance: READ_ONLY_VIEWER_PROVENANCE,
+  };
+}
+
 function nonDisplayable(input: {
   readonly status: Exclude<ReadOnlyViewerStatus, "displayable">;
   readonly classification: ReadOnlyViewerClassification;
@@ -315,6 +399,10 @@ function classificationFromStructuredReason(reason: StructuredJsonRejectionReaso
 }
 
 function titleFromClassification(classification: ReadOnlyViewerClassification): string {
+  if (classification === "structured-analyze-like-result") {
+    return "Structured Analyze result";
+  }
+
   if (classification === "replay-like-result") {
     return "Replay result";
   }
@@ -373,6 +461,141 @@ function displayValue(value: unknown): string | number | boolean | null {
   return stableStringify(value);
 }
 
+function structuredAnalyzeSections(result: JsonObject): readonly ReadOnlyViewerSection[] {
+  const sections: ReadOnlyViewerSection[] = [
+    {
+      id: "structuredAnalyzeIdentity",
+      title: "Structured Analyze Result",
+      rows: [
+        rowForPath(result, "kind", ["kind"]),
+        rowForPath(result, "contractVersion", ["contractVersion"]),
+        rowForPath(result, "operationName", ["operationName"]),
+        rowForPath(result, "operationVersion", ["operationVersion"]),
+        rowForPath(result, "analysisId", ["analysisId"]),
+        rowForPath(result, "status", ["status"]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeValidation",
+      title: "Validation",
+      rows: [
+        rowForPath(result, "validation.status", ["validation", "status"]),
+        rowForPath(result, "validation.diagnostics", ["validation", "diagnostics"]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeDecisionComparison",
+      title: "Comparison And Decision",
+      rows: [
+        rowForPath(result, "comparison.status", ["comparison", "status"]),
+        rowForPath(result, "decision.status", ["decision", "status"]),
+        rowForPath(result, "decision.summary", ["decision", "summary"]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeDiagnostics",
+      title: "Diagnostics Warnings Errors",
+      rows: [
+        rowForPath(result, "diagnostics", ["diagnostics"]),
+        rowForPath(result, "warnings", ["warnings"]),
+        rowForPath(result, "errors", ["errors"]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeRefs",
+      title: "Provenance And Refs",
+      rows: [
+        rowForPath(result, "provenance", ["provenance"]),
+        rowForPath(result, "inputRefs", ["inputRefs"]),
+        rowForPath(result, "outputRefs", ["outputRefs"]),
+        rowForPath(result, "packLockRef", ["packLockRef"]),
+        rowForPath(result, "operationContextRef", ["operationContextRef"]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeReplayReadiness",
+      title: "Replay Readiness",
+      rows: [
+        rowForPath(result, "replayReadiness.status", ["replayReadiness", "status"]),
+        rowForFirstPath(result, "replayReadiness.run", [
+          ["replayReadiness", "run", "runRef"],
+          ["replayReadiness", "run", "id"],
+        ]),
+      ],
+    },
+    {
+      id: "structuredAnalyzeSerialization",
+      title: "Serialization Summary",
+      rows: [
+        rowForPath(result, "serializationSummary", ["serializationSummary"]),
+      ],
+    },
+  ];
+
+  const unknownRows = unknownStructuredAnalyzeRows(result);
+  if (unknownRows.length > 0) {
+    sections.push({
+      id: "unknownFields",
+      title: "Unknown Fields",
+      rows: unknownRows,
+    });
+  }
+
+  return sections;
+}
+
+function rowForPath(result: JsonObject, label: string, path: readonly string[]): ReadOnlyViewerRow {
+  const found = valueAtPath(result, path);
+  return {
+    label,
+    value: found.present ? displayValue(found.value) : "absent",
+  };
+}
+
+function rowForFirstPath(
+  result: JsonObject,
+  label: string,
+  paths: readonly (readonly string[])[],
+): ReadOnlyViewerRow {
+  for (const path of paths) {
+    const found = valueAtPath(result, path);
+    if (found.present) {
+      return {
+        label,
+        value: displayValue(found.value),
+      };
+    }
+  }
+
+  return {
+    label,
+    value: "absent",
+  };
+}
+
+function valueAtPath(value: unknown, path: readonly string[]): PathValue {
+  let current = value;
+  for (const segment of path) {
+    if (!isJsonObject(current) || !Object.hasOwn(current, segment)) {
+      return { present: false, value: undefined };
+    }
+
+    current = current[segment];
+  }
+
+  return { present: true, value: current };
+}
+
+function unknownStructuredAnalyzeRows(result: JsonObject): readonly ReadOnlyViewerRow[] {
+  return Object.keys(result)
+    .filter((field) => !STRUCTURED_ANALYZE_TOP_LEVEL_FIELD_SET.has(field))
+    .sort()
+    .map((field) => ({
+      label: field,
+      value: displayValue(result[field]),
+    }));
+}
+
 function stableStringify(value: unknown): string {
   return JSON.stringify(stableJsonValue(value, new WeakSet<object>()));
 }
@@ -428,4 +651,8 @@ function inputType(value: unknown): string {
 
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStructuredAnalyzeLikeResult(value: unknown): value is JsonObject {
+  return isJsonObject(value) && value.kind === STRUCTURED_ANALYZE_RESULT_KIND;
 }

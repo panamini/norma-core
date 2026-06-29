@@ -19,6 +19,7 @@ const fixturePaths = {
   verification: "run-verification.json",
   replayMismatch: "run-replay-mismatch.json",
   staleArtifact: "artifact-freshness-stale.json",
+  structuredAnalyze: "structured-analyze-result.json",
   unsupportedPrompt: "unsupported-prompt-input.json",
 };
 
@@ -78,6 +79,40 @@ test("PR70 renders the PR69 verification fixture through the mounted pipeline", 
   assertIncludes(text, "Synthetic warning remains visible.");
   assertTruthBoundary(text);
   assertNotIncludes(text, "InvalidJsonText");
+  assertReadOnlyOutput(mounted.output);
+});
+
+test("R22 renders pasted Structured Analyze result JSON through the mounted static pipeline", () => {
+  const mounted = mountedViewer();
+  const text = renderFixture(mounted, fixturePaths.structuredAnalyze);
+
+  assertIncludes(text, "Structured Analyze result");
+  assertIncludes(text, "structured-analyze-like-result");
+  assertIncludes(text, "analysis:r22-static-viewer");
+  assertIncludes(text, "valid");
+  assertIncludes(text, "a_closer");
+  assertIncludes(text, "Use composition A for this deterministic fixture.");
+  assertIncludes(text, "SyntheticDiagnostic");
+  assertIncludes(text, "SyntheticWarning");
+  assertIncludes(text, "SyntheticError");
+  assertIncludes(text, "user_supplied_structured_data");
+  assertIncludes(text, "input:r22-static-viewer");
+  assertIncludes(text, "output:r22-static-viewer");
+  assertIncludes(text, "pack-lock:r22-static-viewer");
+  assertIncludes(text, "operation-context:r22-static-viewer");
+  assertIncludes(text, "ready");
+  assertIncludes(text, "run-ref:r22-static-viewer");
+  assertIncludes(text, "identity:r22-static-viewer");
+  assertTruthBoundary(text);
+  assertReadOnlyOutput(mounted.output);
+});
+
+test("R22 renders pasted Structured Analyze HTML-like strings as inert text", () => {
+  const mounted = mountedViewer();
+  const text = renderFixture(mounted, fixturePaths.structuredAnalyze);
+
+  assertIncludes(text, "<img src=x onerror=alert(1)>");
+  assertIncludes(text, "<script>alert(1)</script>");
   assertReadOnlyOutput(mounted.output);
 });
 
@@ -167,6 +202,23 @@ test("PR70 mounted repeated rendering is deterministic and replaces previous con
   assertNotIncludes(secondStaleText, "OutputRefsMismatch");
 });
 
+test("R22 mounted Structured Analyze rendering is deterministic and replaces previous content", () => {
+  const mounted = mountedViewer();
+
+  const firstStructuredText = renderFixture(mounted, fixturePaths.structuredAnalyze);
+  assertIncludes(firstStructuredText, "SyntheticWarning");
+
+  const replayText = renderFixture(mounted, fixturePaths.replayMismatch);
+  assertIncludes(replayText, "OutputRefsMismatch");
+  assertNotIncludes(replayText, "analysis:r22-static-viewer");
+  assert.equal(mounted.output.children.length, 1);
+
+  const secondStructuredText = renderFixture(mounted, fixturePaths.structuredAnalyze);
+  assert.equal(secondStructuredText, firstStructuredText);
+  assert.equal(mounted.output.children.length, 1);
+  assertNotIncludes(secondStructuredText, "OutputRefsMismatch");
+});
+
 function mountedViewer() {
   const documentRef = new TestDocument();
   const input = documentRef.register("[data-viewer-input]", new TestElement("textarea"));
@@ -214,7 +266,7 @@ function assertNoCreativeInference(text) {
 
 function assertReadOnlyOutput(output) {
   const tags = tagNames(output);
-  for (const forbiddenTag of ["button", "input", "textarea", "form", "script"]) {
+  for (const forbiddenTag of ["button", "input", "textarea", "form", "script", "img", "iframe"]) {
     assert.equal(tags.includes(forbiddenTag), false, `${forbiddenTag} should not be rendered in output`);
   }
 }

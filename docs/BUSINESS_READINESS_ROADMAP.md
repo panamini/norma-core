@@ -365,6 +365,24 @@ npm publication, hosted MCP, remote MCP, image/vision/CAD/provider input,
 recommendation logic, optimization logic, scoring logic, inference logic, or
 correction logic.
 
+## R22 Local Structured Analyze Inspection Surface Implementation
+
+R22 implements the approved local-only, static, read-only inspection extension
+for the existing local result viewer.
+
+The viewer can inspect existing Structured Analyze result JSON. The input is
+existing deterministic output, such as direct engine output or `result.json`.
+Direct engine output and result JSON remain canonical truth. Viewer output is
+derived inspection only.
+
+The viewer does not run analysis, does not recompute results, does not mutate
+input, does not infer geometry, and does not create ratios, tolerances, rules,
+packs, or geometry.
+
+R22 does not add hosting, public product behavior, SDK behavior, API runtime,
+public npm readiness, remote MCP, correction, recommendation, optimization,
+scoring, prompt inference, or image inference.
+
 ## Current State After PR25
 
 The repository currently has the V1.5 trust-layer foundation needed for local package consumption:

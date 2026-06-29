@@ -19,7 +19,7 @@
       <header class="viewer-header">
         <p class="viewer-kicker">Local only</p>
         <h1>Local Static Read-Only Result Viewer</h1>
-        <p>Paste explicit structured JSON and render derived display data locally.</p>
+        <p>Paste explicit structured JSON, including existing Structured Analyze result JSON, and render derived display data locally.</p>
       </header>
 
       <section class="viewer-panel" aria-labelledby="input-heading">
@@ -46,6 +46,7 @@
         <h2 id="truth-heading">Truth Boundary</h2>
         <ul>
           <li>Artifacts are derived display data only.</li>
+          <li>Direct engine output and result JSON remain canonical truth.</li>
           <li>Prompt text is not source truth.</li>
           <li>Displayability is not source-truth validation.</li>
         </ul>

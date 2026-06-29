@@ -259,6 +259,14 @@ test("PR68 HTML provides paste-only JSON input and output regions", () => {
   assert.match(html, /Local Static Read-Only Result Viewer/);
 });
 
+test("R22 HTML names existing Structured Analyze result JSON without adding active surfaces", () => {
+  const html = readFileSync(htmlPath, "utf8");
+
+  assert.match(html, /existing Structured Analyze result JSON/);
+  assert.match(html, /Direct engine output and result JSON remain canonical truth/);
+  assertNoRemoteUrl(html);
+});
+
 test("PR68 HTML keeps file upload media network and remote surfaces absent", () => {
   const html = readFileSync(htmlPath, "utf8");
   const scriptTags = [...html.matchAll(/<script\b[^>]*>/gi)].map((match) => match[0]);
@@ -379,6 +387,45 @@ test("PR68 static helper output is deterministic for the same input model", asyn
   const model = sampleModel();
 
   assert.deepEqual(modelToStaticViewTree(model), modelToStaticViewTree(model));
+});
+
+test("R22 local viewer docs describe Structured Analyze inspection without runtime product overclaims", () => {
+  const docs = [
+    readFileSync(join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md"), "utf8"),
+    readFileSync(join(repoRoot, "docs", "examples", "read-only-result-viewer-workflow.md"), "utf8"),
+    readFileSync(join(repoRoot, "docs", "onboarding", "README.md"), "utf8"),
+  ].join("\n");
+
+  for (const required of [
+    "Structured Analyze result JSON",
+    "existing deterministic output",
+    "does not run analysis",
+    "does not recompute",
+    "local-only",
+    "static",
+    "read-only",
+    "canonical truth",
+    "derived inspection",
+  ]) {
+    assert.equal(docs.includes(required), true, `${required} should be documented`);
+  }
+
+  for (const forbiddenClaim of [
+    "hosted dashboard is supported",
+    "public product is supported",
+    "SDK is ready",
+    "API runtime is ready",
+    "remote MCP is supported",
+    "runs analysis from the viewer",
+    "recomputes results from the viewer",
+    "optimizes results",
+    "recommends corrections",
+    "scores aesthetics",
+    "infers geometry from prompts",
+    "infers geometry from images",
+  ]) {
+    assert.equal(docs.includes(forbiddenClaim), false, `${forbiddenClaim} must not be claimed`);
+  }
 });
 
 // fallow-ignore-next-line complexity

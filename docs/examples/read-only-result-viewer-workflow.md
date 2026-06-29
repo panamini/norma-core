@@ -1,20 +1,30 @@
 # Read-Only Result Viewer Workflow
 
-This example documents a current local-only inspection workflow for existing result-envelope data.
+This example documents a current local-only, static, read-only inspection workflow for existing result-envelope data and existing Structured Analyze result JSON.
 
-It shows a high-level inspection sequence for existing result-envelope data. It does not execute Norma operations, load files, retrieve network content, read shell or environment state, or create source truth.
+It shows a high-level inspection sequence for existing deterministic output. It does not execute Norma operations, run analysis, recompute results, load files, retrieve network content, read shell or environment state, or create source truth.
 
 ## Inspection Sequence
 
 1. Start with explicit structured JSON data that already exists.
-2. Confirm the input is an inspectable result envelope or approved wrapper shape.
+2. Confirm the input is an inspectable result envelope, Structured Analyze result JSON, or approved wrapper shape.
 3. Keep every visible result section attached to the source path where it was found.
 4. Treat warnings, errors, diagnostics, mismatches, provenance, refs, and freshness details as user-visible facts.
 5. Stop at displayability.
 
 Displayability is not source-truth validation.
 
+Direct engine output and result JSON remain canonical truth. Viewer output is derived inspection only.
+
 The package-private helpers are not public API.
+
+## Structured Analyze Result JSON
+
+The local viewer can inspect pasted Structured Analyze result JSON when it already exists as deterministic output.
+
+This support is local-only, static, read-only, and paste-based. It does not run analysis, does not recompute, does not mutate inputs, does not infer geometry, and does not create ratios, tolerances, rules, packs, or geometry.
+
+It also does not add hosting, public product behavior, SDK behavior, API runtime, public package readiness, remote tool behavior, correction, recommendation, optimization, scoring, prompt inference, or visual inference.
 
 ## Inert Result Envelope Snippet
 

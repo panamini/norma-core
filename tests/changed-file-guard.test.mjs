@@ -15,6 +15,7 @@ import {
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceBoundaryChangedFiles,
+  localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
@@ -182,6 +183,13 @@ test("shared exact changed-file guard accepts the R21 local product-surface appr
   assert.deepEqual(
     sharedExactApprovedChangedFiles(localStructuredAnalyzeProductSurfaceApprovalChangedFiles),
     localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the R22 local Structured Analyze inspection surface set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeInspectionSurfaceChangedFiles),
+    localStructuredAnalyzeInspectionSurfaceChangedFiles,
   );
 });
 
@@ -456,6 +464,38 @@ test("shared exact changed-file guard rejects runtime and viewer extras in the R
   }
 });
 
+test("shared exact changed-file guard rejects forbidden extras in the R22 inspection surface set", () => {
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "docs/decisions/2026-06-16-read-only-result-viewer-product-requirements.md",
+    "docs/plans/2026-06-16-read-only-result-viewer-plan.md",
+    "docs/decisions/2026-06-28-local-inspection-surface-boundary.md",
+    "docs/decisions/2026-06-28-structured-analyze-product-scope-alignment.md",
+    "docs/decisions/2026-06-28-local-structured-analyze-product-surface-approval.md",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localStructuredAnalyzeInspectionSurfaceChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
 test("R20 product-scope alignment changed-file guard is an exact scoped set", () => {
   assert.deepEqual(structuredAnalyzeProductScopeAlignmentChangedFiles, [
     "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -488,6 +528,30 @@ test("R21 local product-surface approval changed-file guard is an exact scoped s
   for (const broadPath of ["docs/**", "tests/**", "src/**", "viewer/**"]) {
     assert.equal(
       localStructuredAnalyzeProductSurfaceApprovalChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("R22 local Structured Analyze inspection surface changed-file guard is an exact scoped set", () => {
+  assert.deepEqual(localStructuredAnalyzeInspectionSurfaceChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/read-only-result-viewer-workflow.md",
+    "docs/onboarding/README.md",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/fixtures/viewer/structured-analyze-result.json",
+    "tests/read-only-viewer-demo-readiness.test.mjs",
+    "tests/read-only-viewer-model.test.mjs",
+    "tests/read-only-viewer-static.test.mjs",
+    "viewer/read-only-result-viewer.html",
+  ]);
+
+  for (const broadPath of ["docs/**", "tests/**", "src/**", "viewer/**"]) {
+    assert.equal(
+      localStructuredAnalyzeInspectionSurfaceChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
