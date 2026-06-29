@@ -284,6 +284,15 @@ export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze
   "tests/local-inspection-surface-static-safety.test.mjs",
 ].sort());
 
+export const postR25RoadmapTruthSyncChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-06-30-post-r25-roadmap-truth-sync.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/post-r25-roadmap-truth-sync.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -309,6 +318,7 @@ const sharedExactApprovedChangedFileSets = [
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  postR25RoadmapTruthSyncChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
