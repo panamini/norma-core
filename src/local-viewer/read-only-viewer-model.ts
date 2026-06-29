@@ -1,5 +1,6 @@
 import {
   parseStructuredJsonInput,
+  STRUCTURED_JSON_INPUT_VIEWER_LIMITS,
   type StructuredJsonInputDisplayModel,
   type StructuredJsonRejectionReason,
 } from "../structured-json-input-viewer.js";
@@ -84,6 +85,12 @@ interface StructuredAnalyzePayload {
   readonly sourcePath: readonly string[];
 }
 
+interface StructuredAnalyzeInspectionFrame {
+  readonly value: unknown;
+  readonly depth: number;
+  readonly sourcePath: readonly string[];
+}
+
 const READ_ONLY_VIEWER_PROVENANCE: ReadOnlyViewerProvenance = Object.freeze({
   sourceTruth: "explicit-structured-input",
   artifactsAreDerived: true,
@@ -153,7 +160,7 @@ function modelFromJsonText(inputText: string): ReadOnlyViewerModel {
 
   const parsedJson = parseJsonValue(inputText);
   if (parsedJson.ok) {
-    const structuredAnalyzeModel = structuredAnalyzeModelFromValue(parsedJson.value, "explicit-json-text");
+    const structuredAnalyzeModel = structuredAnalyzeModelFromPastedJson(parsedJson.value);
     if (structuredAnalyzeModel !== null) {
       return structuredAnalyzeModel;
     }
@@ -224,8 +231,34 @@ function structuredAnalyzeModelFromValue(
   return structuredAnalyzeDisplayModel(payload.result, sourceMode);
 }
 
+function structuredAnalyzeModelFromPastedJson(value: unknown): ReadOnlyViewerModel | null {
+  const payload = structuredAnalyzePayloadFromValue(value);
+  if (payload === null) {
+    return null;
+  }
+
+  const limitIssue = structuredAnalyzeJsonLimitIssue(payload.result, payload.sourcePath);
+  if (limitIssue !== null) {
+    return modelFromStructuredJsonRejectionForParsedValue(value, [limitIssue]);
+  }
+
+  const unsupported = structuredAnalyzeUnsupportedInputIssue(payload.result, payload.sourcePath);
+  if (unsupported !== null) {
+    return modelFromDisplayRejection([unsupported], "explicit-json-text", value);
+  }
+
+  return structuredAnalyzeDisplayModel(payload.result, "explicit-json-text");
+}
+
 function modelFromStructuredJsonRejection(
   inputText: string,
+  rejectionReasons: readonly StructuredJsonRejectionReason[],
+): ReadOnlyViewerModel {
+  return modelFromStructuredJsonRejectionForParsedValue(parseKnownJson(inputText), rejectionReasons);
+}
+
+function modelFromStructuredJsonRejectionForParsedValue(
+  parsedValue: unknown,
   rejectionReasons: readonly StructuredJsonRejectionReason[],
 ): ReadOnlyViewerModel {
   const primaryReason = rejectionReasons[0] ?? {
@@ -255,7 +288,7 @@ function modelFromStructuredJsonRejection(
     title: "Unsupported input",
     summary: primaryReason.message,
     notDisplayableReason: primaryReason.message,
-    sections: unknownSummarySections(parseKnownJson(inputText)),
+    sections: unknownSummarySections(parsedValue),
     warnings: primaryReason.code === "UnknownEnvelope" || primaryReason.code === "InvalidJsonObject"
       ? [UNKNOWN_STRUCTURED_OBJECT_NOTICE]
       : [],
@@ -770,6 +803,58 @@ function structuredAnalyzeUnsupportedInputIssue(
   return null;
 }
 
+function structuredAnalyzeJsonLimitIssue(
+  value: unknown,
+  sourcePath: readonly string[],
+): StructuredJsonRejectionReason | null {
+  const frames: StructuredAnalyzeInspectionFrame[] = [{ value, depth: 1, sourcePath }];
+
+  while (frames.length > 0) {
+    const current = frames.pop();
+    if (current === undefined) {
+      continue;
+    }
+
+    if (current.depth > STRUCTURED_JSON_INPUT_VIEWER_LIMITS.maxJsonDepth) {
+      return structuredRejectionReason("JsonDepthLimitExceeded", "JSON depth limit exceeded.", current.sourcePath);
+    }
+
+    if (
+      typeof current.value === "string" &&
+      current.value.length > STRUCTURED_JSON_INPUT_VIEWER_LIMITS.maxStringLength
+    ) {
+      return structuredRejectionReason("JsonStringLimitExceeded", "JSON string length limit exceeded.", current.sourcePath);
+    }
+
+    if (Array.isArray(current.value)) {
+      if (current.value.length > STRUCTURED_JSON_INPUT_VIEWER_LIMITS.maxArrayLength) {
+        return structuredRejectionReason("JsonArrayLimitExceeded", "JSON array length limit exceeded.", current.sourcePath);
+      }
+
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        frames.push({
+          value: current.value[index],
+          depth: current.depth + 1,
+          sourcePath: [...current.sourcePath, String(index)],
+        });
+      }
+      continue;
+    }
+
+    if (isJsonObject(current.value)) {
+      for (const key of Object.keys(current.value).reverse()) {
+        frames.push({
+          value: current.value[key],
+          depth: current.depth + 1,
+          sourcePath: [...current.sourcePath, key],
+        });
+      }
+    }
+  }
+
+  return null;
+}
+
 function isUnsupportedStructuredAnalyzeInputKey(key: string): boolean {
   const normalized = key.toLowerCase();
   return [
@@ -800,6 +885,18 @@ function displayRejectionReason(
   message: string,
   sourcePath: readonly string[],
 ): VerificationReplayResultRejectionReason {
+  return {
+    code,
+    message,
+    sourcePath,
+  };
+}
+
+function structuredRejectionReason(
+  code: StructuredJsonRejectionReason["code"],
+  message: string,
+  sourcePath: readonly string[],
+): StructuredJsonRejectionReason {
   return {
     code,
     message,

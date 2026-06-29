@@ -327,7 +327,9 @@ test("R22 displays pasted Structured Analyze result JSON above the structured-in
     ...structuredAnalyzeResult(),
     measurements: {
       ...structuredAnalyzeResult().measurements,
-      largePayload: "x".repeat(70_000),
+      largePayload: Object.fromEntries(
+        Array.from({ length: 7_000 }, (_, index) => [`measurement:${index}`, `value:${index}`]),
+      ),
     },
   };
   const inputText = json(largeResult);
@@ -339,6 +341,44 @@ test("R22 displays pasted Structured Analyze result JSON above the structured-in
   assert.equal(model.status, "displayable");
   assert.equal(model.classification, "structured-analyze-like-result");
   assertRowIncludes(model, "structuredAnalyzePayloads", "measurements", "largePayload");
+});
+
+test("R22 rejects pasted Structured Analyze JSON that exceeds structural safety limits", () => {
+  for (const { result, code } of [
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: nestedObject(40),
+      },
+      code: "JsonDepthLimitExceeded",
+    },
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: {
+          oversizedArray: Array.from({ length: 1_025 }, (_, index) => index),
+        },
+      },
+      code: "JsonArrayLimitExceeded",
+    },
+    {
+      result: {
+        ...structuredAnalyzeResult(),
+        measurements: {
+          oversizedString: "x".repeat(16_385),
+        },
+      },
+      code: "JsonStringLimitExceeded",
+    },
+  ]) {
+    const model = createReadOnlyViewerModel({ kind: "jsonText", value: json(result) });
+
+    assert.equal(model.status, "unsupported");
+    assert.equal(model.classification, "unsupported-shape");
+    assert.equal(model.displayable, false);
+    assert.equal(model.errors.some((notice) => notice.code === code), true);
+    assert.equal(row(model, "structuredAnalyzePayloads", "measurements"), undefined);
+  }
 });
 
 test("R22 displays completed analyzeStructuredCompositionV1 MCP responses", () => {
@@ -696,6 +736,14 @@ function analyzeJsonRpcResponse(result) {
       structuredContent,
     },
   };
+}
+
+function nestedObject(depth) {
+  let value = "leaf";
+  for (let index = 0; index < depth; index += 1) {
+    value = { child: value };
+  }
+  return value;
 }
 
 function ref(kind = "run", value = `${kind}:test`) {
