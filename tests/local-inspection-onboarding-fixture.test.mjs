@@ -14,6 +14,10 @@ const repoRoot = dirname(testDir);
 const onboardingFixturePath = join(repoRoot, "docs", "examples", "read-only-result-viewer-onboarding-fixture.json");
 const workflowDocPath = join(repoRoot, "docs", "examples", "read-only-result-viewer-workflow.md");
 const onboardingDocPath = join(repoRoot, "docs", "onboarding", "README.md");
+const onboardingSourceIds = [
+  "source:r23-onboarding-fixture:A",
+  "source:r23-onboarding-fixture:B",
+];
 
 test("R23 onboarding fixture is existing Structured Analyze result JSON inspectable by the viewer model", () => {
   const fixtureText = fixtureJsonText();
@@ -21,17 +25,35 @@ test("R23 onboarding fixture is existing Structured Analyze result JSON inspecta
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: fixtureText });
 
   assert.equal(fixture.kind, "structured-composition-analysis-result");
-  assert.deepEqual(fixture.validation.acceptedSourceIds, [
-    "source:r23-onboarding-fixture:A",
-    "source:r23-onboarding-fixture:B",
-  ]);
-  assert.deepEqual(fixture.validation.effectiveSourceIds, [
-    "source:r23-onboarding-fixture:A",
-    "source:r23-onboarding-fixture:B",
-  ]);
+  assert.deepEqual(fixture.validation.acceptedSourceIds, onboardingSourceIds);
+  assert.deepEqual(fixture.validation.effectiveSourceIds, onboardingSourceIds);
   assert.deepEqual(fixture.serializationSummary, {
     serializationVersion: "stable-json-v1",
     meaningfulIdentity: "identity:r23-onboarding-fixture",
+  });
+  assert.deepEqual(fixture.provenance, {
+    kind: "structured-composition-analysis-provenance",
+    sourceKind: "user_supplied_structured_data",
+    externalSourceRef: {
+      kind: "local-fixture",
+      ref: "r23-onboarding-fixture",
+    },
+    callerSourceIds: onboardingSourceIds,
+    adapter: null,
+    mappingVersion: "r23-onboarding-fixture-mapping-v1",
+    normalizationVersion: null,
+    transformationSteps: [],
+    acceptanceRecord: {
+      accepted: true,
+      mode: "user_supplied_structured_data",
+      acceptedBy: "local-onboarding-fixture",
+      acceptedAt: "2026-06-29T00:00:00Z",
+      acceptedSourceIds: onboardingSourceIds,
+      acceptanceRecordId: "acceptance:r23-onboarding-fixture",
+    },
+    operationContextRef: {
+      id: "operation-context:r23-onboarding-fixture",
+    },
   });
   assert.equal(fixture.measurements.a.id, "measurements:A:r23-onboarding-fixture");
   assert.equal(fixture.measurements.b.id, "measurements:B:r23-onboarding-fixture");
@@ -98,6 +120,8 @@ test("R23 workflow docs point to the onboarding fixture without implying executi
   for (const required of [
     "read-only-result-viewer-onboarding-fixture.json",
     "existing Structured Analyze result JSON",
+    "run the repository build script",
+    "dist/src/local-viewer/read-only-viewer-model.js",
     "copy the JSON object text",
     "Do not paste the fixture path",
     "local-only",

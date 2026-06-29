@@ -103,6 +103,28 @@
     "externalSourceRef": {
       "kind": "local-fixture",
       "ref": "r23-onboarding-fixture"
+    },
+    "callerSourceIds": [
+      "source:r23-onboarding-fixture:A",
+      "source:r23-onboarding-fixture:B"
+    ],
+    "adapter": null,
+    "mappingVersion": "r23-onboarding-fixture-mapping-v1",
+    "normalizationVersion": null,
+    "transformationSteps": [],
+    "acceptanceRecord": {
+      "accepted": true,
+      "mode": "user_supplied_structured_data",
+      "acceptedBy": "local-onboarding-fixture",
+      "acceptedAt": "2026-06-29T00:00:00Z",
+      "acceptedSourceIds": [
+        "source:r23-onboarding-fixture:A",
+        "source:r23-onboarding-fixture:B"
+      ],
+      "acceptanceRecordId": "acceptance:r23-onboarding-fixture"
+    },
+    "operationContextRef": {
+      "id": "operation-context:r23-onboarding-fixture"
     }
   },
   "serializationSummary": {
