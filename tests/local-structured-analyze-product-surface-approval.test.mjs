@@ -47,6 +47,10 @@ const blockedSurfaces = [
   "public npm publication",
   "hosted MCP",
   "remote MCP",
+  "image input",
+  "vision input",
+  "CAD input",
+  "provider input",
   "recommendation logic",
   "optimization logic",
   "scoring logic",
@@ -207,6 +211,18 @@ test("R21 approval guard catches punctuation-separated forbidden approval wordin
     () => assertNoApproval("API runtime: approved", "API runtime"),
     /API runtime approval wording must remain absent/,
   );
+  assert.throws(
+    () => assertNoApproval("image input: approved", "image input"),
+    /image input approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("R21 approves hosted dashboard", "hosted dashboard"),
+    /hosted dashboard approval wording must remain absent/,
+  );
+  assert.throws(
+    () => assertNoApproval("R21 approves SDK", "SDK"),
+    /SDK approval wording must remain absent/,
+  );
 });
 
 function readDoc(path) {
@@ -236,6 +252,7 @@ function approvalPatterns(surface) {
   return [
     new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
     new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:R21|this\\s+decision|the\\s+decision|this\\s+PR|the\\s+PR)\\s+approv(?:e|es|ed|ing)\\b[^\\n.;]*\\b${surfacePattern}\\b`, "i"),
   ];
 }
 

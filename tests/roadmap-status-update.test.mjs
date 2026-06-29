@@ -340,6 +340,10 @@ test("R21 roadmap records local product-surface approval gate without runtime or
     "public npm publication",
     "hosted MCP",
     "remote MCP",
+    "image input",
+    "vision input",
+    "CAD input",
+    "provider input",
   ]) {
     assertNoApproval(combinedDocs, blockedSurface);
   }
@@ -661,6 +665,7 @@ function approvalPatterns(surface) {
   return [
     new RegExp(`\\b${surfacePattern}\\b(?:\\s+(?:is|are|was|were))?${separator}approved\\b`, "i"),
     new RegExp(`(?:^|[\\n.;])\\s*(?:[-*]\\s*)?approved\\b${separator}${surfacePattern}\\b`, "i"),
+    new RegExp(`(?:^|[\\n.;])\\s*(?:R21|this\\s+decision|the\\s+decision|this\\s+PR|the\\s+PR)\\s+approv(?:e|es|ed|ing)\\b[^\\n.;]*\\b${surfacePattern}\\b`, "i"),
   ];
 }
 
