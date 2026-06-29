@@ -33,6 +33,14 @@ test("R23 onboarding fixture is existing Structured Analyze result JSON inspecta
     serializationVersion: "stable-json-v1",
     meaningfulIdentity: "identity:r23-onboarding-fixture",
   });
+  assert.equal(fixture.measurements.a.id, "measurements:A:r23-onboarding-fixture");
+  assert.equal(fixture.measurements.b.id, "measurements:B:r23-onboarding-fixture");
+  assert.equal(fixture.measurements.compositionA, undefined);
+  assert.equal(fixture.measurements.compositionB, undefined);
+  assert.equal(fixture.evaluations.a.id, "evaluation:A:r23-onboarding-fixture");
+  assert.equal(fixture.evaluations.b.id, "evaluation:B:r23-onboarding-fixture");
+  assert.equal(fixture.evaluations.compositionA, undefined);
+  assert.equal(fixture.evaluations.compositionB, undefined);
   assert.equal(model.status, "displayable");
   assert.equal(model.classification, "structured-analyze-like-result");
   assert.equal(model.sourceMode, "explicit-json-text");

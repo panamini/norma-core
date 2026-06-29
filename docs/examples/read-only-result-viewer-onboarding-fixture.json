@@ -36,24 +36,24 @@
     ]
   },
   "measurements": {
-    "compositionA": {
+    "a": {
       "id": "measurements:A:r23-onboarding-fixture",
       "kind": "measurement-set",
       "summary": "Existing measurements for composition A remain visible."
     },
-    "compositionB": {
+    "b": {
       "id": "measurements:B:r23-onboarding-fixture",
       "kind": "measurement-set",
       "summary": "Existing measurements for composition B remain visible."
     }
   },
   "evaluations": {
-    "compositionA": {
+    "a": {
       "id": "evaluation:A:r23-onboarding-fixture",
       "kind": "composition-evaluation",
       "status": "evaluated"
     },
-    "compositionB": {
+    "b": {
       "id": "evaluation:B:r23-onboarding-fixture",
       "kind": "composition-evaluation",
       "status": "evaluated"
