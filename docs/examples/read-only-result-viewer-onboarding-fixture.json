@@ -25,6 +25,14 @@
         "code": "R23OnboardingValidation",
         "message": "Validation detail remains visible."
       }
+    ],
+    "acceptedSourceIds": [
+      "source:r23-onboarding-fixture:A",
+      "source:r23-onboarding-fixture:B"
+    ],
+    "effectiveSourceIds": [
+      "source:r23-onboarding-fixture:A",
+      "source:r23-onboarding-fixture:B"
     ]
   },
   "measurements": {
@@ -99,8 +107,7 @@
   },
   "serializationSummary": {
     "serializationVersion": "stable-json-v1",
-    "canonicalOrdering": true,
-    "identity": "identity:r23-onboarding-fixture"
+    "meaningfulIdentity": "identity:r23-onboarding-fixture"
   },
   "unknownHtmlLikeText": "<script>alert(1)</script>"
 }

@@ -21,6 +21,18 @@ test("R23 onboarding fixture is existing Structured Analyze result JSON inspecta
   const model = createReadOnlyViewerModel({ kind: "jsonText", value: fixtureText });
 
   assert.equal(fixture.kind, "structured-composition-analysis-result");
+  assert.deepEqual(fixture.validation.acceptedSourceIds, [
+    "source:r23-onboarding-fixture:A",
+    "source:r23-onboarding-fixture:B",
+  ]);
+  assert.deepEqual(fixture.validation.effectiveSourceIds, [
+    "source:r23-onboarding-fixture:A",
+    "source:r23-onboarding-fixture:B",
+  ]);
+  assert.deepEqual(fixture.serializationSummary, {
+    serializationVersion: "stable-json-v1",
+    meaningfulIdentity: "identity:r23-onboarding-fixture",
+  });
   assert.equal(model.status, "displayable");
   assert.equal(model.classification, "structured-analyze-like-result");
   assert.equal(model.sourceMode, "explicit-json-text");
