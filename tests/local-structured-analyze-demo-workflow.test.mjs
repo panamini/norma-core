@@ -33,6 +33,9 @@ test("R30 demo doc exists and references only existing local workflow files", as
   assert.match(doc, /must not redefine engine truth/u);
   assert.match(doc, /explicit structured inputs/u);
   assert.match(doc, /does not select or infer ratio families/u);
+  assert.doesNotMatch(doc, /<tmp-output-dir>/u);
+  assert.match(doc, /\/tmp\/norma-r30-harmonic-triads-report/u);
+  assert.match(doc, /\/tmp\/norma-r30-root-two-harmonics-report/u);
 
   for (const examplePath of familyExamplePaths) {
     assert.match(doc, new RegExp(escapeRegExp(examplePath), "u"));

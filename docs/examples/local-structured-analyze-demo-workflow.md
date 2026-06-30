@@ -13,11 +13,11 @@ This local-only workflow shows how to run the existing Structured Analyze family
 Use the existing local report entrypoint for the current checkout. In this repo state, the local entrypoint can be invoked as:
 
 ```bash
-node bin/norma-core-report.mjs examples/structured-analyze/families/harmonic-triads-basic.json <tmp-output-dir>
+node bin/norma-core-report.mjs examples/structured-analyze/families/harmonic-triads-basic.json /tmp/norma-r30-harmonic-triads-report
 ```
 
 ```bash
-node bin/norma-core-report.mjs examples/structured-analyze/families/root-two-harmonics-basic.json <tmp-output-dir>
+node bin/norma-core-report.mjs examples/structured-analyze/families/root-two-harmonics-basic.json /tmp/norma-r30-root-two-harmonics-report
 ```
 
 ## Output Boundary
