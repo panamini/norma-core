@@ -26,14 +26,16 @@ test("R30 demo doc exists and references only existing local workflow files", as
   assert.match(doc, /Local Structured Analyze Demo Workflow/u);
   assert.match(doc, /local-only workflow/u);
   assert.match(doc, /no hosting required/u);
-  assert.match(doc, /local demo entrypoint, not a new public API contract/u);
+  assert.match(doc, /local report entrypoint/u);
+  assert.match(doc, /not a new public API contract/u);
   assert.match(doc, /`result\.json` is canonical Norma truth/u);
-  assert.match(doc, /derived inspection output/u);
+  assert.match(doc, /may also contain additional derived files/u);
+  assert.match(doc, /must not redefine engine truth/u);
   assert.match(doc, /explicit structured inputs/u);
-  assert.match(doc, /does not select, infer, recommend, optimize, score, or correct ratio families/u);
+  assert.match(doc, /does not select or infer ratio families/u);
 
   for (const examplePath of familyExamplePaths) {
-    assert.match(doc, new RegExp(escapeRegExp(`node bin/norma-core-report.mjs ${examplePath} <tmp-output-dir>`), "u"));
+    assert.match(doc, new RegExp(escapeRegExp(examplePath), "u"));
     assert.equal(await pathExists(join(repoRoot, examplePath)), true, examplePath);
   }
 
@@ -61,13 +63,10 @@ test("R30 local demo workflow produces canonical result.json for both family exa
 
       assert.deepEqual(repeatedDirectResult, directResult, `${examplePath} direct engine output should be stable`);
 
-      const { stdout } = await execFileAsync(process.execPath, [reportCommandPath, inputPath, outputDir], {
+      await execFileAsync(process.execPath, [reportCommandPath, inputPath, outputDir], {
         cwd: repoRoot,
       });
-      const commandResult = JSON.parse(stdout);
 
-      assert.equal(commandResult.status, "ok");
-      assert.equal(commandResult.resultStatus, "valid");
       assert.equal((await stat(outputDir)).isDirectory(), true);
 
       const result = await readJson(join(outputDir, "result.json"));

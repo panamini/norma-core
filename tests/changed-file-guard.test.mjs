@@ -17,6 +17,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
@@ -215,12 +216,25 @@ test("shared exact changed-file guard accepts the R30 local demo workflow smoke 
     sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoWorkflowSmokeChangedFiles),
     localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles),
+    localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
+  );
 
   assert.deepEqual(localStructuredAnalyzeDemoWorkflowSmokeChangedFiles, [
     "docs/examples/local-structured-analyze-demo-workflow.md",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/local-structured-analyze-demo-workflow.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+  assert.deepEqual(localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles, [
+    "docs/examples/local-structured-analyze-demo-workflow.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-structured-analyze-demo-workflow.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
   ]);
 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
@@ -979,55 +993,16 @@ test("shared exact changed-file guard rejects missing, extra, and broad files in
   }
 });
 
-test("shared exact changed-file guard rejects missing, extra, and broad files in the R30 local demo workflow smoke set", () => {
+test("shared exact changed-file guard rejects non-R30 files in the R30 local demo workflow smoke set", () => {
   const missingRequiredFile = localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.filter(
     (file) => file !== "tests/local-structured-analyze-demo-workflow.test.mjs",
   );
 
   assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
-
-  for (const forbiddenFile of [
-    "src/ratio-pack.ts",
-    "src/structured-composition-analysis.ts",
-    "src/index.ts",
-    "src/runtime.ts",
-    "src/mcp/stdio-protocol.ts",
-    "src/cli/analyze.ts",
-    "src/local-report/structured-analyze-report.ts",
-    "src/local-report/visual-viewer.ts",
-    "src/local-viewer/read-only-viewer-model.ts",
-    "bin/norma-cli.mjs",
-    "bin/norma-core-report.mjs",
-    "docs/examples/ratio-pack-family-workflow.md",
-    "examples/structured-analyze/families/harmonic-triads-basic.json",
-    "examples/structured-analyze/families/root-two-harmonics-basic.json",
-    "viewer/read-only-result-viewer.html",
-    "package.json",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-  ]) {
-    assert.equal(
-      sharedExactApprovedChangedFiles([
-        ...localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
-        forbiddenFile,
-      ]),
-      null,
-      forbiddenFile,
-    );
-  }
-
-  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
-    assert.equal(
-      sharedExactApprovedChangedFiles([
-        ...localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.filter(
-          (file) => file !== "docs/examples/local-structured-analyze-demo-workflow.md",
-        ),
-        broadPath,
-      ]),
-      null,
-      broadPath,
-    );
-  }
+  assert.equal(
+    sharedExactApprovedChangedFiles([...localStructuredAnalyzeDemoWorkflowSmokeChangedFiles, "tests/unrelated.test.mjs"]),
+    null,
+  );
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {

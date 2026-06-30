@@ -362,6 +362,7 @@ test("PR62 approval document exists and is approval-only", () => {
 test("PR62-approved onboarding and example documentation paths are exact", () => {
   assert.deepEqual(markdownFiles("docs/onboarding"), ["docs/onboarding/README.md"]);
   assert.deepEqual(markdownFiles("docs/examples"), [
+    "docs/examples/local-structured-analyze-demo-workflow.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
     "docs/examples/structured-json-input-viewer.md",
