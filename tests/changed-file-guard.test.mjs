@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   branchChangedFiles,
+  familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -115,6 +116,29 @@ test("shared exact changed-file guard accepts the R26 post-R25 roadmap truth syn
   for (const broadPath of ["docs/**", "tests/**", "src/**", "bin/**", "viewer/**", "examples/**"]) {
     assert.equal(
       postR25RoadmapTruthSyncChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R27 family ratio-pack meaning smoke set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(familyRatioPackMeaningSmokeChangedFiles),
+    familyRatioPackMeaningSmokeChangedFiles,
+  );
+
+  assert.deepEqual(familyRatioPackMeaningSmokeChangedFiles, [
+    "docs/local-structured-analyze-report-kit.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/family-ratio-pack-meaning-smoke.test.mjs",
+    "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      familyRatioPackMeaningSmokeChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -774,6 +798,39 @@ test("shared exact changed-file guard rejects runtime, package, and example extr
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...postR25RoadmapTruthSyncChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, and exposure extras in the R27 family ratio-pack smoke set", () => {
+  for (const forbiddenFile of [
+    "src/ratio-pack.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...familyRatioPackMeaningSmokeChangedFiles,
         forbiddenFile,
       ]),
       null,
