@@ -301,8 +301,16 @@ export const familyRatioPackMeaningSmokeChangedFiles = Object.freeze([
   "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
 ].sort());
 
+export const ratioPackFamilyCatalogBoundaryChangedFiles = Object.freeze([
+  "docs/ratio-pack-family-catalog.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/ratio-pack-family-catalog.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   familyRatioPackMeaningSmokeChangedFiles,
+  ratioPackFamilyCatalogBoundaryChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
