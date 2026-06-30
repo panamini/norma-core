@@ -9,7 +9,7 @@ recommend, optimize, score, or correct ratio-pack families.
 ## Run The Harmonic Triads Example
 
 ```bash
-pnpm run build
+npm run build
 node bin/norma-core-report.mjs examples/structured-analyze/families/harmonic-triads-basic.json /tmp/norma-harmonic-triads-report
 ```
 
@@ -19,7 +19,7 @@ This input supplies `norma.harmonic-triads@0.1.0` with rule set
 ## Run The Root-Two Harmonics Example
 
 ```bash
-pnpm run build
+npm run build
 node bin/norma-core-report.mjs examples/structured-analyze/families/root-two-harmonics-basic.json /tmp/norma-root-two-harmonics-report
 ```
 
