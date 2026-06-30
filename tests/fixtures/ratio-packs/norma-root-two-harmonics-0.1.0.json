@@ -1,0 +1,249 @@
+{
+  "kind": "ratio-pack",
+  "id": "norma.root-two-harmonics",
+  "version": "0.1.0",
+  "schemaVersion": "ratio-pack-v1",
+  "identity": {
+    "kind": "ratio-pack-identity",
+    "id": "norma.root-two-harmonics",
+    "concept": "Root-two architectural surface partitions"
+  },
+  "contentIdentity": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+  "metadata": {
+    "name": "Norma Root-Two Harmonics",
+    "description": "Authored root-two surface partition pack for explicit Structured Analyze fixtures.",
+    "owner": "norma-core-tests"
+  },
+  "provenance": {
+    "kind": "ratio-pack-provenance",
+    "source": "mathematical",
+    "sourceRefs": [
+      {
+        "kind": "mathematical-ratio",
+        "ref": "root-two-section"
+      }
+    ]
+  },
+  "compatibility": {
+    "schemaVersion": "ratio-pack-v1",
+    "coreVersionRange": "0.1.0-pr12"
+  },
+  "limits": {
+    "noBeautyClaims": true,
+    "noIntentInference": true,
+    "noUiPreset": true
+  },
+  "conventions": [
+    "ratio-pack-v1",
+    "declarative-rules-only"
+  ],
+  "ratios": [
+    {
+      "kind": "ratio",
+      "id": "sqrt2-minor",
+      "numerator": 1,
+      "denominator": 2.414213562373095,
+      "normalizedValue": 0.4142135623730951,
+      "familyRef": "root-two-section"
+    },
+    {
+      "kind": "ratio",
+      "id": "sqrt2-major",
+      "numerator": 1.4142135623730951,
+      "denominator": 2.414213562373095,
+      "normalizedValue": 0.5857864376269049,
+      "familyRef": "root-two-section"
+    },
+    {
+      "kind": "ratio",
+      "id": "1/2",
+      "numerator": 1,
+      "denominator": 2,
+      "normalizedValue": 0.5,
+      "familyRef": "halves"
+    }
+  ],
+  "ratioFamilies": [
+    {
+      "kind": "ratio-family",
+      "id": "root-two-section",
+      "ratioRefs": [
+        "sqrt2-minor",
+        "sqrt2-major"
+      ],
+      "scope": "surface-partition"
+    },
+    {
+      "kind": "ratio-family",
+      "id": "halves",
+      "ratioRefs": [
+        "1/2"
+      ],
+      "scope": "surface-partition"
+    }
+  ],
+  "ratioSequences": [
+    {
+      "kind": "ratio-sequence",
+      "id": "sqrt2:1",
+      "parts": [
+        1.4142135623730951,
+        1
+      ],
+      "normalizedParts": [
+        0.5857864376269049,
+        0.4142135623730951
+      ]
+    }
+  ],
+  "partitionPatterns": [
+    {
+      "kind": "partition-pattern",
+      "id": "root-two-section",
+      "ratioRefs": [
+        "sqrt2-minor",
+        "sqrt2-major"
+      ],
+      "sequenceRef": "sqrt2:1",
+      "axis": "both",
+      "declarationOnly": true
+    },
+    {
+      "kind": "partition-pattern",
+      "id": "halves",
+      "ratioRefs": [
+        "1/2"
+      ],
+      "axis": "both",
+      "declarationOnly": true
+    }
+  ],
+  "ruleDeclarations": [
+    {
+      "kind": "rule-declaration",
+      "id": "verticalRootTwoSection",
+      "type": "divideSurfaceVertical",
+      "target": "surface",
+      "ratioRefs": [
+        "sqrt2-major"
+      ],
+      "sequenceRefs": [
+        "sqrt2:1"
+      ],
+      "partitionPatternRefs": [
+        "root-two-section"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "horizontalRootTwoSection",
+      "type": "divideSurfaceHorizontal",
+      "target": "surface",
+      "ratioRefs": [
+        "sqrt2-major"
+      ],
+      "sequenceRefs": [
+        "sqrt2:1"
+      ],
+      "partitionPatternRefs": [
+        "root-two-section"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "rootTwoSectionAxes",
+      "type": "createGuidesFromCandidates",
+      "target": "surface",
+      "ratioRefs": [
+        "sqrt2-minor",
+        "sqrt2-major",
+        "1/2"
+      ],
+      "partitionPatternRefs": [
+        "root-two-section",
+        "halves"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "rootTwoSectionGrid",
+      "type": "createSimpleGrid",
+      "target": "surface",
+      "ratioRefs": [
+        "sqrt2-major"
+      ],
+      "sequenceRefs": [
+        "sqrt2:1"
+      ],
+      "partitionPatternRefs": [
+        "root-two-section"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "rootTwoSectionDiagonals",
+      "type": "createDiagonals",
+      "target": "surface",
+      "ratioRefs": [
+        "1/2"
+      ],
+      "partitionPatternRefs": [
+        "halves"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    },
+    {
+      "kind": "rule-declaration",
+      "id": "rootTwoSectionIntersections",
+      "type": "deriveIntersections",
+      "target": "surface",
+      "ratioRefs": [
+        "sqrt2-minor",
+        "sqrt2-major",
+        "1/2"
+      ],
+      "sequenceRefs": [
+        "sqrt2:1"
+      ],
+      "partitionPatternRefs": [
+        "root-two-section",
+        "halves"
+      ],
+      "requiresCoreSupport": true,
+      "declarationOnly": true
+    }
+  ],
+  "ruleSets": [
+    {
+      "kind": "rule-set",
+      "id": "surface-root-two-section",
+      "ruleRefs": [
+        "verticalRootTwoSection",
+        "horizontalRootTwoSection",
+        "rootTwoSectionAxes",
+        "rootTwoSectionGrid",
+        "rootTwoSectionDiagonals",
+        "rootTwoSectionIntersections"
+      ],
+      "declarationOnly": true
+    }
+  ],
+  "preLock": {
+    "kind": "pack-lock-prelock",
+    "ref": "prelock:norma.root-two-harmonics@0.1.0",
+    "packId": "norma.root-two-harmonics",
+    "packVersion": "0.1.0",
+    "schemaVersion": "ratio-pack-v1",
+    "contentIdentity": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+    "final": false
+  }
+}

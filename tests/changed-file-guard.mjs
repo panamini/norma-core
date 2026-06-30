@@ -293,7 +293,16 @@ export const postR25RoadmapTruthSyncChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const familyRatioPackMeaningSmokeChangedFiles = Object.freeze([
+  "docs/local-structured-analyze-report-kit.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/family-ratio-pack-meaning-smoke.test.mjs",
+  "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  familyRatioPackMeaningSmokeChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
