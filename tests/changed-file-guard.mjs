@@ -356,7 +356,14 @@ export const realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles = 
     .sort(),
 );
 
+export const realUsecaseLocalInspectionDemoSmokeChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/real-usecase-local-inspection-demo.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  realUsecaseLocalInspectionDemoSmokeChangedFiles,
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,

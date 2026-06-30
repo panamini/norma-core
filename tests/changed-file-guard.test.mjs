@@ -32,6 +32,7 @@ import {
   ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
+  realUsecaseLocalInspectionDemoSmokeChangedFiles,
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   roadmapConvergenceAfterR16ChangedFiles,
@@ -242,6 +243,26 @@ test("shared exact changed-file guard accepts the R30 local demo workflow smoke 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R32 real-usecase local inspection demo smoke set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(realUsecaseLocalInspectionDemoSmokeChangedFiles),
+    realUsecaseLocalInspectionDemoSmokeChangedFiles,
+  );
+  assert.deepEqual(realUsecaseLocalInspectionDemoSmokeChangedFiles, [
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/real-usecase-local-inspection-demo.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      realUsecaseLocalInspectionDemoSmokeChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
