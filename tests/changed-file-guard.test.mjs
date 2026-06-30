@@ -27,6 +27,7 @@ import {
   postR25RoadmapTruthSyncChangedFiles,
   postR14RoadmapCheckpointChangedFiles,
   publicApiContractFreezeChangedFiles,
+  ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
   roadmapConvergenceAfterR16ChangedFiles,
@@ -139,6 +140,28 @@ test("shared exact changed-file guard accepts the R27 family ratio-pack meaning 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       familyRatioPackMeaningSmokeChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R28 ratio-pack family catalog boundary set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(ratioPackFamilyCatalogBoundaryChangedFiles),
+    ratioPackFamilyCatalogBoundaryChangedFiles,
+  );
+
+  assert.deepEqual(ratioPackFamilyCatalogBoundaryChangedFiles, [
+    "docs/ratio-pack-family-catalog.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/ratio-pack-family-catalog.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      ratioPackFamilyCatalogBoundaryChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
