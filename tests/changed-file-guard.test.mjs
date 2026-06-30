@@ -27,6 +27,7 @@ import {
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
   postR25RoadmapTruthSyncChangedFiles,
+  postR31RoadmapTruthSyncChangedFiles,
   postR14RoadmapCheckpointChangedFiles,
   publicApiContractFreezeChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
@@ -300,6 +301,32 @@ test("shared exact changed-file guard accepts the R31 real-usecase Structured An
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       realUsecaseStructuredLayoutDemoChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R32 post-R31 roadmap truth sync set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(postR31RoadmapTruthSyncChangedFiles),
+    postR31RoadmapTruthSyncChangedFiles,
+  );
+
+  assert.deepEqual(postR31RoadmapTruthSyncChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/PACKAGE_PUBLICATION_READINESS.md",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "docs/decisions/2026-06-30-post-r31-roadmap-truth-sync.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/post-r31-roadmap-truth-sync.test.mjs",
+    "tests/roadmap-status-update.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      postR31RoadmapTruthSyncChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1096,6 +1123,38 @@ test("shared exact changed-file guard rejects runtime, package, and extra files 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...realUsecaseStructuredLayoutDemoChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, and extra files in the R32 truth sync set", () => {
+  const missingRequiredFile = postR31RoadmapTruthSyncChangedFiles.filter(
+    (file) => file !== "tests/post-r31-roadmap-truth-sync.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...postR31RoadmapTruthSyncChangedFiles,
         forbiddenFile,
       ]),
       null,
