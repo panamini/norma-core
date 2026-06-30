@@ -33,6 +33,7 @@ import {
   roadmapConvergenceAfterR16ChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
+  runnableRatioPackFamilyExamplesChangedFiles,
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeConsumerReadinessChangedFiles,
@@ -162,6 +163,30 @@ test("shared exact changed-file guard accepts the R28 ratio-pack family catalog 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       ratioPackFamilyCatalogBoundaryChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R29 runnable ratio-pack family examples set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(runnableRatioPackFamilyExamplesChangedFiles),
+    runnableRatioPackFamilyExamplesChangedFiles,
+  );
+
+  assert.deepEqual(runnableRatioPackFamilyExamplesChangedFiles, [
+    "docs/examples/ratio-pack-family-workflow.md",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "examples/structured-analyze/families/root-two-harmonics-basic.json",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/ratio-pack-family-examples.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      runnableRatioPackFamilyExamplesChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -858,6 +883,57 @@ test("shared exact changed-file guard rejects runtime, package, and exposure ext
       ]),
       null,
       forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects missing, extra, and broad files in the R29 runnable family examples set", () => {
+  const missingRequiredFile = runnableRatioPackFamilyExamplesChangedFiles.filter(
+    (file) => file !== "tests/ratio-pack-family-examples.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/ratio-pack.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/ratio-pack-family-catalog.md",
+    "tests/fixtures/ratio-packs/norma-harmonic-triads-0.1.0.json",
+    "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
+    "examples/structured-analyze/geometry-harmony-basic.json",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...runnableRatioPackFamilyExamplesChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...runnableRatioPackFamilyExamplesChangedFiles.filter(
+          (file) => file !== "docs/examples/ratio-pack-family-workflow.md",
+        ),
+        broadPath,
+      ]),
+      null,
+      broadPath,
     );
   }
 });

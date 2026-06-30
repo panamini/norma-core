@@ -308,9 +308,19 @@ export const ratioPackFamilyCatalogBoundaryChangedFiles = Object.freeze([
   "tests/ratio-pack-family-catalog.test.mjs",
 ].sort());
 
+export const runnableRatioPackFamilyExamplesChangedFiles = Object.freeze([
+  "docs/examples/ratio-pack-family-workflow.md",
+  "examples/structured-analyze/families/harmonic-triads-basic.json",
+  "examples/structured-analyze/families/root-two-harmonics-basic.json",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/ratio-pack-family-examples.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
   familyRatioPackMeaningSmokeChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
+  runnableRatioPackFamilyExamplesChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
