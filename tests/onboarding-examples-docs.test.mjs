@@ -100,6 +100,7 @@ const forbiddenExecutableFencePattern = /^```(?:js|javascript|ts|typescript)\s*$
 test("PR63 creates exactly the approved onboarding and examples docs", () => {
   assert.deepEqual(markdownFiles("docs/onboarding"), ["docs/onboarding/README.md"]);
   assert.deepEqual(markdownFiles("docs/examples"), [
+    "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
     "docs/examples/structured-json-input-viewer.md",
     "docs/examples/verification-replay-result-viewer.md",

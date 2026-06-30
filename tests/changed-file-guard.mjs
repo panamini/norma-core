@@ -314,13 +314,22 @@ export const runnableRatioPackFamilyExamplesChangedFiles = Object.freeze([
   "examples/structured-analyze/families/root-two-harmonics-basic.json",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
   "tests/ratio-pack-family-examples.test.mjs",
 ].sort());
+
+export const runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  runnableRatioPackFamilyExamplesChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
 
 const sharedExactApprovedChangedFileSets = [
   familyRatioPackMeaningSmokeChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
   runnableRatioPackFamilyExamplesChangedFiles,
+  runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,

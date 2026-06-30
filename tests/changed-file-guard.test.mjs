@@ -34,6 +34,7 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
   runnableRatioPackFamilyExamplesChangedFiles,
+  runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles,
   sharedExactApprovedChangedFiles,
   structuredAnalyzeCliUxLayerChangedFiles,
   structuredAnalyzeConsumerReadinessChangedFiles,
@@ -174,6 +175,10 @@ test("shared exact changed-file guard accepts the R29 runnable ratio-pack family
     sharedExactApprovedChangedFiles(runnableRatioPackFamilyExamplesChangedFiles),
     runnableRatioPackFamilyExamplesChangedFiles,
   );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles),
+    runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles,
+  );
 
   assert.deepEqual(runnableRatioPackFamilyExamplesChangedFiles, [
     "docs/examples/ratio-pack-family-workflow.md",
@@ -181,6 +186,17 @@ test("shared exact changed-file guard accepts the R29 runnable ratio-pack family
     "examples/structured-analyze/families/root-two-harmonics-basic.json",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+    "tests/ratio-pack-family-examples.test.mjs",
+  ]);
+  assert.deepEqual(runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles, [
+    "docs/examples/ratio-pack-family-workflow.md",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "examples/structured-analyze/families/root-two-harmonics-basic.json",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
     "tests/ratio-pack-family-examples.test.mjs",
   ]);
 
@@ -908,6 +924,8 @@ test("shared exact changed-file guard rejects missing, extra, and broad files in
     "docs/ratio-pack-family-catalog.md",
     "tests/fixtures/ratio-packs/norma-harmonic-triads-0.1.0.json",
     "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
+    "tests/onboarding-examples-approval.test.mjs.bak",
+    "tests/onboarding-examples-docs.test.mjs.bak",
     "examples/structured-analyze/geometry-harmony-basic.json",
     "examples/structured-analyze/scenarios/alignment-basic.json",
     "package.json",
