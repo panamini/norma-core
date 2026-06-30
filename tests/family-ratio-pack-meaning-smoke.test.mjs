@@ -82,10 +82,12 @@ test("R27 passes the root-two family pack through Structured Analyze determinist
 test("R27 shows the root-two family pack through the existing local report bundle", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "norma-r27-root-two-report-"));
   const input = await createRootTwoInput();
-  const directResult = core.analyzeStructuredCompositionV1(input);
-  const bundle = createLocalStructuredAnalyzeReportBundle(input);
+  const before = core.serializeCanonicalJson(input);
+  const directResult = core.analyzeStructuredCompositionV1(structuredClone(input));
+  const bundle = createLocalStructuredAnalyzeReportBundle(structuredClone(input));
 
   try {
+    assert.equal(core.serializeCanonicalJson(input), before);
     assert.deepEqual(bundle.result, directResult);
     assert.deepEqual(Object.keys(bundle.artifacts).sort(), expectedOutputFiles);
     assert.equal(bundle.summary.status, "valid");
