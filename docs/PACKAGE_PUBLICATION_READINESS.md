@@ -20,7 +20,10 @@ Blocking reasons:
 - The CLI is local-only and `package.json` has no `bin`; including `bin/norma-core.mjs` in a public tarball without a `bin` decision is ambiguous.
 - Public package ownership, npm scope control, access policy, provenance policy, license metadata, and release approval flow are not yet accepted.
 
-PR30 does not repair these blockers. It records them so PR31 and PR32 can make explicit, reviewable decisions.
+PR30 did not repair these blockers. It recorded them so later package-readiness
+and publication-gate decisions could be explicit and reviewable. Those follow-up
+package readiness and gate documents now exist; this audit must not be read as
+an active instruction to create another package readiness PR.
 
 ## Current Package State
 
@@ -263,7 +266,10 @@ These are not all hard npm requirements, but they are package-maintainer readine
 | License/support metadata | Not present in package metadata | Needs maintainer decision. |
 | Access/provenance | Not defined | Needs release gate. |
 
-## Recommended Follow-Up Sequence
+## Historical Follow-Up Sequence
+
+The following PR31 and PR32 labels are historical package-readiness context.
+They are not the current execution queue after R31/R32 roadmap truth sync.
 
 ### PR31 -- typed consumer examples and compatibility policy
 
@@ -345,4 +351,6 @@ PR30 is accepted only if:
 
 Norma Core should not be published to public npm from the current repository state.
 
-The package is appropriate for local/private build-based consumption, and the next work should be readiness and compatibility policy, not publication.
+The package is appropriate for local/private build-based consumption. Future
+package or publication work requires a current-gap decision and explicit
+maintainer approval, not stale roadmap-label continuation.

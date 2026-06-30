@@ -340,12 +340,14 @@ PR32 can merge when:
 - guardrails pass;
 - automated review has no P0/P1 blockers.
 
-## Next PR
+## Historical Next PR Context
 
-Next recommended PR: PR33 - MCP tool contract docs only.
+The old roadmap listed PR33 as MCP tool contract docs only. PR33 is historical
+context, not the active next mandatory PR after the post-R31 roadmap truth sync.
 
 PR33 must not implement MCP.
 
 PR33 must define tool schemas, threat model assumptions, allowed tools, forbidden tools, and source-truth boundaries.
 
-Do not start MCP implementation until contract docs are merged.
+Do not start MCP implementation until contract docs are merged and a current
+explicit approval selects that work.

@@ -12,7 +12,10 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
-This roadmap is synced through R25. R22 through R25 are complete, R25 is the latest completed local inspection/static safety guard checkpoint, and the old PR27-PR46 ladder remains historical/gated context, not the current execution queue.
+This roadmap is synced through R31. R22 through R25 are complete, R26, R30, and R31 are roadmap/usecase stabilization checkpoints, and the old PR27-PR46 ladder and old PR30-PR33 labels remain historical/gated context, not the current execution queue.
+
+Historical R26 wording remains true for that checkpoint: this roadmap is synced
+through R25.
 
 ## Current State After PR74
 
@@ -448,6 +451,46 @@ The old PR27-PR46 ladder remains historical/gated context, not the current execu
 
 The package root is local/build-based and remains private. It is not yet a public npm package.
 
+## Current State After R31
+
+Current truth-sync reference: `docs/decisions/2026-06-30-post-r31-roadmap-truth-sync.md`.
+
+R30 is complete. PR #152 merged the local Structured Analyze demo workflow
+smoke, keeping the workflow local/static/read-only and preserving
+`result.json` as canonical Norma truth.
+
+R31 is complete. PR #153 merged the real-usecase Structured Analyze layout
+demo, proving a concrete local layout fixture without adding hosted behavior,
+remote APIs, public package publication, image/CAD/Figma/Photoshop/Illustrator
+adapters, recommendation, optimization, beauty scoring, or prompt-derived
+source truth.
+
+R26, R30, and R31 are roadmap/usecase stabilization checkpoints. They do not
+force a continuing PR ladder.
+
+Package readiness and publication gate documents already exist:
+
+- `docs/PACKAGE_PUBLICATION_READINESS.md`
+- `docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md`
+
+The old PR30, PR31, PR32, and PR33 labels are historical context, not the
+current execution queue and not mandatory next work.
+
+The current execution model is current-gap driven:
+
+- select one small PR at a time from the current repository state;
+- do not follow old PR ladders as mandatory sequencing;
+- do not publish the package without explicit maintainer approval;
+- do not add hosted or remote MCP expansion without explicit approval;
+- do not add image, CAD, Figma, Photoshop, or Illustrator adapters without
+  explicit approval;
+- do not add recommendation, optimization, beauty scoring, or prompt-derived
+  source truth.
+
+R32 is this docs/tests-only post-R31 roadmap truth-sync checkpoint.
+The next real work after R32 must be selected from current gaps, not stale
+roadmap labels.
+
 The current package is not yet:
 
 - a full SDK;
@@ -589,6 +632,10 @@ Expected PRs:
 - `PR31 — typed consumer examples and compatibility policy`;
 - `PR32 — public package publishing gate, still no publish unless approved`.
 
+Historical status after R32: these package-readiness and publication-gate
+documents already exist. Do not create another package readiness PR merely
+because this old phase list names PR30-PR32.
+
 Exit criteria:
 
 - package public surface is documented;
@@ -622,6 +669,9 @@ Expected PRs:
 - `PR33 — MCP tool contract docs only`;
 - `PR34 — local stdio MCP server for approved trust-layer tools`;
 - `PR35 — MCP inspector tests and golden tool outputs`.
+
+Historical status after R32: PR33 is an old label from this gated roadmap, not
+the active next mandatory PR.
 
 Exit criteria:
 
@@ -750,7 +800,8 @@ historical context, not the current execution queue:
 7. PR33 MCP contract docs only.
 
 Do not treat this PR27-PR33 sequence as mandatory remaining work after R16.
-Use the Current Execution Mode After R16 section instead.
+Use the Current Execution Mode After R16 section and Current State After R31
+section instead.
 
 MCP implementation must not start before MCP contract docs are reviewed.
 
