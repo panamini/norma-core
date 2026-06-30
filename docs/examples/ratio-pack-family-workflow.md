@@ -30,7 +30,7 @@ This input supplies `norma.root-two-harmonics@0.1.0` with rule set
 
 `result.json` is the canonical Norma truth for each run. `summary.json`,
 `summary.md`, `visual.svg`, and `report.html` are derived local inspection
-artifacts from the existing report-kit pipeline.
+artifacts from the existing report-kit pipeline, and they are non-authoritative.
 
 The examples do not implement image, CAD, GPT, provider, file, URL, hosted,
 dashboard, or webapp support. Later adapters would need to produce accepted
