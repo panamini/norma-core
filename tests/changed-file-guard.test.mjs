@@ -17,6 +17,8 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
+  localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
@@ -203,6 +205,41 @@ test("shared exact changed-file guard accepts the R29 runnable ratio-pack family
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       runnableRatioPackFamilyExamplesChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R30 local demo workflow smoke set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoWorkflowSmokeChangedFiles),
+    localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles),
+    localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(localStructuredAnalyzeDemoWorkflowSmokeChangedFiles, [
+    "docs/examples/local-structured-analyze-demo-workflow.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-structured-analyze-demo-workflow.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+  assert.deepEqual(localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles, [
+    "docs/examples/local-structured-analyze-demo-workflow.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-structured-analyze-demo-workflow.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -954,6 +991,18 @@ test("shared exact changed-file guard rejects missing, extra, and broad files in
       broadPath,
     );
   }
+});
+
+test("shared exact changed-file guard rejects non-R30 files in the R30 local demo workflow smoke set", () => {
+  const missingRequiredFile = localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.filter(
+    (file) => file !== "tests/local-structured-analyze-demo-workflow.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+  assert.equal(
+    sharedExactApprovedChangedFiles([...localStructuredAnalyzeDemoWorkflowSmokeChangedFiles, "tests/unrelated.test.mjs"]),
+    null,
+  );
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {

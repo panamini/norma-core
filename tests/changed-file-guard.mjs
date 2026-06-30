@@ -325,7 +325,24 @@ export const runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles = 
     .sort(),
 );
 
+export const localStructuredAnalyzeDemoWorkflowSmokeChangedFiles = Object.freeze([
+  "docs/examples/local-structured-analyze-demo-workflow.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-demo-workflow.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+].sort());
+
+export const localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  localStructuredAnalyzeDemoWorkflowSmokeChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 const sharedExactApprovedChangedFileSets = [
+  localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
+  localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
   runnableRatioPackFamilyExamplesChangedFiles,
