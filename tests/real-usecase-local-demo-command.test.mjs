@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -133,6 +133,25 @@ test("R35 no-arg real-usecase local demo command uses unique temp dirs with dete
   }
 });
 
+test("R35 real-usecase local demo command runs when invoked through a symlinked entrypoint", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-r35-real-usecase-symlink-"));
+  const symlinkPath = join(tempRoot, "norma-core-real-usecase-demo.mjs");
+  const outputDir = join(tempRoot, "report");
+
+  try {
+    await symlink(demoCommandPath, symlinkPath);
+
+    const result = await runDemoCommand(["--output", outputDir], symlinkPath);
+
+    assert.equal(result.parsed.status, "ok");
+    assert.equal(result.parsed.outputDir, outputDir);
+    assert.equal(result.parsed.resultJson, join(outputDir, "result.json"));
+    assert.equal("kind" in result.parsed, false);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("R35 report subprocess timeout failure emits bounded stderr JSON and non-zero exit", async () => {
   const tempRoot = await mkdtemp(join(tmpdir(), "norma-r35-real-usecase-failure-"));
   const outputDir = join(tempRoot, "report");
@@ -193,10 +212,10 @@ test("R35 report subprocess timeout failure emits bounded stderr JSON and non-ze
   }
 });
 
-async function runDemoCommand(args = []) {
+async function runDemoCommand(args = [], commandPath = demoCommandPath) {
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [demoCommandPath, ...args],
+    [commandPath, ...args],
     {
       cwd: repoRoot,
       maxBuffer: 10 * 1024 * 1024,

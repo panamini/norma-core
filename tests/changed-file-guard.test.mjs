@@ -295,6 +295,10 @@ test("shared exact changed-file guard accepts the R34 real-usecase local demo co
 });
 
 test("shared exact changed-file guard accepts the R35 real-usecase local demo command hardening set exactly", () => {
+  assert.notStrictEqual(
+    realUsecaseLocalDemoCommandHardeningChangedFiles,
+    realUsecaseLocalDemoCommandChangedFiles,
+  );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(realUsecaseLocalDemoCommandHardeningChangedFiles),
     realUsecaseLocalDemoCommandHardeningChangedFiles,

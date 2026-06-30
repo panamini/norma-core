@@ -371,7 +371,9 @@ export const realUsecaseLocalDemoCommandChangedFiles = Object.freeze([
   "tests/real-usecase-local-demo-command.test.mjs",
 ].sort());
 
-export const realUsecaseLocalDemoCommandHardeningChangedFiles = realUsecaseLocalDemoCommandChangedFiles;
+export const realUsecaseLocalDemoCommandHardeningChangedFiles = Object.freeze([
+  ...realUsecaseLocalDemoCommandChangedFiles,
+].sort());
 
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",

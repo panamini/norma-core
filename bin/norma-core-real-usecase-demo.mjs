@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { access, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -222,7 +223,15 @@ function isRecord(value) {
 }
 
 function isCliEntrypoint() {
-  return process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  if (!process.argv[1]) {
+    return false;
+  }
+
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
 }
 
 if (isCliEntrypoint()) {
