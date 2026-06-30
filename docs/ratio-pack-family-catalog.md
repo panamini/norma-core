@@ -2,10 +2,9 @@
 
 This catalog is a read-only documentation projection of the authored ratio-pack fixtures currently present in this repository. It is not a runtime registry, not a package export, and not used by the engine to select packs.
 
-Norma Core keeps family choice explicit. Callers must provide the desired family
-through structured input by supplying the ratioPack, ruleSetRef, PackLock, and
-OperationContext that belong together. Engine truth remains the supplied
-ratioPack, ruleSetRef, PackLock, OperationContext, and result.json as canonical truth. Report and viewer artifacts remain derived inspection only.
+This catalog is a read-only projection of R13 ratio-pack registry and fixtures. It does not participate in runtime selection or validation, and has no authority over execution.
+
+For the current MVP boundary, callers explicitly declare a family identifier in structured input by supplying the ratioPack, ruleSetRef, PackLock, and OperationContext that belong together. Engine truth remains the supplied ratioPack, ruleSetRef, PackLock, OperationContext, and result.json as canonical truth. Report and viewer artifacts remain derived inspection only.
 
 Norma Core does not choose a family, infer a family, rank families, score
 families, correct family choices, or derive design purpose from external media
