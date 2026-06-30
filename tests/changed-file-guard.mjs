@@ -356,6 +356,12 @@ export const realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles = 
     .sort(),
 );
 
+export const realUsecaseLocalInspectionDemoSmokeChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/real-usecase-local-inspection-demo.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -368,6 +374,7 @@ export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  realUsecaseLocalInspectionDemoSmokeChangedFiles,
   postR31RoadmapTruthSyncChangedFiles,
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
