@@ -17,6 +17,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  localTruthProjectionConsolidationSmokeChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
@@ -33,7 +34,6 @@ import {
   ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
-  realUsecaseLocalInspectionDemoSmokeChangedFiles,
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   roadmapConvergenceAfterR16ChangedFiles,
@@ -250,12 +250,12 @@ test("shared exact changed-file guard accepts the R30 local demo workflow smoke 
   }
 });
 
-test("shared exact changed-file guard accepts the R32 real-usecase local inspection demo smoke set exactly", () => {
+test("shared exact changed-file guard accepts the R33 local truth projection consolidation smoke set exactly", () => {
   assert.deepEqual(
-    sharedExactApprovedChangedFiles(realUsecaseLocalInspectionDemoSmokeChangedFiles),
-    realUsecaseLocalInspectionDemoSmokeChangedFiles,
+    sharedExactApprovedChangedFiles(localTruthProjectionConsolidationSmokeChangedFiles),
+    localTruthProjectionConsolidationSmokeChangedFiles,
   );
-  assert.deepEqual(realUsecaseLocalInspectionDemoSmokeChangedFiles, [
+  assert.deepEqual(localTruthProjectionConsolidationSmokeChangedFiles, [
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/real-usecase-local-inspection-demo.test.mjs",
@@ -263,7 +263,7 @@ test("shared exact changed-file guard accepts the R32 real-usecase local inspect
 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
-      realUsecaseLocalInspectionDemoSmokeChangedFiles.includes(broadPath),
+      localTruthProjectionConsolidationSmokeChangedFiles.includes(broadPath),
       false,
       broadPath,
     );

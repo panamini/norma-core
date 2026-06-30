@@ -12,6 +12,7 @@ import * as core from "../dist/src/index.js";
 import {
   LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES,
 } from "../dist/src/local-report/structured-analyze-report.js";
+import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,15 @@ test("R32 real-usecase local inspection demo remains deterministic and derived-o
       await readFile(join(secondOutputDir, "result.json"), "utf8"),
       firstResultText,
     );
+
+    const firstResultTextBeforeViewer = firstResultText;
+    const firstResultBeforeViewer = structuredClone(firstResult);
+    const jsonTextViewerModel = createReadOnlyViewerModel({ kind: "jsonText", value: firstResultText });
+    const structuredViewerModel = createReadOnlyViewerModel({ kind: "structured", value: firstResult });
+
+    assert.equal(firstResultText, firstResultTextBeforeViewer);
+    assert.deepEqual(firstResult, firstResultBeforeViewer);
+    assertReadOnlyViewerProjection(structuredViewerModel, jsonTextViewerModel, input);
 
     for (const fileName of expectedOutputFiles) {
       assert.equal(
@@ -128,6 +138,49 @@ async function assertDerivedOnlyReportArtifacts(outputDir, input) {
   assertNoForbiddenAuthorityLanguage(reportHtml, "report.html");
 }
 
+function assertReadOnlyViewerProjection(structuredModel, jsonTextModel, input) {
+  assert.equal(jsonTextModel.kind, "readOnlyViewerModel");
+  assert.equal(jsonTextModel.sourceMode, "explicit-json-text");
+  assertReadOnlyViewerProvenance(jsonTextModel);
+
+  assert.equal(structuredModel.kind, "readOnlyViewerModel");
+  assert.equal(structuredModel.status, "displayable");
+  assert.equal(structuredModel.classification, "structured-analyze-like-result");
+  assert.equal(structuredModel.sourceMode, "explicit-structured-object");
+  assert.equal(structuredModel.displayable, true);
+  assert.equal(structuredModel.notDisplayableReason, null);
+  assert.equal(structuredModel.title, "Structured Analyze result");
+  assert.equal(
+    structuredModel.summary,
+    "Existing Structured Analyze result JSON is displayable as local read-only derived inspection data.",
+  );
+  assert.deepEqual(structuredModel.warnings, []);
+  assert.deepEqual(structuredModel.errors, []);
+  assertReadOnlyViewerProvenance(structuredModel);
+
+  assert.equal(row(structuredModel, "structuredAnalyzeIdentity", "analysisId")?.value, input.analysisId);
+  assert.equal(row(structuredModel, "structuredAnalyzeIdentity", "status")?.value, "valid");
+  assert.equal(row(structuredModel, "structuredAnalyzeReplayReadiness", "replayReadiness.status")?.value, "ready");
+  assertRowIncludes(
+    structuredModel,
+    "structuredAnalyzeRefs",
+    "inputRefs",
+    `${input.ratioPack.id}@${input.ratioPack.version}`,
+  );
+  assertRowIncludes(structuredModel, "structuredAnalyzeRefs", "inputRefs", input.ruleSetRef);
+  assertNoForbiddenViewerAuthorityLanguage(structuredModel);
+  assertNoForbiddenViewerAuthorityLanguage(jsonTextModel);
+}
+
+function assertReadOnlyViewerProvenance(model) {
+  assert.deepEqual(model.provenance, {
+    sourceTruth: "explicit-structured-input",
+    artifactsAreDerived: true,
+    promptIsSourceTruth: false,
+    displayabilityIsTruthValidation: false,
+  });
+}
+
 function assertValidR31Result(result) {
   assert.equal(result.status, "valid");
   assert.equal(result.analysisId, "analysis:r31-structured-layout-real-usecase");
@@ -149,6 +202,38 @@ function assertNoForbiddenAuthorityLanguage(text, label) {
   for (const [pattern, forbiddenLabel] of forbiddenPatterns) {
     assert.doesNotMatch(text, pattern, `${label} must not imply ${forbiddenLabel}`);
   }
+}
+
+function assertNoForbiddenViewerAuthorityLanguage(model) {
+  const text = JSON.stringify(model);
+  assertNoForbiddenAuthorityLanguage(text, "read-only viewer model");
+
+  const forbiddenPatterns = [
+    [/\b(?:recommend|recommendation|recommended)\b/iu, "recommendation claim"],
+    [/\boptim(?:ize|ise|ization|isation|ized|ised|izing|ising)\b/iu, "optimization claim"],
+    [/\bcorrect(?:s|ed|ing|ion)?\b/iu, "correction claim"],
+    [/\bbeauty(?:\s+score|\s+scoring)?\b/iu, "beauty-scoring claim"],
+    [/\bprompt(?: text)?\s+is\s+source\s+truth\b/iu, "prompt source-truth claim"],
+    [/\bartifacts?\s+(?:are|is)\s+source\s+truth\b/iu, "artifact source-truth claim"],
+    [/\bdisplayability\s+(?:is|as)\s+(?:truth|source-truth)\s+validation\b/iu, "displayability validation claim"],
+    [/\bsource truth\s+(?:is\s+)?(?:created|inferred|redefined|validated)\b/iu, "source-truth authority claim"],
+  ];
+
+  for (const [pattern, forbiddenLabel] of forbiddenPatterns) {
+    assert.doesNotMatch(text, pattern, `read-only viewer model must not introduce ${forbiddenLabel}`);
+  }
+}
+
+function row(model, sectionId, label) {
+  return model.sections
+    .find((section) => section.id === sectionId)
+    ?.rows.find((candidate) => candidate.label === label);
+}
+
+function assertRowIncludes(model, sectionId, label, expectedText) {
+  const value = row(model, sectionId, label)?.value;
+  assert.equal(typeof value, "string", `${sectionId}.${label}`);
+  assert.equal(value.includes(expectedText), true, `${sectionId}.${label}`);
 }
 
 async function readJson(filePath) {
