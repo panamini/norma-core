@@ -340,7 +340,25 @@ export const localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChanged
     .sort(),
 );
 
+export const realUsecaseStructuredLayoutDemoChangedFiles = Object.freeze([
+  "docs/examples/real-usecase-structured-layout-demo.md",
+  "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+  "tests/real-usecase-structured-layout-demo.test.mjs",
+].sort());
+
+export const realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  realUsecaseStructuredLayoutDemoChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 const sharedExactApprovedChangedFileSets = [
+  realUsecaseStructuredLayoutDemoChangedFiles,
+  realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,

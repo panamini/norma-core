@@ -1,0 +1,956 @@
+{
+  "acceptance": {
+    "acceptanceRecordId": "acceptance:structured-layout-real-usecase",
+    "accepted": true,
+    "acceptedAt": "2026-06-30T00:00:00Z",
+    "acceptedBy": "r31-real-usecase-structured-layout-demo",
+    "acceptedSourceIds": [
+      "composition:structured-layout-real-usecase:poster-frame:A",
+      "composition:structured-layout-real-usecase:poster-frame:B",
+      "poster-a-body-copy-column",
+      "poster-a-hero-panel",
+      "poster-a-metadata-strip",
+      "poster-a-product-card",
+      "poster-a-subtitle-band",
+      "poster-a-title-block",
+      "poster-b-body-copy-column",
+      "poster-b-hero-panel-offset",
+      "poster-b-metadata-strip",
+      "poster-b-product-card-offset",
+      "poster-b-subtitle-band",
+      "poster-b-title-block-offset",
+      "surface:structured-layout-real-usecase:poster-frame:1200x1697"
+    ],
+    "mode": "user_supplied_structured_data"
+  },
+  "analysisId": "analysis:r31-structured-layout-real-usecase",
+  "comparisonTolerances": {
+    "id": "structured-layout-real-usecase:comparison-tolerances",
+    "kind": "tie-policy",
+    "scoreTolerance": 0.01
+  },
+  "compositionA": {
+    "coordinateSystem": {
+      "coordinateScale": "metric",
+      "dimensions": 2,
+      "id": "structured-layout-real-usecase:2d-pixel-space",
+      "kind": "coordinate-system",
+      "origin": "bottom-left",
+      "xAxis": "right",
+      "yAxis": "up"
+    },
+    "elements": [
+      {
+        "geometry": {
+          "height": 994,
+          "kind": "rect",
+          "width": 703,
+          "x": 0,
+          "y": 703
+        },
+        "id": "poster-a-hero-panel",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 560,
+          "kind": "rect",
+          "width": 497,
+          "x": 703,
+          "y": 994
+        },
+        "id": "poster-a-title-block",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 146,
+          "kind": "rect",
+          "width": 497,
+          "x": 703,
+          "y": 848
+        },
+        "id": "poster-a-subtitle-band",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 703,
+          "kind": "rect",
+          "width": 497,
+          "x": 703,
+          "y": 0
+        },
+        "id": "poster-a-product-card",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 703,
+          "kind": "rect",
+          "width": 497,
+          "x": 0,
+          "y": 0
+        },
+        "id": "poster-a-body-copy-column",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 703,
+          "kind": "rect",
+          "width": 206,
+          "x": 497,
+          "y": 0
+        },
+        "id": "poster-a-metadata-strip",
+        "kind": "element"
+      }
+    ],
+    "id": "composition:structured-layout-real-usecase:poster-frame:A",
+    "kind": "composition-2d",
+    "metricPolicy": {
+      "id": "structured-layout-real-usecase:pixel-length-policy",
+      "kind": "metric-policy",
+      "quantity": "length",
+      "unit": "px"
+    },
+    "surface": {
+      "bounds": {
+        "height": 1697,
+        "kind": "rect",
+        "width": 1200,
+        "x": 0,
+        "y": 0
+      },
+      "coordinateSystem": {
+        "coordinateScale": "metric",
+        "dimensions": 2,
+        "id": "structured-layout-real-usecase:2d-pixel-space",
+        "kind": "coordinate-system",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up"
+      },
+      "id": "surface:structured-layout-real-usecase:poster-frame:1200x1697",
+      "kind": "surface-space",
+      "metricPolicy": {
+        "id": "structured-layout-real-usecase:pixel-length-policy",
+        "kind": "metric-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "tolerancePolicy": {
+        "coordinateTolerance": 0,
+        "id": "structured-layout-real-usecase:tolerance-policy",
+        "kind": "tolerance-policy",
+        "metricTolerance": 1
+      }
+    },
+    "tolerancePolicy": {
+      "coordinateTolerance": 0,
+      "id": "structured-layout-real-usecase:tolerance-policy",
+      "kind": "tolerance-policy",
+      "metricTolerance": 1
+    }
+  },
+  "compositionB": {
+    "coordinateSystem": {
+      "coordinateScale": "metric",
+      "dimensions": 2,
+      "id": "structured-layout-real-usecase:2d-pixel-space",
+      "kind": "coordinate-system",
+      "origin": "bottom-left",
+      "xAxis": "right",
+      "yAxis": "up"
+    },
+    "elements": [
+      {
+        "geometry": {
+          "height": 1047,
+          "kind": "rect",
+          "width": 680,
+          "x": 0,
+          "y": 650
+        },
+        "id": "poster-b-hero-panel-offset",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 540,
+          "kind": "rect",
+          "width": 520,
+          "x": 680,
+          "y": 980
+        },
+        "id": "poster-b-title-block-offset",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 160,
+          "kind": "rect",
+          "width": 520,
+          "x": 680,
+          "y": 820
+        },
+        "id": "poster-b-subtitle-band",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 670,
+          "kind": "rect",
+          "width": 510,
+          "x": 690,
+          "y": 0
+        },
+        "id": "poster-b-product-card-offset",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 650,
+          "kind": "rect",
+          "width": 470,
+          "x": 0,
+          "y": 0
+        },
+        "id": "poster-b-body-copy-column",
+        "kind": "element"
+      },
+      {
+        "geometry": {
+          "height": 650,
+          "kind": "rect",
+          "width": 220,
+          "x": 470,
+          "y": 0
+        },
+        "id": "poster-b-metadata-strip",
+        "kind": "element"
+      }
+    ],
+    "id": "composition:structured-layout-real-usecase:poster-frame:B",
+    "kind": "composition-2d",
+    "metricPolicy": {
+      "id": "structured-layout-real-usecase:pixel-length-policy",
+      "kind": "metric-policy",
+      "quantity": "length",
+      "unit": "px"
+    },
+    "surface": {
+      "bounds": {
+        "height": 1697,
+        "kind": "rect",
+        "width": 1200,
+        "x": 0,
+        "y": 0
+      },
+      "coordinateSystem": {
+        "coordinateScale": "metric",
+        "dimensions": 2,
+        "id": "structured-layout-real-usecase:2d-pixel-space",
+        "kind": "coordinate-system",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up"
+      },
+      "id": "surface:structured-layout-real-usecase:poster-frame:1200x1697",
+      "kind": "surface-space",
+      "metricPolicy": {
+        "id": "structured-layout-real-usecase:pixel-length-policy",
+        "kind": "metric-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "tolerancePolicy": {
+        "coordinateTolerance": 0,
+        "id": "structured-layout-real-usecase:tolerance-policy",
+        "kind": "tolerance-policy",
+        "metricTolerance": 1
+      }
+    },
+    "tolerancePolicy": {
+      "coordinateTolerance": 0,
+      "id": "structured-layout-real-usecase:tolerance-policy",
+      "kind": "tolerance-policy",
+      "metricTolerance": 1
+    }
+  },
+  "contractVersion": "structured-composition-analysis-input.v1",
+  "evaluationProfile": {
+    "allowMinimalScore": true,
+    "components": [
+      {
+        "id": "guide_proximity",
+        "measurementSources": [
+          {
+            "measurementType": "distance",
+            "metric": "edge-to-guide-distance"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "alignment",
+        "measurementSources": [
+          {
+            "measurementType": "alignment",
+            "metric": "edge-guide-alignment"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "containment",
+        "measurementSources": [
+          {
+            "measurementType": "containment",
+            "metric": "surface-contains-element"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "overlap_penalty",
+        "measurementSources": [
+          {
+            "measurementType": "overlap",
+            "metric": "element-overlap-area"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "coverage_match",
+        "measurementSources": [
+          {
+            "measurementType": "coverage",
+            "metric": "surface-coverage-by-elements"
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": "area_ratio_match",
+        "measurementSources": [
+          {
+            "measurementType": "area",
+            "metric": "element-area"
+          }
+        ],
+        "weight": 1
+      }
+    ],
+    "id": "basic-grid-alignment",
+    "kind": "evaluation-profile",
+    "limits": {
+      "noBeautyScore": true,
+      "noComparison": true,
+      "noDecision": true,
+      "noIntentInference": true,
+      "noMeasurementDefinitions": true,
+      "noRatioDefinitions": true,
+      "noRecommendation": true,
+      "noRuleDefinitions": true,
+      "requiresExplicitTolerances": true
+    },
+    "provenance": {
+      "evaluationRef": "evaluation-profile:basic-grid-alignment",
+      "inputRefs": [
+        {
+          "kind": "spec",
+          "ref": "PR8 Evaluation profile and scoring minimal"
+        }
+      ],
+      "kind": "evaluation-provenance",
+      "operationRef": "core.evaluation.basic.evaluate@0.1.0",
+      "sourceRefs": [
+        {
+          "kind": "spec",
+          "ref": "PR8 Evaluation profile and scoring minimal"
+        }
+      ]
+    },
+    "ref": "evaluation-profile:basic-grid-alignment",
+    "version": "0.1.0-pr8"
+  },
+  "evaluationTolerances": {
+    "alignment": 0,
+    "areaRatio": 0.05,
+    "containment": 0,
+    "coverage": 0.02,
+    "guideProximity": 0.1,
+    "id": "structured-layout-real-usecase:evaluation-tolerances",
+    "kind": "evaluation-tolerances",
+    "overlap": 0.01
+  },
+  "operationContext": {
+    "kind": "operation-context",
+    "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:structured-layout-real-usecase:2d-pixel-space:structured-layout-real-usecase:pixel-length-policy:structured-layout-real-usecase:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:explicitStructuredJsonInput:true_localStructuredAnalyzeReportKit:true_r31RealUsecaseStructuredLayoutDemo:true",
+    "ref": {
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:structured-layout-real-usecase:2d-pixel-space:structured-layout-real-usecase:pixel-length-policy:structured-layout-real-usecase:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:explicitStructuredJsonInput:true_localStructuredAnalyzeReportKit:true_r31RealUsecaseStructuredLayoutDemo:true"
+    },
+    "coreVersion": "0.1.0-pr12",
+    "operationName": "core.structured-composition-analysis.analyze",
+    "operationVersion": "0.1.0-r6",
+    "geometryModelVersion": "geometry-v1",
+    "coordinatePolicy": {
+      "value": {
+        "coordinateScale": "metric",
+        "dimensions": 2,
+        "id": "structured-layout-real-usecase:2d-pixel-space",
+        "kind": "coordinate-system",
+        "origin": "bottom-left",
+        "xAxis": "right",
+        "yAxis": "up"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "coordinate-policy",
+          "ref": "structured-layout-real-usecase:2d-pixel-space"
+        }
+      ]
+    },
+    "metricPolicy": {
+      "value": {
+        "id": "structured-layout-real-usecase:pixel-length-policy",
+        "kind": "metric-policy",
+        "quantity": "length",
+        "unit": "px"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "metric-policy",
+          "ref": "structured-layout-real-usecase:pixel-length-policy"
+        }
+      ]
+    },
+    "tolerancePolicy": {
+      "value": {
+        "coordinateTolerance": 0,
+        "id": "structured-layout-real-usecase:tolerance-policy",
+        "kind": "tolerance-policy",
+        "metricTolerance": 1
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "tolerance-policy",
+          "ref": "structured-layout-real-usecase:tolerance-policy"
+        }
+      ]
+    },
+    "roundingPolicy": {
+      "value": {
+        "id": "runtime.rounding.none",
+        "kind": "rounding-policy",
+        "mode": "none",
+        "precision": null
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "rounding-policy",
+          "ref": "runtime.rounding.none"
+        }
+      ]
+    },
+    "numericPolicy": {
+      "value": {
+        "finiteOnly": true,
+        "id": "runtime.numeric.finite-number",
+        "kind": "numeric-policy",
+        "precision": "number"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "numeric-policy",
+          "ref": "runtime.numeric.finite-number"
+        }
+      ]
+    },
+    "orderingPolicy": {
+      "value": {
+        "featureFlags": "key-ascending",
+        "id": "runtime.ordering.output-refs-v1",
+        "kind": "ordering-policy",
+        "outputRefs": "kind-rank-then-ref"
+      },
+      "explicit": true,
+      "sourceRefs": [
+        {
+          "kind": "ordering-policy",
+          "ref": "runtime.ordering.output-refs-v1"
+        }
+      ]
+    },
+    "featureFlags": {
+      "explicitStructuredJsonInput": true,
+      "localStructuredAnalyzeReportKit": true,
+      "r31RealUsecaseStructuredLayoutDemo": true
+    },
+    "sourceRefs": [
+      {
+        "kind": "structured-analysis-input",
+        "ref": "structured-layout-real-usecase:structured-input"
+      },
+      {
+        "kind": "surface",
+        "ref": "surface:structured-layout-real-usecase:poster-frame:1200x1697"
+      },
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.root-two-harmonics@0.1.0"
+      },
+      {
+        "kind": "rule-set",
+        "ref": "surface-root-two-section"
+      },
+      {
+        "kind": "evaluation-profile",
+        "ref": "basic-grid-alignment"
+      },
+      {
+        "kind": "coordinate-policy",
+        "ref": "structured-layout-real-usecase:2d-pixel-space"
+      },
+      {
+        "kind": "metric-policy",
+        "ref": "structured-layout-real-usecase:pixel-length-policy"
+      },
+      {
+        "kind": "tolerance-policy",
+        "ref": "structured-layout-real-usecase:tolerance-policy"
+      },
+      {
+        "kind": "rounding-policy",
+        "ref": "runtime.rounding.none"
+      },
+      {
+        "kind": "numeric-policy",
+        "ref": "runtime.numeric.finite-number"
+      },
+      {
+        "kind": "ordering-policy",
+        "ref": "runtime.ordering.output-refs-v1"
+      }
+    ],
+    "provenance": {
+      "operationName": "core.runtime-v1.operation-context.create",
+      "operationVersion": "0.1.0",
+      "inputRefs": [
+        {
+          "kind": "structured-analysis-input",
+          "ref": "structured-layout-real-usecase:structured-input"
+        },
+        {
+          "kind": "surface",
+          "ref": "surface:structured-layout-real-usecase:poster-frame:1200x1697"
+        },
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.root-two-harmonics@0.1.0"
+        },
+        {
+          "kind": "rule-set",
+          "ref": "surface-root-two-section"
+        },
+        {
+          "kind": "evaluation-profile",
+          "ref": "basic-grid-alignment"
+        },
+        {
+          "kind": "coordinate-policy",
+          "ref": "structured-layout-real-usecase:2d-pixel-space"
+        },
+        {
+          "kind": "metric-policy",
+          "ref": "structured-layout-real-usecase:pixel-length-policy"
+        },
+        {
+          "kind": "tolerance-policy",
+          "ref": "structured-layout-real-usecase:tolerance-policy"
+        },
+        {
+          "kind": "rounding-policy",
+          "ref": "runtime.rounding.none"
+        },
+        {
+          "kind": "numeric-policy",
+          "ref": "runtime.numeric.finite-number"
+        },
+        {
+          "kind": "ordering-policy",
+          "ref": "runtime.ordering.output-refs-v1"
+        }
+      ],
+      "source": {
+        "kind": "core",
+        "ref": "norma-core/runtime-readiness-v1"
+      }
+    }
+  },
+  "packLock": {
+    "kind": "pack-lock",
+    "id": "pack-lock:norma.root-two-harmonics@0.1.0:norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+    "ref": {
+      "id": "pack-lock:norma.root-two-harmonics@0.1.0:norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition"
+    },
+    "coreVersion": "0.1.0-pr12",
+    "packId": "norma.root-two-harmonics",
+    "packVersion": "0.1.0",
+    "packSchemaVersion": "ratio-pack-v1",
+    "contentIdentity": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+    "sourceRefs": [
+      {
+        "kind": "ratio-pack",
+        "ref": "norma.root-two-harmonics@0.1.0"
+      },
+      {
+        "kind": "mathematical-ratio",
+        "ref": "root-two-section"
+      }
+    ],
+    "provenance": {
+      "operationName": "core.runtime-v1.pack-lock.create",
+      "operationVersion": "0.1.0",
+      "inputRefs": [
+        {
+          "kind": "ratio-pack",
+          "ref": "norma.root-two-harmonics@0.1.0"
+        },
+        {
+          "kind": "pack-content-identity",
+          "ref": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition"
+        },
+        {
+          "kind": "mathematical-ratio",
+          "ref": "root-two-section"
+        }
+      ],
+      "source": {
+        "kind": "core",
+        "ref": "norma-core/runtime-readiness-v1"
+      }
+    },
+    "status": "effective_pr11"
+  },
+  "provenance": {
+    "acceptanceRecord": {
+      "acceptanceRecordId": "acceptance:structured-layout-real-usecase",
+      "accepted": true,
+      "acceptedAt": "2026-06-30T00:00:00Z",
+      "acceptedBy": "r31-real-usecase-structured-layout-demo",
+      "acceptedSourceIds": [
+        "composition:structured-layout-real-usecase:poster-frame:A",
+        "composition:structured-layout-real-usecase:poster-frame:B",
+        "poster-a-body-copy-column",
+        "poster-a-hero-panel",
+        "poster-a-metadata-strip",
+        "poster-a-product-card",
+        "poster-a-subtitle-band",
+        "poster-a-title-block",
+        "poster-b-body-copy-column",
+        "poster-b-hero-panel-offset",
+        "poster-b-metadata-strip",
+        "poster-b-product-card-offset",
+        "poster-b-subtitle-band",
+        "poster-b-title-block-offset",
+        "surface:structured-layout-real-usecase:poster-frame:1200x1697"
+      ],
+      "mode": "user_supplied_structured_data"
+    },
+    "adapter": null,
+    "callerSourceIds": [
+      "composition:structured-layout-real-usecase:poster-frame:A",
+      "composition:structured-layout-real-usecase:poster-frame:B",
+      "poster-a-body-copy-column",
+      "poster-a-hero-panel",
+      "poster-a-metadata-strip",
+      "poster-a-product-card",
+      "poster-a-subtitle-band",
+      "poster-a-title-block",
+      "poster-b-body-copy-column",
+      "poster-b-hero-panel-offset",
+      "poster-b-metadata-strip",
+      "poster-b-product-card-offset",
+      "poster-b-subtitle-band",
+      "poster-b-title-block-offset",
+      "surface:structured-layout-real-usecase:poster-frame:1200x1697"
+    ],
+    "externalSourceRef": {
+      "kind": "local-structured-json-usecase",
+      "ref": "r31-structured-layout-real-usecase"
+    },
+    "kind": "structured-composition-analysis-provenance",
+    "mappingVersion": "r31-real-usecase-structured-layout-demo-v1",
+    "normalizationVersion": null,
+    "operationContextRef": {
+      "id": "operation-context:core.structured-composition-analysis.analyze:0.1.0-r6:geometry-v1:structured-layout-real-usecase:2d-pixel-space:structured-layout-real-usecase:pixel-length-policy:structured-layout-real-usecase:tolerance-policy:runtime.rounding.none:runtime.numeric.finite-number:runtime.ordering.output-refs-v1:explicitStructuredJsonInput:true_localStructuredAnalyzeReportKit:true_r31RealUsecaseStructuredLayoutDemo:true"
+    },
+    "sourceKind": "user_supplied_structured_data",
+    "transformationSteps": []
+  },
+  "ratioPack": {
+    "kind": "ratio-pack",
+    "id": "norma.root-two-harmonics",
+    "version": "0.1.0",
+    "schemaVersion": "ratio-pack-v1",
+    "identity": {
+      "kind": "ratio-pack-identity",
+      "id": "norma.root-two-harmonics",
+      "concept": "Root-two architectural surface partitions"
+    },
+    "contentIdentity": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+    "metadata": {
+      "name": "Norma Root-Two Harmonics",
+      "description": "Authored root-two surface partition pack for explicit Structured Analyze fixtures.",
+      "owner": "norma-core-tests"
+    },
+    "provenance": {
+      "kind": "ratio-pack-provenance",
+      "source": "mathematical",
+      "sourceRefs": [
+        {
+          "kind": "mathematical-ratio",
+          "ref": "root-two-section"
+        }
+      ]
+    },
+    "compatibility": {
+      "schemaVersion": "ratio-pack-v1",
+      "coreVersionRange": "0.1.0-pr12"
+    },
+    "limits": {
+      "noBeautyClaims": true,
+      "noIntentInference": true,
+      "noUiPreset": true
+    },
+    "conventions": [
+      "ratio-pack-v1",
+      "declarative-rules-only"
+    ],
+    "ratios": [
+      {
+        "kind": "ratio",
+        "id": "sqrt2-minor",
+        "numerator": 1,
+        "denominator": 2.414213562373095,
+        "normalizedValue": 0.4142135623730951,
+        "familyRef": "root-two-section"
+      },
+      {
+        "kind": "ratio",
+        "id": "sqrt2-major",
+        "numerator": 1.4142135623730951,
+        "denominator": 2.414213562373095,
+        "normalizedValue": 0.5857864376269049,
+        "familyRef": "root-two-section"
+      },
+      {
+        "kind": "ratio",
+        "id": "1/2",
+        "numerator": 1,
+        "denominator": 2,
+        "normalizedValue": 0.5,
+        "familyRef": "halves"
+      }
+    ],
+    "ratioFamilies": [
+      {
+        "kind": "ratio-family",
+        "id": "root-two-section",
+        "ratioRefs": [
+          "sqrt2-minor",
+          "sqrt2-major"
+        ],
+        "scope": "surface-partition"
+      },
+      {
+        "kind": "ratio-family",
+        "id": "halves",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "scope": "surface-partition"
+      }
+    ],
+    "ratioSequences": [
+      {
+        "kind": "ratio-sequence",
+        "id": "sqrt2:1",
+        "parts": [
+          1.4142135623730951,
+          1
+        ],
+        "normalizedParts": [
+          0.5857864376269049,
+          0.4142135623730951
+        ]
+      }
+    ],
+    "partitionPatterns": [
+      {
+        "kind": "partition-pattern",
+        "id": "root-two-section",
+        "ratioRefs": [
+          "sqrt2-minor",
+          "sqrt2-major"
+        ],
+        "sequenceRef": "sqrt2:1",
+        "axis": "both",
+        "declarationOnly": true
+      },
+      {
+        "kind": "partition-pattern",
+        "id": "halves",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "axis": "both",
+        "declarationOnly": true
+      }
+    ],
+    "ruleDeclarations": [
+      {
+        "kind": "rule-declaration",
+        "id": "verticalRootTwoSection",
+        "type": "divideSurfaceVertical",
+        "target": "surface",
+        "ratioRefs": [
+          "sqrt2-major"
+        ],
+        "sequenceRefs": [
+          "sqrt2:1"
+        ],
+        "partitionPatternRefs": [
+          "root-two-section"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "horizontalRootTwoSection",
+        "type": "divideSurfaceHorizontal",
+        "target": "surface",
+        "ratioRefs": [
+          "sqrt2-major"
+        ],
+        "sequenceRefs": [
+          "sqrt2:1"
+        ],
+        "partitionPatternRefs": [
+          "root-two-section"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "rootTwoSectionAxes",
+        "type": "createGuidesFromCandidates",
+        "target": "surface",
+        "ratioRefs": [
+          "sqrt2-minor",
+          "sqrt2-major",
+          "1/2"
+        ],
+        "partitionPatternRefs": [
+          "root-two-section",
+          "halves"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "rootTwoSectionGrid",
+        "type": "createSimpleGrid",
+        "target": "surface",
+        "ratioRefs": [
+          "sqrt2-major"
+        ],
+        "sequenceRefs": [
+          "sqrt2:1"
+        ],
+        "partitionPatternRefs": [
+          "root-two-section"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "rootTwoSectionDiagonals",
+        "type": "createDiagonals",
+        "target": "surface",
+        "ratioRefs": [
+          "1/2"
+        ],
+        "partitionPatternRefs": [
+          "halves"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      },
+      {
+        "kind": "rule-declaration",
+        "id": "rootTwoSectionIntersections",
+        "type": "deriveIntersections",
+        "target": "surface",
+        "ratioRefs": [
+          "sqrt2-minor",
+          "sqrt2-major",
+          "1/2"
+        ],
+        "sequenceRefs": [
+          "sqrt2:1"
+        ],
+        "partitionPatternRefs": [
+          "root-two-section",
+          "halves"
+        ],
+        "requiresCoreSupport": true,
+        "declarationOnly": true
+      }
+    ],
+    "ruleSets": [
+      {
+        "kind": "rule-set",
+        "id": "surface-root-two-section",
+        "ruleRefs": [
+          "verticalRootTwoSection",
+          "horizontalRootTwoSection",
+          "rootTwoSectionAxes",
+          "rootTwoSectionGrid",
+          "rootTwoSectionDiagonals",
+          "rootTwoSectionIntersections"
+        ],
+        "declarationOnly": true
+      }
+    ],
+    "preLock": {
+      "kind": "pack-lock-prelock",
+      "ref": "prelock:norma.root-two-harmonics@0.1.0",
+      "packId": "norma.root-two-harmonics",
+      "packVersion": "0.1.0",
+      "schemaVersion": "ratio-pack-v1",
+      "contentIdentity": "norma.root-two-harmonics@0.1.0:ratio-pack-v1:root-two-surface-partition",
+      "final": false
+    }
+  },
+  "ruleSetRef": "surface-root-two-section",
+  "tolerancePolicy": {
+    "coordinateTolerance": 0,
+    "id": "structured-layout-real-usecase:tolerance-policy",
+    "kind": "tolerance-policy",
+    "metricTolerance": 1
+  }
+}
