@@ -37,6 +37,7 @@ import {
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   realUsecaseLocalDemoCommandChangedFiles,
+  realUsecaseLocalDemoCommandHardeningChangedFiles,
   roadmapConvergenceAfterR16ChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
@@ -287,6 +288,28 @@ test("shared exact changed-file guard accepts the R34 real-usecase local demo co
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       realUsecaseLocalDemoCommandChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R35 real-usecase local demo command hardening set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(realUsecaseLocalDemoCommandHardeningChangedFiles),
+    realUsecaseLocalDemoCommandHardeningChangedFiles,
+  );
+
+  assert.deepEqual(realUsecaseLocalDemoCommandHardeningChangedFiles, [
+    "bin/norma-core-real-usecase-demo.mjs",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/real-usecase-local-demo-command.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      realUsecaseLocalDemoCommandHardeningChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1215,6 +1238,43 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...realUsecaseLocalDemoCommandChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, docs, and example extras in the R35 demo hardening set", () => {
+  const missingRequiredFile = realUsecaseLocalDemoCommandHardeningChangedFiles.filter(
+    (file) => file !== "tests/real-usecase-local-demo-command.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "docs/local-structured-analyze-report-kit.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...realUsecaseLocalDemoCommandHardeningChangedFiles,
         forbiddenFile,
       ]),
       null,
