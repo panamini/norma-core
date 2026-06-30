@@ -32,6 +32,8 @@ import {
   ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
+  realUsecaseStructuredLayoutDemoChangedFiles,
+  realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   roadmapConvergenceAfterR16ChangedFiles,
   r1GeometrySourceIdentityChangedFiles,
   r7StructuredAnalyzeHardeningChangedFiles,
@@ -240,6 +242,43 @@ test("shared exact changed-file guard accepts the R30 local demo workflow smoke 
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       localStructuredAnalyzeDemoWorkflowSmokeChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R31 real-usecase Structured Analyze layout demo set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(realUsecaseStructuredLayoutDemoChangedFiles),
+    realUsecaseStructuredLayoutDemoChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles),
+    realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(realUsecaseStructuredLayoutDemoChangedFiles, [
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+    "tests/real-usecase-structured-layout-demo.test.mjs",
+  ]);
+  assert.deepEqual(realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles, [
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+    "tests/real-usecase-structured-layout-demo.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      realUsecaseStructuredLayoutDemoChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1003,6 +1042,45 @@ test("shared exact changed-file guard rejects non-R30 files in the R30 local dem
     sharedExactApprovedChangedFiles([...localStructuredAnalyzeDemoWorkflowSmokeChangedFiles, "tests/unrelated.test.mjs"]),
     null,
   );
+});
+
+test("shared exact changed-file guard rejects runtime, package, and extra files in the R31 real-usecase layout demo set", () => {
+  const missingRequiredFile = realUsecaseStructuredLayoutDemoChangedFiles.filter(
+    (file) => file !== "tests/real-usecase-structured-layout-demo.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "viewer/read-only-result-viewer.js",
+    "viewer/read-only-result-viewer.css",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "tests/fixtures/ratio-packs/norma-root-two-harmonics-0.1.0.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...realUsecaseStructuredLayoutDemoChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {

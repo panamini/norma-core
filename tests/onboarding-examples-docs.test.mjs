@@ -103,6 +103,7 @@ test("PR63 creates exactly the approved onboarding and examples docs", () => {
     "docs/examples/local-structured-analyze-demo-workflow.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
+    "docs/examples/real-usecase-structured-layout-demo.md",
     "docs/examples/structured-json-input-viewer.md",
     "docs/examples/verification-replay-result-viewer.md",
   ]);
