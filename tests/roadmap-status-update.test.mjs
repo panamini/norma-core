@@ -45,6 +45,12 @@ const postR25RoadmapTruthSyncDocPath = join(
   "decisions",
   "2026-06-30-post-r25-roadmap-truth-sync.md",
 );
+const postR31RoadmapTruthSyncDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-06-30-post-r31-roadmap-truth-sync.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -245,6 +251,47 @@ test("R26 roadmap truth sync records the post-R25 current state and historical q
     "MCP behavior changes",
     "report-kit behavior changes",
   ]);
+});
+
+test("R32 roadmap truth sync records the post-R31 execution model", () => {
+  assert.equal(existsSync(postR31RoadmapTruthSyncDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const postR31RoadmapTruthSyncDoc = readDoc(postR31RoadmapTruthSyncDocPath);
+  const postR31RoadmapSection = sectionForHeading(businessRoadmapDoc, "## Current State After R31");
+  const combinedDocs = `${postR31RoadmapSection}\n${postR31RoadmapTruthSyncDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "PR #152",
+    "R30 is complete",
+    "local Structured Analyze demo workflow smoke",
+    "PR #153",
+    "R31 is complete",
+    "real-usecase Structured Analyze layout demo",
+    "Package readiness and publication gate documents already exist",
+    "docs/PACKAGE_PUBLICATION_READINESS.md",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "old PR30, PR31, PR32, and PR33 labels are historical context",
+    "not the current execution queue",
+    "one small PR at a time",
+    "current repository gaps",
+    "The next real work after R32 must be selected from current gaps, not stale roadmap labels",
+  ]);
+
+  for (const blockedSurface of [
+    "public npm publication",
+    "hosted dashboard",
+    "API runtime",
+    "hosted or remote MCP",
+    "image, CAD, Figma, Photoshop, or Illustrator adapters",
+    "recommendation, optimization, or beauty scoring",
+    "prompt-derived source truth",
+  ]) {
+    assertDocMentions(combinedDocs, [blockedSurface]);
+  }
+
+  assert.doesNotMatch(combinedDocs, /\bnext\s+(?:mandatory|recommended)\s+PR\s*:\s*PR33\b/i);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+(?:complete|execute|start)\s+PR3[0-3]\b/i);
 });
 
 test("R19 roadmap records local inspection surfaces without approving product or remote scope", () => {
