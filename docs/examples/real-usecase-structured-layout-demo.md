@@ -1,34 +1,15 @@
 # Real-Usecase Structured Layout Demo
 
-This example shows a realistic product-detail layout encoded as explicit
-Structured Analyze geometry. The fixture is:
+This example models an editorial product-poster composition as explicit structured geometry. The JSON names a shared poster surface, two layout variants, and the rectangle sources for hero, title, subtitle, body copy, metadata, and product-card regions.
 
-`examples/structured-analyze/usecases/structured-layout-real-usecase.json`
-
-It models a 1200x900 page with explicit margin regions, 24 px gutters, a
-dominant media region, supporting copy and purchase regions, and three repeated
-support cards. Composition B is an offset version of the same layout intent so
-the existing engine can compare supplied rectangles deterministically.
-
-## Local Use
-
-Build the package, then run the focused smoke test:
+Run the existing local report flow:
 
 ```bash
-pnpm run build
-node --test tests/real-usecase-structured-layout-demo.test.mjs
+node bin/norma-core-report.mjs examples/structured-analyze/usecases/structured-layout-real-usecase.json /tmp/norma-r31-structured-layout-report
 ```
 
-The test loads the JSON fixture and calls `analyzeStructuredCompositionV1`
-directly through the current public package surface.
+The input is authored structured JSON. Norma Core receives coordinates, dimensions, `ratioPack`, `ruleSetRef`, `packLock`, and `operationContext` directly; it does not infer geometry from images, prompts, CAD, Figma, Illustrator, Photoshop, PDFs, or other files in this PR.
 
-## Boundary
+`result.json` is the canonical Norma truth. Any report artifacts in the output directory are derived local inspection output and must not redefine engine truth.
 
-The fixture is explicit structured geometry. Norma Core analyzes the supplied
-rectangles, ratio-pack reference, rule-set reference, policies, provenance, and
-acceptance record. It does not infer layout intent, optimize spacing, repair
-geometry, recommend design changes, or generate UI.
-
-Image analysis, CAD import, Figma, Photoshop, Illustrator, web dashboards, and
-LLM adapters are future adapter or product layers. They are not part of this
-example or this PR.
+A future adapter could produce structured geometry like this, but no adapter is implemented here. This example does not add image analysis, prompt ingestion, CAD/design-app ingestion, a hosted dashboard, a webapp, public API behavior, package publishing behavior, runtime family selection, recommendation, optimization, beauty scoring, correction, or automatic ratio-family selection.
