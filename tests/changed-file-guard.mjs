@@ -325,7 +325,15 @@ export const runnableRatioPackFamilyExamplesNonSemgrepMaintenanceChangedFiles = 
     .sort(),
 );
 
+export const localStructuredAnalyzeDemoWorkflowSmokeChangedFiles = Object.freeze([
+  "docs/examples/local-structured-analyze-demo-workflow.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-structured-analyze-demo-workflow.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
   runnableRatioPackFamilyExamplesChangedFiles,
