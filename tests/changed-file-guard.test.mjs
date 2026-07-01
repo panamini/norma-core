@@ -25,6 +25,8 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  localGuidedInspectionDemoChangedFiles,
+  localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
   localCliReportBoundaryFreezeChangedFiles,
   localTruthProjectionConsolidationSmokeChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
@@ -507,6 +509,85 @@ test("shared exact changed-file guard accepts the R36 local CLI/report boundary 
       localCliReportBoundaryFreezeChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR89 local guided inspection demo set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localGuidedInspectionDemoChangedFiles),
+    localGuidedInspectionDemoChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles),
+    localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(localGuidedInspectionDemoChangedFiles, [
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "docs/examples/local-guided-inspection-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-guided-inspection-demo.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+  assert.deepEqual(localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles, [
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "docs/examples/local-guided-inspection-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-guided-inspection-demo.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      localGuidedInspectionDemoChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime source package provider and deployment extras in the PR89 set", () => {
+  const missingRequiredFile = localGuidedInspectionDemoChangedFiles.filter(
+    (file) => file !== "tests/local-guided-inspection-demo.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "bin/norma-core-mcp-http.mjs",
+    ".github/workflows/ci.yml",
+    ".env.example",
+    "Dockerfile",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localGuidedInspectionDemoChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });

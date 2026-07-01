@@ -382,6 +382,22 @@ export const localCliReportBoundaryFreezeChangedFiles = Object.freeze([
   "tests/real-usecase-local-demo-command.test.mjs",
 ].sort());
 
+export const localGuidedInspectionDemoChangedFiles = Object.freeze([
+  "bin/norma-core-guided-inspection-demo.mjs",
+  "docs/examples/local-guided-inspection-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-guided-inspection-demo.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+].sort());
+
+export const localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  localGuidedInspectionDemoChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -472,6 +488,8 @@ const sharedExactApprovedChangedFileSets = [
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
+  localGuidedInspectionDemoChangedFiles,
+  localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
   localCliReportBoundaryFreezeChangedFiles,
   realUsecaseLocalDemoCommandHardeningChangedFiles,
   realUsecaseLocalDemoCommandChangedFiles,
