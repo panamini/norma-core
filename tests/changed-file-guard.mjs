@@ -371,6 +371,10 @@ export const realUsecaseLocalDemoCommandChangedFiles = Object.freeze([
   "tests/real-usecase-local-demo-command.test.mjs",
 ].sort());
 
+export const realUsecaseLocalDemoCommandHardeningChangedFiles = Object.freeze([
+  ...realUsecaseLocalDemoCommandChangedFiles,
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -383,6 +387,7 @@ export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  realUsecaseLocalDemoCommandHardeningChangedFiles,
   realUsecaseLocalDemoCommandChangedFiles,
   localTruthProjectionConsolidationSmokeChangedFiles,
   postR31RoadmapTruthSyncChangedFiles,
