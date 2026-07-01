@@ -102,18 +102,16 @@ test("PR88 integration unlock does not approve forbidden runtime or publication 
     "package-root exports",
   ]);
 
-  const forbiddenApprovalPatterns = [
-    /\bhosted MCP(?: server)?(?: runtime)?\s+is\s+approved\b/i,
-    /\bChatGPT connector runtime\s+is\s+approved\b/i,
-    /\bimage(?:\/CAD\/Figma\/provider)? adapter implementation\s+is\s+approved\b/i,
-    /\bOpenAI integration\s+is\s+approved\b/i,
-    /\bpackage publication\s+is\s+approved\b/i,
-    /\bpackage-root exports?\s+(?:are|is)\s+approved\b/i,
-  ];
+  assert.match("Approved: hosted MCP", approvalPatternsFor("hosted MCP(?: server)?(?: runtime)?")[1]);
+  assert.match("approved, package publication", approvalPatternsFor("package publication")[1]);
+  assert.match("approved hosted MCP", approvalPatternsFor("hosted MCP(?: server)?(?: runtime)?")[1]);
 
-  for (const pattern of forbiddenApprovalPatterns) {
-    assert.doesNotMatch(combinedDocs, pattern);
-  }
+  assertNoApproval(combinedDocs, "hosted MCP(?: server)?(?: runtime)?");
+  assertNoApproval(combinedDocs, "ChatGPT connector runtime");
+  assertNoApproval(combinedDocs, "OpenAI integration");
+  assertNoApproval(combinedDocs, "package publication");
+  assertNoApproval(combinedDocs, "package-root exports?");
+  assertNoApproval(combinedDocs, "(?:image/CAD/Figma/provider )?adapter implementation");
 });
 
 function combinedUnlockDocs() {
@@ -151,6 +149,19 @@ function assertOrdered(doc, snippets) {
     assert.ok(index > previousIndex, `${snippet} should appear after the previous priority`);
     previousIndex = index;
   }
+}
+
+function assertNoApproval(doc, surfacePattern) {
+  for (const pattern of approvalPatternsFor(surfacePattern)) {
+    assert.doesNotMatch(doc, pattern);
+  }
+}
+
+function approvalPatternsFor(surfacePattern) {
+  return [
+    new RegExp(`\\b${surfacePattern}\\s+(?:is|are|was|were)\\s+approved\\b`, "i"),
+    new RegExp(`\\bapproved(?:\\s+|\\s*[:,-]\\s*)${surfacePattern}\\b`, "i"),
+  ];
 }
 
 function escapeRegExp(value) {
