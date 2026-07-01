@@ -414,7 +414,14 @@ export const acceptedGeometryToCoreMapperReviewFixesChangedFiles = Object.freeze
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+export const acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles = Object.freeze([
+  "tests/accepted-geometry-to-structured-analyze-integration.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
