@@ -12,7 +12,15 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
-This roadmap is synced through R31. R22 through R25 are complete, R26, R30, and R31 are roadmap/usecase stabilization checkpoints, and the old PR27-PR46 ladder and old PR30-PR33 labels remain historical/gated context, not the current execution queue.
+This roadmap is synced through PR82. R22 through R25 are complete, R26, R30,
+R31, R32, R33, R34, R35, R36, PR81, and PR82 are local/private/manual
+stabilization, demo, boundary, mapper, and proof checkpoints. The old
+PR27-PR46 ladder and old PR30-PR33 labels remain historical/gated context, not
+the current execution queue.
+
+Historical R32 wording remains true for that checkpoint: This roadmap is synced
+through R31, and R26, R30, and R31 are roadmap/usecase stabilization
+checkpoints.
 
 Historical R26 wording remains true for that checkpoint: this roadmap is synced
 through R25.
@@ -489,6 +497,53 @@ The current execution model is current-gap driven:
 
 R32 is this docs/tests-only post-R31 roadmap truth-sync checkpoint.
 The next real work after R32 must be selected from current gaps, not stale
+roadmap labels.
+
+## Current State After PR82
+
+Current truth-sync reference:
+`docs/decisions/2026-07-01-post-pr82-roadmap-truth-sync.md`.
+
+Norma Core is current through PR #162 / PR82 at
+`6537b3a59fedd348d693a12e319e910a6a7283dd`.
+
+R31 through R36 are complete:
+
+- PR #153 / R31 added the real-usecase Structured Analyze layout demo.
+- PR #154 / R32 synced the roadmap after R31.
+- PR #155 / R32 added the real-usecase local inspection demo smoke.
+- PR #156 / R33 consolidated local truth projection smoke coverage.
+- PR #157 / R34 added the real-usecase local demo command.
+- PR #158 / R35 hardened the local demo command.
+- PR #159 / R36 froze the local CLI report boundary.
+
+PR81 and PR82 are complete:
+
+- PR #160 / PR81 added the package-private accepted geometry to Core mapper.
+- PR #161 fixed PR81 mapper review findings.
+- PR #162 / PR82 proved the synthetic accepted geometry to Structured Analyze
+  bridge.
+
+The accepted geometry mapper remains package-private. It is not a package-root
+export, not a public API, not a provider adapter, not a perception layer, not a
+source-truth shortcut, and not a public product surface.
+
+PR82 proves deterministic synthetic bridge reachability only: rectangle-only
+synthetic `AcceptedGeometry@1` payloads map through the package-private mapper,
+an explicit synthetic shared-unit-surface normalization step is still required
+before pair analysis, mapped compositions can feed
+`analyzeStructuredCompositionV1`, and unsupported accepted-geometry primitives
+stop at the mapper.
+
+This checkpoint does not approve provider ingestion, image analysis, OpenAI or
+ChatGPT runtime behavior, camera/CAD/Figma/Photoshop/Illustrator adapters,
+hosted MCP, remote API runtime, UI/dashboard behavior, package publication,
+public package exports, automatic ratio-pack or family selection,
+recommendation, optimization, correction, beauty scoring, prompt inference, or
+prompt-derived source truth.
+
+PR83 is this docs/tests-only post-PR82 roadmap truth-sync checkpoint.
+The next real work after PR83 must be selected from current gaps, not stale
 roadmap labels.
 
 The current package is not yet:
