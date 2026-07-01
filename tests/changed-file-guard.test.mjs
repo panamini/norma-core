@@ -19,6 +19,7 @@ import {
   geometryHarmonyPackReportExamplesChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
+  integrationUnlockContractsChangedFiles,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
@@ -201,6 +202,29 @@ test("shared exact changed-file guard accepts the PR87 post-PR86 roadmap truth s
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       postPr86RoadmapTruthSyncChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR88 integration unlock contracts set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(integrationUnlockContractsChangedFiles),
+    integrationUnlockContractsChangedFiles,
+  );
+
+  assert.deepEqual(integrationUnlockContractsChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-01-integration-unlock-contracts.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/integration-unlock-contracts.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      integrationUnlockContractsChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1443,6 +1467,52 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...postPr86RoadmapTruthSyncChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, provider, and deployment extras in the PR88 unlock set", () => {
+  const missingRequiredFile = integrationUnlockContractsChangedFiles.filter(
+    (file) => file !== "tests/integration-unlock-contracts.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/auth.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "bin/norma-core-mcp-http.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "docs/local-structured-analyze-report-kit.md",
+    ".github/workflows/ci.yml",
+    ".env.example",
+    "Dockerfile",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...integrationUnlockContractsChangedFiles,
         forbiddenFile,
       ]),
       null,

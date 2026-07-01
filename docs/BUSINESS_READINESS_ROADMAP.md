@@ -588,6 +588,66 @@ PR87 is this docs/tests-only post-PR86 roadmap truth-sync checkpoint. There is
 no forced PR ladder after PR86. The next real work after PR87 must be selected
 from current repository gaps, not stale roadmap labels.
 
+## Integration Unlock Contracts After PR87
+
+Current truth-sync reference:
+`docs/decisions/2026-07-01-integration-unlock-contracts.md`.
+
+PR87 is merged as PR #167 at
+`ccd8e8c03403cbf4fd080b11c77fd59bbdba41bf`.
+
+PR88 is a docs/tests-only integration unlock contract. It moves the next hosted
+MCP, private/dev ChatGPT connector, and image/CAD/Figma/provider adapter tracks
+from fully blocked future language into explicitly gated planned tracks. It
+does not implement any hosted runtime, connector runtime, adapter runtime,
+provider integration, package publication, public export, auth/OAuth flow,
+secret handling, deployment, dependency, lockfile, CI, CLI, report-kit, viewer,
+example, schema, or source-runtime change.
+
+The priority order after PR87 is:
+
+1. immediate local operator validation and visible proof over the existing
+   local demo, report, and MCP surfaces;
+2. MVP demo or guided inspection surface only when it remains local, explicit,
+   and derived from current Core output;
+3. package/publication readiness only after a separate package-readiness gate;
+4. hosted/private MCP and ChatGPT connector only after a separate runtime
+   approval gate;
+5. image/CAD/Figma/provider adapters only after a separate adapter approval
+   gate.
+
+The first safe implementation PR in each unlocked track is still a gate, not a
+runtime implementation:
+
+- Hosted/private MCP: define the exact hosted runtime approval contract, threat
+  model delta, deployment boundary, auth/secrets boundary, budget/retention
+  boundary, allowed tools, and remote verification matrix before any hosted
+  server code.
+- Private/dev ChatGPT connector: define the connector approval contract,
+  metadata boundary, local/dev smoke evidence, tool exposure limits, and
+  no-public-submission boundary before any connector runtime or publication
+  work.
+- Image/CAD/Figma/provider adapters: define the adapter approval contract,
+  accepted structured geometry schema handoff, provenance/loss warnings,
+  source-truth split, provider-specific evidence, and first fixture-only proof
+  before any provider call, plugin, file ingestion, or adapter implementation.
+- Package/publication readiness: define package-readiness evidence, public API
+  surface, exports, dependency policy, and publish gate before any publication
+  state, package metadata, lockfile, or dependency change.
+
+All future unlock-track PRs must preserve the current Core source-truth model:
+Norma Core accepts explicit structured geometry only. Adapters and connectors
+may translate external representations into accepted structured geometry, but
+they must not become Norma source truth, prompt-inference shortcuts, hidden
+pack/rule/tolerance defaults, recommendation engines, optimization layers,
+beauty scorers, or correction layers.
+
+The PR86 metric-policy invariant remains mandatory for every future adapter,
+connector, hosted, and package path: explicit metric policies must stay
+coherent across accepted geometry, synthetic shared surfaces, normalized output
+compositions, Structured Analyze operation contexts, and any derived inspection
+artifact.
+
 The current package is not yet:
 
 - a full SDK;
