@@ -78,6 +78,32 @@ export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
   input: unknown,
 ): AcceptedGeometryStructuredAnalyzeNormalizationResultV1 {
   const requestId = requestIdFor(input);
+
+  try {
+    return normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(input, requestId);
+  } catch (error) {
+    if (!isDeterministicSerializationError(error)) {
+      throw error;
+    }
+
+    return createNormalizationResult({
+      requestId,
+      status: "invalid",
+      diagnostics: [
+        diagnostic(
+          "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+          "",
+          "AcceptedGeometry Structured Analyze normalization request must be deterministically serializable.",
+        ),
+      ],
+    });
+  }
+}
+
+function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
+  input: unknown,
+  requestId: string,
+): AcceptedGeometryStructuredAnalyzeNormalizationResultV1 {
   const diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[] = [];
 
   if (!isRecord(input)) {
@@ -100,6 +126,7 @@ export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
   validateNonEmptyString(input.normalizedCompositionBId, "normalizedCompositionBId", diagnostics);
   validateNonEmptyString(input.sharedSurfaceId, "sharedSurfaceId", diagnostics);
   validateNonEmptyString(input.transformationStepId, "transformationStepId", diagnostics);
+  validateTolerancePolicy(input.tolerancePolicy, "tolerancePolicy", diagnostics);
 
   const mappedCompositionA = compositionFor(input.mappedCompositionA, "mappedCompositionA", diagnostics);
   const mappedCompositionB = compositionFor(input.mappedCompositionB, "mappedCompositionB", diagnostics);
@@ -113,6 +140,16 @@ export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
   }
 
   const request = input as unknown as AcceptedGeometryStructuredAnalyzeNormalizationRequestV1;
+  validateOutputSourceIds(request, mappedCompositionA, mappedCompositionB, diagnostics);
+
+  if (diagnostics.length !== 0) {
+    return createNormalizationResult({
+      requestId,
+      status: "invalid",
+      diagnostics,
+    });
+  }
+
   const sharedSurface: SurfaceSpace = {
     ...mappedCompositionA.surface,
     id: request.sharedSurfaceId,
@@ -240,7 +277,7 @@ function validateExactRequestKeys(
   diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
 ): void {
   const allowed = new Set<string>(REQUEST_KEYS);
-  for (const key of Object.keys(request)) {
+  for (const key of Object.keys(request).sort(compareStrings)) {
     if (!allowed.has(key)) {
       diagnostics.push(diagnostic(
         "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
@@ -251,13 +288,27 @@ function validateExactRequestKeys(
   }
 
   for (const key of REQUEST_KEYS) {
-    if (!(key in request)) {
+    if (!Object.hasOwn(request, key)) {
       diagnostics.push(diagnostic(
         "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
         key,
         `AcceptedGeometry Structured Analyze normalization request requires field: ${key}.`,
       ));
     }
+  }
+}
+
+function validateTolerancePolicy(
+  value: unknown,
+  path: string,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): void {
+  if (!isTolerancePolicy(value)) {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path,
+      `${path} must be a valid explicit TolerancePolicy.`,
+    ));
   }
 }
 
@@ -272,6 +323,42 @@ function validateNonEmptyString(
       path,
       `${path} must be a non-empty string.`,
     ));
+  }
+}
+
+function validateOutputSourceIds(
+  request: AcceptedGeometryStructuredAnalyzeNormalizationRequestV1,
+  mappedCompositionA: Composition2D,
+  mappedCompositionB: Composition2D,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): void {
+  const inputSourceIds = new Set(sourceIdsFor(mappedCompositionA, mappedCompositionB));
+  const outputSourceIds = [
+    ["normalizedCompositionAId", request.normalizedCompositionAId],
+    ["normalizedCompositionBId", request.normalizedCompositionBId],
+    ["sharedSurfaceId", request.sharedSurfaceId],
+  ] as const;
+  const seenOutputIds = new Map<string, string>();
+
+  for (const [path, outputSourceId] of outputSourceIds) {
+    const firstPath = seenOutputIds.get(outputSourceId);
+    if (firstPath !== undefined) {
+      diagnostics.push(diagnostic(
+        "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+        path,
+        `${path} must not duplicate ${firstPath}.`,
+      ));
+    } else {
+      seenOutputIds.set(outputSourceId, path);
+    }
+
+    if (inputSourceIds.has(outputSourceId)) {
+      diagnostics.push(diagnostic(
+        "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+        path,
+        `${path} must not reuse an input source id.`,
+      ));
+    }
   }
 }
 
@@ -312,7 +399,11 @@ function sourceIdsFor(...compositions: readonly Composition2D[]): readonly strin
     ...composition.elements.map((element) => element.id),
     ...(composition.anchors ?? []).map((anchor) => anchor.id),
     ...composition.elements.flatMap((element) => (element.anchors ?? []).map((anchor) => anchor.id)),
-  ]))].sort((first, second) => first.localeCompare(second));
+  ]))].sort(compareStrings);
+}
+
+function compareStrings(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
 }
 
 function compositionRef(ref: string): SourceReference {
@@ -354,6 +445,28 @@ function contentIdentityFor(value: unknown): string {
   return `sha256:${hash.digest("hex")}`;
 }
 
+function isDeterministicSerializationError(error: unknown): boolean {
+  return error instanceof TypeError && error.message.startsWith("Stable serialization");
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isTolerancePolicy(value: unknown): value is TolerancePolicy {
+  return isRecord(value)
+    && value.kind === "tolerance-policy"
+    && typeof value.id === "string"
+    && value.id.length > 0
+    && nonNegativeFiniteNumber(value.coordinateTolerance)
+    && (value.metricTolerance === undefined || nonNegativeFiniteNumber(value.metricTolerance));
+}
+
+function nonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }

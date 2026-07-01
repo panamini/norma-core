@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import * as packageRoot from "../dist/src/index.js";
@@ -73,11 +74,48 @@ test("PR85 normalizes mapped AcceptedGeometry compositions onto an explicit synt
   });
 });
 
+test("PR85 sorts accepted source ids without host locale collation", () => {
+  const request = validNormalizationRequest();
+  request.mappedCompositionA.elements = [
+    {
+      ...request.mappedCompositionA.elements[0],
+      id: "element:pr85:same:z",
+    },
+  ];
+  request.mappedCompositionB.elements = [
+    {
+      ...request.mappedCompositionB.elements[0],
+      id: "element:pr85:same:ä",
+    },
+  ];
+
+  const result = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(request);
+  const repeated = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(structuredClone(request));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.acceptedSourceIds, [
+    "composition:pr85:mapped:A",
+    "composition:pr85:mapped:B",
+    "element:pr85:same:z",
+    "element:pr85:same:ä",
+    "surface:pr85:synthetic-unit",
+  ]);
+  assert.equal(result.resultContentIdentity, normalizationResultContentIdentity(result));
+  assert.equal(repeated.resultContentIdentity, result.resultContentIdentity);
+});
+
 test("PR85 rejects invalid normalization requests without throwing", () => {
+  const inheritedRequest = Object.create(validNormalizationRequest());
   const cases = [
     {
       label: "non-object request",
       input: null,
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "",
+    },
+    {
+      label: "prototype-backed request",
+      input: inheritedRequest,
       code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
       path: "",
     },
@@ -100,7 +138,16 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       path: "mappedCompositionA",
     },
     {
-      label: "invalid normalized tolerance policy",
+      label: "missing analysis tolerance policy",
+      input: {
+        ...validNormalizationRequest(),
+        tolerancePolicy: null,
+      },
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "tolerancePolicy",
+    },
+    {
+      label: "invalid analysis tolerance policy",
       input: {
         ...validNormalizationRequest(),
         tolerancePolicy: {
@@ -109,8 +156,38 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
           coordinateTolerance: -1,
         },
       },
-      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizedGeometry",
-      path: "compositionA.tolerancePolicy",
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "tolerancePolicy",
+    },
+    {
+      label: "normalized output ids collide",
+      input: {
+        ...validNormalizationRequest(),
+        normalizedCompositionBId: "composition:pr85:mapped:A",
+      },
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "normalizedCompositionBId",
+    },
+    {
+      label: "normalized output id reuses input source id",
+      input: {
+        ...validNormalizationRequest(),
+        normalizedCompositionAId: "composition:mapped:A",
+      },
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "normalizedCompositionAId",
+    },
+    {
+      label: "non-serializable nested request field",
+      input: {
+        ...validNormalizationRequest(),
+        tolerancePolicy: {
+          ...validNormalizationRequest().tolerancePolicy,
+          metadata: 1n,
+        },
+      },
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "",
     },
   ];
 
@@ -131,6 +208,26 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       testCase.label,
     );
   }
+});
+
+test("PR85 keeps invalid request diagnostics and identities deterministic", () => {
+  const fooBar = {
+    ...validNormalizationRequest(),
+    foo: "unsupported",
+    bar: "unsupported",
+  };
+  const barFoo = {
+    ...validNormalizationRequest(),
+    bar: "unsupported",
+    foo: "unsupported",
+  };
+
+  const first = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(fooBar);
+  const second = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(barFoo);
+
+  assert.equal(first.ok, false);
+  assert.deepEqual(first.diagnostics.map((diagnostic) => diagnostic.path), ["bar", "foo"]);
+  assert.equal(first.resultContentIdentity, second.resultContentIdentity);
 });
 
 function validNormalizationRequest() {
@@ -182,4 +279,14 @@ function unitSurface(id) {
       height: 1,
     },
   };
+}
+
+function normalizationResultContentIdentity(result) {
+  const { resultContentIdentity: _resultContentIdentity, ...resultWithoutIdentity } = result;
+  const hash = createHash("sha256");
+  hash.update(packageRoot.serializeCanonicalJson(
+    resultWithoutIdentity,
+    packageRoot.DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
+  ));
+  return `sha256:${hash.digest("hex")}`;
 }
