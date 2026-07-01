@@ -22,6 +22,10 @@ import {
   ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
   mapAcceptedGeometryToCoreV1,
 } from "../dist/src/accepted-geometry-to-core-mapping.js";
+import {
+  ACCEPTED_GEOMETRY_STRUCTURED_ANALYZE_NORMALIZATION_VERSION,
+  normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1,
+} from "../dist/src/accepted-geometry-to-structured-analyze-normalization.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,13 +125,19 @@ function createPr82StructuredAnalyzeInput() {
     ...structuredClone(base.tolerancePolicy),
     id: "pr82:tolerance-policy",
   };
-  const sharedSurface = {
-    ...mappedA.mappedGeometry.surface,
-    id: "surface:pr82:synthetic-unit",
+  const normalization = requiredNormalization(normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1({
+    requestId: "request:pr82:synthetic-shared-unit-surface",
+    mappedCompositionA: mappedA.mappedGeometry,
+    mappedCompositionB: mappedB.mappedGeometry,
+    normalizedCompositionAId: "composition:pr82:mapped:A",
+    normalizedCompositionBId: "composition:pr82:mapped:B",
+    sharedSurfaceId: "surface:pr82:synthetic-unit",
     tolerancePolicy,
-  };
-  const compositionA = decorateMappedComposition(mappedA.mappedGeometry, "A", sharedSurface, tolerancePolicy);
-  const compositionB = decorateMappedComposition(mappedB.mappedGeometry, "B", sharedSurface, tolerancePolicy);
+    transformationStepId: "transformation:pr82:shared-unit-surface",
+  }), "pr82:normalization");
+  const sharedSurface = normalization.sharedSurface;
+  const compositionA = normalization.compositionA;
+  const compositionB = normalization.compositionB;
   const ratioPack = structuredClone(base.ratioPack);
   const packLock = requiredOutput(core.createPackLock({
     pack: ratioPack,
@@ -200,7 +210,7 @@ function createPr82StructuredAnalyzeInput() {
       callerSourceIds: acceptedSourceIds,
       adapter: null,
       mappingVersion: ACCEPTED_GEOMETRY_TO_CORE_MAPPER_OPERATION_VERSION,
-      normalizationVersion: "pr82-synthetic-shared-unit-surface@1",
+      normalizationVersion: ACCEPTED_GEOMETRY_STRUCTURED_ANALYZE_NORMALIZATION_VERSION,
       transformationSteps: [
         {
           kind: "structured-composition-transformation-step",
@@ -215,20 +225,7 @@ function createPr82StructuredAnalyzeInput() {
             { kind: "mapping-result", ref: mappedB.result.resultContentIdentity },
           ],
         },
-        {
-          kind: "structured-composition-transformation-step",
-          id: "transformation:pr82:shared-unit-surface",
-          description: "Place both mapped compositions on one explicit synthetic unit surface for pair analysis.",
-          inputRefs: [
-            { kind: "composition-2d", ref: mappedA.mappedGeometry.id },
-            { kind: "composition-2d", ref: mappedB.mappedGeometry.id },
-          ],
-          outputRefs: [
-            { kind: "surface", ref: sharedSurface.id },
-            { kind: "composition-2d", ref: compositionA.id },
-            { kind: "composition-2d", ref: compositionB.id },
-          ],
-        },
+        normalization.transformationStep,
       ],
       acceptanceRecord: acceptance,
       operationContextRef: operationContext.ref,
@@ -309,21 +306,23 @@ function rectanglePrimitive(overrides = {}) {
   };
 }
 
-function decorateMappedComposition(composition, label, sharedSurface, tolerancePolicy) {
-  return {
-    ...composition,
-    id: `composition:pr82:mapped:${label}`,
-    surface: sharedSurface,
-    tolerancePolicy,
-  };
-}
-
 function requiredMappedGeometry(result, label) {
   assert.equal(result.ok, true, label);
   assert.equal(result.status, "mapped", label);
   assert.ok(result.mappedGeometry, label);
   assert.deepEqual(result.diagnostics, []);
   return { result, mappedGeometry: result.mappedGeometry };
+}
+
+function requiredNormalization(result, label) {
+  assert.equal(result.ok, true, label);
+  assert.equal(result.status, "normalized", label);
+  assert.ok(result.sharedSurface, label);
+  assert.ok(result.compositionA, label);
+  assert.ok(result.compositionB, label);
+  assert.ok(result.transformationStep, label);
+  assert.deepEqual(result.diagnostics, []);
+  return result;
 }
 
 function requiredOutput(result, label) {
