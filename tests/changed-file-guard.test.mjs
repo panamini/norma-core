@@ -10,6 +10,7 @@ import {
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
+  acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
@@ -84,6 +85,13 @@ test("shared exact changed-file guard accepts the PR81 mapper review-fix set exa
   assert.deepEqual(
     sharedExactApprovedChangedFiles(acceptedGeometryToCoreMapperReviewFixesChangedFiles),
     acceptedGeometryToCoreMapperReviewFixesChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the PR82 AcceptedGeometry integration proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles),
+    acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   );
 });
 
