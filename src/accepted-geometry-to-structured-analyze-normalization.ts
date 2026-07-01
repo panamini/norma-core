@@ -74,6 +74,9 @@ const REQUEST_KEYS = [
   "transformationStepId",
 ] as const;
 
+type NormalizationRequestKey = typeof REQUEST_KEYS[number];
+type NormalizationRequestFieldValues = Record<NormalizationRequestKey, unknown>;
+
 export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
   input: unknown,
 ): AcceptedGeometryStructuredAnalyzeNormalizationResultV1 {
@@ -82,8 +85,18 @@ export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
   try {
     return normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(input, requestId);
   } catch (error) {
-    if (!isDeterministicSerializationError(error)) {
-      throw error;
+    if (isDeterministicSerializationError(error)) {
+      return createNormalizationResult({
+        requestId,
+        status: "invalid",
+        diagnostics: [
+          diagnostic(
+            "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+            "",
+            "AcceptedGeometry Structured Analyze normalization request must be deterministically serializable.",
+          ),
+        ],
+      });
     }
 
     return createNormalizationResult({
@@ -93,7 +106,7 @@ export function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(
         diagnostic(
           "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
           "",
-          "AcceptedGeometry Structured Analyze normalization request must be deterministically serializable.",
+          "AcceptedGeometry Structured Analyze normalization request could not be safely inspected.",
         ),
       ],
     });
@@ -121,15 +134,16 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
   }
 
   validateExactRequestKeys(input, diagnostics);
-  validateNonEmptyString(input.requestId, "requestId", diagnostics);
-  validateNonEmptyString(input.normalizedCompositionAId, "normalizedCompositionAId", diagnostics);
-  validateNonEmptyString(input.normalizedCompositionBId, "normalizedCompositionBId", diagnostics);
-  validateNonEmptyString(input.sharedSurfaceId, "sharedSurfaceId", diagnostics);
-  validateNonEmptyString(input.transformationStepId, "transformationStepId", diagnostics);
-  validateTolerancePolicy(input.tolerancePolicy, "tolerancePolicy", diagnostics);
+  const requestFields = requestFieldsFor(input, diagnostics);
+  validateNonEmptyString(requestFields.requestId, "requestId", diagnostics);
+  validateNonEmptyString(requestFields.normalizedCompositionAId, "normalizedCompositionAId", diagnostics);
+  validateNonEmptyString(requestFields.normalizedCompositionBId, "normalizedCompositionBId", diagnostics);
+  validateNonEmptyString(requestFields.sharedSurfaceId, "sharedSurfaceId", diagnostics);
+  validateNonEmptyString(requestFields.transformationStepId, "transformationStepId", diagnostics);
+  validateTolerancePolicy(requestFields.tolerancePolicy, "tolerancePolicy", diagnostics);
 
-  const mappedCompositionA = compositionFor(input.mappedCompositionA, "mappedCompositionA", diagnostics);
-  const mappedCompositionB = compositionFor(input.mappedCompositionB, "mappedCompositionB", diagnostics);
+  const mappedCompositionA = compositionFor(requestFields.mappedCompositionA, "mappedCompositionA", diagnostics);
+  const mappedCompositionB = compositionFor(requestFields.mappedCompositionB, "mappedCompositionB", diagnostics);
 
   if (diagnostics.length !== 0 || mappedCompositionA === null || mappedCompositionB === null) {
     return createNormalizationResult({
@@ -139,7 +153,8 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
     });
   }
 
-  const request = input as unknown as AcceptedGeometryStructuredAnalyzeNormalizationRequestV1;
+  const request = requestFields as unknown as AcceptedGeometryStructuredAnalyzeNormalizationRequestV1;
+  validateCrossCompositionInputSourceIds(mappedCompositionA, mappedCompositionB, diagnostics);
   validateOutputSourceIds(request, mappedCompositionA, mappedCompositionB, diagnostics);
 
   if (diagnostics.length !== 0) {
@@ -151,8 +166,16 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
   }
 
   const sharedSurface: SurfaceSpace = {
-    ...mappedCompositionA.surface,
+    kind: "surface-space",
     id: request.sharedSurfaceId,
+    coordinateSystem: mappedCompositionA.surface.coordinateSystem,
+    bounds: {
+      kind: "rect",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    },
     tolerancePolicy: request.tolerancePolicy,
   };
   const compositionA: Composition2D = {
@@ -211,7 +234,17 @@ function compositionFor(
   path: string,
   diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
 ): Composition2D | null {
-  const validation = validateGeometryV1(value);
+  let validation: ReturnType<typeof validateGeometryV1>;
+  try {
+    validation = validateGeometryV1(value);
+  } catch {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeMappedGeometry",
+      path,
+      "Mapped accepted geometry could not be safely inspected.",
+    ));
+    return null;
+  }
 
   if (validation.status !== "ok" || validation.output === null || validation.output === undefined) {
     diagnostics.push(...diagnosticsForCoreErrors(
@@ -239,7 +272,17 @@ function validateNormalizedComposition(
   path: string,
   diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
 ): void {
-  const validation = validateGeometryV1(value);
+  let validation: ReturnType<typeof validateGeometryV1>;
+  try {
+    validation = validateGeometryV1(value);
+  } catch {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeNormalizedGeometry",
+      path,
+      "Normalized geometry could not be safely inspected.",
+    ));
+    return;
+  }
 
   if (validation.status !== "ok") {
     diagnostics.push(...diagnosticsForCoreErrors(
@@ -298,18 +341,54 @@ function validateExactRequestKeys(
   }
 }
 
+function requestFieldsFor(
+  request: Record<string, unknown>,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): NormalizationRequestFieldValues {
+  const fields: Partial<Record<NormalizationRequestKey, unknown>> = {};
+
+  for (const key of REQUEST_KEYS) {
+    if (!Object.hasOwn(request, key)) {
+      continue;
+    }
+
+    try {
+      fields[key] = request[key];
+    } catch {
+      diagnostics.push(diagnostic(
+        "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+        key,
+        `${key} could not be safely inspected.`,
+      ));
+    }
+  }
+
+  return fields as NormalizationRequestFieldValues;
+}
+
 function validateTolerancePolicy(
   value: unknown,
   path: string,
   diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
 ): void {
-  if (!isTolerancePolicy(value)) {
+  try {
+    if (isTolerancePolicy(value)) {
+      return;
+    }
+  } catch {
     diagnostics.push(diagnostic(
       "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
       path,
-      `${path} must be a valid explicit TolerancePolicy.`,
+      `${path} could not be safely inspected.`,
     ));
+    return;
   }
+
+  diagnostics.push(diagnostic(
+    "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+    path,
+    `${path} must be a valid explicit TolerancePolicy.`,
+  ));
 }
 
 function validateNonEmptyString(
@@ -323,6 +402,24 @@ function validateNonEmptyString(
       path,
       `${path} must be a non-empty string.`,
     ));
+  }
+}
+
+function validateCrossCompositionInputSourceIds(
+  mappedCompositionA: Composition2D,
+  mappedCompositionB: Composition2D,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): void {
+  const sourceIdsA = new Set(sourceIdsFor(mappedCompositionA));
+
+  for (const sourceId of sourceIdsFor(mappedCompositionB)) {
+    if (sourceIdsA.has(sourceId)) {
+      diagnostics.push(diagnostic(
+        "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+        "mappedCompositionB",
+        `mappedCompositionB must not reuse source id from mappedCompositionA: ${sourceId}.`,
+      ));
+    }
   }
 }
 
@@ -419,8 +516,12 @@ function targetPath(path: string, targetRef: string | null): string {
 }
 
 function requestIdFor(value: unknown): string {
-  if (isRecord(value) && typeof value.requestId === "string" && value.requestId.length > 0) {
-    return value.requestId;
+  try {
+    if (isRecord(value) && typeof value.requestId === "string" && value.requestId.length > 0) {
+      return value.requestId;
+    }
+  } catch {
+    return "unknown";
   }
 
   return "unknown";
@@ -454,8 +555,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return false;
   }
 
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 }
 
 function isTolerancePolicy(value: unknown): value is TolerancePolicy {

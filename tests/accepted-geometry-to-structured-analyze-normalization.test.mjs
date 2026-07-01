@@ -41,8 +41,7 @@ test("PR85 normalizes mapped AcceptedGeometry compositions onto an explicit synt
   assert.equal(first.resultContentIdentity, second.resultContentIdentity);
 
   assert.deepEqual(first.sharedSurface, {
-    ...request.mappedCompositionA.surface,
-    id: "surface:pr85:synthetic-unit",
+    ...unitSurface("surface:pr85:synthetic-unit"),
     tolerancePolicy: request.tolerancePolicy,
   });
   assert.equal(first.compositionA.id, "composition:pr85:mapped:A");
@@ -72,6 +71,30 @@ test("PR85 normalizes mapped AcceptedGeometry compositions onto an explicit synt
       { kind: "composition-2d", ref: "composition:pr85:mapped:B" },
     ],
   });
+});
+
+test("PR85 builds the shared surface as a canonical synthetic unit surface", () => {
+  const request = validNormalizationRequest();
+  request.mappedCompositionA.surface = {
+    ...request.mappedCompositionA.surface,
+    bounds: {
+      kind: "rect",
+      x: 0,
+      y: 0,
+      width: 0.5,
+      height: 1,
+    },
+  };
+
+  const result = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(request);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.sharedSurface, {
+    ...unitSurface("surface:pr85:synthetic-unit"),
+    tolerancePolicy: request.tolerancePolicy,
+  });
+  assert.deepEqual(result.compositionA.surface.bounds, unitSurface("ignored").bounds);
+  assert.deepEqual(result.compositionB.surface.bounds, unitSurface("ignored").bounds);
 });
 
 test("PR85 sorts accepted source ids without host locale collation", () => {
@@ -106,6 +129,14 @@ test("PR85 sorts accepted source ids without host locale collation", () => {
 
 test("PR85 rejects invalid normalization requests without throwing", () => {
   const inheritedRequest = Object.create(validNormalizationRequest());
+  const throwingRequestId = validNormalizationRequest();
+  Object.defineProperty(throwingRequestId, "requestId", {
+    enumerable: true,
+    get() {
+      throw new Error("requestId accessor failed");
+    },
+  });
+
   const cases = [
     {
       label: "non-object request",
@@ -118,6 +149,12 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       input: inheritedRequest,
       code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
       path: "",
+    },
+    {
+      label: "throwing request id accessor",
+      input: throwingRequestId,
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "requestId",
     },
     {
       label: "missing explicit shared surface id",
@@ -176,6 +213,18 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       },
       code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
       path: "normalizedCompositionAId",
+    },
+    {
+      label: "cross-composition input element source id collision",
+      input: inputWithCrossCompositionElementIdCollision(),
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "mappedCompositionB",
+    },
+    {
+      label: "cross-composition input anchor source id collision",
+      input: inputWithCrossCompositionAnchorIdCollision(),
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "mappedCompositionB",
     },
     {
       label: "non-serializable nested request field",
@@ -245,6 +294,33 @@ function validNormalizationRequest() {
     },
     transformationStepId: "transformation:pr85:shared-unit-surface",
   };
+}
+
+function inputWithCrossCompositionElementIdCollision() {
+  const request = validNormalizationRequest();
+  request.mappedCompositionB.elements = [
+    {
+      ...request.mappedCompositionB.elements[0],
+      id: request.mappedCompositionA.elements[0].id,
+    },
+  ];
+  return request;
+}
+
+function inputWithCrossCompositionAnchorIdCollision() {
+  const request = validNormalizationRequest();
+  request.mappedCompositionA.anchors = [
+    { kind: "anchor", id: "anchor:pr85:shared", point: { kind: "point", x: 0, y: 0 } },
+  ];
+  request.mappedCompositionB.elements = [
+    {
+      ...request.mappedCompositionB.elements[0],
+      anchors: [
+        { kind: "anchor", id: "anchor:pr85:shared", point: { kind: "point", x: 0.5, y: 0 } },
+      ],
+    },
+  ];
+  return request;
 }
 
 function mappedComposition(label, elementId, geometry) {
