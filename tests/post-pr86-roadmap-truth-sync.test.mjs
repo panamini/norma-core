@@ -16,12 +16,13 @@ const decisionDocPath = join(
 );
 
 test("post-PR86 roadmap truth sync records the current merged PR86 state", () => {
+  assert.equal(existsSync(businessRoadmapDocPath), true);
+  assert.equal(existsSync(decisionDocPath), true);
+
   const roadmapDoc = readDoc(businessRoadmapDocPath);
   const decisionDoc = readDoc(decisionDocPath);
   const currentStateSection = sectionForHeading(roadmapDoc, "## Current State After PR86");
   const combinedDocs = `${currentStateSection}\n${decisionDoc}`;
-
-  assert.equal(existsSync(decisionDocPath), true);
 
   assertDocMentions(combinedDocs, [
     "Norma Core is current through PR #166 / PR86",
