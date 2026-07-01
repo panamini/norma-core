@@ -420,6 +420,11 @@ export const acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles = Obj
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+// Intentionally aliased while PR82 and PR84 share the same exact file set.
+// Split this into a dedicated list if the fresh-clone proof scope diverges.
+export const acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles =
+  acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles;
+
 export const postPr82RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-01-post-pr82-roadmap-truth-sync.md",
