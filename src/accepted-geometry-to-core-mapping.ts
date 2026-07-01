@@ -7,7 +7,7 @@ import type {
   ValidatorDiagnostic,
 } from "./geometry-observation.js";
 import { validateAcceptedGeometryV1 } from "./geometry-observation.js";
-import type { Composition2D, CoordinateSystem, Element, Rect, SourceReference } from "./index.js";
+import type { Composition2D, CoordinateSystem, CoreError, Element, Rect, SourceReference } from "./index.js";
 import { validateGeometryV1 } from "./index.js";
 import {
   DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
@@ -117,6 +117,13 @@ export interface AcceptedGeometryToCoreMappingDiagnostic {
   readonly message: string;
 }
 
+export interface AcceptedGeometryToCoreMappingDebugEvent {
+  readonly kind: "unexpected-error";
+  readonly operation: "mapAcceptedGeometryToCoreV1";
+  readonly errorName: string;
+  readonly errorMessage: string;
+}
+
 export interface AcceptedGeometryToCoreMappingResultV1 {
   readonly contractId: typeof ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_ID;
   readonly contractVersion: typeof ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_VERSION;
@@ -149,6 +156,8 @@ interface BuiltMapping {
   readonly primitiveMappings: readonly AcceptedPrimitiveCoreMapping[];
 }
 
+let lastMappingDebugEvent: AcceptedGeometryToCoreMappingDebugEvent | null = null;
+
 export const ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM: AcceptedGeometryToCoreTargetCoordinateSystem =
   Object.freeze({
     kind: "coordinate-system",
@@ -159,6 +168,10 @@ export const ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM: AcceptedGeometr
     dimensions: 2,
     coordinateScale: "normalized",
   });
+
+export function getLastAcceptedGeometryToCoreMappingDebugEvent(): AcceptedGeometryToCoreMappingDebugEvent | null {
+  return lastMappingDebugEvent === null ? null : { ...lastMappingDebugEvent };
+}
 
 export const ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM_RECORD: CoordinateTransformRecordV1 = Object.freeze({
   coordinateTransform: ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
@@ -293,7 +306,8 @@ export function mapAcceptedGeometryToCoreV1(input: unknown): AcceptedGeometryToC
       sourceRefs: sourceRefsFor(acceptedValidation.value),
       diagnostics: [],
     });
-  } catch {
+  } catch (error) {
+    recordUnexpectedMappingError(error);
     return createMappingResult({
       requestId,
       status: "invalid",
@@ -357,13 +371,21 @@ function validateRequestEnvelope(
     diagnostics,
     "unsupported",
   );
-  validateLiteral(request.targetCoreProfileId, ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID, "targetCoreProfileId", diagnostics, "unsupported");
+  validateLiteral(
+    request.targetCoreProfileId,
+    ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
+    "targetCoreProfileId",
+    diagnostics,
+    "unsupported",
+    "TargetCoreGeometry",
+  );
   validateLiteral(
     request.targetCoreGeometryKind,
     ACCEPTED_GEOMETRY_TO_CORE_TARGET_GEOMETRY_KIND,
     "targetCoreGeometryKind",
     diagnostics,
     "unsupported",
+    "TargetCoreGeometry",
   );
   validateTargetCoordinateSystem(request.targetCoordinateSystem, diagnostics);
   validateMappingContext(request.mappingContext, diagnostics);
@@ -586,15 +608,7 @@ function validateBuiltMapping(builtMapping: BuiltMapping): MappingFailure | null
   if (coreValidation.status !== "ok") {
     return {
       status: "invalid",
-      diagnostics: [
-        diagnostic(
-          "AcceptedGeometryCoordinateTransformFailed",
-          "TargetCoreGeometry",
-          "mappedGeometry",
-          null,
-          "Mapped geometry did not satisfy the Core Composition2D normalized rectangle profile.",
-        ),
-      ],
+      diagnostics: coreValidationDiagnostics(coreValidation.errors),
     };
   }
 
@@ -745,6 +759,7 @@ function validateLiteral(
   path: string,
   diagnostics: AcceptedGeometryToCoreMappingDiagnostic[],
   kind: "invalid" | "unsupported",
+  unsupportedSurface: AcceptedGeometryToCoreMappingDiagnosticSurface = "AcceptedGeometryToCoreMappingRequest",
 ): void {
   if (value === expected) {
     return;
@@ -756,7 +771,7 @@ function validateLiteral(
       : "UnsupportedAcceptedGeometryMappingRequest",
     value === undefined || kind === "invalid"
       ? "AcceptedGeometryToCoreMappingRequest"
-      : "TargetCoreGeometry",
+      : unsupportedSurface,
     path,
     null,
     `${path} must use the approved PR81 mapping value.`,
@@ -893,11 +908,21 @@ function isNormalizedRect(rect: Rect): boolean {
     rect.height,
     rect.x + rect.width,
     rect.y + rect.height,
-  ].every((value) => Number.isFinite(value) && value >= 0 && value <= 1);
+  ].every(isFiniteNormalizedBoundary);
 }
 
+const NORMALIZED_BOUNDARY_EPSILON = 1e-12;
+
 function canonicalizeZero(value: number): number {
-  return Object.is(value, -0) ? 0 : value;
+  if (Object.is(value, -0) || (value < 0 && value >= -NORMALIZED_BOUNDARY_EPSILON)) {
+    return 0;
+  }
+
+  if (value > 1 && value <= 1 + NORMALIZED_BOUNDARY_EPSILON) {
+    return 1;
+  }
+
+  return value;
 }
 
 function contentIdentityFor(value: unknown): string {
@@ -927,6 +952,54 @@ function isRecord(value: unknown): value is MappingRequestRecord {
   } catch {
     return false;
   }
+}
+
+function isFiniteNormalizedBoundary(value: number): boolean {
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+
+  const normalizedValue = canonicalizeZero(value);
+  return normalizedValue >= 0 && normalizedValue <= 1;
+}
+
+function coreValidationDiagnostics(
+  coreErrors: readonly CoreError[],
+): readonly AcceptedGeometryToCoreMappingDiagnostic[] {
+  if (coreErrors.length === 0) {
+    return [
+      diagnostic(
+        "AcceptedGeometryCoordinateTransformFailed",
+        "TargetCoreGeometry",
+        "mappedGeometry",
+        null,
+        "Mapped geometry did not satisfy the Core Composition2D normalized rectangle profile: Core validation returned no errors.",
+      ),
+    ];
+  }
+
+  return coreErrors.map((error, index) => diagnostic(
+    "AcceptedGeometryCoordinateTransformFailed",
+    "TargetCoreGeometry",
+    coreValidationErrorPath(error, index),
+    null,
+    `Mapped geometry did not satisfy the Core Composition2D normalized rectangle profile: ${error.code}: ${error.message}`,
+  ));
+}
+
+function coreValidationErrorPath(error: CoreError, index: number): string {
+  return error.targetRef === null || error.targetRef.length === 0
+    ? `mappedGeometry.errors.${index}`
+    : `mappedGeometry.${error.targetRef}`;
+}
+
+function recordUnexpectedMappingError(error: unknown): void {
+  lastMappingDebugEvent = {
+    kind: "unexpected-error",
+    operation: "mapAcceptedGeometryToCoreV1",
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: error instanceof Error ? error.message : "Non-Error value thrown.",
+  };
 }
 
 function isAcceptedGeometryLike(value: unknown): value is { readonly primitives: readonly { readonly id: unknown }[] } {

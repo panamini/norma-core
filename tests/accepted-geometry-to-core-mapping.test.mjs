@@ -22,6 +22,7 @@ import {
   ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
   computeAcceptedGeometryToCoreMappingResultContentIdentity,
   computeMappedGeometryContentIdentity,
+  getLastAcceptedGeometryToCoreMappingDebugEvent,
   mapAcceptedGeometryToCoreV1,
 } from "../dist/src/accepted-geometry-to-core-mapping.js";
 
@@ -40,6 +41,7 @@ test("PR81 keeps the mapper package-private and off the package root", async () 
     "computeAcceptedGeometryToCoreMappingResultContentIdentity",
     "ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_ID",
     "ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM",
+    "getLastAcceptedGeometryToCoreMappingDebugEvent",
   ];
 
   for (const name of packagePrivateNames) {
@@ -201,6 +203,37 @@ test("PR81 rejects wrong mapping profile target profile and target kind", () => 
   }
 });
 
+test("PR81 reports unsupported mapping and target literals on accurate diagnostic surfaces", () => {
+  const mappingProfileResult = mapAcceptedGeometryToCoreV1(validRequest({
+    mappingProfileId: "norma.accepted-geometry-to-core-mapping.unknown@1",
+  }));
+  const targetProfileResult = mapAcceptedGeometryToCoreV1(validRequest({
+    targetCoreProfileId: "core.geometry-v1.segment-space@1",
+  }));
+  const targetKindResult = mapAcceptedGeometryToCoreV1(validRequest({
+    targetCoreGeometryKind: "surface-space",
+  }));
+
+  assertDiagnosticSurface(
+    mappingProfileResult,
+    "UnsupportedAcceptedGeometryMappingRequest",
+    "mappingProfileId",
+    "AcceptedGeometryToCoreMappingRequest",
+  );
+  assertDiagnosticSurface(
+    targetProfileResult,
+    "UnsupportedAcceptedGeometryMappingRequest",
+    "targetCoreProfileId",
+    "TargetCoreGeometry",
+  );
+  assertDiagnosticSurface(
+    targetKindResult,
+    "UnsupportedAcceptedGeometryMappingRequest",
+    "targetCoreGeometryKind",
+    "TargetCoreGeometry",
+  );
+});
+
 test("PR81 rejects missing or wrong synthetic-only mapping context", () => {
   for (const override of [
     { mappingContext: undefined },
@@ -257,6 +290,24 @@ test("PR81 canonicalizes negative zero transform output to zero", () => {
   assert.equal(Object.is(result.mappedGeometry.elements[0].geometry.x, -0), false);
 });
 
+test("PR81 normalizes y-flip boundary epsilon noise without repairing invalid rectangles", () => {
+  const acceptedGeometry = acceptedRectangleGeometry([
+    rectanglePrimitive({
+      id: "rectangle:bottom-edge",
+      x: 0.1,
+      y: 0.8,
+      width: 0.2,
+      height: 0.2,
+    }),
+  ]);
+  const result = mapAcceptedGeometryToCoreV1(validRequest({ acceptedGeometry }));
+
+  assert.equal(1 - 0.8 - 0.2 < 0, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.mappedGeometry.elements[0].geometry.y, 0);
+  assert.equal(Object.is(result.mappedGeometry.elements[0].geometry.y, -0), false);
+});
+
 test("PR81 returns deterministic diagnostics for ordinary invalid input without throwing", () => {
   class InvalidRequest {
     constructor() {
@@ -292,6 +343,30 @@ test("PR81 returns deterministic diagnostics for ordinary invalid input without 
     assert.equal(first.diagnostics.every((diagnostic) => diagnostic.severity === "error"), true);
     assert.equal(first.diagnostics.every((diagnostic) => !/stack|proxy key trap|\/Users|\/tmp|credential|api[_-]?key|bearer/i.test(diagnostic.message)), true);
   }
+});
+
+test("PR81 captures unexpected inspection failures for package-private debugging without result leakage", () => {
+  const request = validRequest();
+  Object.defineProperty(request, "contractId", {
+    enumerable: true,
+    get() {
+      throw new TypeError("synthetic PR81 debug sentinel");
+    },
+  });
+
+  const result = mapAcceptedGeometryToCoreV1(request);
+  const debugEvent = getLastAcceptedGeometryToCoreMappingDebugEvent();
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "invalid");
+  assertDiagnostic(result, "InvalidAcceptedGeometryMappingRequest", "");
+  assert.equal(result.diagnostics.every((diagnostic) => !/synthetic PR81 debug sentinel|TypeError|stack/i.test(diagnostic.message)), true);
+  assert.deepEqual(debugEvent, {
+    kind: "unexpected-error",
+    operation: "mapAcceptedGeometryToCoreV1",
+    errorName: "TypeError",
+    errorMessage: "synthetic PR81 debug sentinel",
+  });
 });
 
 test("PR81 rejects unsupported mapping contract versions", () => {
@@ -390,5 +465,17 @@ function assertDiagnostic(result, code, path, primitiveId) {
     )),
     true,
     `expected diagnostic ${code}${path === undefined ? "" : ` at ${path}`}`,
+  );
+}
+
+function assertDiagnosticSurface(result, code, path, surface) {
+  assert.equal(
+    result.diagnostics.some((diagnostic) => (
+      diagnostic.code === code &&
+      diagnostic.path === path &&
+      diagnostic.surface === surface
+    )),
+    true,
+    `expected diagnostic ${code} at ${path} on ${surface}`,
   );
 }
