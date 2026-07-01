@@ -393,7 +393,23 @@ export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const acceptedGeometryToCoreMapperChangedFiles = Object.freeze([
+  "src/accepted-geometry-to-core-mapping.ts",
+  "tests/accepted-geometry-to-core-mapping.test.mjs",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
+export const acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  acceptedGeometryToCoreMapperChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 const sharedExactApprovedChangedFileSets = [
+  acceptedGeometryToCoreMapperChangedFiles,
+  acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
   localCliReportBoundaryFreezeChangedFiles,
   realUsecaseLocalDemoCommandHardeningChangedFiles,
   realUsecaseLocalDemoCommandChangedFiles,

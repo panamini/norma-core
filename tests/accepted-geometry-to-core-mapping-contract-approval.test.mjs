@@ -109,6 +109,11 @@ const r6bStructuredAnalyzeGuardMaintenanceChangedFiles = [
   "tests/verification-replay-result-viewer.test.mjs",
 ].sort();
 
+const pr81AcceptedGeometryToCoreMapperChangedFiles = [
+  "src/accepted-geometry-to-core-mapping.ts",
+  "tests/accepted-geometry-to-core-mapping.test.mjs",
+].sort();
+
 const decisionPath =
   "docs/decisions/2026-06-20-accepted-geometry-to-core-mapping-contract-approval.md";
 const decision = read(decisionPath);
@@ -375,6 +380,7 @@ test("PR80 branch changes stay limited to the approved doc test and exact guards
       isExactChangedFileSet(changed, r6a1StructuredAnalyzeExecutableContractChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeImplementationChangedFiles) ||
       isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles) ||
+      isExactChangedFileSet(changed, pr81AcceptedGeometryToCoreMapperChangedFiles) ||
       isExactR1GeometrySourceIdentityChangeSet(changed) ||
       isExactR6CStructuredAnalyzeMcpChangeSet(changed) ||
       sharedExactApprovedChangedFiles(changed) !== null,
@@ -401,6 +407,9 @@ function exactProtectedAllowlist(changed) {
   }
   if (isExactChangedFileSet(changed, r6bStructuredAnalyzeGuardMaintenanceChangedFiles)) {
     return r6bStructuredAnalyzeGuardMaintenanceChangedFiles;
+  }
+  if (isExactChangedFileSet(changed, pr81AcceptedGeometryToCoreMapperChangedFiles)) {
+    return pr81AcceptedGeometryToCoreMapperChangedFiles;
   }
   return [];
 }
