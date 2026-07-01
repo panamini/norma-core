@@ -57,6 +57,12 @@ const postPr82RoadmapTruthSyncDocPath = join(
   "decisions",
   "2026-07-01-post-pr82-roadmap-truth-sync.md",
 );
+const postPr86RoadmapTruthSyncDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-07-01-post-pr86-roadmap-truth-sync.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -335,6 +341,43 @@ test("PR83 roadmap truth sync records the post-PR82 execution model", () => {
 
   assert.doesNotMatch(combinedDocs, /\bnext\s+(?:mandatory|recommended)\s+PR\s*:\s*PR8[4-9]\b/i);
   assert.doesNotMatch(combinedDocs, /\bmust\s+(?:complete|execute|start)\s+PR8[4-9]\b/i);
+});
+
+test("PR87 roadmap truth sync records the post-PR86 execution model", () => {
+  assert.equal(existsSync(postPr86RoadmapTruthSyncDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const postPr86RoadmapTruthSyncDoc = readDoc(postPr86RoadmapTruthSyncDocPath);
+  const postPr86RoadmapSection = sectionForHeading(businessRoadmapDoc, "## Current State After PR86");
+  const combinedDocs = `${postPr86RoadmapSection}\n${postPr86RoadmapTruthSyncDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "Norma Core is current through PR #166 / PR86",
+    "2a2152c1bf90768a5540141f8d91196c32239735",
+    "PR #165 / PR85",
+    "package-private synthetic shared-unit-surface normalization helper",
+    "PR #166 / PR86",
+    "surface-only metric policies",
+    "accepted-geometry local/private bridge rail is closed through PR86",
+    "There is no forced PR ladder after PR86",
+    "The next real work after PR87 must be selected from current repository gaps, not stale roadmap labels",
+  ]);
+
+  for (const blockedSurface of [
+    "provider ingestion",
+    "image analysis",
+    "OpenAI or ChatGPT runtime behavior",
+    "hosted MCP",
+    "remote API runtime",
+    "package publication",
+    "public package exports",
+    "prompt-derived source truth",
+  ]) {
+    assertDocMentions(combinedDocs, [blockedSurface]);
+  }
+
+  assert.doesNotMatch(combinedDocs, /\bnext\s+(?:mandatory|recommended)\s+PR\s*:\s*PR8[8-9]\b/i);
+  assert.doesNotMatch(combinedDocs, /\bmust\s+(?:complete|execute|start)\s+PR8[8-9]\b/i);
 });
 
 test("R19 roadmap records local inspection surfaces without approving product or remote scope", () => {
