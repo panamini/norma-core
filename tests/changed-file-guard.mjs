@@ -420,6 +420,12 @@ export const acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles = Obj
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+export const acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles = Object.freeze([
+  "tests/accepted-geometry-to-structured-analyze-integration.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
 export const postPr82RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-01-post-pr82-roadmap-truth-sync.md",
@@ -431,6 +437,7 @@ export const postPr82RoadmapTruthSyncChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   postPr82RoadmapTruthSyncChangedFiles,
+  acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
   acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   acceptedGeometryToCoreMapperChangedFiles,

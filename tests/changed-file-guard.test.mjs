@@ -10,6 +10,7 @@ import {
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
+  acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
   acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
@@ -94,6 +95,27 @@ test("shared exact changed-file guard accepts the PR82 AcceptedGeometry integrat
     sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles),
     acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   );
+});
+
+test("shared exact changed-file guard accepts the PR84 AcceptedGeometry fresh-clone proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles),
+    acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
+  );
+
+  assert.deepEqual(acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles, [
+    "tests/accepted-geometry-to-structured-analyze-integration.test.mjs",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
 });
 
 test("shared exact changed-file guard accepts the PR83 post-PR82 roadmap truth sync set exactly", () => {
@@ -1466,6 +1488,42 @@ test("shared exact changed-file guard rejects extras in the PR81 mapper review-f
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...acceptedGeometryToCoreMapperReviewFixesChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, docs, and example extras in the PR84 fresh-clone proof set", () => {
+  const missingRequiredFile = acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles.filter(
+    (file) => file !== "tests/accepted-geometry-to-structured-analyze-integration.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/fixtures/geometry-observation/new-fixture.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
         forbiddenFile,
       ]),
       null,
