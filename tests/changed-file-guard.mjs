@@ -407,7 +407,15 @@ export const acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles = Obj
     .sort(),
 );
 
+export const acceptedGeometryToCoreMapperReviewFixesChangedFiles = Object.freeze([
+  "src/accepted-geometry-to-core-mapping.ts",
+  "tests/accepted-geometry-to-core-mapping.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
   localCliReportBoundaryFreezeChangedFiles,

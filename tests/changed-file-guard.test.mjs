@@ -9,6 +9,7 @@ import test from "node:test";
 import {
   acceptedGeometryToCoreMapperChangedFiles,
   acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
+  acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
@@ -76,6 +77,13 @@ test("shared exact changed-file guard accepts the semgrep-filtered PR81 mapper s
   assert.deepEqual(
     sharedExactApprovedChangedFiles(acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles),
     acceptedGeometryToCoreMapperNonSemgrepMaintenanceChangedFiles,
+  );
+});
+
+test("shared exact changed-file guard accepts the PR81 mapper review-fix set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(acceptedGeometryToCoreMapperReviewFixesChangedFiles),
+    acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   );
 });
 
@@ -1373,6 +1381,24 @@ test("shared exact changed-file guard rejects extras in the PR81 AcceptedGeometr
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...acceptedGeometryToCoreMapperChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects extras in the PR81 mapper review-fix set", () => {
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "package.json",
+    "tests/fixtures/geometry-observation/new-fixture.json",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...acceptedGeometryToCoreMapperReviewFixesChangedFiles,
         forbiddenFile,
       ]),
       null,
