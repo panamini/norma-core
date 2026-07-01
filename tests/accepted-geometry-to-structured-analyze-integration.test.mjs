@@ -35,6 +35,8 @@ test("PR82 analyzes synthetic mapped AcceptedGeometry rectangles through Structu
   const secondInput = structuredClone(input);
   const firstBefore = core.serializeCanonicalJson(firstInput);
   const secondBefore = core.serializeCanonicalJson(secondInput);
+  const firstSnapshot = structuredClone(firstInput);
+  const secondSnapshot = structuredClone(secondInput);
 
   const first = core.analyzeStructuredCompositionV1(firstInput);
   const second = core.analyzeStructuredCompositionV1(secondInput);
@@ -44,6 +46,8 @@ test("PR82 analyzes synthetic mapped AcceptedGeometry rectangles through Structu
   assert.equal(core.serializeCanonicalJson(input), before);
   assert.equal(core.serializeCanonicalJson(firstInput), firstBefore);
   assert.equal(core.serializeCanonicalJson(secondInput), secondBefore);
+  assert.deepEqual(firstInput, firstSnapshot);
+  assert.deepEqual(secondInput, secondSnapshot);
   assert.equal(first.comparison.status, "ambiguous");
   assert.equal(first.decision.selectedEvaluationRef, null);
   assert.equal(first.replayReadiness.status, "ready");
