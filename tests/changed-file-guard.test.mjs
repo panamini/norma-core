@@ -1348,7 +1348,7 @@ test("shared exact changed-file guard rejects runtime, package, metadata, docs, 
 });
 
 test("R36 package metadata remains private without bin, export, or dependency expansion", async () => {
-  const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf8"));
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
   assert.equal("bin" in packageJson, false);
   assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
