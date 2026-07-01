@@ -446,7 +446,17 @@ export const postPr82RoadmapTruthSyncChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const postPr86RoadmapTruthSyncChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-01-post-pr86-roadmap-truth-sync.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/post-pr86-roadmap-truth-sync.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 const sharedExactApprovedChangedFileSets = [
+  postPr86RoadmapTruthSyncChangedFiles,
   postPr82RoadmapTruthSyncChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,

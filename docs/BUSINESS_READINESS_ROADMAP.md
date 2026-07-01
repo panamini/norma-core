@@ -12,11 +12,11 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
-This roadmap is synced through PR82. R22 through R25 are complete, R26, R30,
-R31, R32, R33, R34, R35, R36, PR81, and PR82 are local/private/manual
-stabilization, demo, boundary, mapper, and proof checkpoints. The old
-PR27-PR46 ladder and old PR30-PR33 labels remain historical/gated context, not
-the current execution queue.
+This roadmap is synced through PR86. R22 through R25 are complete; R26, R30
+through R36, and PR81 through PR86 are local/private/manual stabilization, demo,
+boundary, mapper, normalizer, and proof checkpoints. The old PR27-PR46 ladder
+and old PR30-PR33 labels remain historical/gated context, not the current
+execution queue.
 
 Historical R32 wording remains true for that checkpoint: This roadmap is synced
 through R31, and R26, R30, and R31 are roadmap/usecase stabilization
@@ -545,6 +545,48 @@ prompt-derived source truth.
 PR83 is this docs/tests-only post-PR82 roadmap truth-sync checkpoint.
 The next real work after PR83 must be selected from current gaps, not stale
 roadmap labels.
+
+## Current State After PR86
+
+Current truth-sync reference:
+`docs/decisions/2026-07-01-post-pr86-roadmap-truth-sync.md`.
+
+Norma Core is current through PR #166 / PR86 at
+`2a2152c1bf90768a5540141f8d91196c32239735`.
+
+Since the post-PR82 truth sync:
+
+- PR #163 / PR83 recorded the post-PR82 roadmap truth sync.
+- PR #164 / PR84 hardened accepted-geometry integration determinism.
+- PR #165 / PR85 added the package-private synthetic shared-unit-surface
+  normalization helper.
+- PR #166 / PR86 preserved metric policy through the normalizer, including
+  surface-only metric policies on normalized output compositions.
+
+The accepted-geometry local/private bridge rail is closed through PR86. The
+accepted-geometry mapper and shared-unit-surface normalizer remain
+package-private. They are not package-root exports, not public APIs, not
+provider adapters, not perception layers, not source-truth shortcuts, and not
+public product surfaces.
+
+PR81 through PR86 prove only deterministic synthetic bridge reachability and
+normalization safety: rectangle-only synthetic `AcceptedGeometry@1` payloads map
+through the package-private mapper, the synthetic shared-unit-surface
+normalizer places mapped pairs onto one explicit unit surface, metric policy is
+kept coherent across the shared surface and normalized compositions, mapped
+compositions can feed `analyzeStructuredCompositionV1`, and unsupported
+accepted-geometry primitives stop at the mapper.
+
+This checkpoint does not approve provider ingestion, image analysis, OpenAI or
+ChatGPT runtime behavior, camera/CAD/Figma/Photoshop/Illustrator adapters,
+hosted MCP, remote API runtime, UI/dashboard behavior, package publication,
+public package exports, automatic ratio-pack or family selection,
+recommendation, optimization, correction, beauty scoring, prompt inference, or
+prompt-derived source truth.
+
+PR87 is this docs/tests-only post-PR86 roadmap truth-sync checkpoint. There is
+no forced PR ladder after PR86. The next real work after PR87 must be selected
+from current repository gaps, not stale roadmap labels.
 
 The current package is not yet:
 
