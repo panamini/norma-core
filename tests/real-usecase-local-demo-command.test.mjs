@@ -24,6 +24,20 @@ const demoCommandPath = join(repoRoot, "bin/norma-core-real-usecase-demo.mjs");
 const examplePath = join(repoRoot, "examples/structured-analyze/usecases/structured-layout-real-usecase.json");
 const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
 const expectedOutputFiles = [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort();
+const demoSuccessEnvelopeKeys = [
+  "canonicalTruth",
+  "derivedArtifacts",
+  "files",
+  "input",
+  "outputDir",
+  "reportHtml",
+  "resultJson",
+  "status",
+  "summaryJson",
+  "summaryMarkdown",
+  "visualSvg",
+];
+const demoErrorEnvelopeKeys = ["error", "status"];
 
 test("R34 real-usecase local demo command preserves explicit --output success envelope", async () => {
   const tempRoot = await mkdtemp(join(tmpdir(), "norma-r34-real-usecase-demo-"));
@@ -41,6 +55,7 @@ test("R34 real-usecase local demo command preserves explicit --output success en
     const first = await runDemoCommand(["--output", firstOutputDir]);
     const second = await runDemoCommand(["--output", secondOutputDir]);
 
+    assertJsonKeys(first.parsed, demoSuccessEnvelopeKeys);
     assert.equal(first.parsed.status, "ok");
     assert.equal(first.parsed.input, examplePath);
     assert.equal(first.parsed.outputDir, firstOutputDir);
@@ -67,6 +82,7 @@ test("R34 real-usecase local demo command preserves explicit --output success en
       }
     }
 
+    assertJsonKeys(second.parsed, demoSuccessEnvelopeKeys);
     assert.equal(second.parsed.status, first.parsed.status);
     assert.equal(second.parsed.input, first.parsed.input);
     assert.equal(second.parsed.outputDir, secondOutputDir);
@@ -190,11 +206,12 @@ test("R35 report subprocess timeout failure emits bounded stderr JSON and non-ze
     assert.equal(observedCalls[0][2].timeout, 12);
 
     const payload = JSON.parse(stderrWrites.join(""));
-    assert.equal(payload.status, "error");
+    assertDemoErrorEnvelope(payload, ["code", "message", "reportCommand"]);
     assert.equal(payload.error.code, "RealUsecaseDemoFailed");
     assert.match(payload.error.message, /report command timed out/u);
 
     const reportCommand = payload.error.reportCommand;
+    assertJsonKeys(reportCommand, ["error", "killed", "signal", "stderr", "stdout", "timedOut", "timeoutMs"]);
     assert.equal(reportCommand.timeoutMs, 12);
     assert.equal(reportCommand.killed, true);
     assert.equal(reportCommand.signal, "SIGTERM");
@@ -210,6 +227,26 @@ test("R35 report subprocess timeout failure emits bounded stderr JSON and non-ze
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("R36 real-usecase local demo usage errors keep a bounded local envelope", async () => {
+  const stdoutWrites = [];
+  const stderrWrites = [];
+
+  const exitCode = await runRealUsecaseDemoCli({
+    args: ["--output"],
+    stdout: { write: (value) => stdoutWrites.push(value) },
+    stderr: { write: (value) => stderrWrites.push(value) },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.equal(stdoutWrites.join(""), "");
+
+  const payload = JSON.parse(stderrWrites.join(""));
+  assertDemoErrorEnvelope(payload, ["code", "message"]);
+  assert.equal(payload.error.code, "InvalidCliUsage");
+  assert.match(payload.error.message, /^Usage: node bin\/norma-core-real-usecase-demo\.mjs/u);
+  assert.equal("reportCommand" in payload.error, false);
 });
 
 async function runDemoCommand(args = [], commandPath = demoCommandPath) {
@@ -257,6 +294,17 @@ function assertNoForbiddenAuthorityClaims(text, label) {
   for (const [pattern, forbiddenLabel] of forbiddenPatterns) {
     assert.doesNotMatch(text, pattern, `${label} must not include a ${forbiddenLabel}`);
   }
+}
+
+function assertJsonKeys(value, expectedKeys) {
+  assert.deepEqual(Object.keys(value).sort(), [...expectedKeys].sort());
+}
+
+function assertDemoErrorEnvelope(payload, errorKeys) {
+  assertJsonKeys(payload, demoErrorEnvelopeKeys);
+  assert.equal("kind" in payload, false);
+  assert.equal(payload.status, "error");
+  assertJsonKeys(payload.error, errorKeys);
 }
 
 async function readJson(filePath) {

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
@@ -17,6 +17,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
+  localCliReportBoundaryFreezeChangedFiles,
   localTruthProjectionConsolidationSmokeChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
@@ -314,6 +315,28 @@ test("shared exact changed-file guard accepts the R35 real-usecase local demo co
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       realUsecaseLocalDemoCommandHardeningChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the R36 local CLI/report boundary freeze set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localCliReportBoundaryFreezeChangedFiles),
+    localCliReportBoundaryFreezeChangedFiles,
+  );
+
+  assert.deepEqual(localCliReportBoundaryFreezeChangedFiles, [
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-structured-analyze-report-kit.test.mjs",
+    "tests/real-usecase-local-demo-command.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      localCliReportBoundaryFreezeChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1285,6 +1308,52 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
       forbiddenFile,
     );
   }
+});
+
+test("shared exact changed-file guard rejects runtime, package, metadata, docs, examples, and MCP extras in the R36 boundary freeze set", () => {
+  const missingRequiredFile = localCliReportBoundaryFreezeChangedFiles.filter(
+    (file) => file !== "tests/local-structured-analyze-report-kit.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "bin/norma-cli.mjs",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "docs/local-structured-analyze-report-kit.md",
+    "docs/examples/real-usecase-structured-layout-demo.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localCliReportBoundaryFreezeChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("R36 package metadata remains private without bin, export, or dependency expansion", async () => {
+  const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf8"));
+
+  assert.equal("bin" in packageJson, false);
+  assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
+  assert.equal("dependencies" in packageJson, false);
+  assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {

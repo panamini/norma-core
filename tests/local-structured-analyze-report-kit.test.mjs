@@ -23,6 +23,15 @@ const exampleInputPath = join(repoRoot, "examples/structured-analyze/basic-grid-
 const geometryHarmonyExampleInputPath = join(repoRoot, "examples/structured-analyze/geometry-harmony-basic.json");
 const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
 const expectedOutputFiles = [...LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES].sort();
+const reportCommandSuccessEnvelopeKeys = [
+  "analysisId",
+  "files",
+  "kind",
+  "outputDir",
+  "resultStatus",
+  "status",
+];
+const reportCommandErrorEnvelopeKeys = ["error", "kind", "status"];
 
 test("local structured analyze report bundle calls the direct core operation", async () => {
   const input = await readJson(exampleInputPath);
@@ -90,8 +99,11 @@ test("local structured analyze report command writes the deterministic output bu
     });
     const commandResult = JSON.parse(stdout);
 
+    assertJsonKeys(commandResult, reportCommandSuccessEnvelopeKeys);
+    assert.equal(commandResult.kind, "local-structured-analyze-report-kit-cli-result");
     assert.equal(commandResult.status, "ok");
     assert.equal(commandResult.resultStatus, "valid");
+    assert.equal(commandResult.outputDir, outputDir);
     assert.deepEqual(commandResult.files, LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES);
 
     const result = await readJson(join(outputDir, "result.json"));
@@ -102,6 +114,7 @@ test("local structured analyze report command writes the deterministic output bu
     const directResult = core.analyzeStructuredCompositionV1(await readJson(exampleInputPath));
 
     assert.deepEqual(result, directResult);
+    assert.equal(commandResult.analysisId, summary.analysisId);
     assert.equal(summary.status, "valid");
     assert.equal(summary.operation.boundary, "direct-function");
     assert.match(summaryMarkdown, /# Local Structured Analyze Report/u);
@@ -186,8 +199,9 @@ test("local structured analyze report command emits structured usage errors", as
     (error) => {
       assert.equal(error.code, 1);
       const errorPayload = JSON.parse(error.stderr);
-      assert.equal(errorPayload.status, "error");
+      assertReportErrorEnvelope(errorPayload);
       assert.equal(errorPayload.error.code, "InvalidCliUsage");
+      assert.match(errorPayload.error.message, /^Usage: node bin\/norma-core-report\.mjs/u);
       assert.doesNotMatch(error.stderr, /ReferenceError/u);
       return true;
     },
@@ -198,11 +212,22 @@ test("local structured analyze report command emits structured usage errors", as
     (error) => {
       assert.equal(error.code, 1);
       const errorPayload = JSON.parse(error.stderr);
-      assert.equal(errorPayload.status, "error");
+      assertReportErrorEnvelope(errorPayload);
       assert.equal(errorPayload.error.code, "InvalidCliUsage");
       return true;
     },
   );
+});
+
+test("R36 local report CLI command source stays local-only", async () => {
+  const reportCommandSource = await readFile(reportCommandPath, "utf8");
+
+  assert.doesNotMatch(reportCommandSource, /\bprocess\.env\b/u);
+  assert.doesNotMatch(reportCommandSource, /\bfetch\s*\(/u);
+  assert.doesNotMatch(reportCommandSource, /\bXMLHttpRequest\b/u);
+  assert.doesNotMatch(reportCommandSource, /\bchild_process\b/u);
+  assert.doesNotMatch(reportCommandSource, /\bmcp\b/iu);
+  assert.match(reportCommandSource, /node bin\/norma-core-report\.mjs <structured-input\.json> <output-dir>/u);
 });
 
 test("local structured analyze report command writes invalid bundle for primitive JSON input", async () => {
@@ -412,6 +437,17 @@ async function readJson(filePath) {
 
 function canonicalSnapshot(value) {
   return core.serializeCanonicalJson(value);
+}
+
+function assertJsonKeys(value, expectedKeys) {
+  assert.deepEqual(Object.keys(value).sort(), [...expectedKeys].sort());
+}
+
+function assertReportErrorEnvelope(errorPayload) {
+  assertJsonKeys(errorPayload, reportCommandErrorEnvelopeKeys);
+  assert.equal(errorPayload.kind, "local-structured-analyze-report-kit-cli-error");
+  assert.equal(errorPayload.status, "error");
+  assertJsonKeys(errorPayload.error, ["code", "message"]);
 }
 
 function assertReportHtmlOffline(reportHtml) {
