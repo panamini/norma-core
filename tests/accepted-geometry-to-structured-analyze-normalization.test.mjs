@@ -227,6 +227,12 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       path: "mappedCompositionB",
     },
     {
+      label: "cross-composition metric policy mismatch",
+      input: inputWithCrossCompositionMetricPolicyMismatch(),
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "mappedCompositionB.metricPolicy",
+    },
+    {
       label: "non-serializable nested request field",
       input: {
         ...validNormalizationRequest(),
@@ -321,6 +327,35 @@ function inputWithCrossCompositionAnchorIdCollision() {
     },
   ];
   return request;
+}
+
+function inputWithCrossCompositionMetricPolicyMismatch() {
+  const request = validNormalizationRequest();
+  const metricPolicyA = metricPolicy("metric-policy:pr85:A", "unit");
+  const metricPolicyB = metricPolicy("metric-policy:pr85:B", "px");
+  request.mappedCompositionA = withMetricPolicy(request.mappedCompositionA, metricPolicyA);
+  request.mappedCompositionB = withMetricPolicy(request.mappedCompositionB, metricPolicyB);
+  return request;
+}
+
+function withMetricPolicy(composition, metricPolicyValue) {
+  return {
+    ...composition,
+    metricPolicy: metricPolicyValue,
+    surface: {
+      ...composition.surface,
+      metricPolicy: metricPolicyValue,
+    },
+  };
+}
+
+function metricPolicy(id, unit) {
+  return {
+    kind: "metric-policy",
+    id,
+    quantity: "length",
+    unit,
+  };
 }
 
 function mappedComposition(label, elementId, geometry) {

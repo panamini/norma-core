@@ -154,6 +154,7 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
   }
 
   const request = requestFields as unknown as AcceptedGeometryStructuredAnalyzeNormalizationRequestV1;
+  validateCrossCompositionPolicyCompatibility(mappedCompositionA, mappedCompositionB, diagnostics);
   validateCrossCompositionInputSourceIds(mappedCompositionA, mappedCompositionB, diagnostics);
   validateOutputSourceIds(request, mappedCompositionA, mappedCompositionB, diagnostics);
 
@@ -423,6 +424,28 @@ function validateCrossCompositionInputSourceIds(
   }
 }
 
+function validateCrossCompositionPolicyCompatibility(
+  mappedCompositionA: Composition2D,
+  mappedCompositionB: Composition2D,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): void {
+  if (!sameDeterministicValue(mappedCompositionA.coordinateSystem, mappedCompositionB.coordinateSystem)) {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      "mappedCompositionB.coordinateSystem",
+      "mappedCompositionB coordinate system must match mappedCompositionA.",
+    ));
+  }
+
+  if (!sameDeterministicValue(mappedCompositionA.metricPolicy ?? null, mappedCompositionB.metricPolicy ?? null)) {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      "mappedCompositionB.metricPolicy",
+      "mappedCompositionB metricPolicy must match mappedCompositionA.",
+    ));
+  }
+}
+
 function validateOutputSourceIds(
   request: AcceptedGeometryStructuredAnalyzeNormalizationRequestV1,
   mappedCompositionA: Composition2D,
@@ -544,6 +567,11 @@ function contentIdentityFor(value: unknown): string {
   const hash = createHash("sha256");
   hash.update(serializeCanonicalJson(value, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY));
   return `sha256:${hash.digest("hex")}`;
+}
+
+function sameDeterministicValue(first: unknown, second: unknown): boolean {
+  return serializeCanonicalJson(first, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY)
+    === serializeCanonicalJson(second, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY);
 }
 
 function isDeterministicSerializationError(error: unknown): boolean {
