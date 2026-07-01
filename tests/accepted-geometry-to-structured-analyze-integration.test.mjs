@@ -88,6 +88,28 @@ test("PR82 analyzes synthetic mapped AcceptedGeometry rectangles through Structu
   assert.ok(first.inputRefs.some((ref) => ref.kind === "structured-source" && ref.ref === "composition:pr82:mapped:B"));
 });
 
+test("PR85 carries mapped metric policy through the synthetic shared surface into measurements", () => {
+  const metricPolicy = normalizedMetricPolicy("metric-policy:pr85:normalized");
+  const input = createPr82StructuredAnalyzeInput({ metricPolicy });
+  const result = core.analyzeStructuredCompositionV1(structuredClone(input));
+
+  assertValid(result);
+  assert.deepEqual(input.compositionA.metricPolicy, metricPolicy);
+  assert.deepEqual(input.compositionB.metricPolicy, metricPolicy);
+  assert.deepEqual(input.compositionA.surface.metricPolicy, metricPolicy);
+  assert.deepEqual(input.compositionB.surface.metricPolicy, metricPolicy);
+
+  const measurements = [
+    ...result.measurements.a.constructionMeasurements,
+    ...result.measurements.a.compositions.flatMap((composition) => composition.measurements),
+  ];
+
+  assert.ok(measurements.length > 0);
+  for (const measurement of measurements) {
+    assert.equal(measurement.metricPolicy.sourceMetricPolicyRef, metricPolicy.id);
+  }
+});
+
 test("PR82 keeps rejected AcceptedGeometry primitives out of Structured Analyze", () => {
   const acceptedGeometry = acceptedRectangleGeometry("unsupported", [
     {
@@ -108,7 +130,7 @@ test("PR82 keeps rejected AcceptedGeometry primitives out of Structured Analyze"
   assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code === "UnsupportedAcceptedGeometryPrimitiveKind"), true);
 });
 
-function createPr82StructuredAnalyzeInput() {
+function createPr82StructuredAnalyzeInput(options = {}) {
   const acceptedA = acceptedRectangleGeometry("A", [
     rectanglePrimitive({ id: "rectangle:left-panel", x: 0, y: 0, width: 1 / 3, height: 1 }),
     rectanglePrimitive({ id: "rectangle:middle-panel", x: 1 / 3, y: 0, width: 1 / 3, height: 1 }),
@@ -120,6 +142,9 @@ function createPr82StructuredAnalyzeInput() {
   ]);
   const mappedA = requiredMappedGeometry(mapAcceptedGeometryToCoreV1(validMappingRequest(acceptedA)), "A");
   const mappedB = requiredMappedGeometry(mapAcceptedGeometryToCoreV1(validMappingRequest(acceptedB)), "B");
+  const metricPolicy = options.metricPolicy ?? null;
+  const mappedCompositionA = metricPolicy === null ? mappedA.mappedGeometry : withMetricPolicy(mappedA.mappedGeometry, metricPolicy);
+  const mappedCompositionB = metricPolicy === null ? mappedB.mappedGeometry : withMetricPolicy(mappedB.mappedGeometry, metricPolicy);
   const base = core.createMvpDemoInput();
   const tolerancePolicy = {
     ...structuredClone(base.tolerancePolicy),
@@ -127,8 +152,8 @@ function createPr82StructuredAnalyzeInput() {
   };
   const normalization = requiredNormalization(normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1({
     requestId: "request:pr82:synthetic-shared-unit-surface",
-    mappedCompositionA: mappedA.mappedGeometry,
-    mappedCompositionB: mappedB.mappedGeometry,
+    mappedCompositionA,
+    mappedCompositionB,
     normalizedCompositionAId: "composition:pr82:mapped:A",
     normalizedCompositionBId: "composition:pr82:mapped:B",
     sharedSurfaceId: "surface:pr82:synthetic-unit",
@@ -165,6 +190,7 @@ function createPr82StructuredAnalyzeInput() {
     { kind: "evaluation-profile", ref: base.evaluationProfile.id },
     { kind: "evaluation-tolerances", ref: evaluationTolerances.id },
     { kind: "coordinate-system", ref: sharedSurface.coordinateSystem.id },
+    ...(metricPolicy === null ? [] : [{ kind: "metric-policy", ref: metricPolicy.id }]),
     { kind: "tolerance-policy", ref: tolerancePolicy.id },
   ];
   const operationContext = requiredOutput(core.createOperationContext({
@@ -172,7 +198,7 @@ function createPr82StructuredAnalyzeInput() {
     operationVersion: core.STRUCTURED_COMPOSITION_ANALYSIS_OPERATION_VERSION,
     geometryModelVersion: "geometry-v1",
     coordinatePolicy: sharedSurface.coordinateSystem,
-    metricPolicy: null,
+    metricPolicy,
     tolerancePolicy,
     roundingPolicy: base.operationContext.roundingPolicy.value,
     numericPolicy: base.operationContext.numericPolicy.value,
@@ -230,6 +256,26 @@ function createPr82StructuredAnalyzeInput() {
       acceptanceRecord: acceptance,
       operationContextRef: operationContext.ref,
     },
+  };
+}
+
+function withMetricPolicy(composition, metricPolicy) {
+  return {
+    ...composition,
+    metricPolicy,
+    surface: {
+      ...composition.surface,
+      metricPolicy,
+    },
+  };
+}
+
+function normalizedMetricPolicy(id) {
+  return {
+    kind: "metric-policy",
+    id,
+    quantity: "length",
+    unit: "unit",
   };
 }
 

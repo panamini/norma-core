@@ -13,6 +13,7 @@ import {
   acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
   acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
+  acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
@@ -144,6 +145,17 @@ test("shared exact changed-file guard accepts the PR85 AcceptedGeometry normaliz
       broadPath,
     );
   }
+});
+
+test("shared exact changed-file guard accepts the PR86 AcceptedGeometry normalization metric-policy fix set exactly", () => {
+  assert.strictEqual(
+    acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
+    acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles),
+    acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
+  );
 });
 
 test("shared exact changed-file guard accepts the PR83 post-PR82 roadmap truth sync set exactly", () => {
