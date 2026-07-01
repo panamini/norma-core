@@ -98,6 +98,10 @@ test("shared exact changed-file guard accepts the PR82 AcceptedGeometry integrat
 });
 
 test("shared exact changed-file guard accepts the PR84 AcceptedGeometry fresh-clone proof set exactly", () => {
+  assert.strictEqual(
+    acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
+    acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
+  );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles),
     acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
