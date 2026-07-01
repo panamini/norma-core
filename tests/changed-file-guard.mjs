@@ -433,6 +433,10 @@ export const acceptedGeometryStructuredAnalyzeNormalizationChangedFiles = Object
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+// PR86 metric-policy provenance fix intentionally reuses the PR85 normalizer file set.
+export const acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles =
+  acceptedGeometryStructuredAnalyzeNormalizationChangedFiles;
+
 export const postPr82RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-01-post-pr82-roadmap-truth-sync.md",

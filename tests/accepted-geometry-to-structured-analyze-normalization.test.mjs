@@ -97,6 +97,44 @@ test("PR85 builds the shared surface as a canonical synthetic unit surface", () 
   assert.deepEqual(result.compositionB.surface.bounds, unitSurface("ignored").bounds);
 });
 
+test("PR85 preserves a mapped metric policy on the synthetic shared surface", () => {
+  const request = validNormalizationRequest();
+  const mappedMetricPolicy = metricPolicy("metric-policy:pr85:normalized", "unit");
+  request.mappedCompositionA = withMetricPolicy(request.mappedCompositionA, mappedMetricPolicy);
+  request.mappedCompositionB = withMetricPolicy(request.mappedCompositionB, mappedMetricPolicy);
+
+  const result = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(request);
+  const repeated = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(structuredClone(request));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.sharedSurface.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionA.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionB.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionA.surface.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionB.surface.metricPolicy, mappedMetricPolicy);
+  assert.equal(result.resultContentIdentity, normalizationResultContentIdentity(result));
+  assert.equal(repeated.resultContentIdentity, result.resultContentIdentity);
+});
+
+test("PR86 preserves a surface-only mapped metric policy on the synthetic shared surface", () => {
+  const request = validNormalizationRequest();
+  const mappedMetricPolicy = metricPolicy("metric-policy:pr86:surface-only", "unit");
+  request.mappedCompositionA = withSurfaceMetricPolicy(request.mappedCompositionA, mappedMetricPolicy);
+  request.mappedCompositionB = withSurfaceMetricPolicy(request.mappedCompositionB, mappedMetricPolicy);
+
+  const result = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(request);
+  const repeated = normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1(structuredClone(request));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.sharedSurface.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionA.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionB.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionA.surface.metricPolicy, mappedMetricPolicy);
+  assert.deepEqual(result.compositionB.surface.metricPolicy, mappedMetricPolicy);
+  assert.equal(result.resultContentIdentity, normalizationResultContentIdentity(result));
+  assert.equal(repeated.resultContentIdentity, result.resultContentIdentity);
+});
+
 test("PR85 sorts accepted source ids without host locale collation", () => {
   const request = validNormalizationRequest();
   request.mappedCompositionA.elements = [
@@ -233,6 +271,18 @@ test("PR85 rejects invalid normalization requests without throwing", () => {
       path: "mappedCompositionB.metricPolicy",
     },
     {
+      label: "composition surface metric policy mismatch",
+      input: inputWithCompositionSurfaceMetricPolicyMismatch(),
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "mappedCompositionA.surface.metricPolicy",
+    },
+    {
+      label: "cross-composition surface metric policy mismatch",
+      input: inputWithCrossCompositionSurfaceMetricPolicyMismatch(),
+      code: "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      path: "mappedCompositionB.metricPolicy",
+    },
+    {
       label: "non-serializable nested request field",
       input: {
         ...validNormalizationRequest(),
@@ -338,10 +388,48 @@ function inputWithCrossCompositionMetricPolicyMismatch() {
   return request;
 }
 
+function inputWithCompositionSurfaceMetricPolicyMismatch() {
+  const request = validNormalizationRequest();
+  const compositionMetricPolicy = metricPolicy("metric-policy:pr86:composition", "unit");
+  const surfaceMetricPolicy = metricPolicy("metric-policy:pr86:surface", "px");
+  request.mappedCompositionA = withMetricPolicy(request.mappedCompositionA, compositionMetricPolicy);
+  request.mappedCompositionA = {
+    ...request.mappedCompositionA,
+    surface: {
+      ...request.mappedCompositionA.surface,
+      metricPolicy: surfaceMetricPolicy,
+    },
+  };
+  return request;
+}
+
+function inputWithCrossCompositionSurfaceMetricPolicyMismatch() {
+  const request = validNormalizationRequest();
+  request.mappedCompositionA = withSurfaceMetricPolicy(
+    request.mappedCompositionA,
+    metricPolicy("metric-policy:pr86:surface:A", "unit"),
+  );
+  request.mappedCompositionB = withSurfaceMetricPolicy(
+    request.mappedCompositionB,
+    metricPolicy("metric-policy:pr86:surface:B", "px"),
+  );
+  return request;
+}
+
 function withMetricPolicy(composition, metricPolicyValue) {
   return {
     ...composition,
     metricPolicy: metricPolicyValue,
+    surface: {
+      ...composition.surface,
+      metricPolicy: metricPolicyValue,
+    },
+  };
+}
+
+function withSurfaceMetricPolicy(composition, metricPolicyValue) {
+  return {
+    ...composition,
     surface: {
       ...composition.surface,
       metricPolicy: metricPolicyValue,

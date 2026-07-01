@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   Composition2D,
   CoreError,
+  MetricPolicy,
   SourceReference,
   SurfaceSpace,
   TolerancePolicy,
@@ -166,10 +167,14 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
     });
   }
 
+  const effectiveMetricPolicy = effectiveMetricPolicyFor(mappedCompositionA);
   const sharedSurface: SurfaceSpace = {
     kind: "surface-space",
     id: request.sharedSurfaceId,
     coordinateSystem: mappedCompositionA.surface.coordinateSystem,
+    ...(effectiveMetricPolicy === null
+      ? {}
+      : { metricPolicy: effectiveMetricPolicy }),
     bounds: {
       kind: "rect",
       x: 0,
@@ -182,12 +187,18 @@ function normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceChecked(
   const compositionA: Composition2D = {
     ...mappedCompositionA,
     id: request.normalizedCompositionAId,
+    ...(effectiveMetricPolicy === null
+      ? {}
+      : { metricPolicy: effectiveMetricPolicy }),
     surface: sharedSurface,
     tolerancePolicy: request.tolerancePolicy,
   };
   const compositionB: Composition2D = {
     ...mappedCompositionB,
     id: request.normalizedCompositionBId,
+    ...(effectiveMetricPolicy === null
+      ? {}
+      : { metricPolicy: effectiveMetricPolicy }),
     surface: sharedSurface,
     tolerancePolicy: request.tolerancePolicy,
   };
@@ -437,13 +448,40 @@ function validateCrossCompositionPolicyCompatibility(
     ));
   }
 
-  if (!sameDeterministicValue(mappedCompositionA.metricPolicy ?? null, mappedCompositionB.metricPolicy ?? null)) {
+  validateCompositionSurfaceMetricPolicyCompatibility(mappedCompositionA, "mappedCompositionA", diagnostics);
+  validateCompositionSurfaceMetricPolicyCompatibility(mappedCompositionB, "mappedCompositionB", diagnostics);
+
+  if (!sameDeterministicValue(effectiveMetricPolicyFor(mappedCompositionA), effectiveMetricPolicyFor(mappedCompositionB))) {
     diagnostics.push(diagnostic(
       "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
       "mappedCompositionB.metricPolicy",
-      "mappedCompositionB metricPolicy must match mappedCompositionA.",
+      "mappedCompositionB effective metricPolicy must match mappedCompositionA.",
     ));
   }
+}
+
+function validateCompositionSurfaceMetricPolicyCompatibility(
+  composition: Composition2D,
+  path: string,
+  diagnostics: AcceptedGeometryStructuredAnalyzeNormalizationDiagnostic[],
+): void {
+  if (
+    composition.metricPolicy !== undefined
+    && composition.metricPolicy !== null
+    && composition.surface.metricPolicy !== undefined
+    && composition.surface.metricPolicy !== null
+    && !sameDeterministicValue(composition.metricPolicy, composition.surface.metricPolicy)
+  ) {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryStructuredAnalyzeNormalizationRequest",
+      `${path}.surface.metricPolicy`,
+      `${path} surface metricPolicy must match its composition metricPolicy.`,
+    ));
+  }
+}
+
+function effectiveMetricPolicyFor(composition: Composition2D): MetricPolicy | null {
+  return composition.surface.metricPolicy ?? composition.metricPolicy ?? null;
 }
 
 function validateOutputSourceIds(
