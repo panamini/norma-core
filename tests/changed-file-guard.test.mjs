@@ -12,6 +12,7 @@ import {
   acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles,
   acceptedGeometryStructuredAnalyzeIntegrationProofChangedFiles,
+  acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
@@ -116,6 +117,29 @@ test("shared exact changed-file guard accepts the PR84 AcceptedGeometry fresh-cl
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       acceptedGeometryStructuredAnalyzeFreshCloneProofChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR85 AcceptedGeometry normalization set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(acceptedGeometryStructuredAnalyzeNormalizationChangedFiles),
+    acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
+  );
+
+  assert.deepEqual(acceptedGeometryStructuredAnalyzeNormalizationChangedFiles, [
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "tests/accepted-geometry-to-structured-analyze-integration.test.mjs",
+    "tests/accepted-geometry-to-structured-analyze-normalization.test.mjs",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      acceptedGeometryStructuredAnalyzeNormalizationChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1543,6 +1567,46 @@ test("R36 package metadata remains private without bin, export, or dependency ex
   assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
   assert.equal("dependencies" in packageJson, false);
   assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
+});
+
+test("shared exact changed-file guard rejects runtime, package, docs, and example extras in the PR85 normalization set", () => {
+  const missingRequiredFile = acceptedGeometryStructuredAnalyzeNormalizationChangedFiles.filter(
+    (file) => file !== "src/accepted-geometry-to-structured-analyze-normalization.ts",
+  );
+  const missingNormalizationTestFile = acceptedGeometryStructuredAnalyzeNormalizationChangedFiles.filter(
+    (file) => file !== "tests/accepted-geometry-to-structured-analyze-normalization.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+  assert.equal(sharedExactApprovedChangedFiles(missingNormalizationTestFile), null);
+
+  for (const forbiddenFile of [
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-01-post-pr82-roadmap-truth-sync.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/fixtures/geometry-observation/new-fixture.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("shared exact changed-file guard does not treat broad path globs as approvals", () => {
