@@ -664,6 +664,9 @@ PR25 mostly satisfies local module readiness. It does not satisfy developer-tool
 Current gate reference:
 `docs/decisions/2026-07-02-guided-inspection-package-api-readiness-gate.md`.
 
+Current truth-sync reference:
+`docs/decisions/2026-07-02-post-pr92-roadmap-truth-sync.md`.
+
 PR88 defined the post-PR87 priority order: local operator validation, guided
 inspection surface, package/publication readiness gate, hosted/private MCP and
 ChatGPT connector gates, and image/CAD/Figma/provider adapter gates.
@@ -679,16 +682,28 @@ PR90 is a docs/tests/guard package/API readiness gate for the PR89 local proof.
 guided inspection flow. `guide.html`, `report.html`, `visual.svg`,
 `summary.json`, and `summary.md` are derived local inspection artifacts only.
 
+PR91 is merged as PR #171 at
+`427121f61bf5bda2effe02bdf93b5d5c4c0d9fca`. It added the package-private
+`createGuidedInspectionArtifactContract` helper without package-root exports,
+package metadata changes, publication, hosted runtime, connector runtime,
+provider calls, or adapter implementation.
+
+PR92 is merged as PR #172 at
+`2a897b2e7c41a54081a80aa50f0c72b5f6341aa7`. It wired
+`bin/norma-core-guided-inspection-demo.mjs` through the package-private guided
+inspection artifact contract while preserving the existing local command
+behavior and generated artifact envelope.
+
 Future package/API surfaces may reference derived artifact paths and metadata
 only as inspection outputs. They must not treat derived artifacts as source
 truth or use them to infer, correct, optimize, recommend, score, select
 families, or override Norma results.
 
-The first safe implementation PR after this gate should be a package-private
-local helper or caller contract. Public package/API export, public npm
-publication, package metadata, lockfile, dependency, hosted MCP runtime,
-ChatGPT connector runtime, OpenAI/provider call, and image/CAD/Figma/provider
-adapter implementation remain blocked until later explicit approval.
+The next safe implementation slice after this truth sync is a local guided
+inspection consumer proof: consume the existing demo output and `result.json`
+from the local artifact envelope without creating public package exports,
+package metadata, publication, hosted MCP runtime, ChatGPT connector runtime,
+OpenAI/provider calls, or image/CAD/Figma/provider adapter implementation.
 
 The current Core source-truth model still applies: Norma Core accepts explicit
 structured geometry only. The PR86 metric-policy invariant remains mandatory

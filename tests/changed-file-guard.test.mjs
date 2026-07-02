@@ -42,6 +42,7 @@ import {
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   postPr82RoadmapTruthSyncChangedFiles,
   postPr86RoadmapTruthSyncChangedFiles,
+  postPr92RoadmapTruthSyncChangedFiles,
   mcpProtocolContractLockV2ChangedFiles,
   postR25RoadmapTruthSyncChangedFiles,
   postR31RoadmapTruthSyncChangedFiles,
@@ -207,6 +208,30 @@ test("shared exact changed-file guard accepts the PR87 post-PR86 roadmap truth s
   for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
     assert.equal(
       postPr86RoadmapTruthSyncChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR93 post-PR92 roadmap truth sync set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(postPr92RoadmapTruthSyncChangedFiles),
+    postPr92RoadmapTruthSyncChangedFiles,
+  );
+
+  assert.deepEqual(postPr92RoadmapTruthSyncChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-02-post-pr92-roadmap-truth-sync.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/post-pr92-roadmap-truth-sync.test.mjs",
+    "tests/roadmap-status-update.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      postPr92RoadmapTruthSyncChangedFiles.includes(broadPath),
       false,
       broadPath,
     );
@@ -1740,6 +1765,39 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...postPr86RoadmapTruthSyncChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, docs, and example extras in the PR93 truth sync set", () => {
+  const missingRequiredFile = postPr92RoadmapTruthSyncChangedFiles.filter(
+    (file) => file !== "tests/post-pr92-roadmap-truth-sync.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/guided-inspection-artifact-contract.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "docs/examples/local-guided-inspection-demo.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...postPr92RoadmapTruthSyncChangedFiles,
         forbiddenFile,
       ]),
       null,
