@@ -22,6 +22,7 @@ const repoRoot = dirname(testDir);
 const guidedCommandPath = join(repoRoot, "bin/norma-core-guided-inspection-demo.mjs");
 const realUsecaseCommandPath = join(repoRoot, "bin/norma-core-real-usecase-demo.mjs");
 const sourceInputPath = join(repoRoot, "examples/structured-analyze/usecases/structured-layout-real-usecase.json");
+const cliTestTimeoutMs = 30_000;
 const outputFiles = ["guide.html", "report.html", "result.json", "summary.json", "summary.md", "visual.svg"];
 const guidedSuccessEnvelopeKeys = [
   "canonicalTruth",
@@ -292,7 +293,7 @@ test("PR89 preserves existing real-usecase local demo command output contract", 
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       [realUsecaseCommandPath, "--output", outputDir],
-      { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: repoRoot, maxBuffer: 10 * 1024 * 1024, timeout: cliTestTimeoutMs },
     );
     const parsed = JSON.parse(stdout);
 
@@ -386,6 +387,7 @@ async function runGuidedCommand(args = []) {
     {
       cwd: repoRoot,
       maxBuffer: 10 * 1024 * 1024,
+      timeout: cliTestTimeoutMs,
     },
   );
 

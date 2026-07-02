@@ -114,7 +114,7 @@ async function executeReportCommand(runReportCommand, resolvedOutputDir, timeout
       timeout: timeoutMs,
     });
   } catch (error) {
-    const wrapped = new Error(error instanceof Error ? error.message : "Report command failed.");
+    const wrapped = new Error("Report command failed.");
     wrapped.cause = error;
     wrapped.reportCommandFailure = reportCommandFailureDetails(error, timeoutMs);
     throw wrapped;
