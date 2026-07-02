@@ -74,23 +74,28 @@ test("PR99 package metadata stays private and local-only with a minimal files al
 });
 
 test("PR99 npm pack tarball is intentionally bounded", async () => {
-  const { files } = await packFromTempWorkspace();
-  const tarballFiles = files.map((file) => file.path).sort();
+  const { files, cleanup } = await packFromTempWorkspace();
 
-  for (const requiredTarballFile of requiredTarballFiles) {
-    assert.equal(tarballFiles.includes(requiredTarballFile), true, requiredTarballFile);
-  }
+  try {
+    const tarballFiles = files.map((file) => file.path).sort();
 
-  for (const tarballFile of tarballFiles) {
-    assert.equal(
-      allowedTarballPathPatterns.some((allowedPattern) => allowedPattern.test(tarballFile)),
-      true,
-      tarballFile,
-    );
-
-    for (const forbiddenPattern of forbiddenTarballPathPatterns) {
-      assert.doesNotMatch(tarballFile, forbiddenPattern, tarballFile);
+    for (const requiredTarballFile of requiredTarballFiles) {
+      assert.equal(tarballFiles.includes(requiredTarballFile), true, requiredTarballFile);
     }
+
+    for (const tarballFile of tarballFiles) {
+      assert.equal(
+        allowedTarballPathPatterns.some((allowedPattern) => allowedPattern.test(tarballFile)),
+        true,
+        tarballFile,
+      );
+
+      for (const forbiddenPattern of forbiddenTarballPathPatterns) {
+        assert.doesNotMatch(tarballFile, forbiddenPattern, tarballFile);
+      }
+    }
+  } finally {
+    await cleanup();
   }
 });
 
