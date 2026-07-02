@@ -41,6 +41,7 @@ import {
   localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  packageApiExportContractApprovalChangedFiles,
   postPr82RoadmapTruthSyncChangedFiles,
   postPr86RoadmapTruthSyncChangedFiles,
   postPr92RoadmapTruthSyncChangedFiles,
@@ -738,6 +739,71 @@ test("shared exact changed-file guard rejects forbidden extras in the PR94 consu
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionConsumerProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR95 package API export contract approval set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(packageApiExportContractApprovalChangedFiles),
+    packageApiExportContractApprovalChangedFiles,
+  );
+
+  assert.deepEqual(packageApiExportContractApprovalChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/package-api-export-contract-approval.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      packageApiExportContractApprovalChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR95 package API export contract approval set", () => {
+  const missingRequiredFile = packageApiExportContractApprovalChangedFiles.filter(
+    (file) => file !== "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/index.ts",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "src/**",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/**",
+    "examples/consumer/structured-analyze-v1.ts",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "examples/**",
+    "viewer/index.html",
+    "viewer/**",
+    ".github/workflows/verify.yml",
+    ".github/**",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...packageApiExportContractApprovalChangedFiles,
         forbiddenFile,
       ]),
       null,

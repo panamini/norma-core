@@ -694,16 +694,42 @@ PR92 is merged as PR #172 at
 inspection artifact contract while preserving the existing local command
 behavior and generated artifact envelope.
 
+Historical PR93 wording remains true for that checkpoint: The next safe
+implementation slice after this truth sync is a local guided inspection consumer
+proof to consume the existing demo output and `result.json` from the local
+artifact envelope.
+
+PR93 recorded the post-PR92 roadmap truth as a docs/tests-only checkpoint.
+
+PR94 is merged as PR #174 at
+`3975f9841490735085a74984e858a9fbffd778e0`. It added the package-private
+guided inspection consumer proof without adding package-root exports, package
+metadata changes, package publication, hosted MCP runtime, ChatGPT connector
+runtime, provider calls, or adapter implementation.
+
+PR95 is a docs/tests/guard approval PR for the exact future package-root guided
+inspection API export contract. It does not implement package-root exports,
+package publication, package metadata changes, hosted MCP runtime, ChatGPT
+connector runtime, OpenAI/provider calls, image/CAD/Figma adapters, inference,
+recommendation, optimization, correction, scoring, or automatic family
+selection.
+
+Current package API decision reference:
+`docs/decisions/2026-07-02-package-api-export-contract-approval.md`.
+
 Future package/API surfaces may reference derived artifact paths and metadata
 only as inspection outputs. They must not treat derived artifacts as source
 truth or use them to infer, correct, optimize, recommend, score, select
 families, or override Norma results.
 
-The next safe implementation slice after this truth sync is a local guided
-inspection consumer proof: consume the existing demo output and `result.json`
-from the local artifact envelope without creating public package exports,
-package metadata, publication, hosted MCP runtime, ChatGPT connector runtime,
-OpenAI/provider calls, or image/CAD/Figma/provider adapter implementation.
+The next safe implementation slice after PR95 is the package-root guided
+inspection API export implementation approved by the PR95 decision, if that
+future PR keeps the API structural only and preserves `result.json` as canonical
+machine-consumable Norma truth. That future slice must not add package
+publication, package metadata changes, hosted MCP runtime, ChatGPT connector
+runtime, OpenAI/provider calls, image/CAD/Figma/provider adapter implementation,
+inference, recommendation, optimization, correction, scoring, or automatic
+family selection.
 
 The current Core source-truth model still applies: Norma Core accepts explicit
 structured geometry only. The PR86 metric-policy invariant remains mandatory
