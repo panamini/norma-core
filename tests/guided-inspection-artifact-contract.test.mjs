@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -75,7 +74,20 @@ test("HTML SVG Markdown and JSON contents are never parsed", async () => {
 });
 
 test("invalid outputDir values are rejected", () => {
-  for (const invalidOutputDir of ["", "relative/out", "http://example.test/out", "https://example.test/out", "file:///tmp/out"]) {
+  const invalidOutputDirs = [
+    "",
+    "relative/out",
+    "http://example.test/out",
+    "https://example.test/out",
+    "file:///tmp/out",
+  ];
+
+  if (process.platform !== "win32") {
+    invalidOutputDirs.push("C:\\tmp\\guided-inspection");
+    invalidOutputDirs.push("\\\\server\\share\\guided-inspection");
+  }
+
+  for (const invalidOutputDir of invalidOutputDirs) {
     assert.throws(
       () => createGuidedInspectionArtifactContract({
         outputDir: invalidOutputDir,
@@ -111,6 +123,16 @@ test("invalid artifact references are rejected", () => {
   }
 });
 
+test("duplicate artifact names are rejected before path mapping", () => {
+  assert.throws(
+    () => createGuidedInspectionArtifactContract({
+      outputDir,
+      artifacts: ["result.json", "summary.md", "summary.md"],
+    }),
+    /Duplicate guided inspection artifact: summary\.md/,
+  );
+});
+
 test("differently ordered artifact arrays produce deterministic output and stable object keys", () => {
   const first = createGuidedInspectionArtifactContract({
     outputDir,
@@ -136,19 +158,15 @@ test("package-private helper is not exposed from the root package", async () => 
   const packageRoot = await import("../dist/src/index.js");
   const packageJson = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8"));
   const currentIndex = await readFile(join(repoRoot, "src", "index.ts"), "utf8");
-  const baselineIndex = execFileSync("git", ["show", "origin/main:src/index.ts"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  const baselinePackageJson = JSON.parse(execFileSync("git", ["show", "origin/main:package.json"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  }));
 
   assert.equal("createGuidedInspectionArtifactContract" in packageRoot, false);
-  assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
-  assert.deepEqual(packageJson.exports, baselinePackageJson.exports);
-  assert.equal(currentIndex, baselineIndex);
+  assert.deepEqual(packageJson.exports, {
+    ".": {
+      types: "./dist/src/index.d.ts",
+      default: "./dist/src/index.js",
+    },
+  });
+  assert.doesNotMatch(currentIndex, /createGuidedInspectionArtifactContract|guided-inspection-artifact-contract/u);
 
   await assert.rejects(
     import("@norma/core/local-report/guided-inspection-artifact-contract"),

@@ -18,6 +18,7 @@ import {
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
+  guidedInspectionDemoArtifactContractWiringChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -627,6 +628,66 @@ test("shared exact changed-file guard rejects forbidden extras in the PR91 artif
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionArtifactContractChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR92 guided demo artifact-contract wiring set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionDemoArtifactContractWiringChangedFiles),
+    guidedInspectionDemoArtifactContractWiringChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionDemoArtifactContractWiringChangedFiles, [
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-artifact-contract.test.mjs",
+    "tests/local-guided-inspection-demo.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      guidedInspectionDemoArtifactContractWiringChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR92 wiring set", () => {
+  const missingRequiredFile = guidedInspectionDemoArtifactContractWiringChangedFiles.filter(
+    (file) => file !== "tests/local-guided-inspection-demo.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionDemoArtifactContractWiringChangedFiles,
         forbiddenFile,
       ]),
       null,

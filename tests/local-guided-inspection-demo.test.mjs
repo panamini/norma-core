@@ -118,7 +118,59 @@ test("PR89 guided inspection rejects unsafe report output filenames before file 
     assert.equal(io.stdoutText(), "");
     assert.equal(parsed.status, "error");
     assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
-    assert.match(parsed.error.message, /unsafe or unexpected output filename/u);
+    assert.match(parsed.error.message, /must not be an absolute or nested path|must not include traversal/u);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("PR92 guided inspection rejects duplicate report output filenames through the artifact contract", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr92-guided-duplicate-files-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => ({ stdout: JSON.stringify({ files: ["result.json", "summary.md", "summary.md"] }) }),
+      },
+    });
+    const parsed = JSON.parse(io.stderrText());
+
+    assert.equal(exitCode, 3);
+    assert.equal(io.stdoutText(), "");
+    assert.equal(parsed.status, "error");
+    assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
+    assert.match(parsed.error.message, /Duplicate guided inspection artifact: summary\.md/u);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("PR92 guided inspection rejects report-owned guide.html before writing the generated guide", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr92-guided-duplicate-guide-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => ({ stdout: JSON.stringify({ files: ["result.json", "guide.html"] }) }),
+      },
+    });
+    const parsed = JSON.parse(io.stderrText());
+
+    assert.equal(exitCode, 3);
+    assert.equal(io.stdoutText(), "");
+    assert.equal(parsed.status, "error");
+    assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
+    assert.match(parsed.error.message, /Duplicate guided inspection artifact: guide\.html/u);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -214,6 +266,23 @@ test("PR89 guided inspection guide links only emitted report artifacts", async (
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("PR92 guided inspection demo wires report artifacts through the package-private contract helper", async () => {
+  const commandSource = await readFile(guidedCommandPath, "utf8");
+  const finalContractOffset = commandSource.indexOf('artifacts: [...reportResult.files, "guide.html"]');
+  const guideWriteOffset = commandSource.indexOf("await writeFile(guideHtml");
+
+  assert.match(
+    commandSource,
+    /import \{ createGuidedInspectionArtifactContract \} from "\.\.\/dist\/src\/local-report\/guided-inspection-artifact-contract\.js";/u,
+  );
+  assert.match(commandSource, /createGuidedInspectionArtifactContract\(\{\s*outputDir: resolvedOutputDir,\s*artifacts: reportResult\.files,/u);
+  assert.match(commandSource, /createGuidedInspectionArtifactContract\(\{\s*outputDir: resolvedOutputDir,\s*artifacts: \[\.\.\.reportResult\.files, "guide\.html"\],/u);
+  assert.notEqual(finalContractOffset, -1);
+  assert.notEqual(guideWriteOffset, -1);
+  assert.ok(finalContractOffset < guideWriteOffset);
+  assert.doesNotMatch(commandSource, /safeOutputFilePath|reportArtifactFileNameSet/u);
 });
 
 test("PR89 guided inspection output matches direct result and documents canonical derived boundaries", async () => {
