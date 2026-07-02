@@ -5,6 +5,11 @@
   "type": "module",
   "private": true,
   "sideEffects": false,
+  "files": [
+    "dist/src/**/*.d.ts",
+    "dist/src/**/*.js",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",

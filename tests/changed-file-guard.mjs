@@ -473,6 +473,39 @@ export const guidedInspectionPackagePublicationReadinessChangedFiles = Object.fr
   "tests/guided-inspection-package-publication-readiness.test.mjs",
 ].sort());
 
+export const guidedInspectionPackageTarballLocalInstallReadinessChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-03-package-tarball-local-install-readiness.md",
+  "package.json",
+  "tests/api-contract-decision.test.mjs",
+  "tests/api-remote-mcp-auth-audit-rate-limit-policy.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/consumer-compatibility.test.mjs",
+  "tests/guided-inspection-package-publication-readiness.test.mjs",
+  "tests/guided-inspection-package-tarball-local-install.test.mjs",
+  "tests/mcp-decision-doc-location-policy.test.mjs",
+  "tests/mcp-remote-api-readiness-checkpoint.test.mjs",
+  "tests/mcp-remote-approval-decision.test.mjs",
+  "tests/mcp-remote-deployment-policy-decision.test.mjs",
+  "tests/mcp-remote-package-dependency-decision.test.mjs",
+  "tests/mcp-remote-security-test-matrix.test.mjs",
+  "tests/mcp-remote-tool-exposure-policy.test.mjs",
+  "tests/mcp-remote-transport-auth-package-decision.test.mjs",
+  "tests/mcp-stdio-server-skeleton.test.mjs",
+  "tests/mcp-tool-contract.test.mjs",
+  "tests/minimal-api-server-approval-decision.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/publication-gate.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
+export const guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  guidedInspectionPackageTarballLocalInstallReadinessChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -564,6 +597,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
+  guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
   guidedInspectionPackagePublicationReadinessChangedFiles,
   guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
   guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,

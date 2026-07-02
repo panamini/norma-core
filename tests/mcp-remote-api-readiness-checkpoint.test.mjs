@@ -281,7 +281,6 @@ test("PR49 keeps package metadata dependencies lockfile API UI runtime and deplo
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

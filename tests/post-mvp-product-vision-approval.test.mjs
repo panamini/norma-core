@@ -491,7 +491,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
     `Unexpected PR75 changed files:\n${changed.join("\n")}`,
   );
 
-  const protectedAllowlist = exactProtectedAllowlist(changed);
+  const protectedAllowlist = sharedExactApprovedChangedFiles(changed) ?? exactProtectedAllowlist(changed);
 
   assert.deepEqual(
     changed.filter((file) => isProtectedChange(file) && !protectedAllowlist.includes(file)),
@@ -501,7 +501,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
 
 test("PR75 does not add runtime package deployment provider or schema files", () => {
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
-  const runtimeAllowlist = exactProtectedAllowlist(changed);
+  const runtimeAllowlist = sharedExactApprovedChangedFiles(changed) ?? exactProtectedAllowlist(changed);
   const unexpected = changed.filter(
     (file) => !runtimeAllowlist.includes(file) && forbiddenRuntimePatterns.some((pattern) => pattern.test(file)),
   );

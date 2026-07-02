@@ -234,7 +234,6 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

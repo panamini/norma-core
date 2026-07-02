@@ -781,6 +781,40 @@ PR99: package tarball contents and metadata approval contract
 PR99 should still not publish and should not implement package metadata changes
 unless those exact changes are explicitly approved in that PR.
 
+PR99 is the package tarball and local install proof PR.
+
+Current PR99 decision reference:
+`docs/decisions/2026-07-03-package-tarball-local-install-readiness.md`.
+
+PR99 keeps the package private and local-only while adding the minimal
+non-publishing `files` allowlist needed for bounded tarball contents and local
+packed-tarball install proof. The approved tarball boundary includes
+`package.json`, `README.md`, compiled JavaScript under `dist/src/`, and
+TypeScript declarations under `dist/src/`. Repo-only docs, tests, fixtures,
+examples, workflows, source TypeScript, viewer files, local demo bins, lockfiles,
+and generated golden fixtures remain excluded from the tarball.
+
+PR99 proves `npm pack --json` from a temporary packing directory and proves a
+temporary external-style consumer can install the packed tarball, import
+`@norma/core`, and use the approved package-root guided inspection V1 exports:
+`createGuidedInspectionArtifactContractV1` and
+`consumeGuidedInspectionDemoEnvelopeV1`.
+
+PR99 does not approve or execute npm publish, registry mutation, npm auth setup,
+provenance setup, release workflow, git tag, release/version bump, dependency
+changes, lockfile changes, hosted MCP, ChatGPT connector runtime,
+OpenAI/provider calls, image/CAD/Figma/provider adapters, or public package
+publication.
+
+The best next PR after PR99 is:
+
+```text
+PR100: decide public package publish authorization and release operations boundary
+```
+
+PR100 should remain a decision and operations-boundary PR unless maintainers
+explicitly approve actual publication in that PR.
+
 The current Core source-truth model still applies: Norma Core accepts explicit
 structured geometry only. The PR86 metric-policy invariant remains mandatory
 across accepted geometry, synthetic shared surfaces, normalized output
