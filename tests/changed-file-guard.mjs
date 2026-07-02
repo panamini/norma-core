@@ -458,6 +458,13 @@ export const guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFi
     .sort(),
 );
 
+export const guidedInspectionPackageRootConsumerCompatibilityChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/guided-inspection-package-root-consumer-compatibility.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -549,6 +556,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
   guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageRootApiExportsChangedFiles,
   packageApiExportContractApprovalChangedFiles,
