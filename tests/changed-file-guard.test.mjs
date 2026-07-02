@@ -17,6 +17,7 @@ import {
   branchChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
+  guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   integrationUnlockContractsChangedFiles,
@@ -546,6 +547,76 @@ test("shared exact changed-file guard accepts the PR89 local guided inspection d
       localGuidedInspectionDemoChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR90 guided inspection package/API readiness gate set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageApiReadinessGateChangedFiles),
+    guidedInspectionPackageApiReadinessGateChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackageApiReadinessGateChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-02-guided-inspection-package-api-readiness-gate.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-package-api-readiness.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      guidedInspectionPackageApiReadinessGateChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime source package provider and deployment extras in the PR90 set", () => {
+  const missingRequiredFile = guidedInspectionPackageApiReadinessGateChangedFiles.filter(
+    (file) => file !== "tests/guided-inspection-package-api-readiness.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/index.ts",
+    "src/runtime.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "src/cli/analyze.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/local-viewer/read-only-viewer-model.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "bin/norma-core-mcp-http.mjs",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    ".github/workflows/ci.yml",
+    ".env.example",
+    "Dockerfile",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackageApiReadinessGateChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
