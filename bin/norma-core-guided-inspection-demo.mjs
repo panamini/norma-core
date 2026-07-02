@@ -14,8 +14,17 @@ const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
 const defaultOutputDirPrefix = join(tmpdir(), "norma-core-guided-inspection-demo-");
 const reportCommandTimeoutMs = 30_000;
 const reportCommandFailureTextLimit = 4_096;
-const reportArtifactFileNames = Object.freeze(["report.html", "result.json", "visual.svg", "summary.json", "summary.md"]);
-const derivedReportArtifactFileNames = Object.freeze(reportArtifactFileNames.filter((fileName) => fileName !== "result.json"));
+const reportArtifactDescriptors = Object.freeze([
+  { fileName: "report.html", envelopeField: "reportHtml" },
+  { fileName: "result.json" },
+  { fileName: "visual.svg", envelopeField: "visualSvg" },
+  { fileName: "summary.json", envelopeField: "summaryJson" },
+  { fileName: "summary.md", envelopeField: "summaryMarkdown" },
+]);
+const reportArtifactFileNames = Object.freeze(reportArtifactDescriptors.map(({ fileName }) => fileName));
+const derivedReportArtifactDescriptors = Object.freeze(
+  reportArtifactDescriptors.filter(({ envelopeField }) => typeof envelopeField === "string"),
+);
 const reportArtifactFileNameSet = new Set(reportArtifactFileNames);
 
 class CliUsageError extends Error {}
@@ -133,12 +142,11 @@ async function outputFiles(outputDir, fileNames) {
 }
 
 function derivedArtifactFields(files) {
-  return withoutNullValues({
-    reportHtml: files["report.html"],
-    visualSvg: files["visual.svg"],
-    summaryJson: files["summary.json"],
-    summaryMarkdown: files["summary.md"],
-  });
+  return withoutNullValues(
+    Object.fromEntries(
+      derivedReportArtifactDescriptors.map(({ fileName, envelopeField }) => [envelopeField, files[fileName]]),
+    ),
+  );
 }
 
 function createGuideHtml({ result, files }) {
@@ -296,7 +304,7 @@ function guideDerivedArtifactSummary(files) {
 }
 
 function presentDerivedReportArtifactNames(files) {
-  return derivedReportArtifactFileNames.filter((fileName) => files[fileName]);
+  return derivedReportArtifactDescriptors.map(({ fileName }) => fileName).filter((fileName) => files[fileName]);
 }
 
 function formatCodeList(values) {
