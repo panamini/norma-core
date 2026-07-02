@@ -510,6 +510,7 @@ export const packagePublicationCandidateWithoutPublishingChangedFiles = Object.f
   "README.md",
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md",
+  "package-lock.json",
   "package.json",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",

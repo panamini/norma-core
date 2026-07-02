@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const testDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = dirname(testDir);
+
+const packageJson = JSON.parse(readFixture("package.json"));
+const packageLock = JSON.parse(readFixture("package-lock.json"));
 const decisionDoc = readFileSync(
-  "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md",
+  join(repoRoot, "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md"),
   "utf8",
 );
-const roadmap = readFileSync("docs/BUSINESS_READINESS_ROADMAP.md", "utf8");
-const readme = readFileSync("README.md", "utf8");
+const roadmap = readFixture("docs/BUSINESS_READINESS_ROADMAP.md");
+const readme = readFixture("README.md");
 const combinedDocs = `${decisionDoc}\n${roadmap}\n${readme}`;
 
 test("PR100 keeps package publication blocked while adding only safe candidate metadata", () => {
@@ -19,6 +25,7 @@ test("PR100 keeps package publication blocked while adding only safe candidate m
   assert.equal(packageJson.repository.url, "git+https://github.com/panamini/norma-core.git");
   assert.equal(packageJson.bugs.url, "https://github.com/panamini/norma-core/issues");
   assert.deepEqual(packageJson.engines, { node: ">=22" });
+  assert.deepEqual(packageLock.packages[""].engines, packageJson.engines);
 
   for (const fieldName of ["license", "publishConfig", "bin"]) {
     assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
@@ -47,6 +54,19 @@ test("PR100 keeps package publication blocked while adding only safe candidate m
   assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
   assert.equal(Object.hasOwn(packageJson, "peerDependencies"), false);
   assert.equal(Object.hasOwn(packageJson, "optionalDependencies"), false);
+});
+
+test("PR100 keeps lockfile changes limited to root package metadata consistency", () => {
+  assert.equal(packageLock.name, "@norma/core");
+  assert.equal(packageLock.version, "0.1.0");
+  assert.equal(packageLock.packages[""].name, "@norma/core");
+  assert.equal(packageLock.packages[""].version, "0.1.0");
+  assert.deepEqual(packageLock.packages[""].engines, { node: ">=22" });
+  assert.deepEqual(Object.keys(packageLock.packages[""].devDependencies).sort(), ["typescript"]);
+  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
+  assert.equal(Object.hasOwn(packageLock.packages[""], "dependencies"), false);
+  assert.equal(Object.hasOwn(packageLock.packages[""], "peerDependencies"), false);
+  assert.equal(Object.hasOwn(packageLock.packages[""], "optionalDependencies"), false);
 });
 
 test("PR100 documents the manual release gate without approving publish operations", () => {
@@ -93,4 +113,8 @@ test("PR100 preserves the guided inspection package truth boundary", () => {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function readFixture(relativePath) {
+  return readFileSync(join(repoRoot, relativePath), "utf8");
 }

@@ -810,7 +810,9 @@ PR100 finalizes the local package publication candidate boundary without
 publishing. It may add only safe non-publishing candidate metadata whose values
 are discoverable from the current repository and runtime baseline. It must keep
 `private: true`, version `0.1.0`, no `publishConfig`, no package-level `bin`,
-no dependency or lockfile changes, and the PR99 tarball allowlist.
+no dependency graph changes, and the PR99 tarball allowlist. If package metadata
+requires a root `package-lock.json` mirror, the lockfile change must stay limited
+to that root metadata consistency and must not change resolved dependencies.
 
 PR100 must not add a license field unless an authoritative root license file or
 repo policy exists. If no license authority exists, the best next step after

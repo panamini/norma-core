@@ -4,7 +4,7 @@
 
 PR100 finalizes the local `@norma/core` package publication candidate boundary without publishing.
 
-The package remains private and local-only. `package.json` keeps `private: true`, version `0.1.0`, no `publishConfig`, no package-level `bin`, no dependency changes, no script changes, and the PR99 tarball allowlist.
+The package remains private and local-only. `package.json` keeps `private: true`, version `0.1.0`, no `publishConfig`, no package-level `bin`, no dependency graph changes, no script changes, and the PR99 tarball allowlist. `package-lock.json` mirrors only the root `engines` metadata so later installs do not create unrelated lockfile drift.
 
 PR100 adds only safe candidate metadata whose values are discoverable from the current repository and runtime baseline:
 
@@ -51,7 +51,7 @@ PR100 does not approve or execute:
 - version bump or release commit;
 - package-level `bin`;
 - dependency, devDependency, peerDependency, or optionalDependency changes;
-- lockfile changes;
+- lockfile changes beyond root package metadata consistency;
 - hosted MCP;
 - ChatGPT connector runtime;
 - OpenAI/provider calls;

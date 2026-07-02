@@ -1119,6 +1119,7 @@ test("shared exact changed-file guard accepts the PR100 package publication cand
     "README.md",
     "docs/BUSINESS_READINESS_ROADMAP.md",
     "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md",
+    "package-lock.json",
     "package.json",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
@@ -1144,7 +1145,6 @@ test("shared exact changed-file guard rejects forbidden extras in the PR100 pack
   for (const forbiddenFile of [
     "LICENSE",
     "LICENSE.md",
-    "package-lock.json",
     "pnpm-lock.yaml",
     "yarn.lock",
     ".github/workflows/release.yml",
