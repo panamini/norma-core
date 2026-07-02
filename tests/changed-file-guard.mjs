@@ -423,6 +423,13 @@ export const guidedInspectionDemoArtifactContractWiringChangedFiles = Object.fre
   "tests/local-guided-inspection-demo.test.mjs",
 ].sort());
 
+export const guidedInspectionConsumerProofChangedFiles = Object.freeze([
+  "src/local-report/guided-inspection-consumer-proof.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/guided-inspection-consumer-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -514,6 +521,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionConsumerProofChangedFiles,
   postPr92RoadmapTruthSyncChangedFiles,
   guidedInspectionDemoArtifactContractWiringChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
