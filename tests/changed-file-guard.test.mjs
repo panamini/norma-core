@@ -644,6 +644,7 @@ test("shared exact changed-file guard accepts the PR92 guided demo artifact-cont
 
   assert.deepEqual(guidedInspectionDemoArtifactContractWiringChangedFiles, [
     "bin/norma-core-guided-inspection-demo.mjs",
+    "src/local-report/guided-inspection-artifact-contract.ts",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/guided-inspection-artifact-contract.test.mjs",

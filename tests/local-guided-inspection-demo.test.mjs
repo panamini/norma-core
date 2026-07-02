@@ -150,6 +150,32 @@ test("PR92 guided inspection rejects duplicate report output filenames through t
   }
 });
 
+test("PR92 guided inspection rejects report-owned guide.html before writing the generated guide", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr92-guided-duplicate-guide-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => ({ stdout: JSON.stringify({ files: ["result.json", "guide.html"] }) }),
+      },
+    });
+    const parsed = JSON.parse(io.stderrText());
+
+    assert.equal(exitCode, 3);
+    assert.equal(io.stdoutText(), "");
+    assert.equal(parsed.status, "error");
+    assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
+    assert.match(parsed.error.message, /Duplicate guided inspection artifact: guide\.html/u);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("PR89 guided inspection reports bounded report command failure diagnostics", async () => {
   const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr89-guided-report-failure-"));
   const outputDir = join(tempRoot, "guided");
@@ -244,6 +270,8 @@ test("PR89 guided inspection guide links only emitted report artifacts", async (
 
 test("PR92 guided inspection demo wires report artifacts through the package-private contract helper", async () => {
   const commandSource = await readFile(guidedCommandPath, "utf8");
+  const finalContractOffset = commandSource.indexOf('artifacts: [...reportResult.files, "guide.html"]');
+  const guideWriteOffset = commandSource.indexOf("await writeFile(guideHtml");
 
   assert.match(
     commandSource,
@@ -251,6 +279,9 @@ test("PR92 guided inspection demo wires report artifacts through the package-pri
   );
   assert.match(commandSource, /createGuidedInspectionArtifactContract\(\{\s*outputDir: resolvedOutputDir,\s*artifacts: reportResult\.files,/u);
   assert.match(commandSource, /createGuidedInspectionArtifactContract\(\{\s*outputDir: resolvedOutputDir,\s*artifacts: \[\.\.\.reportResult\.files, "guide\.html"\],/u);
+  assert.notEqual(finalContractOffset, -1);
+  assert.notEqual(guideWriteOffset, -1);
+  assert.ok(finalContractOffset < guideWriteOffset);
   assert.doesNotMatch(commandSource, /safeOutputFilePath|reportArtifactFileNameSet/u);
 });
 

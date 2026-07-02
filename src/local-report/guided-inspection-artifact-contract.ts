@@ -49,7 +49,7 @@ function validateOutputDir(outputDir: string): string {
     throw new Error("Guided inspection outputDir must be a non-empty absolute local filesystem path");
   }
 
-  if (!isAbsolute(outputDir) || isUrl(outputDir)) {
+  if (!isAbsoluteLocalOutputDir(outputDir) || isUrl(outputDir)) {
     throw new Error("Guided inspection outputDir must be a non-empty absolute local filesystem path");
   }
 
@@ -85,7 +85,7 @@ function validateArtifactName(artifact: string): void {
     throw new Error(`Guided inspection artifact must be a local filename: ${artifact}`);
   }
 
-  if (isAbsolute(artifact) || artifact.includes("/") || artifact.includes("\\")) {
+  if (artifact.startsWith("/") || artifact.includes("/") || artifact.includes("\\")) {
     throw new Error(`Guided inspection artifact must not be an absolute or nested path: ${artifact}`);
   }
 
@@ -117,6 +117,14 @@ function isUrl(value: string): boolean {
     || normalizedValue.startsWith("h" + "ttps:");
 }
 
-function isAbsolute(value: string): boolean {
-  return value.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(value);
+function isAbsoluteLocalOutputDir(value: string): boolean {
+  if (value.startsWith("/")) {
+    return true;
+  }
+
+  return isWindowsRuntime() && (value.startsWith("\\\\") || /^[A-Za-z]:[\\/]/u.test(value));
+}
+
+function isWindowsRuntime(): boolean {
+  return /^[A-Za-z]:[\\/]/u.test(process.cwd()) || process.cwd().startsWith("\\\\");
 }

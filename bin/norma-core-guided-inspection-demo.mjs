@@ -42,6 +42,10 @@ async function createGuidedInspectionDemoResult(args, options = {}) {
   await access(inputPath);
   const reportCommand = await executeReportCommand(runReportCommand, resolvedOutputDir, timeoutMs);
   const reportResult = parseReportCommandOutput(reportCommand.stdout);
+  const artifactContract = createGuidedInspectionArtifactContract({
+    outputDir: resolvedOutputDir,
+    artifacts: [...reportResult.files, "guide.html"],
+  });
   const reportArtifactContract = createGuidedInspectionArtifactContract({
     outputDir: resolvedOutputDir,
     artifacts: reportResult.files,
@@ -54,18 +58,14 @@ async function createGuidedInspectionDemoResult(args, options = {}) {
   }
 
   const result = JSON.parse(await readFile(resultJson, "utf8"));
-  const guideHtml = join(resolvedOutputDir, "guide.html");
+  const guideHtml = artifactContract.derivedArtifacts["guide.html"];
   await writeFile(guideHtml, createGuideHtml({ result, files }), "utf8");
-  const artifactContract = createGuidedInspectionArtifactContract({
-    outputDir: resolvedOutputDir,
-    artifacts: [...reportResult.files, "guide.html"],
-  });
-  await access(artifactContract.derivedArtifacts["guide.html"]);
+  await access(guideHtml);
 
   return {
     status: "ok",
     outputDir: resolvedOutputDir,
-    guideHtml: artifactContract.derivedArtifacts["guide.html"],
+    guideHtml,
     resultJson: artifactContract.resultJson,
     ...derivedArtifactFields(artifactContract.derivedArtifacts),
     canonicalTruth: artifactContract.canonicalTruth,
