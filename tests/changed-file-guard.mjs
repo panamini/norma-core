@@ -438,6 +438,26 @@ export const packageApiExportContractApprovalChangedFiles = Object.freeze([
   "tests/package-api-export-contract-approval.test.mjs",
 ].sort());
 
+export const guidedInspectionPackageRootApiExportsChangedFiles = Object.freeze([
+  "src/index.ts",
+  "src/local-report/guided-inspection-package-api-v1.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/guided-inspection-artifact-contract.test.mjs",
+  "tests/guided-inspection-consumer-proof.test.mjs",
+  "tests/guided-inspection-package-root-api.test.mjs",
+  "tests/package-api-export-contract-approval.test.mjs",
+  "tests/public-api-contract.test.mjs",
+  "tests/read-only-viewer-static.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort());
+
+export const guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  guidedInspectionPackageRootApiExportsChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -529,6 +549,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
+  guidedInspectionPackageRootApiExportsChangedFiles,
   packageApiExportContractApprovalChangedFiles,
   guidedInspectionConsumerProofChangedFiles,
   postPr92RoadmapTruthSyncChangedFiles,

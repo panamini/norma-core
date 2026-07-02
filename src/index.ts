@@ -2307,3 +2307,4 @@ export * from "./runtime.js";
 export * from "./serialization.js";
 export * from "./mvp-demo.js";
 export * from "./structured-composition-analysis.js";
+export * from "./local-report/guided-inspection-package-api-v1.js";

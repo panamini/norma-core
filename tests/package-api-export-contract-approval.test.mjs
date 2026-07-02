@@ -180,18 +180,22 @@ test("PR95 does not approve dependency expansion", () => {
   ]);
 });
 
-test("PR95 confirms guided inspection helpers are not package-root exports yet", () => {
+test("PR96 exports only the approved guided inspection V1 facade from the package root", async () => {
   const srcIndex = readDoc(srcIndexPath);
   const decisionDoc = readDoc(decisionDocPath);
+  const packageRoot = await import("../dist/src/index.js");
 
-  for (const futureApiName of futureApiNames) {
-    assert.doesNotMatch(srcIndex, new RegExp(escapeRegExp(futureApiName), "u"), futureApiName);
+  for (const futureApiName of futureApiNames.slice(0, 2)) {
+    assert.equal(typeof packageRoot[futureApiName], "function", futureApiName);
   }
 
-  assert.doesNotMatch(srcIndex, /guided-inspection|GuidedInspection/u);
+  assert.equal("createGuidedInspectionArtifactContract" in packageRoot, false);
+  assert.equal("createGuidedInspectionConsumerProof" in packageRoot, false);
+  assert.match(srcIndex, /guided-inspection-package-api-v1/u);
+  assert.doesNotMatch(srcIndex, /guided-inspection-artifact-contract|guided-inspection-consumer-proof/u);
   assertDocMentions(decisionDoc, [
     "Guided inspection helpers are not package-root exports in PR95",
-    "PR95 itself does not export them",
+    "PR96 may implement the approved package-root names later",
   ]);
 });
 

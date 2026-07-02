@@ -492,7 +492,8 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
 	      !isPr71ApprovedChangeSet &&
 	      !isR6BStructuredAnalyzeImplementationChangeSet &&
 	      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet &&
-	      !isR1GeometrySourceIdentityChangeSet
+	      !isR1GeometrySourceIdentityChangeSet &&
+	      !isSharedApprovedFile("src/index.ts")
 	    )),
     [],
   );

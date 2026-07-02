@@ -166,7 +166,7 @@ test("package-private helper is not exposed from the root package", async () => 
       default: "./dist/src/index.js",
     },
   });
-  assert.doesNotMatch(currentIndex, /createGuidedInspectionArtifactContract|guided-inspection-artifact-contract/u);
+  assert.doesNotMatch(currentIndex, /guided-inspection-artifact-contract/u);
 
   await assert.rejects(
     import("@norma/core/local-report/guided-inspection-artifact-contract"),

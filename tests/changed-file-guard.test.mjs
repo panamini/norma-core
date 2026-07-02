@@ -20,6 +20,8 @@ import {
   guidedInspectionArtifactContractChangedFiles,
   guidedInspectionConsumerProofChangedFiles,
   guidedInspectionDemoArtifactContractWiringChangedFiles,
+  guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
+  guidedInspectionPackageRootApiExportsChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -804,6 +806,90 @@ test("shared exact changed-file guard rejects forbidden extras in the PR95 packa
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...packageApiExportContractApprovalChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR96 guided inspection package-root API exports set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageRootApiExportsChangedFiles),
+    guidedInspectionPackageRootApiExportsChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles),
+    guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackageRootApiExportsChangedFiles, [
+    "src/index.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-artifact-contract.test.mjs",
+    "tests/guided-inspection-consumer-proof.test.mjs",
+    "tests/guided-inspection-package-root-api.test.mjs",
+    "tests/package-api-export-contract-approval.test.mjs",
+    "tests/public-api-contract.test.mjs",
+    "tests/read-only-viewer-static.test.mjs",
+    "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  ]);
+  assert.deepEqual(guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles, [
+    "src/index.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-artifact-contract.test.mjs",
+    "tests/guided-inspection-consumer-proof.test.mjs",
+    "tests/guided-inspection-package-root-api.test.mjs",
+    "tests/package-api-export-contract-approval.test.mjs",
+    "tests/public-api-contract.test.mjs",
+    "tests/read-only-viewer-static.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      guidedInspectionPackageRootApiExportsChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR96 package-root API exports set", () => {
+  const missingRequiredFile = guidedInspectionPackageRootApiExportsChangedFiles.filter(
+    (file) => file !== "src/local-report/guided-inspection-package-api-v1.ts",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "examples/consumer/structured-analyze-v1.ts",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/verify.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackageRootApiExportsChangedFiles,
         forbiddenFile,
       ]),
       null,
