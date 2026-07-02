@@ -506,6 +506,16 @@ export const guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMainte
     .sort(),
 );
 
+export const packagePublicationCandidateWithoutPublishingChangedFiles = Object.freeze([
+  "README.md",
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md",
+  "package.json",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/package-publication-candidate-without-publishing.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -597,6 +607,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  packagePublicationCandidateWithoutPublishingChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
   guidedInspectionPackagePublicationReadinessChangedFiles,

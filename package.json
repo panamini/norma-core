@@ -5,6 +5,16 @@
   "type": "module",
   "private": true,
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/panamini/norma-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/panamini/norma-core/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "files": [
     "dist/src/**/*.d.ts",
     "dist/src/**/*.js",

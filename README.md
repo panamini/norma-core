@@ -32,7 +32,7 @@ These surfaces preserve the core rule that source truth comes from explicit stru
 
 ## Local Boundaries
 
-The package remains private and local. `package.json` has `private: true`, no package-level `bin`, and no publish metadata. Public npm publication is not ready.
+The package remains private and local. `package.json` has `private: true`, no package-level `bin`, no `publishConfig`, and no license field because this repository has no authoritative root license file. Public npm publication is not ready.
 
 Local MCP STDIO is the only approved MCP runtime. It is local-only and hardened, not remote, hosted, or production. It does not approve remote MCP, ChatGPT integration, deployment, provider auth, resources, prompts, sampling, elicitation, filesystem access, network access, shell execution, package metadata drift, or new dependencies.
 
