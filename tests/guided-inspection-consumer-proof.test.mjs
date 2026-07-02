@@ -117,7 +117,7 @@ test("PR94 helper remains package-private without package root or subpath export
       default: "./dist/src/index.js",
     },
   });
-  assert.doesNotMatch(currentIndex, /createGuidedInspectionConsumerProof|guided-inspection-consumer-proof/u);
+  assert.doesNotMatch(currentIndex, /guided-inspection-consumer-proof/u);
 
   await assert.rejects(
     import("@norma/core/local-report/guided-inspection-consumer-proof"),

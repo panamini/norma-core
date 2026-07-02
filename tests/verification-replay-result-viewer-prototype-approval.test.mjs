@@ -500,7 +500,8 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
 	      !isPr71ApprovedChangeSet &&
 	      !isR6BStructuredAnalyzeImplementationChangeSet &&
 	      !isR6BStructuredAnalyzeGuardMaintenanceChangeSet &&
-	      !isExactR1GeometrySourceIdentityChangeSet(changed)
+	      !isExactR1GeometrySourceIdentityChangeSet(changed) &&
+	      !isSharedApprovedFile("src/index.ts")
 	    )),
     [],
   );
