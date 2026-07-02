@@ -111,6 +111,16 @@ test("invalid artifact references are rejected", () => {
   }
 });
 
+test("duplicate artifact names are rejected before path mapping", () => {
+  assert.throws(
+    () => createGuidedInspectionArtifactContract({
+      outputDir,
+      artifacts: ["result.json", "summary.md", "summary.md"],
+    }),
+    /Duplicate guided inspection artifact: summary\.md/,
+  );
+});
+
 test("differently ordered artifact arrays produce deterministic output and stable object keys", () => {
   const first = createGuidedInspectionArtifactContract({
     outputDir,

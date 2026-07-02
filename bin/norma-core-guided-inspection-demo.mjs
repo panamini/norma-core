@@ -2,9 +2,11 @@ import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+
+import { createGuidedInspectionArtifactContract } from "../dist/src/local-report/guided-inspection-artifact-contract.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -21,11 +23,9 @@ const reportArtifactDescriptors = Object.freeze([
   { fileName: "summary.json", envelopeField: "summaryJson" },
   { fileName: "summary.md", envelopeField: "summaryMarkdown" },
 ]);
-const reportArtifactFileNames = Object.freeze(reportArtifactDescriptors.map(({ fileName }) => fileName));
 const derivedReportArtifactDescriptors = Object.freeze(
   reportArtifactDescriptors.filter(({ envelopeField }) => typeof envelopeField === "string"),
 );
-const reportArtifactFileNameSet = new Set(reportArtifactFileNames);
 
 class CliUsageError extends Error {}
 
@@ -42,7 +42,11 @@ async function createGuidedInspectionDemoResult(args, options = {}) {
   await access(inputPath);
   const reportCommand = await executeReportCommand(runReportCommand, resolvedOutputDir, timeoutMs);
   const reportResult = parseReportCommandOutput(reportCommand.stdout);
-  const files = await outputFiles(resolvedOutputDir, reportResult.files);
+  const reportArtifactContract = createGuidedInspectionArtifactContract({
+    outputDir: resolvedOutputDir,
+    artifacts: reportResult.files,
+  });
+  const files = await outputFiles(reportArtifactContract);
   const resultJson = files["result.json"];
 
   if (!resultJson) {
@@ -52,17 +56,21 @@ async function createGuidedInspectionDemoResult(args, options = {}) {
   const result = JSON.parse(await readFile(resultJson, "utf8"));
   const guideHtml = join(resolvedOutputDir, "guide.html");
   await writeFile(guideHtml, createGuideHtml({ result, files }), "utf8");
-  await access(guideHtml);
+  const artifactContract = createGuidedInspectionArtifactContract({
+    outputDir: resolvedOutputDir,
+    artifacts: [...reportResult.files, "guide.html"],
+  });
+  await access(artifactContract.derivedArtifacts["guide.html"]);
 
   return {
     status: "ok",
     outputDir: resolvedOutputDir,
-    guideHtml,
-    resultJson,
-    ...derivedArtifactFields(files),
-    canonicalTruth: "result.json",
+    guideHtml: artifactContract.derivedArtifacts["guide.html"],
+    resultJson: artifactContract.resultJson,
+    ...derivedArtifactFields(artifactContract.derivedArtifacts),
+    canonicalTruth: artifactContract.canonicalTruth,
     derivedArtifacts: true,
-    localOnly: true,
+    localOnly: artifactContract.localOnly,
   };
 }
 
@@ -130,9 +138,12 @@ function parseReportCommandOutput(stdout) {
   return value;
 }
 
-async function outputFiles(outputDir, fileNames) {
-  const sortedFileNames = [...fileNames].sort();
-  const filePaths = Object.fromEntries(sortedFileNames.map((fileName) => [fileName, safeOutputFilePath(outputDir, fileName)]));
+async function outputFiles(artifactContract) {
+  const filePaths = {
+    "result.json": artifactContract.resultJson,
+    ...artifactContract.derivedArtifacts,
+  };
+  const sortedFileNames = Object.keys(filePaths).sort();
 
   for (const fileName of sortedFileNames) {
     await access(filePaths[fileName]);
@@ -268,28 +279,6 @@ ${artifactLinkItems}
 </body>
 </html>
 `;
-}
-
-function safeOutputFilePath(outputDir, fileName) {
-  if (
-    typeof fileName !== "string" ||
-    fileName === "" ||
-    isAbsolute(fileName) ||
-    fileName !== basename(fileName) ||
-    !reportArtifactFileNameSet.has(fileName)
-  ) {
-    throw new Error("Report command returned an unsafe or unexpected output filename.");
-  }
-
-  const resolvedOutputDir = resolve(outputDir);
-  const resolvedFilePath = resolve(resolvedOutputDir, fileName);
-  const relativeFilePath = relative(resolvedOutputDir, resolvedFilePath);
-
-  if (relativeFilePath === "" || relativeFilePath.startsWith("..") || isAbsolute(relativeFilePath)) {
-    throw new Error("Report command output filename escapes the output directory.");
-  }
-
-  return resolvedFilePath;
 }
 
 function guideArtifactLinkItems(files) {

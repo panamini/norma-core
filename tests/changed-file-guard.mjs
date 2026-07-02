@@ -414,6 +414,14 @@ export const guidedInspectionArtifactContractChangedFiles = Object.freeze([
   "tests/guided-inspection-artifact-contract.test.mjs",
 ].sort());
 
+export const guidedInspectionDemoArtifactContractWiringChangedFiles = Object.freeze([
+  "bin/norma-core-guided-inspection-demo.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/guided-inspection-artifact-contract.test.mjs",
+  "tests/local-guided-inspection-demo.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -496,6 +504,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionDemoArtifactContractWiringChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   integrationUnlockContractsChangedFiles,
