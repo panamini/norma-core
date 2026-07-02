@@ -731,18 +731,55 @@ only as inspection outputs. They must not treat derived artifacts as source
 truth or use them to infer, correct, optimize, recommend, score, select
 families, or override Norma results.
 
-PR97 is the current consumer compatibility proof after PR96. It should prove
-that a local external-style consumer can import `@norma/core` from the package
-root and use the PR96 guided inspection V1 exports against a realistic guided
-demo envelope. It must keep `result.json` as canonical machine-consumable Norma
-truth, keep `guide.html` required for the envelope path, keep optional
+PR97 is merged as PR #177:
+
+```txt
+merge commit: 6d831e9cb9ab38814832247d1946a6c8cd050675
+head commit: c4aff0176bf9cd396dd1d1d49fccebb153634e19
+```
+
+It proved that a local external-style consumer can import `@norma/core` from the
+package root and use the PR96 guided inspection V1 exports against a realistic
+guided demo envelope. It kept `result.json` as canonical machine-consumable
+Norma truth, kept `guide.html` required for the envelope path, kept optional
 `report.html`, `visual.svg`, `summary.json`, and `summary.md` outputs
-derived-only, keep `localOnly` true, and avoid internal `dist/src/local-report`
-or package-private helper imports. PR97 must not add package publication,
-package metadata changes, hosted MCP runtime, ChatGPT connector runtime,
-OpenAI/provider calls, image/CAD/Figma/provider adapter implementation,
-inference, recommendation, optimization, correction, scoring, or automatic
-family selection.
+derived-only, kept `localOnly` true, and avoided internal
+`dist/src/local-report` or package-private helper imports. PR97 did not add
+package publication, package metadata changes, hosted MCP runtime, ChatGPT
+connector runtime, OpenAI/provider calls, image/CAD/Figma/provider adapter
+implementation, inference, recommendation, optimization, correction, scoring,
+or automatic family selection.
+
+PR98 is the guided inspection package publication readiness gate.
+
+Current publication gate reference:
+`docs/decisions/2026-07-02-guided-inspection-package-publication-readiness-gate.md`.
+
+PR98 keeps the current package private and records that package publication,
+public npm publication, and package metadata changes remain blocked. Package
+metadata changes remain blocked until a later explicit package-change PR.
+Actual publish remains blocked until a separate explicit maintainer approval.
+PR98 is a gate/checkpoint, not a publication candidate.
+
+The exact future publication prerequisites are: explicit maintainer decision
+whether public npm publication should happen at all; npm scope ownership/access
+verified outside PR98; package files/tarball policy approved; `dist/` and types
+inclusion strategy approved; tests/goldens/internal docs exclusion policy
+approved; package-level `bin` decision approved or explicitly excluded;
+license/repository/bugs/homepage/engines/support metadata decision approved;
+provenance/trusted-publishing/token/2FA/release-environment policy approved;
+packed tarball install smoke required in a later package-change/publication
+candidate PR; and rollback/deprecate/unpublish policy documented before actual
+publish.
+
+The best next PR after PR98 is:
+
+```text
+PR99: package tarball contents and metadata approval contract
+```
+
+PR99 should still not publish and should not implement package metadata changes
+unless those exact changes are explicitly approved in that PR.
 
 The current Core source-truth model still applies: Norma Core accepts explicit
 structured geometry only. The PR86 metric-policy invariant remains mandatory

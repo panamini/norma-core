@@ -23,6 +23,7 @@ import {
   guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageRootApiExportsChangedFiles,
   guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
+  guidedInspectionPackagePublicationReadinessChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -954,6 +955,71 @@ test("shared exact changed-file guard rejects forbidden extras in the PR97 packa
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR98 guided inspection package publication readiness set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackagePublicationReadinessChangedFiles),
+    guidedInspectionPackagePublicationReadinessChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackagePublicationReadinessChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-02-guided-inspection-package-publication-readiness-gate.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-package-publication-readiness.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      guidedInspectionPackagePublicationReadinessChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects package runtime hosted provider and adapter extras in the PR98 set", () => {
+  const missingRequiredFile = guidedInspectionPackagePublicationReadinessChangedFiles.filter(
+    (file) => file !== "tests/guided-inspection-package-publication-readiness.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "src/index.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/PACKAGE_PUBLICATION_READINESS.md",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "examples/consumer/structured-analyze-v1.ts",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/release.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackagePublicationReadinessChangedFiles,
         forbiddenFile,
       ]),
       null,
