@@ -430,6 +430,14 @@ export const guidedInspectionConsumerProofChangedFiles = Object.freeze([
   "tests/guided-inspection-consumer-proof.test.mjs",
 ].sort());
 
+export const packageApiExportContractApprovalChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/package-api-export-contract-approval.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -521,6 +529,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  packageApiExportContractApprovalChangedFiles,
   guidedInspectionConsumerProofChangedFiles,
   postPr92RoadmapTruthSyncChangedFiles,
   guidedInspectionDemoArtifactContractWiringChangedFiles,
