@@ -806,14 +806,18 @@ changes, lockfile changes, hosted MCP, ChatGPT connector runtime,
 OpenAI/provider calls, image/CAD/Figma/provider adapters, or public package
 publication.
 
-The best next PR after PR99 is:
+PR100 finalizes the local package publication candidate boundary without
+publishing. It may add only safe non-publishing candidate metadata whose values
+are discoverable from the current repository and runtime baseline. It must keep
+`private: true`, version `0.1.0`, no `publishConfig`, no package-level `bin`,
+no dependency graph changes, and the PR99 tarball allowlist. If package metadata
+requires a root `package-lock.json` mirror, the lockfile change must stay limited
+to that root metadata consistency and must not change resolved dependencies.
 
-```text
-PR100: decide public package publish authorization and release operations boundary
-```
-
-PR100 should remain a decision and operations-boundary PR unless maintainers
-explicitly approve actual publication in that PR.
+PR100 must not add a license field unless an authoritative root license file or
+repo policy exists. If no license authority exists, the best next step after
+PR100 is an explicit maintainer license and public-publication authorization
+decision before any release operation.
 
 The current Core source-truth model still applies: Norma Core accepts explicit
 structured geometry only. The PR86 metric-policy invariant remains mandatory

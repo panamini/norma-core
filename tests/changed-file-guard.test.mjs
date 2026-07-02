@@ -47,6 +47,7 @@ import {
   localStructuredAnalyzeDemoSmokeChangedFiles,
   localStructuredAnalyzeReportKitChangedFiles,
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
+  packagePublicationCandidateWithoutPublishingChangedFiles,
   packageApiExportContractApprovalChangedFiles,
   postPr82RoadmapTruthSyncChangedFiles,
   postPr86RoadmapTruthSyncChangedFiles,
@@ -1100,6 +1101,68 @@ test("shared exact changed-file guard rejects package runtime hosted provider an
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionPackagePublicationReadinessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR100 package publication candidate set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(packagePublicationCandidateWithoutPublishingChangedFiles),
+    packagePublicationCandidateWithoutPublishingChangedFiles,
+  );
+
+  assert.deepEqual(packagePublicationCandidateWithoutPublishingChangedFiles, [
+    "README.md",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-03-package-publication-candidate-without-publishing.md",
+    "package-lock.json",
+    "package.json",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/package-publication-candidate-without-publishing.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      packagePublicationCandidateWithoutPublishingChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR100 package publication candidate set", () => {
+  const missingRequiredFile = packagePublicationCandidateWithoutPublishingChangedFiles.filter(
+    (file) => file !== "tests/package-publication-candidate-without-publishing.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "LICENSE",
+    "LICENSE.md",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    ".github/workflows/release.yml",
+    "src/index.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "docs/PACKAGE_PUBLICATION_READINESS.md",
+    "examples/consumer/structured-analyze-v1.ts",
+    "viewer/read-only-result-viewer.html",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...packagePublicationCandidateWithoutPublishingChangedFiles,
         forbiddenFile,
       ]),
       null,
