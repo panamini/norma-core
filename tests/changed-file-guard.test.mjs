@@ -18,6 +18,7 @@ import {
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
+  guidedInspectionConsumerProofChangedFiles,
   guidedInspectionDemoArtifactContractWiringChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
@@ -681,6 +682,66 @@ test("shared exact changed-file guard accepts the PR92 guided demo artifact-cont
       guidedInspectionDemoArtifactContractWiringChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR94 guided inspection consumer proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionConsumerProofChangedFiles),
+    guidedInspectionConsumerProofChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionConsumerProofChangedFiles, [
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-consumer-proof.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      guidedInspectionConsumerProofChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR94 consumer proof set", () => {
+  const missingRequiredFile = guidedInspectionConsumerProofChangedFiles.filter(
+    (file) => file !== "src/local-report/guided-inspection-consumer-proof.ts",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "docs/decisions/2026-07-02-guided-inspection-package-api-readiness-gate.md",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/structured-analyze-report.ts",
+    "src/local-report/visual-viewer.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionConsumerProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
