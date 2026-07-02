@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import * as core from "../dist/src/index.js";
+import { runGuidedInspectionDemoCli } from "../bin/norma-core-guided-inspection-demo.mjs";
 import {
   localGuidedInspectionDemoChangedFiles,
   localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
@@ -91,6 +92,124 @@ test("PR89 guided inspection command works with explicit --output", async () => 
     assert.equal(result.parsed.derivedArtifacts, true);
     assert.equal(result.parsed.localOnly, true);
     await assertGuidedOutput(result.parsed);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("PR89 guided inspection rejects unsafe report output filenames before file access", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr89-guided-unsafe-files-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => ({ stdout: JSON.stringify({ files: ["result.json", "../escape.txt"] }) }),
+      },
+    });
+    const parsed = JSON.parse(io.stderrText());
+
+    assert.equal(exitCode, 3);
+    assert.equal(io.stdoutText(), "");
+    assert.equal(parsed.status, "error");
+    assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
+    assert.match(parsed.error.message, /unsafe or unexpected output filename/u);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("PR89 guided inspection reports bounded report command failure diagnostics", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr89-guided-report-failure-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+  const failure = new Error("report command failed");
+  failure.code = 2;
+  failure.signal = "SIGTERM";
+  failure.killed = true;
+  failure.stdout = "x".repeat(4_097);
+  failure.stderr = "report stderr";
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => {
+          throw failure;
+        },
+        reportCommandTimeoutMs: 123,
+      },
+    });
+    const parsed = JSON.parse(io.stderrText());
+
+    assert.equal(exitCode, 3);
+    assert.equal(io.stdoutText(), "");
+    assert.equal(parsed.error.code, "GuidedInspectionDemoFailed");
+    assert.equal(parsed.error.reportCommand.timeoutMs, 123);
+    assert.equal(parsed.error.reportCommand.exitCode, 2);
+    assert.equal(parsed.error.reportCommand.signal, "SIGTERM");
+    assert.equal(parsed.error.reportCommand.killed, true);
+    assert.equal(parsed.error.reportCommand.timedOut, true);
+    assert.equal(parsed.error.reportCommand.stdout.length, 4_097);
+    assert.equal(parsed.error.reportCommand.stdout.truncated, true);
+    assert.equal(parsed.error.reportCommand.stdout.text.length, 4_096);
+    assert.equal(parsed.error.reportCommand.stderr.text, "report stderr");
+    assert.equal(parsed.error.reportCommand.error.message.text, "report command failed");
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("PR89 guided inspection guide links only emitted report artifacts", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "norma-pr89-guided-partial-artifacts-"));
+  const outputDir = join(tempRoot, "guided");
+  const io = createWritableCaptures();
+
+  try {
+    const exitCode = await runGuidedInspectionDemoCli({
+      args: ["--output", outputDir],
+      stdout: io.stdout,
+      stderr: io.stderr,
+      options: {
+        execFileAsync: async () => {
+          await mkdir(outputDir, { recursive: true });
+          await writeFile(
+            join(outputDir, "result.json"),
+            JSON.stringify({
+              status: "valid",
+              comparison: { status: "a_closer" },
+              decision: {
+                status: "a_closer",
+                selectedEvaluationRef: "evaluation:A:basic-grid-alignment",
+              },
+            }),
+            "utf8",
+          );
+          await writeFile(join(outputDir, "summary.md"), "# Summary\n", "utf8");
+          return { stdout: JSON.stringify({ files: ["result.json", "summary.md"] }) };
+        },
+      },
+    });
+    const parsed = JSON.parse(io.stdoutText());
+    const guideHtml = await readFile(parsed.guideHtml, "utf8");
+
+    assert.equal(exitCode, 0);
+    assert.equal(io.stderrText(), "");
+    assert.equal(parsed.summaryMarkdown, join(outputDir, "summary.md"));
+    assert.equal("reportHtml" in parsed, false);
+    assert.equal("summaryJson" in parsed, false);
+    assert.equal("visualSvg" in parsed, false);
+    assert.match(guideHtml, /href="summary\.md"/u);
+    assert.doesNotMatch(guideHtml, /href="report\.html"/u);
+    assert.doesNotMatch(guideHtml, /href="summary\.json"/u);
+    assert.doesNotMatch(guideHtml, /href="visual\.svg"/u);
+    assert.match(guideHtml, /<code>summary\.md<\/code>, and <code>guide\.html<\/code> are derived inspection artifacts/u);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -304,6 +423,17 @@ function assertNoForbiddenStaticHtml(guideHtml) {
   for (const [pattern, label] of forbiddenPatterns) {
     assert.doesNotMatch(guideHtml, pattern, label);
   }
+}
+
+function createWritableCaptures() {
+  const stdoutChunks = [];
+  const stderrChunks = [];
+  return {
+    stdout: { write: (chunk) => stdoutChunks.push(chunk) },
+    stderr: { write: (chunk) => stderrChunks.push(chunk) },
+    stdoutText: () => stdoutChunks.join(""),
+    stderrText: () => stderrChunks.join(""),
+  };
 }
 
 async function readJson(filePath) {

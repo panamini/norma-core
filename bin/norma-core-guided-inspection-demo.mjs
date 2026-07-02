@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,10 @@ const inputPath = join(repoRoot, sourceInputPath);
 const reportCommandPath = join(repoRoot, "bin/norma-core-report.mjs");
 const defaultOutputDirPrefix = join(tmpdir(), "norma-core-guided-inspection-demo-");
 const reportCommandTimeoutMs = 30_000;
+const reportCommandFailureTextLimit = 4_096;
+const reportArtifactFileNames = Object.freeze(["report.html", "result.json", "visual.svg", "summary.json", "summary.md"]);
+const derivedReportArtifactFileNames = Object.freeze(reportArtifactFileNames.filter((fileName) => fileName !== "result.json"));
+const reportArtifactFileNameSet = new Set(reportArtifactFileNames);
 
 class CliUsageError extends Error {}
 
@@ -38,7 +42,7 @@ async function createGuidedInspectionDemoResult(args, options = {}) {
 
   const result = JSON.parse(await readFile(resultJson, "utf8"));
   const guideHtml = join(resolvedOutputDir, "guide.html");
-  await writeFile(guideHtml, createGuideHtml({ result }), "utf8");
+  await writeFile(guideHtml, createGuideHtml({ result, files }), "utf8");
   await access(guideHtml);
 
   return {
@@ -72,10 +76,11 @@ async function runGuidedInspectionDemoCli({
 function createGuidedInspectionDemoErrorEnvelope(error) {
   return {
     status: "error",
-    error: {
-      code: error instanceof CliUsageError ? "InvalidCliUsage" : "GuidedInspectionDemoFailed",
-      message: error instanceof Error ? error.message : "Unexpected guided inspection demo failure.",
-    },
+    error: withoutNullValues({
+      code: errorCode(error),
+      message: errorMessage(error),
+      reportCommand: reportCommandFailure(error),
+    }),
   };
 }
 
@@ -93,11 +98,18 @@ async function parseDemoArgs(args, options = {}) {
 }
 
 async function executeReportCommand(runReportCommand, resolvedOutputDir, timeoutMs) {
-  return runReportCommand(process.execPath, [reportCommandPath, inputPath, resolvedOutputDir], {
-    cwd: repoRoot,
-    maxBuffer: 10 * 1024 * 1024,
-    timeout: timeoutMs,
-  });
+  try {
+    return await runReportCommand(process.execPath, [reportCommandPath, inputPath, resolvedOutputDir], {
+      cwd: repoRoot,
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: timeoutMs,
+    });
+  } catch (error) {
+    const wrapped = new Error(error instanceof Error ? error.message : "Report command failed.");
+    wrapped.cause = error;
+    wrapped.reportCommandFailure = reportCommandFailureDetails(error, timeoutMs);
+    throw wrapped;
+  }
 }
 
 function parseReportCommandOutput(stdout) {
@@ -111,12 +123,13 @@ function parseReportCommandOutput(stdout) {
 
 async function outputFiles(outputDir, fileNames) {
   const sortedFileNames = [...fileNames].sort();
+  const filePaths = Object.fromEntries(sortedFileNames.map((fileName) => [fileName, safeOutputFilePath(outputDir, fileName)]));
 
   for (const fileName of sortedFileNames) {
-    await access(join(outputDir, fileName));
+    await access(filePaths[fileName]);
   }
 
-  return Object.fromEntries(sortedFileNames.map((fileName) => [fileName, join(outputDir, fileName)]));
+  return filePaths;
 }
 
 function derivedArtifactFields(files) {
@@ -128,11 +141,13 @@ function derivedArtifactFields(files) {
   });
 }
 
-function createGuideHtml({ result }) {
+function createGuideHtml({ result, files }) {
   const comparisonStatus = stringOrNull(result?.comparison?.status);
   const decisionStatus = stringOrNull(result?.decision?.status);
   const selectedEvaluationRef = stringOrNull(result?.decision?.selectedEvaluationRef);
   const resultStatus = stringOrNull(result?.status) ?? "unknown";
+  const artifactLinkItems = guideArtifactLinkItems(files);
+  const derivedArtifactSummary = guideDerivedArtifactSummary(files);
   const guideValues = {
     sourceInputPath: staticGuideText(sourceInputPath, "source input"),
     resultStatus: staticGuideText(resultStatus, "status"),
@@ -225,12 +240,9 @@ function createGuideHtml({ result }) {
     </dl>
 
     <h2>Inspection Artifacts</h2>
-    <p><code>result.json</code> is the canonical Norma truth. <code>report.html</code>, <code>visual.svg</code>, <code>summary.json</code>, <code>summary.md</code>, and <code>guide.html</code> are derived inspection artifacts.</p>
+    <p><code>result.json</code> is the canonical Norma truth. ${derivedArtifactSummary}</p>
     <ul>
-      <li><a href="report.html"><code>report.html</code></a></li>
-      <li><a href="visual.svg"><code>visual.svg</code></a></li>
-      <li><a href="summary.json"><code>summary.json</code></a></li>
-      <li><a href="summary.md"><code>summary.md</code></a></li>
+${artifactLinkItems}
     </ul>
 
     <h2>Metric Policy Boundary</h2>
@@ -250,12 +262,136 @@ function createGuideHtml({ result }) {
 `;
 }
 
+function safeOutputFilePath(outputDir, fileName) {
+  if (
+    typeof fileName !== "string" ||
+    fileName === "" ||
+    isAbsolute(fileName) ||
+    fileName !== basename(fileName) ||
+    !reportArtifactFileNameSet.has(fileName)
+  ) {
+    throw new Error("Report command returned an unsafe or unexpected output filename.");
+  }
+
+  const resolvedOutputDir = resolve(outputDir);
+  const resolvedFilePath = resolve(resolvedOutputDir, fileName);
+  const relativeFilePath = relative(resolvedOutputDir, resolvedFilePath);
+
+  if (relativeFilePath === "" || relativeFilePath.startsWith("..") || isAbsolute(relativeFilePath)) {
+    throw new Error("Report command output filename escapes the output directory.");
+  }
+
+  return resolvedFilePath;
+}
+
+function guideArtifactLinkItems(files) {
+  return presentDerivedReportArtifactNames(files)
+    .map((fileName) => `      <li><a href="${fileName}"><code>${fileName}</code></a></li>`)
+    .join("\n");
+}
+
+function guideDerivedArtifactSummary(files) {
+  const artifactNames = [...presentDerivedReportArtifactNames(files), "guide.html"];
+  return `${formatCodeList(artifactNames)} ${artifactNames.length === 1 ? "is a derived inspection artifact" : "are derived inspection artifacts"}.`;
+}
+
+function presentDerivedReportArtifactNames(files) {
+  return derivedReportArtifactFileNames.filter((fileName) => files[fileName]);
+}
+
+function formatCodeList(values) {
+  if (values.length === 1) {
+    return `<code>${values[0]}</code>`;
+  }
+
+  return `${values.slice(0, -1).map((value) => `<code>${value}</code>`).join(", ")}, and <code>${values.at(-1)}</code>`;
+}
+
 function stringOrNull(value) {
   return typeof value === "string" ? value : null;
 }
 
 function displayValue(value) {
   return typeof value === "string" && value !== "" ? value : "not present";
+}
+
+function errorCode(error) {
+  return error instanceof CliUsageError ? "InvalidCliUsage" : "GuidedInspectionDemoFailed";
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : "Unexpected guided inspection demo failure.";
+}
+
+function reportCommandFailure(error) {
+  return isRecord(error) && isRecord(error.reportCommandFailure) ? error.reportCommandFailure : null;
+}
+
+function reportCommandFailureDetails(error, timeoutMs) {
+  const record = isRecord(error) ? error : {};
+  const details = {
+    timeoutMs,
+    ...exitCodeMetadata(record.code),
+  };
+
+  assignDefined(details, "signal", typeof record.signal === "string" ? record.signal : null);
+  assignDefined(details, "killed", typeof record.killed === "boolean" ? record.killed : null);
+  assignDefined(details, "timedOut", timedOutMetadata(record));
+  assignDefined(details, "stdout", boundedText(record.stdout));
+  assignDefined(details, "stderr", boundedText(record.stderr));
+  assignDefined(details, "error", boundedErrorMetadata(error));
+
+  return details;
+}
+
+function boundedText(value) {
+  if (typeof value !== "string" && !Buffer.isBuffer(value)) {
+    return null;
+  }
+
+  const text = Buffer.isBuffer(value) ? value.toString("utf8") : value;
+  return {
+    text: text.slice(0, reportCommandFailureTextLimit),
+    length: text.length,
+    truncated: text.length > reportCommandFailureTextLimit,
+  };
+}
+
+function boundedErrorMetadata(error) {
+  const record = isRecord(error) ? error : {};
+  const instance = error instanceof Error ? error : {};
+
+  return boundedTextFields({
+    name: instance.name,
+    message: instance.message,
+    code: record.code,
+  });
+}
+
+function exitCodeMetadata(code) {
+  if (typeof code === "number") return { exitCode: code };
+  if (typeof code === "string") return { errorCode: code };
+  return {};
+}
+
+function timedOutMetadata(record) {
+  if (typeof record.timedOut === "boolean") return record.timedOut;
+  if (record.killed === true && record.signal === "SIGTERM") return true;
+  return null;
+}
+
+function assignDefined(target, key, value) {
+  if (value !== null) {
+    target[key] = value;
+  }
+}
+
+function boundedTextFields(fields) {
+  const entries = Object.entries(fields)
+    .filter(([, value]) => typeof value === "string" && value !== "")
+    .map(([key, value]) => [key, boundedText(value)]);
+
+  return entries.length === 0 ? null : Object.fromEntries(entries);
 }
 
 function staticGuideText(value, label) {
@@ -268,6 +404,10 @@ function staticGuideText(value, label) {
 
 function withoutNullValues(fields) {
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined));
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object";
 }
 
 function isCliEntrypoint() {
