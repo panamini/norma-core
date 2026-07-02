@@ -22,6 +22,7 @@ import {
   guidedInspectionDemoArtifactContractWiringChangedFiles,
   guidedInspectionPackageRootApiExportsNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageRootApiExportsChangedFiles,
+  guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -890,6 +891,69 @@ test("shared exact changed-file guard rejects forbidden extras in the PR96 packa
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionPackageRootApiExportsChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR97 package-root consumer compatibility set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageRootConsumerCompatibilityChangedFiles),
+    guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackageRootConsumerCompatibilityChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-package-root-consumer-compatibility.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      guidedInspectionPackageRootConsumerCompatibilityChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR97 package-root consumer compatibility set", () => {
+  const missingRequiredFile = guidedInspectionPackageRootConsumerCompatibilityChangedFiles.filter(
+    (file) => file !== "tests/guided-inspection-package-root-consumer-compatibility.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "src/index.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "bin/norma-core-report.mjs",
+    "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
+    "docs/examples/local-guided-inspection-demo.md",
+    "examples/consumer/structured-analyze-v1.ts",
+    "examples/structured-analyze/families/harmonic-triads-basic.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/verify.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
         forbiddenFile,
       ]),
       null,

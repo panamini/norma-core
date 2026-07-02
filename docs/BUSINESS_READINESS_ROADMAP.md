@@ -707,12 +707,21 @@ guided inspection consumer proof without adding package-root exports, package
 metadata changes, package publication, hosted MCP runtime, ChatGPT connector
 runtime, provider calls, or adapter implementation.
 
-PR95 is a docs/tests/guard approval PR for the exact future package-root guided
-inspection API export contract. It does not implement package-root exports,
-package publication, package metadata changes, hosted MCP runtime, ChatGPT
-connector runtime, OpenAI/provider calls, image/CAD/Figma adapters, inference,
-recommendation, optimization, correction, scoring, or automatic family
-selection.
+PR95 is merged as PR #175 at
+`5d7167762106dd3ea4fa109ac56f2ef439488847`. It was the docs/tests/guard
+approval PR for the exact future package-root guided inspection API export
+contract and did not implement package publication, package metadata changes,
+hosted MCP runtime, ChatGPT connector runtime, OpenAI/provider calls,
+image/CAD/Figma adapters, inference, recommendation, optimization, correction,
+scoring, or automatic family selection.
+
+PR96 is merged as PR #176 at
+`0f8112f9c58717ee74de2be8b1fd862d6b71c8d5`. It implemented the approved
+package-root guided inspection V1 exports:
+`createGuidedInspectionArtifactContractV1` and
+`consumeGuidedInspectionDemoEnvelopeV1`, while preserving the package-private
+helper names, package metadata, lockfiles, publication state, hosted runtime,
+connector runtime, provider calls, adapters, and source-truth boundary.
 
 Current package API decision reference:
 `docs/decisions/2026-07-02-package-api-export-contract-approval.md`.
@@ -722,12 +731,16 @@ only as inspection outputs. They must not treat derived artifacts as source
 truth or use them to infer, correct, optimize, recommend, score, select
 families, or override Norma results.
 
-The next safe implementation slice after PR95 is the package-root guided
-inspection API export implementation approved by the PR95 decision, if that
-future PR keeps the API structural only and preserves `result.json` as canonical
-machine-consumable Norma truth. That future slice must not add package
-publication, package metadata changes, hosted MCP runtime, ChatGPT connector
-runtime, OpenAI/provider calls, image/CAD/Figma/provider adapter implementation,
+PR97 is the current consumer compatibility proof after PR96. It should prove
+that a local external-style consumer can import `@norma/core` from the package
+root and use the PR96 guided inspection V1 exports against a realistic guided
+demo envelope. It must keep `result.json` as canonical machine-consumable Norma
+truth, keep `guide.html` required for the envelope path, keep optional
+`report.html`, `visual.svg`, `summary.json`, and `summary.md` outputs
+derived-only, keep `localOnly` true, and avoid internal `dist/src/local-report`
+or package-private helper imports. PR97 must not add package publication,
+package metadata changes, hosted MCP runtime, ChatGPT connector runtime,
+OpenAI/provider calls, image/CAD/Figma/provider adapter implementation,
 inference, recommendation, optimization, correction, scoring, or automatic
 family selection.
 
