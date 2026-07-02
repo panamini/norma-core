@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { createGuidedInspectionArtifactContract } from "./guided-inspection-artifact-contract.js";
 
 export interface GuidedInspectionConsumerProof {
@@ -18,7 +16,6 @@ interface GuidedInspectionEnvelopeArtifacts {
 }
 
 const DERIVED_ENVELOPE_ARTIFACTS = Object.freeze([
-  ["guideHtml", "guide.html"],
   ["reportHtml", "report.html"],
   ["visualSvg", "visual.svg"],
   ["summaryJson", "summary.json"],
@@ -87,7 +84,7 @@ function collectEnvelopeArtifacts(record: Record<string, unknown>): GuidedInspec
   const artifactPaths = [resultJson, guideHtml];
 
   for (const [field, artifact] of DERIVED_ENVELOPE_ARTIFACTS) {
-    if (field === "guideHtml" || record[field] === undefined) {
+    if (record[field] === undefined) {
       continue;
     }
 
@@ -109,6 +106,7 @@ function assertEnvelopeArtifactPaths(
   contract: ReturnType<typeof createGuidedInspectionArtifactContract>,
 ): void {
   assertExpectedPath("resultJson", resultJson, contract.resultJson);
+  assertExpectedPath("guideHtml", requireStringField(record, "guideHtml"), contract.derivedArtifacts["guide.html"]);
 
   for (const [field, artifact] of DERIVED_ENVELOPE_ARTIFACTS) {
     if (record[field] === undefined) {
@@ -141,7 +139,7 @@ function rejectDuplicateArtifactPaths(paths: readonly string[]): void {
 
 function assertExpectedPath(field: string, actual: string, expected: string | undefined): void {
   if (actual !== expected) {
-    throw new Error(`Guided inspection ${field} must match ${join("outputDir", expectedArtifactName(expected))}`);
+    throw new Error(`Guided inspection ${field} must match outputDir/${expectedArtifactName(expected)}`);
   }
 }
 
