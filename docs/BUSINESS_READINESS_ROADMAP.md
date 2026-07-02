@@ -708,7 +708,7 @@ metadata changes, package publication, hosted MCP runtime, ChatGPT connector
 runtime, provider calls, or adapter implementation.
 
 PR95 is merged as PR #175 at
-`5d7167762106dd3ea4fa109ac56f2ef439488847`. It was the docs/tests/guard
+`35326bdd813f0002d310600f83c6405112880527`. It was the docs/tests/guard
 approval PR for the exact future package-root guided inspection API export
 contract and did not implement package publication, package metadata changes,
 hosted MCP runtime, ChatGPT connector runtime, OpenAI/provider calls,

@@ -18,6 +18,7 @@ const testFilePath = fileURLToPath(import.meta.url);
 const testDir = dirname(testFilePath);
 const repoRoot = dirname(testDir);
 const guidedCommandPath = join(repoRoot, "bin", "norma-core-guided-inspection-demo.mjs");
+const roadmapPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const cliTestTimeoutMs = 30_000;
 
 test("PR97 consumer proof imports guided inspection V1 only from the package root", async () => {
@@ -122,6 +123,14 @@ test("PR97 package-root consumer proof keeps optional outputs derived-only", () 
       required: false,
     },
   ]);
+});
+
+test("PR97 roadmap records live PR95 and PR96 merge commits", async () => {
+  const roadmap = await readFile(roadmapPath, "utf8");
+
+  assert.match(roadmap, /PR95 is merged as PR #175 at\s+`35326bdd813f0002d310600f83c6405112880527`/u);
+  assert.match(roadmap, /PR96 is merged as PR #176 at\s+`0f8112f9c58717ee74de2be8b1fd862d6b71c8d5`/u);
+  assert.doesNotMatch(roadmap, /5d7167762106dd3ea4fa109ac56f2ef439488847/u);
 });
 
 function envelopeArtifactNames(envelope) {
