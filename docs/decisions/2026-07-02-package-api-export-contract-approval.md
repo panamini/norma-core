@@ -36,6 +36,75 @@ PR95 approves these exact future package-root type names for a later PR:
 - `GuidedInspectionDemoEnvelopeV1`
 - `GuidedInspectionConsumerProofV1`
 
+## Approved Future Shapes
+
+PR95 approves these exact future public object shapes for PR96:
+
+```ts
+interface GuidedInspectionArtifactRefV1 {
+  readonly name:
+    | "result.json"
+    | "guide.html"
+    | "report.html"
+    | "visual.svg"
+    | "summary.json"
+    | "summary.md";
+  readonly path: string;
+  readonly role: "canonical-truth" | "derived-inspection-artifact";
+  readonly required: boolean;
+}
+
+interface GuidedInspectionArtifactContractV1 {
+  readonly canonicalTruth: "result.json";
+  readonly resultJson: GuidedInspectionArtifactRefV1 & {
+    readonly name: "result.json";
+    readonly role: "canonical-truth";
+    readonly required: true;
+  };
+  readonly derivedArtifacts: readonly GuidedInspectionArtifactRefV1[];
+  readonly localOnly: true;
+}
+
+interface GuidedInspectionDemoEnvelopeV1 {
+  readonly status: "ok";
+  readonly outputDir: string;
+  readonly resultJson: string;
+  readonly guideHtml: string;
+  readonly reportHtml?: string;
+  readonly visualSvg?: string;
+  readonly summaryJson?: string;
+  readonly summaryMarkdown?: string;
+  readonly canonicalTruth: "result.json";
+  readonly derivedArtifacts: true;
+  readonly localOnly: true;
+}
+
+interface GuidedInspectionConsumerProofV1 {
+  readonly canonicalTruth: "result.json";
+  readonly resultJson: GuidedInspectionArtifactRefV1 & {
+    readonly name: "result.json";
+    readonly role: "canonical-truth";
+    readonly required: true;
+  };
+  readonly derivedArtifacts: readonly GuidedInspectionArtifactRefV1[];
+  readonly localOnly: true;
+  readonly outputDir: string;
+}
+```
+
+`GuidedInspectionArtifactRefV1.path` is structural metadata supplied by the
+caller or envelope. It is never read by the API, and the API must never parse
+the artifact contents behind that path.
+
+Every `GuidedInspectionArtifactRefV1` in `derivedArtifacts` must use
+`role: "derived-inspection-artifact"`. `guide.html` is required for
+`GuidedInspectionDemoEnvelopeV1`; `reportHtml`, `visualSvg`, `summaryJson`, and
+`summaryMarkdown` are optional derived fields that may be absent. No approved
+shape contains an artifact-as-truth field, parsed artifact payload, inferred
+truth field, recommendation field, score field, corrected result field, selected
+family field, provider response field, filesystem read result, or generated
+Norma result.
+
 ## Future API Contract
 
 `createGuidedInspectionArtifactContractV1(input)` may accept explicit

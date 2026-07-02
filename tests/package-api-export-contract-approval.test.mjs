@@ -34,6 +34,40 @@ const derivedArtifactNames = [
   "summary.md",
 ];
 
+const futureShapeSnippets = [
+  "interface GuidedInspectionArtifactRefV1",
+  "readonly name:",
+  "| \"result.json\"",
+  "| \"guide.html\"",
+  "| \"report.html\"",
+  "| \"visual.svg\"",
+  "| \"summary.json\"",
+  "| \"summary.md\"",
+  "readonly path: string",
+  "readonly role: \"canonical-truth\" | \"derived-inspection-artifact\"",
+  "readonly required: boolean",
+  "interface GuidedInspectionArtifactContractV1",
+  "readonly canonicalTruth: \"result.json\"",
+  "readonly resultJson: GuidedInspectionArtifactRefV1 &",
+  "readonly name: \"result.json\"",
+  "readonly role: \"canonical-truth\"",
+  "readonly required: true",
+  "readonly derivedArtifacts: readonly GuidedInspectionArtifactRefV1[]",
+  "readonly localOnly: true",
+  "interface GuidedInspectionDemoEnvelopeV1",
+  "readonly status: \"ok\"",
+  "readonly outputDir: string",
+  "readonly resultJson: string",
+  "readonly guideHtml: string",
+  "readonly reportHtml?: string",
+  "readonly visualSvg?: string",
+  "readonly summaryJson?: string",
+  "readonly summaryMarkdown?: string",
+  "readonly derivedArtifacts: true",
+  "interface GuidedInspectionConsumerProofV1",
+  "readonly outputDir: string",
+];
+
 const blockedSurfaces = [
   "package publishing",
   "public npm publication",
@@ -73,6 +107,45 @@ test("PR95 documents the exact approved future package-root API names", () => {
   for (const futureApiName of futureApiNames) {
     assertDocMentions(decisionDoc, [`\`${futureApiName}\``]);
   }
+});
+
+test("PR95 freezes the approved future public type and object shapes", () => {
+  const decisionDoc = readDoc(decisionDocPath);
+
+  assertDocMentions(decisionDoc, [
+    "## Approved Future Shapes",
+    "PR95 approves these exact future public object shapes for PR96",
+    ...futureShapeSnippets,
+    "`GuidedInspectionArtifactRefV1.path` is structural metadata",
+    "Every `GuidedInspectionArtifactRefV1` in `derivedArtifacts` must use",
+    "`role: \"derived-inspection-artifact\"`",
+    "`guide.html` is required for `GuidedInspectionDemoEnvelopeV1`",
+    "`reportHtml`, `visualSvg`, `summaryJson`, and `summaryMarkdown` are optional derived fields",
+  ]);
+});
+
+test("PR95 future shapes do not approve artifact-as-truth or generated result fields", () => {
+  const decisionDoc = readDoc(decisionDocPath);
+
+  assertDocMentions(decisionDoc, [
+    "No approved shape contains an artifact-as-truth field",
+    "parsed artifact payload",
+    "inferred truth field",
+    "recommendation field",
+    "score field",
+    "corrected result field",
+    "selected family field",
+    "provider response field",
+    "filesystem read result",
+    "generated Norma result",
+  ]);
+
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+artifactTruth\b/u);
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+sourceTruthArtifact\b/u);
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+parsedResultJson\b/u);
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+score\b/u);
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+selectedFamily\b/u);
+  assert.doesNotMatch(decisionDoc, /\breadonly\s+providerResponse\b/u);
 });
 
 test("PR95 preserves private package metadata existing root export and package bin absence", () => {
