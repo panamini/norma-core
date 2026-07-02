@@ -133,7 +133,6 @@ test("PR45 keeps package metadata lockfile and MCP dependency boundary unchanged
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

@@ -183,7 +183,6 @@ test("PR33 MCP contract keeps package metadata unchanged", () => {
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

@@ -188,7 +188,6 @@ test("PR43 keeps current package metadata dependencies lockfile and MCP SDK unch
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

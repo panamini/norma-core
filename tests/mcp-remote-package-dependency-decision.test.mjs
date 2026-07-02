@@ -176,7 +176,6 @@ test("PR42 keeps package metadata lockfile dependencies and MCP SDK unchanged", 
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

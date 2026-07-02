@@ -704,7 +704,6 @@ test("PR48 keeps package metadata dependencies lockfile and MCP SDK unchanged", 
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

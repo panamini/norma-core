@@ -463,7 +463,6 @@ function assertPackageBoundary(packageJson, packageLock) {
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

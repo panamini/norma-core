@@ -720,7 +720,6 @@ test("PR34 package metadata stays dependency-free and private", () => {
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

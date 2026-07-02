@@ -24,6 +24,8 @@ import {
   guidedInspectionPackageRootApiExportsChangedFiles,
   guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
   guidedInspectionPackagePublicationReadinessChangedFiles,
+  guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
+  guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
   guardExactSetConsolidationChangedFiles,
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
@@ -580,6 +582,84 @@ test("shared exact changed-file guard accepts the PR89 local guided inspection d
       localGuidedInspectionDemoChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR99 package tarball local install proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageTarballLocalInstallReadinessChangedFiles),
+    guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles),
+    guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackageTarballLocalInstallReadinessChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-03-package-tarball-local-install-readiness.md",
+    "package.json",
+    "tests/api-contract-decision.test.mjs",
+    "tests/api-remote-mcp-auth-audit-rate-limit-policy.test.mjs",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/consumer-compatibility.test.mjs",
+    "tests/guided-inspection-package-publication-readiness.test.mjs",
+    "tests/guided-inspection-package-tarball-local-install.test.mjs",
+    "tests/mcp-decision-doc-location-policy.test.mjs",
+    "tests/mcp-remote-api-readiness-checkpoint.test.mjs",
+    "tests/mcp-remote-approval-decision.test.mjs",
+    "tests/mcp-remote-deployment-policy-decision.test.mjs",
+    "tests/mcp-remote-package-dependency-decision.test.mjs",
+    "tests/mcp-remote-security-test-matrix.test.mjs",
+    "tests/mcp-remote-tool-exposure-policy.test.mjs",
+    "tests/mcp-remote-transport-auth-package-decision.test.mjs",
+    "tests/mcp-stdio-server-skeleton.test.mjs",
+    "tests/mcp-tool-contract.test.mjs",
+    "tests/minimal-api-server-approval-decision.test.mjs",
+    "tests/post-mvp-product-vision-approval.test.mjs",
+    "tests/publication-gate.test.mjs",
+    "tests/roadmap-status-update.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      guidedInspectionPackageTarballLocalInstallReadinessChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects publication dependency lockfile runtime and extra files in the PR99 set", () => {
+  const missingRequiredFile = guidedInspectionPackageTarballLocalInstallReadinessChangedFiles.filter(
+    (file) => file !== "tests/guided-inspection-package-tarball-local-install.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    ".github/workflows/release.yml",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/cli/analyze.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "examples/structured-analyze/basic-grid-alignment.json",
+    "tests/fixtures/viewer/structured-analyze-result.json",
+    "viewer/read-only-result-viewer.html",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });

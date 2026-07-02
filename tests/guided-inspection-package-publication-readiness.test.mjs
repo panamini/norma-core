@@ -70,7 +70,6 @@ test("PR98 keeps current package private without metadata export bin dependency 
   assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
 
   for (const fieldName of [
-    "files",
     "publishConfig",
     "bin",
     "dependencies",

@@ -125,7 +125,6 @@ test("PR40 keeps package metadata dependencies and runtime boundary unchanged", 
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

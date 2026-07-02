@@ -258,7 +258,6 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",

@@ -38,7 +38,6 @@ test("PR32 publication gate documents current blockers", () => {
     "private: true",
     "dist",
     "npm pack --dry-run",
-    "files",
     "scope ownership",
     "provenance",
     "license",
@@ -92,7 +91,6 @@ test("PR32 publication gate keeps package metadata unchanged", () => {
   for (const fieldName of [
     "publishConfig",
     "bin",
-    "files",
     "dependencies",
     "optionalDependencies",
     "peerDependencies",
@@ -165,7 +163,6 @@ test("PR32 publication gate records npm official rule references", () => {
     "npm publish --access public",
     "npm pack --dry-run",
     "provenance",
-    "files",
     "scoped package",
     "2FA",
     "name/version",
@@ -176,7 +173,7 @@ test("PR32 publication gate records npm official rule references", () => {
 test("PR32 publication gate does not add publish scripts or release metadata", () => {
   const packageJson = parsePackageJson();
 
-  for (const fieldName of ["publishConfig", "files", "bin"]) {
+  for (const fieldName of ["publishConfig", "bin"]) {
     assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
   }
 
