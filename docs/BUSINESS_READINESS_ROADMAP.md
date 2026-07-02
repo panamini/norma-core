@@ -659,6 +659,43 @@ The current package is not yet:
 
 PR25 mostly satisfies local module readiness. It does not satisfy developer-tool, MCP, API, user-facing product, or business readiness by itself.
 
+## Guided Inspection Package/API Readiness Gate After PR89
+
+Current gate reference:
+`docs/decisions/2026-07-02-guided-inspection-package-api-readiness-gate.md`.
+
+PR88 defined the post-PR87 priority order: local operator validation, guided
+inspection surface, package/publication readiness gate, hosted/private MCP and
+ChatGPT connector gates, and image/CAD/Figma/provider adapter gates.
+
+PR89 is merged as PR #169 at
+`f064ed96a173494090a86ffbfd54523b87fe83ea`. It completed the local guided
+inspection demo surface without changing package exports, package metadata,
+hosted runtime, connector runtime, provider calls, adapter implementation, or
+public publication state.
+
+PR90 is a docs/tests/guard package/API readiness gate for the PR89 local proof.
+`result.json` remains the canonical machine-consumable Norma truth for the
+guided inspection flow. `guide.html`, `report.html`, `visual.svg`,
+`summary.json`, and `summary.md` are derived local inspection artifacts only.
+
+Future package/API surfaces may reference derived artifact paths and metadata
+only as inspection outputs. They must not treat derived artifacts as source
+truth or use them to infer, correct, optimize, recommend, score, select
+families, or override Norma results.
+
+The first safe implementation PR after this gate should be a package-private
+local helper or caller contract. Public package/API export, public npm
+publication, package metadata, lockfile, dependency, hosted MCP runtime,
+ChatGPT connector runtime, OpenAI/provider call, and image/CAD/Figma/provider
+adapter implementation remain blocked until later explicit approval.
+
+The current Core source-truth model still applies: Norma Core accepts explicit
+structured geometry only. The PR86 metric-policy invariant remains mandatory
+across accepted geometry, synthetic shared surfaces, normalized output
+compositions, Structured Analyze operation contexts, and derived inspection
+artifacts.
+
 ## Definitions of Ready
 
 ### Local module ready
