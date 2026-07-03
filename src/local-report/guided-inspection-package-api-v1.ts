@@ -10,7 +10,7 @@ const DERIVED_ARTIFACT_NAMES = Object.freeze([
   "summary.md",
 ] as const);
 
-interface GuidedInspectionArtifactContractInputV1 {
+export interface GuidedInspectionArtifactContractInputV1 {
   readonly outputDir: string;
   readonly artifacts: readonly GuidedInspectionArtifactRefV1["name"][];
 }
