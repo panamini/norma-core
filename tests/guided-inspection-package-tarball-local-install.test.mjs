@@ -45,6 +45,19 @@ const forbiddenTarballPathPatterns = [
   /^tsconfig\.json$/u,
 ];
 
+const forbiddenTarballDecoys = [
+  [".github", "workflows", "release.yml"],
+  ["AGENTS.md"],
+  ["bin", "norma-cli.mjs"],
+  ["docs", "PUBLIC_PACKAGE_PUBLISHING_GATE.md"],
+  ["examples", "structured-analyze", "basic-grid-alignment.json"],
+  ["src", "index.ts"],
+  ["tests", "guided-inspection-package-root-api.test.mjs"],
+  ["viewer", "read-only-result-viewer.html"],
+  ["package-lock.json"],
+  ["tsconfig.json"],
+];
+
 test("PR99 package metadata stays private and local-only with a minimal files allowlist", async () => {
   const packageJson = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8"));
 
@@ -195,6 +208,7 @@ async function packFromTempWorkspace() {
   await copyFile(join(repoRoot, "README.md"), join(packRoot, "README.md"));
   await mkdir(join(packRoot, "dist"), { recursive: true });
   await cp(join(repoRoot, "dist", "src"), join(packRoot, "dist", "src"), { recursive: true });
+  await seedForbiddenTarballDecoys(packRoot);
 
   const { stdout } = await run("npm", ["pack", "--json"], {
     cwd: packRoot,
@@ -226,6 +240,14 @@ async function run(command, args, options) {
     maxBuffer: 10 * 1024 * 1024,
     ...options,
   });
+}
+
+async function seedForbiddenTarballDecoys(packRoot) {
+  for (const pathParts of forbiddenTarballDecoys) {
+    const decoyPath = join(packRoot, ...pathParts);
+    await mkdir(dirname(decoyPath), { recursive: true });
+    await writeFile(decoyPath, "forbidden tarball decoy\n");
+  }
 }
 
 function consumerProofScript() {

@@ -24,6 +24,7 @@ import {
   guidedInspectionPackageRootApiExportsChangedFiles,
   guidedInspectionPackageRootConsumerCompatibilityChangedFiles,
   guidedInspectionPackagePublicationReadinessChangedFiles,
+  guidedInspectionPackageApiTarballHardeningChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
   guidedInspectionPackageApiReadinessGateChangedFiles,
@@ -657,6 +658,66 @@ test("shared exact changed-file guard rejects publication dependency lockfile ru
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR101 package API and tarball hardening set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(guidedInspectionPackageApiTarballHardeningChangedFiles),
+    guidedInspectionPackageApiTarballHardeningChangedFiles,
+  );
+
+  assert.deepEqual(guidedInspectionPackageApiTarballHardeningChangedFiles, [
+    "src/local-report/guided-inspection-artifact-contract.ts",
+    "src/local-report/guided-inspection-package-api-v1.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/guided-inspection-package-root-api.test.mjs",
+    "tests/guided-inspection-package-tarball-local-install.test.mjs",
+    "tests/package-api-export-contract-approval.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**", ".github/**"]) {
+    assert.equal(
+      guidedInspectionPackageApiTarballHardeningChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR101 package API and tarball hardening set", () => {
+  const missingRequiredFile = guidedInspectionPackageApiTarballHardeningChangedFiles.filter(
+    (file) => file !== "src/local-report/guided-inspection-package-api-v1.ts",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/index.ts",
+    "src/local-report/guided-inspection-consumer-proof.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-core-guided-inspection-demo.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md",
+    "examples/structured-analyze/basic-grid-alignment.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/release.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...guidedInspectionPackageApiTarballHardeningChangedFiles,
         forbiddenFile,
       ]),
       null,

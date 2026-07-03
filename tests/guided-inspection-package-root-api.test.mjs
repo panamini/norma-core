@@ -19,6 +19,7 @@ const approvedRuntimeNames = [
 ];
 
 const approvedTypeNames = [
+  "GuidedInspectionArtifactContractInputV1",
   "GuidedInspectionArtifactContractV1",
   "GuidedInspectionArtifactRefV1",
   "GuidedInspectionDemoEnvelopeV1",
@@ -55,6 +56,7 @@ test("package root type declarations expose the approved guided inspection V1 ty
   );
 
   assert.match(declarations, /guided-inspection-package-api-v1\.js/u);
+  assert.match(facadeDeclarations, /export interface GuidedInspectionArtifactContractInputV1/u);
 
   for (const approvedTypeName of approvedTypeNames) {
     assert.match(facadeDeclarations, new RegExp(`\\b${approvedTypeName}\\b`, "u"), approvedTypeName);

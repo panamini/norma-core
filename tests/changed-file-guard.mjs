@@ -506,6 +506,16 @@ export const guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMainte
     .sort(),
 );
 
+export const guidedInspectionPackageApiTarballHardeningChangedFiles = Object.freeze([
+  "src/local-report/guided-inspection-artifact-contract.ts",
+  "src/local-report/guided-inspection-package-api-v1.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/guided-inspection-package-root-api.test.mjs",
+  "tests/guided-inspection-package-tarball-local-install.test.mjs",
+  "tests/package-api-export-contract-approval.test.mjs",
+].sort());
+
 export const packagePublicationCandidateWithoutPublishingChangedFiles = Object.freeze([
   "README.md",
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -608,6 +618,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  guidedInspectionPackageApiTarballHardeningChangedFiles,
   packagePublicationCandidateWithoutPublishingChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessChangedFiles,

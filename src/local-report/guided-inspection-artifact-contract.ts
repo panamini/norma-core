@@ -126,5 +126,5 @@ function isAbsoluteLocalOutputDir(value: string): boolean {
 }
 
 function isWindowsRuntime(): boolean {
-  return /^[A-Za-z]:[\\/]/u.test(process.cwd()) || process.cwd().startsWith("\\\\");
+  return (process as { platform?: string }).platform === "win32";
 }

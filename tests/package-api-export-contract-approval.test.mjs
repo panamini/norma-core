@@ -16,6 +16,7 @@ const decisionDocPath = join(
 const roadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const packageJsonPath = join(repoRoot, "package.json");
 const srcIndexPath = join(repoRoot, "src", "index.ts");
+const distIndexPath = join(repoRoot, "dist", "src", "index.js");
 
 const futureApiNames = [
   "createGuidedInspectionArtifactContractV1",
@@ -181,6 +182,8 @@ test("PR95 does not approve dependency expansion", () => {
 });
 
 test("PR96 exports only the approved guided inspection V1 facade from the package root", async () => {
+  assert.equal(existsSync(distIndexPath), true, "run npm run build before package API export contract approval tests");
+
   const srcIndex = readDoc(srcIndexPath);
   const decisionDoc = readDoc(decisionDocPath);
   const packageRoot = await import("../dist/src/index.js");
