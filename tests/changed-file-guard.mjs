@@ -507,6 +507,7 @@ export const guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMainte
 );
 
 export const guidedInspectionPackageApiTarballHardeningChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
   "src/local-report/guided-inspection-artifact-contract.ts",
   "src/local-report/guided-inspection-package-api-v1.ts",
   "tests/changed-file-guard.mjs",

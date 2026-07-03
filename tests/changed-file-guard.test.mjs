@@ -673,6 +673,7 @@ test("shared exact changed-file guard accepts the PR101 package API and tarball 
   );
 
   assert.deepEqual(guidedInspectionPackageApiTarballHardeningChangedFiles, [
+    "docs/decisions/2026-07-02-package-api-export-contract-approval.md",
     "src/local-report/guided-inspection-artifact-contract.ts",
     "src/local-report/guided-inspection-package-api-v1.ts",
     "tests/changed-file-guard.mjs",

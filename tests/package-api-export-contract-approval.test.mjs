@@ -21,6 +21,7 @@ const distIndexPath = join(repoRoot, "dist", "src", "index.js");
 const futureApiNames = [
   "createGuidedInspectionArtifactContractV1",
   "consumeGuidedInspectionDemoEnvelopeV1",
+  "GuidedInspectionArtifactContractInputV1",
   "GuidedInspectionArtifactContractV1",
   "GuidedInspectionArtifactRefV1",
   "GuidedInspectionDemoEnvelopeV1",
@@ -36,6 +37,9 @@ const derivedArtifactNames = [
 ];
 
 const futureShapeSnippets = [
+  "interface GuidedInspectionArtifactContractInputV1",
+  "readonly outputDir: string",
+  "readonly artifacts: readonly GuidedInspectionArtifactRefV1[\"name\"][]",
   "interface GuidedInspectionArtifactRefV1",
   "readonly name:",
   "| \"result.json\"",

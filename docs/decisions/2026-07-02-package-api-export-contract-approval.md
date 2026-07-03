@@ -31,6 +31,7 @@ PR95 approves these exact future package-root function names for a later PR:
 
 PR95 approves these exact future package-root type names for a later PR:
 
+- `GuidedInspectionArtifactContractInputV1`
 - `GuidedInspectionArtifactContractV1`
 - `GuidedInspectionArtifactRefV1`
 - `GuidedInspectionDemoEnvelopeV1`
@@ -41,6 +42,11 @@ PR95 approves these exact future package-root type names for a later PR:
 PR95 approves these exact future public object shapes for PR96:
 
 ```ts
+interface GuidedInspectionArtifactContractInputV1 {
+  readonly outputDir: string;
+  readonly artifacts: readonly GuidedInspectionArtifactRefV1["name"][];
+}
+
 interface GuidedInspectionArtifactRefV1 {
   readonly name:
     | "result.json"
