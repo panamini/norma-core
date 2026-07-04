@@ -84,6 +84,7 @@ import {
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
   visualAdapterFixtureContractChangedFiles,
+  visualAdapterStaticFixtureHandoffChangedFiles,
 } from "./changed-file-guard.mjs";
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
@@ -122,6 +123,20 @@ test("shared exact changed-file guard accepts the PR102 visual adapter fixture c
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/visual-adapter-fixture-contract.test.mjs",
+  ]);
+});
+
+test("shared exact changed-file guard accepts the PR103 visual adapter static fixture handoff set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(visualAdapterStaticFixtureHandoffChangedFiles),
+    visualAdapterStaticFixtureHandoffChangedFiles,
+  );
+
+  assert.deepEqual(visualAdapterStaticFixtureHandoffChangedFiles, [
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/fixtures/visual-adapter/static-handoff-proof-v1.json",
+    "tests/visual-adapter-static-fixture-handoff.test.mjs",
   ]);
 });
 
@@ -2678,6 +2693,48 @@ test("shared exact changed-file guard rejects runtime, package, provider, and fi
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...visualAdapterFixtureContractChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, provider, package, docs, and wiki extras in the PR103 visual adapter static fixture handoff set", () => {
+  const missingRequiredFile = visualAdapterStaticFixtureHandoffChangedFiles.filter(
+    (file) => file !== "tests/visual-adapter-static-fixture-handoff.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/providers/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/fixtures/visual-adapter/source-image.png",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
+    "../norma-core-wiki/wiki/hot.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...visualAdapterStaticFixtureHandoffChangedFiles,
         forbiddenFile,
       ]),
       null,

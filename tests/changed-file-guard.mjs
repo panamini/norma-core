@@ -535,6 +535,13 @@ export const visualAdapterFixtureContractChangedFiles = Object.freeze([
   "tests/visual-adapter-fixture-contract.test.mjs",
 ].sort());
 
+export const visualAdapterStaticFixtureHandoffChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/visual-adapter/static-handoff-proof-v1.json",
+  "tests/visual-adapter-static-fixture-handoff.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -626,6 +633,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  visualAdapterStaticFixtureHandoffChangedFiles,
   visualAdapterFixtureContractChangedFiles,
   guidedInspectionPackageApiTarballHardeningChangedFiles,
   packagePublicationCandidateWithoutPublishingChangedFiles,
