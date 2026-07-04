@@ -1,0 +1,215 @@
+{
+  "contractId": "norma.visual-adapter.static-handoff-proof",
+  "contractVersion": 1,
+  "proofId": "visual-adapter-static-handoff-proof-v1",
+  "localOnly": true,
+  "fixtureOnly": true,
+  "staticFixture": true,
+  "syntheticOnly": true,
+  "sourceTruthPolicy": {
+    "candidateEvidenceOnly": [
+      "sourceAsset",
+      "visualObservation",
+      "providerOutput",
+      "cadOutput",
+      "figmaOutput",
+      "screenshot",
+      "photo",
+      "map",
+      "image",
+      "overlay",
+      "prompt",
+      "derivedArtifact"
+    ],
+    "coreTruth": "acceptedStructuredGeometry",
+    "coreInputAllowedFrom": "acceptedStructuredGeometryOnly"
+  },
+  "sourceAsset": {
+    "kind": "synthetic-source-asset",
+    "assetId": "asset:synthetic:static-handoff:v1",
+    "contentIdentity": "sha256:acc981806586298e794f4e6e43ace4e4b1f62aaf1a2635949f3a15e49cb0face",
+    "rawContentIncluded": false
+  },
+  "adapter": {
+    "kind": "fixture-only-visual-adapter",
+    "adapterId": "adapter:fixture-only:visual-static-handoff",
+    "adapterVersion": "1.0.0",
+    "providerIdentity": {
+      "kind": "synthetic-fixture-provider",
+      "providerId": "provider:synthetic-fixture",
+      "providerVersion": "0.0.0"
+    },
+    "runtimeCallsAllowed": false
+  },
+  "candidateObservation": {
+    "kind": "visual-geometry-observation",
+    "observationId": "observation:visual-static-handoff:v1",
+    "observationContentIdentity": "sha256:9fed816be77be13c2f58f1d8c87235f53952581d76d056564595d557f6aa89e6",
+    "sourceAssetId": "asset:synthetic:static-handoff:v1",
+    "candidateEvidenceOnly": true,
+    "sourceTruth": false,
+    "coreInput": false,
+    "normalizedVisualObservation": {
+      "coordinateFrame": {
+        "dimensions": 2,
+        "coordinateScale": "normalized",
+        "origin": "top-left",
+        "xDirection": "right",
+        "yDirection": "down",
+        "bounds": {
+          "x": [0, 1],
+          "y": [0, 1]
+        }
+      },
+      "primitives": [
+        {
+          "id": "candidate:rectangle:left",
+          "kind": "rectangle",
+          "x": 0,
+          "y": 0,
+          "width": 0.5,
+          "height": 1,
+          "confidence": 0.91
+        },
+        {
+          "id": "candidate:rectangle:right",
+          "kind": "rectangle",
+          "x": 0.5,
+          "y": 0,
+          "width": 0.5,
+          "height": 1,
+          "confidence": 0.89
+        }
+      ],
+      "lossyConversionWarnings": [
+        "normalized coordinates omit original pixel dimensions",
+        "primitive vocabulary is reduced to rectangles",
+        "metric meaning remains unitless",
+        "pixel-origin conventions are fixture-declared",
+        "perspective and cropping are not recoverable from this fixture",
+        "provider confidence is diagnostic only",
+        "adapter configuration is fixture-only"
+      ]
+    },
+    "provenance": {
+      "provenanceId": "provenance:visual-observation:static-handoff:v1",
+      "sourceAssetIdentity": "asset:synthetic:static-handoff:v1",
+      "providerIdentity": "provider:synthetic-fixture@0.0.0",
+      "adapterIdentity": "adapter:fixture-only:visual-static-handoff@1.0.0",
+      "operationId": "visual-adapter-static-fixture.normalize",
+      "operationVersion": "1.0.0",
+      "observationContentIdentity": "sha256:9fed816be77be13c2f58f1d8c87235f53952581d76d056564595d557f6aa89e6"
+    }
+  },
+  "acceptedStructuredGeometry": {
+    "contractId": "norma.accepted-geometry@1",
+    "contractVersion": 1,
+    "acceptedGeometryId": "accepted:visual-static-handoff:v1",
+    "sourceObservationId": "observation:visual-static-handoff:v1",
+    "sourceObservationContentIdentity": "sha256:9fed816be77be13c2f58f1d8c87235f53952581d76d056564595d557f6aa89e6",
+    "acceptedRevision": 1,
+    "coordinateFrame": {
+      "dimensions": 2,
+      "coordinateScale": "normalized",
+      "origin": "top-left",
+      "xDirection": "right",
+      "yDirection": "down",
+      "bounds": {
+        "x": [0, 1],
+        "y": [0, 1]
+      },
+      "sourcePixelWidth": 100,
+      "sourcePixelHeight": 100
+    },
+    "primitives": [
+      {
+        "id": "rectangle:left",
+        "kind": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 0.5,
+        "height": 1,
+        "confidence": 1
+      },
+      {
+        "id": "rectangle:right",
+        "kind": "rectangle",
+        "x": 0.5,
+        "y": 0,
+        "width": 0.5,
+        "height": 1,
+        "confidence": 1
+      }
+    ],
+    "correctionHistory": [],
+    "acceptance": {
+      "acceptanceId": "acceptance:visual-static-handoff:v1",
+      "accepted": true,
+      "actorType": "deterministic-test",
+      "actorId": "visual-static-fixture-test",
+      "acceptedAt": "2026-07-04T00:00:00Z",
+      "sourceObservationId": "observation:visual-static-handoff:v1",
+      "sourceObservationContentIdentity": "sha256:9fed816be77be13c2f58f1d8c87235f53952581d76d056564595d557f6aa89e6",
+      "acceptedRevision": 1,
+      "acceptedContentIdentity": "sha256:e3311ee390df250350c018ae5e2abffc41bad3a7d436fc2af7d9db3d8a542228",
+      "acceptedPrimitiveIds": ["rectangle:left", "rectangle:right"],
+      "provenance": {
+        "provenanceId": "provenance:acceptance:visual-static-handoff:v1",
+        "actorType": "deterministic-test",
+        "actorId": "visual-static-fixture-test",
+        "operationId": "visual-adapter-static-fixture.accept",
+        "operationVersion": "1.0.0",
+        "inputContentIdentity": null,
+        "createdAt": "2026-07-04T00:00:00Z",
+        "notes": null
+      }
+    },
+    "provenance": {
+      "provenanceId": "provenance:accepted-geometry:visual-static-handoff:v1",
+      "actorType": "deterministic-test",
+      "actorId": "visual-static-fixture-test",
+      "operationId": "visual-adapter-static-fixture.handoff",
+      "operationVersion": "1.0.0",
+      "inputContentIdentity": null,
+      "createdAt": "2026-07-04T00:00:00Z",
+      "notes": null
+    },
+    "contentIdentity": "sha256:4942ffa33f03c0beac94a9c89e3a009871aa1dc4027e111547b210cfa462040d"
+  },
+  "handoffAcceptance": {
+    "actorType": "deterministic-test",
+    "actorId": "visual-static-fixture-test",
+    "mode": "explicit_fixture_acceptance"
+  },
+  "handoffProvenance": {
+    "sourceAssetIdentity": "asset:synthetic:static-handoff:v1",
+    "providerIdentity": "provider:synthetic-fixture@0.0.0",
+    "adapterIdentity": "adapter:fixture-only:visual-static-handoff@1.0.0",
+    "observationIdentity": "observation:visual-static-handoff:v1",
+    "observationContentIdentity": "sha256:9fed816be77be13c2f58f1d8c87235f53952581d76d056564595d557f6aa89e6",
+    "acceptanceActor": "visual-static-fixture-test",
+    "acceptanceMode": "explicit_fixture_acceptance",
+    "correctionHistory": [],
+    "acceptedGeometryContentIdentity": "sha256:4942ffa33f03c0beac94a9c89e3a009871aa1dc4027e111547b210cfa462040d",
+    "contractIdentity": "norma.visual-adapter.static-handoff-proof@1"
+  },
+  "derivedArtifacts": [
+    {
+      "kind": "fixture-handoff-summary",
+      "artifactId": "artifact:visual-static-handoff:summary:v1",
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false,
+      "coreInput": false,
+      "mayDisplayAcceptedGeometry": true,
+      "mayOverrideAcceptedGeometry": false,
+      "metricPolicyAuthority": false
+    }
+  ],
+  "metricPolicyInvariant": {
+    "quantity": "length",
+    "unit": "unit",
+    "mayInferPhysicalMeasurementsFromPixels": false,
+    "mayDropSurfaceOnlyMetricPolicy": false,
+    "derivedArtifactsMayOverrideMetricPolicy": false
+  }
+}
