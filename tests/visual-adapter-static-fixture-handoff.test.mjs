@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import test from "node:test";
+import test, { before } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import * as core from "../dist/src/index.js";
@@ -30,7 +30,12 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const fixture = readJsonFixture("static-handoff-proof-v1.json");
+const fixturePath = path.join(__dirname, "fixtures", "visual-adapter", "static-handoff-proof-v1.json");
+let fixture;
+
+before(() => {
+  fixture = loadFixture();
+});
 
 test("PR103 fixture envelope is static synthetic local-only and fixture-only", () => {
   assert.equal(fixture.contractId, "norma.visual-adapter.static-handoff-proof");
@@ -207,6 +212,10 @@ test("PR103 content identities are deterministic test-only projections without s
   assert.equal(accepted.acceptance.acceptedContentIdentity, repeated.acceptance.acceptedContentIdentity);
   assert.equal(accepted.contentIdentity, repeated.contentIdentity);
   assert.notEqual(accepted.contentIdentity, fixture.candidateObservation.observationContentIdentity);
+});
+
+test("PR103 source-truth policy identity projection is deterministic", () => {
+  assertSha256(deterministicIdentity(fixture.sourceTruthPolicy));
 });
 
 function createStructuredAnalyzeInputFromAcceptedGeometry(acceptedGeometry, options = {}) {
@@ -414,8 +423,9 @@ function ratioPackRef(pack) {
   return `${pack.id}@${pack.version}`;
 }
 
-function readJsonFixture(fileName) {
-  return JSON.parse(readFileSync(path.join(__dirname, "fixtures", "visual-adapter", fileName), "utf8"));
+function loadFixture() {
+  assert.equal(existsSync(fixturePath), true, "PR103 static handoff fixture should exist");
+  return JSON.parse(readFileSync(fixturePath, "utf8"));
 }
 
 function deterministicIdentity(value) {
@@ -443,5 +453,3 @@ function stripKeys(value, keys) {
 
   return value;
 }
-
-assertSha256(deterministicIdentity(fixture.sourceTruthPolicy));
