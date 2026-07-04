@@ -83,6 +83,7 @@ import {
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
+  visualAdapterFixtureContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
@@ -108,6 +109,20 @@ test("shared exact changed-file guard accepts the PR81 mapper review-fix set exa
     sharedExactApprovedChangedFiles(acceptedGeometryToCoreMapperReviewFixesChangedFiles),
     acceptedGeometryToCoreMapperReviewFixesChangedFiles,
   );
+});
+
+test("shared exact changed-file guard accepts the PR102 visual adapter fixture contract set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(visualAdapterFixtureContractChangedFiles),
+    visualAdapterFixtureContractChangedFiles,
+  );
+
+  assert.deepEqual(visualAdapterFixtureContractChangedFiles, [
+    "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/visual-adapter-fixture-contract.test.mjs",
+  ]);
 });
 
 test("shared exact changed-file guard accepts the PR82 AcceptedGeometry integration proof set exactly", () => {
@@ -2624,6 +2639,45 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, package, provider, and fixture extras in the PR102 visual adapter fixture contract set", () => {
+  const missingRequiredFile = visualAdapterFixtureContractChangedFiles.filter(
+    (file) => file !== "tests/visual-adapter-fixture-contract.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/providers/openai.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/fixtures/visual-adapter/source-image.png",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...visualAdapterFixtureContractChangedFiles,
         forbiddenFile,
       ]),
       null,

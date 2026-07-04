@@ -528,6 +528,13 @@ export const packagePublicationCandidateWithoutPublishingChangedFiles = Object.f
   "tests/package-publication-candidate-without-publishing.test.mjs",
 ].sort());
 
+export const visualAdapterFixtureContractChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/visual-adapter-fixture-contract.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -619,6 +626,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  visualAdapterFixtureContractChangedFiles,
   guidedInspectionPackageApiTarballHardeningChangedFiles,
   packagePublicationCandidateWithoutPublishingChangedFiles,
   guidedInspectionPackageTarballLocalInstallReadinessNonSemgrepMaintenanceChangedFiles,
