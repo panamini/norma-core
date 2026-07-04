@@ -152,7 +152,7 @@ test("PR103 candidate observations and derived artifacts are not Core input or s
 test("PR103 accepted structured geometry flows through existing package-private Structured Analyze path", () => {
   const input = createStructuredAnalyzeInputFromAcceptedGeometry(fixture.acceptedStructuredGeometry);
   const snapshot = core.serializeCanonicalJson(input);
-  const result = core.analyzeStructuredCompositionV1(structuredClone(input));
+  const result = core.analyzeStructuredCompositionV1(input);
 
   assert.equal(core.serializeCanonicalJson(input), snapshot);
   assert.equal(result.status, "valid");
