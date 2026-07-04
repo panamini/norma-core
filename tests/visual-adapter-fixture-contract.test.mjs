@@ -12,7 +12,6 @@ import {
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const decisionPath = join(repoRoot, "docs", "decisions", "2026-07-04-visual-adapter-fixture-contract.md");
-const decision = readDoc(decisionPath);
 
 const requiredHeadings = [
   "# Visual Adapter Fixture Contract",
@@ -33,11 +32,12 @@ const requiredHeadings = [
 ];
 
 test("PR102 decision file exists with required headings in order", () => {
-  assert.equal(existsSync(decisionPath), true);
+  const decision = readDecision();
   assertHeadingsInOrder(decision, requiredHeadings);
 });
 
 test("PR102 keeps visual/provider output as candidate evidence, not Core truth", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "pre-authored visual geometry observations -> explicit accepted structured geometry -> existing Norma Core / Structured Analyze path",
     "Source assets, visual observations, provider outputs, CAD output, Figma output, screenshots, photos, maps, architectural images, overlays, prompts, and derived inspection artifacts are candidate evidence only",
@@ -48,6 +48,7 @@ test("PR102 keeps visual/provider output as candidate evidence, not Core truth",
 });
 
 test("PR102 requires synthetic static local-only fixtures without sensitive source payloads", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "synthetic, static, local-only, and fixture-only",
     "pre-authored candidate observations",
@@ -67,6 +68,7 @@ test("PR102 requires synthetic static local-only fixtures without sensitive sour
 });
 
 test("PR102 blocks runtime adapters providers publication package and Core widening", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "runtime adapter implementation",
     "image recognition",
@@ -97,6 +99,7 @@ test("PR102 blocks runtime adapters providers publication package and Core widen
 });
 
 test("PR102 requires provenance content identity and lossy conversion warnings", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "source asset identity as a synthetic fixture identity",
     "provider or adapter identity",
@@ -114,6 +117,7 @@ test("PR102 requires provenance content identity and lossy conversion warnings",
 });
 
 test("PR102 preserves PR86 metric policy and derived artifact source-truth boundaries", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "The PR86 metric-policy invariant remains mandatory",
     "existing accepted geometry",
@@ -130,6 +134,7 @@ test("PR102 preserves PR86 metric policy and derived artifact source-truth bound
 });
 
 test("PR102 identifies the next implementation PR as fixture-only and local-only", () => {
+  const decision = readDecision();
   assertDocMentions(decision, [
     "The next implementation PR after PR102 must be fixture-only and local-only",
     "static synthetic fixtures",
@@ -181,6 +186,11 @@ test("PR102 changed-file guard accepts only the exact approved file set", () => 
 
 function readDoc(path) {
   return readFileSync(path, "utf8");
+}
+
+function readDecision() {
+  assert.equal(existsSync(decisionPath), true);
+  return readDoc(decisionPath);
 }
 
 function assertHeadingsInOrder(source, expectedHeadings) {
