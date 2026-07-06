@@ -69,6 +69,12 @@ const postPr92RoadmapTruthSyncDocPath = join(
   "decisions",
   "2026-07-02-post-pr92-roadmap-truth-sync.md",
 );
+const postPr104VisualFixtureRoadmapTruthSyncDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -417,6 +423,44 @@ test("PR93 roadmap truth sync records the post-PR92 guided inspection package bo
     "public package exports",
     "public npm publication",
     "package metadata changes",
+  ]) {
+    assertDocMentions(combinedDocs, [blockedSurface]);
+  }
+});
+
+test("PR105 roadmap truth sync records the post-PR104 visual fixture boundary", () => {
+  assert.equal(existsSync(postPr104VisualFixtureRoadmapTruthSyncDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const postPr104RoadmapTruthSyncDoc = readDoc(postPr104VisualFixtureRoadmapTruthSyncDocPath);
+  const postPr104RoadmapSection = sectionForHeading(
+    businessRoadmapDoc,
+    "## Visual Fixture Roadmap Truth Sync After PR104",
+  );
+  const combinedDocs = `${postPr104RoadmapSection}\n${postPr104RoadmapTruthSyncDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "PR102 approved the local-only visual adapter fixture contract",
+    "PR103 added the static synthetic visual fixture handoff proof",
+    "PR104 added the local visual fixture guided inspection demo",
+    "visual observations are candidate evidence only",
+    "explicit accepted structured geometry",
+    "`result.json` remains canonical Norma truth",
+    "`guide.html`, `visual.svg`, `summary.json`, `summary.md`, report artifacts, overlays, observations, and prompts are derived or evidence-only artifacts",
+    "PR106: local consumer proof for PR104 visual fixture demo envelope/result",
+    "PR107: static synthetic scenario corpus, 2-3 fixtures, still no recognition",
+    "PR108: decision PR for first real external track",
+  ]);
+
+  for (const blockedSurface of [
+    "real image recognition",
+    "provider/OpenAI calls",
+    "CAD/Figma import",
+    "hosted MCP",
+    "ChatGPT connector runtime",
+    "package publication",
+    "new visual-fixture or additional package-root public exports",
+    "prompt-derived source truth",
   ]) {
     assertDocMentions(combinedDocs, [blockedSurface]);
   }

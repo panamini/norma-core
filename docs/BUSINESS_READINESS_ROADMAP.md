@@ -825,6 +825,36 @@ across accepted geometry, synthetic shared surfaces, normalized output
 compositions, Structured Analyze operation contexts, and derived inspection
 artifacts.
 
+## Visual Fixture Roadmap Truth Sync After PR104
+
+Current truth-sync reference:
+`docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md`.
+
+PR102 approved the local-only visual adapter fixture contract. PR103 added the
+static synthetic visual fixture handoff proof. PR104 added the local visual
+fixture guided inspection demo.
+
+This rail remains local-only, synthetic, static, and fixture/demo proof only.
+Visual observations are candidate evidence only. The only accepted bridge into
+existing Norma Core / Structured Analyze in this rail is explicit accepted
+structured geometry.
+
+Where applicable, `result.json` remains canonical Norma truth. `guide.html`,
+`visual.svg`, `summary.json`, `summary.md`, report artifacts, overlays,
+observations, and prompts are derived or evidence-only artifacts.
+
+The following remain not approved: real image recognition, provider/OpenAI
+calls, CAD/Figma import, hosted MCP, ChatGPT connector runtime, package
+publication, new visual-fixture or additional package-root public exports,
+recommendation, correction, optimization, scoring, beauty judgment, automatic
+family selection, and prompt-derived source truth.
+
+The next sequence is only:
+
+1. PR106: local consumer proof for PR104 visual fixture demo envelope/result.
+2. PR107: static synthetic scenario corpus, 2-3 fixtures, still no recognition.
+3. PR108: decision PR for first real external track.
+
 ## Definitions of Ready
 
 ### Local module ready
