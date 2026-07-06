@@ -52,6 +52,7 @@ import {
   localStructuredAnalyzeReportKitScopeSummaryChangedFiles,
   packagePublicationCandidateWithoutPublishingChangedFiles,
   packageApiExportContractApprovalChangedFiles,
+  postPr104VisualFixtureRoadmapTruthSyncChangedFiles,
   postPr82RoadmapTruthSyncChangedFiles,
   postPr86RoadmapTruthSyncChangedFiles,
   postPr92RoadmapTruthSyncChangedFiles,
@@ -169,6 +170,30 @@ test("shared exact changed-file guard accepts the PR104 local visual fixture gui
     "tests/local-visual-fixture-guided-inspection-demo.test.mjs",
     "tests/onboarding-examples-docs.test.mjs",
   ]);
+});
+
+test("shared exact changed-file guard accepts the PR105 post-PR104 visual fixture roadmap truth sync set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(postPr104VisualFixtureRoadmapTruthSyncChangedFiles),
+    postPr104VisualFixtureRoadmapTruthSyncChangedFiles,
+  );
+
+  assert.deepEqual(postPr104VisualFixtureRoadmapTruthSyncChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/post-pr104-visual-fixture-roadmap-truth-sync.test.mjs",
+    "tests/roadmap-status-update.test.mjs",
+  ]);
+
+  for (const broadPath of ["docs/**", "examples/**", "tests/**", "src/**", "bin/**", "viewer/**"]) {
+    assert.equal(
+      postPr104VisualFixtureRoadmapTruthSyncChangedFiles.includes(broadPath),
+      false,
+      broadPath,
+    );
+  }
 });
 
 test("shared exact changed-file guard accepts the PR82 AcceptedGeometry integration proof set exactly", () => {
