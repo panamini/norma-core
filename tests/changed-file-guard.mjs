@@ -558,6 +558,13 @@ export const localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedF
     .sort(),
 );
 
+export const visualFixtureGuidedInspectionConsumerProofChangedFiles = Object.freeze([
+  "src/local-report/visual-fixture-guided-inspection-consumer-proof.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/visual-fixture-guided-inspection-consumer-proof.test.mjs",
+].sort());
+
 export const postPr104VisualFixtureRoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
@@ -658,6 +665,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  visualFixtureGuidedInspectionConsumerProofChangedFiles,
   postPr104VisualFixtureRoadmapTruthSyncChangedFiles,
   localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
   localVisualFixtureGuidedInspectionDemoChangedFiles,
