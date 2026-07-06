@@ -166,9 +166,13 @@ function matchesOutputArtifactPath(artifactPath: string, outputDir: string, arti
       && normalizeWindowsArtifactPath(artifactPath) === `${normalizeWindowsOutputDir(outputDir)}\\${artifactName}`;
   }
 
-  return dirname(artifactPath) === outputDir
+  return dirname(artifactPath) === normalizePosixOutputDir(outputDir)
     && basename(artifactPath) === artifactName
     && artifactPath === join(outputDir, artifactName);
+}
+
+function normalizePosixOutputDir(value: string): string {
+  return value.replace(/\/+$/u, "") || "/";
 }
 
 function normalizeWindowsOutputDir(value: string): string {

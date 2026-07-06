@@ -125,6 +125,27 @@ test("PR106 accepts Windows drive-letter generated artifact paths without treati
   );
 });
 
+test("PR106 accepts POSIX output dirs with trailing slash when artifact paths match join output", () => {
+  const trailingOutputDir = `${outputDir}/`;
+  const proof = createVisualFixtureGuidedInspectionConsumerProof(validEnvelope({
+    outputDir: trailingOutputDir,
+    resultJson: join(trailingOutputDir, "result.json"),
+    guideHtml: join(trailingOutputDir, "guide.html"),
+    visualSvg: join(trailingOutputDir, "visual.svg"),
+    summaryJson: join(trailingOutputDir, "summary.json"),
+    summaryMarkdown: join(trailingOutputDir, "summary.md"),
+  }));
+
+  assert.equal(proof.outputDir, trailingOutputDir);
+  assert.equal(proof.resultJson, join(trailingOutputDir, "result.json"));
+  assert.deepEqual(proof.derivedArtifacts.map((artifact) => artifact.path), [
+    join(trailingOutputDir, "guide.html"),
+    join(trailingOutputDir, "visual.svg"),
+    join(trailingOutputDir, "summary.json"),
+    join(trailingOutputDir, "summary.md"),
+  ]);
+});
+
 test("PR106 derived artifacts are refs only and never source truth or schema authority", () => {
   const proof = createVisualFixtureGuidedInspectionConsumerProof(validEnvelope());
 
