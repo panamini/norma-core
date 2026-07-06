@@ -38,6 +38,8 @@ import {
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
   localGuidedInspectionDemoChangedFiles,
   localGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
+  localVisualFixtureGuidedInspectionDemoChangedFiles,
+  localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
   localCliReportBoundaryFreezeChangedFiles,
   localTruthProjectionConsolidationSmokeChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
@@ -137,6 +139,35 @@ test("shared exact changed-file guard accepts the PR103 visual adapter static fi
     "tests/changed-file-guard.test.mjs",
     "tests/fixtures/visual-adapter/static-handoff-proof-v1.json",
     "tests/visual-adapter-static-fixture-handoff.test.mjs",
+  ]);
+});
+
+test("shared exact changed-file guard accepts the PR104 local visual fixture guided inspection demo set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localVisualFixtureGuidedInspectionDemoChangedFiles),
+    localVisualFixtureGuidedInspectionDemoChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles),
+    localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(localVisualFixtureGuidedInspectionDemoChangedFiles, [
+    "bin/norma-core-visual-fixture-guided-inspection-demo.mjs",
+    "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-visual-fixture-guided-inspection-demo.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+  ]);
+  assert.deepEqual(localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles, [
+    "bin/norma-core-visual-fixture-guided-inspection-demo.mjs",
+    "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-visual-fixture-guided-inspection-demo.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
   ]);
 });
 
@@ -2735,6 +2766,48 @@ test("shared exact changed-file guard rejects runtime, provider, package, docs, 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...visualAdapterStaticFixtureHandoffChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime, provider, package, docs, and wiki extras in the PR104 visual fixture demo set", () => {
+  const missingRequiredFile = localVisualFixtureGuidedInspectionDemoChangedFiles.filter(
+    (file) => file !== "tests/local-visual-fixture-guided-inspection-demo.test.mjs",
+  );
+
+  assert.equal(sharedExactApprovedChangedFiles(missingRequiredFile), null);
+
+  for (const forbiddenFile of [
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/providers/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/figma.ts",
+    "src/adapters/cad.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "tests/fixtures/visual-adapter/source-image.png",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
+    "../norma-core-wiki/wiki/hot.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localVisualFixtureGuidedInspectionDemoChangedFiles,
         forbiddenFile,
       ]),
       null,

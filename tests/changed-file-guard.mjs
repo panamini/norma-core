@@ -542,6 +542,22 @@ export const visualAdapterStaticFixtureHandoffChangedFiles = Object.freeze([
   "tests/visual-adapter-static-fixture-handoff.test.mjs",
 ].sort());
 
+export const localVisualFixtureGuidedInspectionDemoChangedFiles = Object.freeze([
+  "bin/norma-core-visual-fixture-guided-inspection-demo.mjs",
+  "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-visual-fixture-guided-inspection-demo.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+].sort());
+
+export const localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  localVisualFixtureGuidedInspectionDemoChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -633,6 +649,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,
+  localVisualFixtureGuidedInspectionDemoChangedFiles,
   visualAdapterStaticFixtureHandoffChangedFiles,
   visualAdapterFixtureContractChangedFiles,
   guidedInspectionPackageApiTarballHardeningChangedFiles,
