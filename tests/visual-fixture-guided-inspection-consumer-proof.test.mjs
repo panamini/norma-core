@@ -79,6 +79,40 @@ test("PR106 keeps result.json canonical and excludes it from derived artifacts",
   ]);
 });
 
+test("PR106 accepts Windows drive-letter generated artifact paths without treating them as URLs", () => {
+  const windowsOutputDir = "C:\\out\\visual-fixture-guided-inspection";
+  const proof = createVisualFixtureGuidedInspectionConsumerProof(validEnvelope({
+    outputDir: windowsOutputDir,
+    resultJson: `${windowsOutputDir}\\result.json`,
+    guideHtml: `${windowsOutputDir}\\guide.html`,
+    visualSvg: `${windowsOutputDir}\\visual.svg`,
+    summaryJson: `${windowsOutputDir}\\summary.json`,
+    summaryMarkdown: `${windowsOutputDir}\\summary.md`,
+  }));
+
+  assert.equal(proof.outputDir, windowsOutputDir);
+  assert.equal(proof.resultJson, `${windowsOutputDir}\\result.json`);
+  assert.deepEqual(proof.derivedArtifacts.map((artifact) => artifact.path), [
+    `${windowsOutputDir}\\guide.html`,
+    `${windowsOutputDir}\\visual.svg`,
+    `${windowsOutputDir}\\summary.json`,
+    `${windowsOutputDir}\\summary.md`,
+  ]);
+
+  const forwardSlashOutputDir = "C:/out/visual-fixture-guided-inspection";
+  const forwardSlashProof = createVisualFixtureGuidedInspectionConsumerProof(validEnvelope({
+    outputDir: forwardSlashOutputDir,
+    resultJson: `${forwardSlashOutputDir}/result.json`,
+    guideHtml: `${forwardSlashOutputDir}/guide.html`,
+    visualSvg: `${forwardSlashOutputDir}/visual.svg`,
+    summaryJson: `${forwardSlashOutputDir}/summary.json`,
+    summaryMarkdown: `${forwardSlashOutputDir}/summary.md`,
+  }));
+
+  assert.equal(forwardSlashProof.outputDir, forwardSlashOutputDir);
+  assert.equal(forwardSlashProof.resultJson, `${forwardSlashOutputDir}/result.json`);
+});
+
 test("PR106 derived artifacts are refs only and never source truth or schema authority", () => {
   const proof = createVisualFixtureGuidedInspectionConsumerProof(validEnvelope());
 

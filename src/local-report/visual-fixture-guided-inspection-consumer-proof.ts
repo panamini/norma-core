@@ -139,11 +139,25 @@ function requireArtifactPath(
   outputDir: string,
   artifactName: string,
 ): string {
-  if (dirname(artifactPath) !== outputDir || basename(artifactPath) !== artifactName || artifactPath !== join(outputDir, artifactName)) {
+  if (!matchesOutputArtifactPath(artifactPath, outputDir, artifactName)) {
     throw invalid(field, `must match outputDir/${artifactName}`);
   }
 
   return artifactPath;
+}
+
+function matchesOutputArtifactPath(artifactPath: string, outputDir: string, artifactName: string): boolean {
+  if (isWindowsAbsolutePath(outputDir)) {
+    return normalizeWindowsPath(artifactPath) === `${normalizeWindowsPath(outputDir)}\\${artifactName}`;
+  }
+
+  return dirname(artifactPath) === outputDir
+    && basename(artifactPath) === artifactName
+    && artifactPath === join(outputDir, artifactName);
+}
+
+function normalizeWindowsPath(value: string): string {
+  return value.replaceAll("/", "\\").replace(/\\+$/u, "");
 }
 
 function requireAbsoluteLocalPath(record: Record<string, unknown>, field: string): string {
@@ -173,11 +187,18 @@ function isAbsoluteLocalPath(value: string): boolean {
     return true;
   }
 
-  return (process as { platform?: string }).platform === "win32"
-    && (value.startsWith("\\\\") || /^[A-Za-z]:[\\/]/u.test(value));
+  return isWindowsAbsolutePath(value);
+}
+
+function isWindowsAbsolutePath(value: string): boolean {
+  return value.startsWith("\\\\") || /^[A-Za-z]:[\\/]/u.test(value);
 }
 
 function isUrlPath(value: string): boolean {
+  if (/^[A-Za-z]:[\\/]/u.test(value)) {
+    return false;
+  }
+
   return /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value);
 }
 
