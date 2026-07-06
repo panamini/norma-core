@@ -1,6 +1,12 @@
 # Local Visual Fixture Guided Inspection Demo
 
-Run the local-only PR104 demo:
+Run the local-only PR104 demo after the repo is built:
+
+```bash
+npm run build
+```
+
+Then run the demo:
 
 ```bash
 node bin/norma-core-visual-fixture-guided-inspection-demo.mjs

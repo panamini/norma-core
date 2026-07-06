@@ -41,6 +41,7 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const commandPath = join(repoRoot, "bin/norma-core-visual-fixture-guided-inspection-demo.mjs");
+const docPath = join(repoRoot, "docs/examples/local-visual-fixture-guided-inspection-demo.md");
 const fixturePath = join(repoRoot, "tests/fixtures/visual-adapter/static-handoff-proof-v1.json");
 const outputFiles = ["guide.html", "result.json", "summary.json", "summary.md", "visual.svg"];
 const successEnvelopeKeys = [
@@ -60,6 +61,17 @@ const successEnvelopeKeys = [
   "summaryMarkdown",
   "visualSvg",
 ];
+
+test("PR104 docs state the repository build prerequisite before the visual fixture demo command", async () => {
+  const doc = await readFile(docPath, "utf8");
+
+  assert.match(doc, /after the repo is built/u);
+  assert.match(doc, /npm run build/u);
+  assert.ok(
+    doc.indexOf("npm run build") < doc.indexOf("node bin/norma-core-visual-fixture-guided-inspection-demo.mjs"),
+    "build prerequisite should appear before the demo command",
+  );
+});
 
 test("PR104 visual fixture guided inspection command works with no args", async () => {
   const { parsed } = await runCommand();
