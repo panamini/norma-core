@@ -364,6 +364,7 @@ test("PR62-approved onboarding and example documentation paths are exact", () =>
   assert.deepEqual(markdownFiles("docs/examples"), [
     "docs/examples/local-guided-inspection-demo.md",
     "docs/examples/local-structured-analyze-demo-workflow.md",
+    "docs/examples/local-visual-fixture-guided-inspection-demo.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
     "docs/examples/real-usecase-structured-layout-demo.md",
