@@ -60,6 +60,7 @@ export function createVisualFixtureGuidedInspectionConsumerProof(
 ): VisualFixtureGuidedInspectionConsumerProof {
   const record = requireEnvelopeRecord(envelope);
   rejectUnknownEnvelopeFields(record);
+  requireOwnEnvelopeFields(record);
   validateTruthBoundary(record);
 
   const outputDir = requireAbsoluteLocalPath(record, "outputDir");
@@ -97,6 +98,11 @@ function requireEnvelopeRecord(value: unknown): Record<string, unknown> {
     throw invalid("envelope", "requires object");
   }
 
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw invalid("envelope", "requires plain object");
+  }
+
   return value as Record<string, unknown>;
 }
 
@@ -106,6 +112,14 @@ function rejectUnknownEnvelopeFields(record: Record<string, unknown>): void {
   for (const key of Object.keys(record)) {
     if (!allowed.has(key)) {
       throw invalid(key, "unknown field");
+    }
+  }
+}
+
+function requireOwnEnvelopeFields(record: Record<string, unknown>): void {
+  for (const field of EXPECTED_ENVELOPE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(record, field)) {
+      throw invalid(field, "requires own field");
     }
   }
 }
@@ -148,7 +162,8 @@ function requireArtifactPath(
 
 function matchesOutputArtifactPath(artifactPath: string, outputDir: string, artifactName: string): boolean {
   if (isWindowsAbsolutePath(outputDir)) {
-    return normalizeWindowsPath(artifactPath) === `${normalizeWindowsPath(outputDir)}\\${artifactName}`;
+    return !hasTrailingWindowsPathSeparator(artifactPath)
+      && normalizeWindowsArtifactPath(artifactPath) === `${normalizeWindowsOutputDir(outputDir)}\\${artifactName}`;
   }
 
   return dirname(artifactPath) === outputDir
@@ -156,8 +171,16 @@ function matchesOutputArtifactPath(artifactPath: string, outputDir: string, arti
     && artifactPath === join(outputDir, artifactName);
 }
 
-function normalizeWindowsPath(value: string): string {
-  return value.replaceAll("/", "\\").replace(/\\+$/u, "");
+function normalizeWindowsOutputDir(value: string): string {
+  return normalizeWindowsArtifactPath(value).replace(/\\+$/u, "");
+}
+
+function normalizeWindowsArtifactPath(value: string): string {
+  return value.replaceAll("/", "\\");
+}
+
+function hasTrailingWindowsPathSeparator(value: string): boolean {
+  return /[\\/]$/u.test(value);
 }
 
 function requireAbsoluteLocalPath(record: Record<string, unknown>, field: string): string {

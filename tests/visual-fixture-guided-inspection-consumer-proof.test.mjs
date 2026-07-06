@@ -111,6 +111,18 @@ test("PR106 accepts Windows drive-letter generated artifact paths without treati
 
   assert.equal(forwardSlashProof.outputDir, forwardSlashOutputDir);
   assert.equal(forwardSlashProof.resultJson, `${forwardSlashOutputDir}/result.json`);
+
+  assert.throws(
+    () => createVisualFixtureGuidedInspectionConsumerProof(validEnvelope({
+      outputDir: windowsOutputDir,
+      resultJson: `${windowsOutputDir}\\result.json\\`,
+      guideHtml: `${windowsOutputDir}\\guide.html`,
+      visualSvg: `${windowsOutputDir}\\visual.svg`,
+      summaryJson: `${windowsOutputDir}\\summary.json`,
+      summaryMarkdown: `${windowsOutputDir}\\summary.md`,
+    })),
+    /field "resultJson": must match outputDir\/result\.json/u,
+  );
 });
 
 test("PR106 derived artifacts are refs only and never source truth or schema authority", () => {
@@ -137,9 +149,10 @@ test("PR106 derived artifacts are refs only and never source truth or schema aut
 test("PR106 rejects malformed unsafe and non-visual envelopes deterministically", () => {
   const cases = [
     ["non-object", null, /field "envelope": requires object/u],
+    ["non-plain object", Object.create(validEnvelope()), /field "envelope": requires plain object/u],
     ["non-ok", validEnvelope({ status: "error" }), /field "status": requires ok/u],
     ["unknown field", validEnvelope({ extra: true }), /field "extra": unknown field/u],
-    ["missing field", validEnvelope({ resultJson: undefined }), /field "resultJson": requires absolute local filesystem path/u],
+    ["missing field", validEnvelope({ resultJson: undefined }), /field "resultJson": requires own field/u],
     ["bad layers", validEnvelope({ layers: "Layer 1" }), /field "layers": requires string array/u],
     ["relative outputDir", validEnvelope({ outputDir: "relative/out" }), /field "outputDir": requires absolute local filesystem path/u],
     ["URL outputDir", validEnvelope({ outputDir: "https://example.test/out" }), /field "outputDir": requires absolute local filesystem path/u],
