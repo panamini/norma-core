@@ -314,9 +314,14 @@ test("PR104 exact changed-file guard accepts only the approved visual fixture gu
     "src/adapters/visual.ts",
     "src/adapters/figma.ts",
     "src/adapters/cad.ts",
+    "bin/norma-cli.mjs",
     "bin/norma-core-report.mjs",
+    "bin/norma-core-real-usecase-demo.mjs",
+    "viewer/read-only-result-viewer.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
     "tests/fixtures/visual-adapter/source-image.png",
     "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([
