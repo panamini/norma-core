@@ -88,6 +88,7 @@ import {
   structuredAnalyzeVisualViewerChangedFiles,
   visualAdapterFixtureContractChangedFiles,
   visualAdapterStaticFixtureHandoffChangedFiles,
+  visualFixtureGuidedInspectionConsumerProofChangedFiles,
 } from "./changed-file-guard.mjs";
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
@@ -192,6 +193,74 @@ test("shared exact changed-file guard accepts the PR105 post-PR104 visual fixtur
       postPr104VisualFixtureRoadmapTruthSyncChangedFiles.includes(broadPath),
       false,
       broadPath,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR106 visual fixture guided inspection consumer proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(visualFixtureGuidedInspectionConsumerProofChangedFiles),
+    visualFixtureGuidedInspectionConsumerProofChangedFiles,
+  );
+
+  assert.deepEqual(visualFixtureGuidedInspectionConsumerProofChangedFiles, [
+    "src/local-report/visual-fixture-guided-inspection-consumer-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/visual-fixture-guided-inspection-consumer-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/local-report/visual-fixture-guided-inspection-consumer-proof.ts",
+    "tests/visual-fixture-guided-inspection-consumer-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        visualFixtureGuidedInspectionConsumerProofChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR106 visual fixture consumer proof set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
+    "../norma-core-wiki/wiki/hot.md",
+    "tests/fixtures/visual-adapter/static-handoff-proof-v1.json",
+    "bin/norma-core-visual-fixture-guided-inspection-demo.mjs",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/ci.yml",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/providers/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/package-publication.ts",
+    "src/publication/npm.ts",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...visualFixtureGuidedInspectionConsumerProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
