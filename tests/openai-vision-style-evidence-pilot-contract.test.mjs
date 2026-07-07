@@ -42,6 +42,21 @@ const decisionDocPath = path.join(
 const corpusPath = path.join(__dirname, "fixtures", "visual-adapter", "static-scenario-corpus-v1.json");
 const packageJsonPath = path.join(repoRoot, "package.json");
 const scenario = readCorpusScenario("scenario:map-parcel-proportion:v1");
+const externalTruthPlaneFlags = ["providerTruth", "hostedTruth", "wikiTruth", "artifactTruth"];
+const executableCoreInputKeys = [
+  "acceptedStructuredGeometry",
+  "compositionA",
+  "compositionB",
+  "ratioPack",
+  "ruleSetRef",
+  "evaluationProfile",
+  "evaluationTolerances",
+  "comparisonTolerances",
+  "tolerancePolicy",
+  "operationContext",
+  "packLock",
+];
+const providerDiagnosticMetadataKeys = ["confidence", "value", "score"];
 
 test("PR109 decision doc has required headings and non-goals", () => {
   assert.equal(existsSync(decisionDocPath), true);
@@ -169,10 +184,12 @@ test("PR109 provider boundary is evidence only and cannot self-accept", () => {
   assert.equal("compositionB" in envelope, false);
   assert.equal("ratioPack" in envelope, false);
   assert.equal("operationContext" in envelope, false);
+  assertObservationEnvelopeHasNoExecutableGeometryTruth(envelope);
 });
 
 test("PR109 provider confidence value score is optional diagnostic metadata only", () => {
   const envelope = providerObservationEnvelopeForScenario(scenario);
+  const structuredAnalyzeInput = createStructuredAnalyzeInputFromScenario(scenario);
   const confidenceValues = envelope.observations.observations.map((observation) => observation.confidence);
 
   assert.ok(confidenceValues.every((confidence) => typeof confidence === "number"));
@@ -181,6 +198,7 @@ test("PR109 provider confidence value score is optional diagnostic metadata only
   assert.equal(envelope.providerMetadata.canCreateGeometry, false);
   assert.equal(envelope.providerMetadata.canModifyEvaluation, false);
   assert.equal(envelope.providerMetadata.provenanceOnly, true);
+  assertProviderDiagnosticMetadataExcludedFromCoreInput(envelope.observations, structuredAnalyzeInput);
 });
 
 test("PR109 observation-only provider envelope cannot enter Core", () => {
@@ -207,14 +225,9 @@ test("PR109 reused PR107 candidate observations are not source truth in any exte
   assert.equal(scenario.truthBoundary.candidateEvidenceOnly, true);
   assert.equal(scenario.truthBoundary.visualEvidenceIsNotNormaTruth, true);
   assert.equal(scenario.truthBoundary.acceptedStructuredGeometryOnlyCoreHandoff, true);
-
-  const externalTruthClaims = {
-    providerTruth: false,
-    hostedTruth: false,
-    wikiTruth: false,
-    artifactTruth: false,
-  };
-  assert.deepEqual(Object.values(externalTruthClaims), [false, false, false, false]);
+  assertNoTruthyFlags(scenario, externalTruthPlaneFlags);
+  assertNoTruthyFlags(observations, externalTruthPlaneFlags);
+  assertNoTruthyFlags(scenario.truthBoundary, externalTruthPlaneFlags);
 });
 
 test("PR109 accepted structured geometry validates directly with existing accepted-geometry validator", () => {
@@ -244,7 +257,8 @@ test("PR109 accepted structured geometry enters existing Core Structured Analyze
   assert.equal(first.operationVersion, core.STRUCTURED_COMPOSITION_ANALYSIS_OPERATION_VERSION);
   assert.equal(first.replayReadiness.status, "ready");
   assert.equal(input.operationContext.metricPolicy.value, null);
-  assert.doesNotMatch(core.serializeCanonicalJson(input), /candidate:|candidate-visual-observations|lossyConversionWarnings|providerConfidence/u);
+  assertProviderDiagnosticMetadataExcludedFromCoreInput(scenario.candidateVisualObservations, input);
+  assert.doesNotMatch(core.serializeCanonicalJson(input), /candidate:|candidate-visual-observations|lossyConversionWarnings|"confidence"|"score"/u);
   assert.ok(input.operationContext.sourceRefs.some((ref) => ref.ref === scenario.acceptedStructuredGeometry.acceptedGeometryId));
 });
 
@@ -394,6 +408,114 @@ function providerObservationEnvelopeForScenario(selectedScenario) {
     observations: selectedScenario.candidateVisualObservations,
     provenance: selectedScenario.providerAdapterProvenance,
   };
+}
+
+function assertObservationEnvelopeHasNoExecutableGeometryTruth(envelope) {
+  assertNoForbiddenKeys(envelope, executableCoreInputKeys, new Set(["trust.acceptedStructuredGeometry"]));
+}
+
+function assertNoTruthyFlags(value, flagNames, pathParts = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoTruthyFlags(item, flagNames, [...pathParts, String(index)]));
+    return;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    assert.equal(flagNames.includes(key) && child === true, false, [...pathParts, key].join("."));
+    assertNoTruthyFlags(child, flagNames, [...pathParts, key]);
+  }
+}
+
+function assertNoForbiddenKeys(value, forbiddenKeys, allowedPaths, pathParts = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenKeys(item, forbiddenKeys, allowedPaths, [...pathParts, String(index)]));
+    return;
+  }
+
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    const pathName = [...pathParts, key].join(".");
+    assert.equal(forbiddenKeys.includes(key) && !allowedPaths.has(pathName), false, pathName);
+    assertNoForbiddenKeys(child, forbiddenKeys, allowedPaths, [...pathParts, key]);
+  }
+}
+
+function assertProviderDiagnosticMetadataExcludedFromCoreInput(providerEvidence, structuredAnalyzeInput) {
+  const metadataEntries = collectEntriesForKeys(providerEvidence, new Set(providerDiagnosticMetadataKeys));
+  const coreInputJson = core.serializeCanonicalJson(structuredAnalyzeInput);
+
+  for (const { key, value, pathName } of metadataEntries) {
+    assert.equal(
+      hasObjectEntry(structuredAnalyzeInput, key, value),
+      false,
+      `provider diagnostic metadata leaked into Structured Analyze input: ${pathName}`,
+    );
+  }
+
+  for (const observation of providerEvidence.observations ?? []) {
+    assert.doesNotMatch(coreInputJson, new RegExp(escapeRegExp(observation.id), "u"), observation.id);
+  }
+}
+
+function collectEntriesForKeys(value, keys, pathParts = []) {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectEntriesForKeys(item, keys, [...pathParts, String(index)]));
+  }
+
+  if (value === null || typeof value !== "object") {
+    return [];
+  }
+
+  return Object.entries(value).flatMap(([key, child]) => {
+    const pathName = [...pathParts, key].join(".");
+    const current = keys.has(key) ? [{ key, value: child, pathName }] : [];
+    return [...current, ...collectEntriesForKeys(child, keys, [...pathParts, key])];
+  });
+}
+
+function hasObjectEntry(value, keyName, expectedValue) {
+  if (Array.isArray(value)) {
+    return value.some((item) => hasObjectEntry(item, keyName, expectedValue));
+  }
+
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  return Object.entries(value).some(([key, child]) => {
+    if (key === keyName && sameJsonValue(child, expectedValue)) {
+      return true;
+    }
+
+    return hasObjectEntry(child, keyName, expectedValue);
+  });
+}
+
+function sameJsonValue(left, right) {
+  return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+function stable(value) {
+  if (Array.isArray(value)) {
+    return value.map(stable);
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, stable(child)]),
+    );
+  }
+
+  return value;
 }
 
 function createStructuredAnalyzeInputFromScenario(selectedScenario) {
