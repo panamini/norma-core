@@ -837,13 +837,14 @@ PR102 approved the local-only visual adapter fixture contract. PR103 added the
 static synthetic visual fixture handoff proof. PR104 added the local visual
 fixture guided inspection demo.
 
-PR106 completed the local consumer proof for the PR104 visual fixture demo
-envelope/result. PR107 completed the static synthetic scenario corpus while
-keeping recognition, providers, CAD, Figma, hosted MCP, and ChatGPT runtime out
-of scope.
+PR106 is closed/complete. PR106 completed the local consumer proof for the PR104
+visual fixture demo envelope/result. PR107 is closed/complete. PR107 completed
+the static synthetic scenario corpus while keeping recognition, providers, CAD,
+Figma, hosted MCP, and ChatGPT runtime out of scope.
 
-PR108 is the current local visual pilot boundary. It defines the external
-evidence integration boundary before any real external source is allowed:
+PR108 is closed/complete. PR108 is the current local visual pilot boundary. It
+defines the local visual pilot boundary before any real external source is
+allowed:
 
 ```text
 Untrusted external evidence
@@ -886,18 +887,43 @@ family selection, provider payload contracts, OpenAI Vision JSON, CAD import
 JSON, Figma payloads, ChatGPT connector schemas, and prompt-derived,
 artifact-derived, provider-derived, or observation-derived source truth.
 
-The PR106 through PR108 sequence was:
+The PR106 through PR109 sequence is:
 
 1. PR106: local consumer proof for PR104 visual fixture demo envelope/result.
 2. PR107: static synthetic scenario corpus, 2-3 fixtures, still no recognition.
 3. PR108: decision PR for first real external track, now the current local
    visual pilot boundary.
+4. PR109: current decision approving OpenAI/vision-style evidence as the first
+   external pilot contract direction, not an implementation.
 
-The next decision PR is PR109. It must choose exactly one first real external
-pilot track: OpenAI/vision-style provider pilot contract, CAD/Figma geometry
-pilot contract, or ChatGPT/MCP product path contract. The recommended next
-track may be OpenAI/vision-style provider pilot contract, but PR108 does not
-implement it.
+PR108 required that PR109 must choose exactly one first real external pilot
+track. PR109 selects exactly one first real external pilot track:
+OpenAI/vision-style evidence pilot contract. OpenAI/vision-style evidence
+remains evidence only and is not Core truth, provider authority, package API
+truth, hosted truth, connector truth, wiki truth, or artifact truth. OpenAI is
+the first pilot candidate only; the architecture remains provider-agnostic.
+
+CAD/Figma geometry pilot contract and ChatGPT/MCP product path contract remain
+future/unselected tracks. They are not approved by PR109.
+
+PR109 is still not an implementation. It does not approve real image
+recognition, provider/OpenAI calls, CAD/Figma import, hosted MCP, ChatGPT
+connector runtime, package publication, new visual-fixture or additional
+package-root public exports, recommendation, correction, optimization, scoring,
+beauty judgment, automatic family selection, provider payload implementation,
+OpenAI Vision JSON, CAD import JSON, Figma payloads, ChatGPT connector schemas,
+or prompt-derived, artifact-derived, provider-derived, confidence-derived, or
+observation-derived source truth.
+
+The next decision point is:
+
+```text
+PR110: decide whether the selected pilot contract is ready for a minimal synthetic provider-envelope proof.
+```
+
+PR110 may proceed, revise the contract, stop, or choose a different path if
+evidence shows the selected contract is not ready. PR110 must still not imply
+real API calls unless separately approved.
 
 ## Definitions of Ready
 
