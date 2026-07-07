@@ -46,6 +46,7 @@ import {
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
   localVisualPilotBoundaryChangedFiles,
+  openaiVisionStyleEvidencePilotContractChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   localStructuredAnalyzeDemoSmokeChangedFiles,
@@ -409,6 +410,82 @@ test("shared exact changed-file guard rejects runtime provider package wiki host
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...localVisualPilotBoundaryChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR109 OpenAI vision-style evidence pilot contract set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(openaiVisionStyleEvidencePilotContractChangedFiles),
+    openaiVisionStyleEvidencePilotContractChangedFiles,
+  );
+
+  assert.deepEqual(openaiVisionStyleEvidencePilotContractChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-07-openai-vision-style-evidence-pilot-contract.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/openai-vision-style-evidence-pilot-contract.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-07-openai-vision-style-evidence-pilot-contract.md",
+    "tests/openai-vision-style-evidence-pilot-contract.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        openaiVisionStyleEvidencePilotContractChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package wiki hosted ChatGPT MCP CAD Figma extras in the PR109 set", () => {
+  const forbiddenFiles = [
+    "tests/fixtures/visual-adapter/static-scenario-corpus-v1.json",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "viewer/read-only-result-viewer.html",
+    "bin/norma-core-mcp-http.mjs",
+    "docs/examples/openai-vision-pilot.md",
+    "docs/decisions/2026-07-08-openai-vision-pilot-implementation.md",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    "tests/fixtures/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...openaiVisionStyleEvidencePilotContractChangedFiles,
         forbiddenFile,
       ]),
       null,
