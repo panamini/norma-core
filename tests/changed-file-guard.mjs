@@ -565,6 +565,13 @@ export const visualFixtureGuidedInspectionConsumerProofChangedFiles = Object.fre
   "tests/visual-fixture-guided-inspection-consumer-proof.test.mjs",
 ].sort());
 
+export const visualAdapterStaticScenarioCorpusChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/visual-adapter/static-scenario-corpus-v1.json",
+  "tests/visual-adapter-static-scenario-corpus.test.mjs",
+].sort());
+
 export const postPr104VisualFixtureRoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
@@ -665,6 +672,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  visualAdapterStaticScenarioCorpusChangedFiles,
   visualFixtureGuidedInspectionConsumerProofChangedFiles,
   postPr104VisualFixtureRoadmapTruthSyncChangedFiles,
   localVisualFixtureGuidedInspectionDemoNonSemgrepMaintenanceChangedFiles,

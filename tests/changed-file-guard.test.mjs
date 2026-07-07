@@ -87,6 +87,7 @@ import {
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
   visualAdapterFixtureContractChangedFiles,
+  visualAdapterStaticScenarioCorpusChangedFiles,
   visualAdapterStaticFixtureHandoffChangedFiles,
   visualFixtureGuidedInspectionConsumerProofChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -257,6 +258,80 @@ test("shared exact changed-file guard rejects forbidden extras in the PR106 visu
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...visualFixtureGuidedInspectionConsumerProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR107 static visual scenario corpus set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(visualAdapterStaticScenarioCorpusChangedFiles),
+    visualAdapterStaticScenarioCorpusChangedFiles,
+  );
+
+  assert.deepEqual(visualAdapterStaticScenarioCorpusChangedFiles, [
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/fixtures/visual-adapter/static-scenario-corpus-v1.json",
+    "tests/visual-adapter-static-scenario-corpus.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "tests/fixtures/visual-adapter/static-scenario-corpus-v1.json",
+    "tests/visual-adapter-static-scenario-corpus.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        visualAdapterStaticScenarioCorpusChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR107 static visual scenario corpus set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/local-report/visual-fixture-guided-inspection-consumer-proof.ts",
+    "bin/norma-core-visual-fixture-guided-inspection-demo.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-04-visual-adapter-fixture-contract.md",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "tests/fixtures/visual-adapter/static-handoff-proof-v1.json",
+    "tests/fixtures/visual-adapter/source-image.png",
+    "tests/fixtures/visual-adapter/raw/source.png",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/ci.yml",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "src/providers/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/publication/npm.ts",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    "tests/fixtures/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...visualAdapterStaticScenarioCorpusChangedFiles,
         forbiddenFile,
       ]),
       null,

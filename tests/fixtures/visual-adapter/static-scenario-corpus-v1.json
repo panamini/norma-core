@@ -1,0 +1,367 @@
+{
+  "kind": "norma.visual-adapter.static-scenario-corpus",
+  "version": 1,
+  "corpusId": "visual-adapter-static-scenario-corpus-v1",
+  "corpusContentIdentity": "sha256:1c03046479a4385e143e7796cd47c12049943fb12cb66d2ae07a82730df34975",
+  "contractId": "CC-20260707-pr107-static-synthetic-visual-scenario-corpus",
+  "operationId": "PR107: add static synthetic visual scenario corpus",
+  "localOnly": true,
+  "fixtureOnly": true,
+  "staticFixture": true,
+  "syntheticOnly": true,
+  "sourceTruthPolicy": {
+    "candidateEvidenceOnly": [
+      "syntheticSourceAsset",
+      "providerAdapterProvenance",
+      "candidateVisualObservations",
+      "lossyConversionWarnings",
+      "derivedEvidence"
+    ],
+    "providerAdapterIdentity": "provenanceOnly",
+    "coreTruth": "acceptedStructuredGeometry",
+    "coreInputAllowedFrom": "acceptedStructuredGeometryOnly",
+    "canonicalComputationalResult": "Structured Analyze direct result / result.json-style output"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "scenario:map-parcel-proportion:v1",
+      "name": "synthetic map/parcel proportion observation",
+      "scenarioContentIdentity": "sha256:7505ecdfe87c2660822797a534a4a4ea3a170773a63e084b28269cb040dcc00c",
+      "syntheticSourceAsset": {
+        "kind": "synthetic-source-asset",
+        "assetId": "asset:synthetic:map-parcel-proportion:v1",
+        "label": "synthetic map/parcel proportion observation",
+        "syntheticOnly": true,
+        "localOnly": true,
+        "fixtureOnly": true,
+        "staticFixture": true,
+        "rawContentIncluded": false,
+        "contentIdentity": "sha256:ca3ec025a0c443a7122763a92444340e0adea87fd4b68f996ee7edb6a534bba7"
+      },
+      "providerAdapterProvenance": {
+        "providerIdentity": {
+          "kind": "synthetic-fixture-provider",
+          "providerId": "provider:synthetic-fixture",
+          "providerVersion": "0.0.0",
+          "provenanceOnly": true,
+          "runtimeCallsAllowed": false
+        },
+        "adapterIdentity": {
+          "kind": "fixture-only-visual-adapter",
+          "adapterId": "adapter:fixture-only:visual-scenario-corpus",
+          "adapterVersion": "1.0.0",
+          "provenanceOnly": true,
+          "runtimeCallsAllowed": false
+        }
+      },
+      "candidateVisualObservations": {
+        "kind": "candidate-visual-observations",
+        "observationId": "observation:map-parcel-proportion:v1",
+        "sourceAssetId": "asset:synthetic:map-parcel-proportion:v1",
+        "candidateEvidenceOnly": true,
+        "sourceTruth": false,
+        "coreInput": false,
+        "packageApiTruth": false,
+        "connectorTruth": false,
+        "observations": [
+          { "id": "candidate:rectangle:parcel:west", "kind": "rectangle", "x": 0, "y": 0, "width": 0.4, "height": 1, "confidence": 0.82 },
+          { "id": "candidate:rectangle:parcel:east", "kind": "rectangle", "x": 0.4, "y": 0, "width": 0.6, "height": 1, "confidence": 0.82 }
+        ],
+        "lossyConversionWarnings": [
+          "normalized coordinates omit original pixel dimensions",
+          "primitive vocabulary is reduced to rectangles",
+          "metric meaning remains unitless",
+          "pixel-origin conventions are fixture-declared",
+          "perspective and cropping are not recoverable from this fixture",
+          "provider confidence is diagnostic only",
+          "adapter/provider identity is provenance metadata only"
+        ],
+        "observationContentIdentity": "sha256:2ff7c97667ddfe916ab396fa15655706837292f7227a28f7d66aab796b5ac035"
+      },
+      "acceptance": {
+        "actorType": "deterministic-test",
+        "actorId": "visual-static-scenario-corpus-test",
+        "mode": "explicit_fixture_acceptance",
+        "correctionHistory": []
+      },
+      "acceptedStructuredGeometry": {
+        "contractId": "norma.accepted-geometry@1",
+        "contractVersion": 1,
+        "acceptedGeometryId": "accepted:map-parcel-proportion:v1",
+        "sourceObservationId": "observation:map-parcel-proportion:v1",
+        "sourceObservationContentIdentity": "sha256:2ff7c97667ddfe916ab396fa15655706837292f7227a28f7d66aab796b5ac035",
+        "acceptedRevision": 1,
+        "coordinateFrame": {
+          "dimensions": 2,
+          "coordinateScale": "normalized",
+          "origin": "top-left",
+          "xDirection": "right",
+          "yDirection": "down",
+          "bounds": { "x": [0, 1], "y": [0, 1] },
+          "sourcePixelWidth": 100,
+          "sourcePixelHeight": 100
+        },
+        "primitives": [
+          { "id": "rectangle:parcel:west", "kind": "rectangle", "x": 0, "y": 0, "width": 0.4, "height": 1, "confidence": 1 },
+          { "id": "rectangle:parcel:east", "kind": "rectangle", "x": 0.4, "y": 0, "width": 0.6, "height": 1, "confidence": 1 }
+        ],
+        "correctionHistory": [],
+        "acceptance": {
+          "acceptanceId": "acceptance:map-parcel-proportion:v1",
+          "accepted": true,
+          "actorType": "deterministic-test",
+          "actorId": "visual-static-scenario-corpus-test",
+          "acceptedAt": "2026-07-07T00:00:00Z",
+          "sourceObservationId": "observation:map-parcel-proportion:v1",
+          "sourceObservationContentIdentity": "sha256:2ff7c97667ddfe916ab396fa15655706837292f7227a28f7d66aab796b5ac035",
+          "acceptedRevision": 1,
+          "acceptedPrimitiveIds": ["rectangle:parcel:west", "rectangle:parcel:east"],
+          "acceptedContentIdentity": "sha256:6a4210afa574e6cccc237358dd66e29df1b4ba255ec621590ff78e2fd5812319",
+          "provenance": {
+            "provenanceId": "provenance:acceptance:map-parcel-proportion:v1",
+            "actorType": "deterministic-test",
+            "actorId": "visual-static-scenario-corpus-test",
+            "operationId": "visual-adapter-static-scenario-corpus.accept",
+            "operationVersion": "1.0.0",
+            "inputContentIdentity": null,
+            "createdAt": "2026-07-07T00:00:00Z",
+            "notes": null
+          }
+        },
+        "provenance": {
+          "provenanceId": "provenance:accepted-geometry:map-parcel-proportion:v1",
+          "actorType": "deterministic-test",
+          "actorId": "visual-static-scenario-corpus-test",
+          "operationId": "visual-adapter-static-scenario-corpus.handoff",
+          "operationVersion": "1.0.0",
+          "inputContentIdentity": null,
+          "createdAt": "2026-07-07T00:00:00Z",
+          "notes": null
+        },
+        "contentIdentity": "sha256:95c99d1f2158a22f8cda1ee25b9a4bfbf4d2717f05d6fa0bf4b8758def63866f"
+      },
+      "acceptedGeometryContentIdentity": "sha256:95c99d1f2158a22f8cda1ee25b9a4bfbf4d2717f05d6fa0bf4b8758def63866f",
+      "handoffProvenance": {
+        "sourceAssetIdentity": "asset:synthetic:map-parcel-proportion:v1",
+        "providerIdentity": "provider:synthetic-fixture@0.0.0",
+        "adapterIdentity": "adapter:fixture-only:visual-scenario-corpus@1.0.0",
+        "observationIdentity": "observation:map-parcel-proportion:v1",
+        "observationContentIdentity": "sha256:2ff7c97667ddfe916ab396fa15655706837292f7227a28f7d66aab796b5ac035",
+        "acceptedGeometryContentIdentity": "sha256:95c99d1f2158a22f8cda1ee25b9a4bfbf4d2717f05d6fa0bf4b8758def63866f",
+        "contractIdentity": "CC-20260707-pr107-static-synthetic-visual-scenario-corpus@1",
+        "operationIdentity": "PR107: static synthetic visual scenario corpus"
+      },
+      "truthBoundary": {
+        "candidateEvidenceOnly": true,
+        "providerAdapterIdentityProvenanceOnly": true,
+        "visualEvidenceIsNotNormaTruth": true,
+        "derivedArtifactsAreNotSourceTruth": true,
+        "acceptedStructuredGeometryOnlyCoreHandoff": true,
+        "structuredAnalyzeResultCanonical": true,
+        "evidenceMetadataCannotOverrideAcceptedGeometry": true
+      },
+      "derivedEvidence": [
+        {
+          "kind": "scenario-summary",
+          "artifactId": "artifact:map-parcel-proportion:summary:v1",
+          "candidateEvidenceOnly": true,
+          "sourceTruth": false,
+          "coreInput": false,
+          "mayOverrideAcceptedGeometry": false,
+          "metricPolicyAuthority": false
+        }
+      ],
+      "metricPolicyInvariant": {
+        "quantity": "length",
+        "unit": "unit",
+        "mayInferPhysicalMeasurementsFromPixels": false,
+        "mayDropSurfaceOnlyMetricPolicy": false,
+        "derivedArtifactsMayOverrideMetricPolicy": false,
+        "metricPolicyMayGenerateGeometry": false
+      },
+      "comparisonDelta": 0.08
+    },
+    {
+      "scenarioId": "scenario:facade-elevation-proportion:v1",
+      "name": "synthetic facade/elevation proportion observation",
+      "scenarioContentIdentity": "sha256:6f03a6f111db3853280616084bcf65e5b0b77120fffc3950a0fbc03df429d858",
+      "syntheticSourceAsset": {
+        "kind": "synthetic-source-asset",
+        "assetId": "asset:synthetic:facade-elevation-proportion:v1",
+        "label": "synthetic facade/elevation proportion observation",
+        "syntheticOnly": true,
+        "localOnly": true,
+        "fixtureOnly": true,
+        "staticFixture": true,
+        "rawContentIncluded": false,
+        "contentIdentity": "sha256:ef7d989560dd4acbac010ae053d1bf5daa5d4d8b214a4b3bde988415d1094b79"
+      },
+      "providerAdapterProvenance": {
+        "providerIdentity": { "kind": "synthetic-fixture-provider", "providerId": "provider:synthetic-fixture", "providerVersion": "0.0.0", "provenanceOnly": true, "runtimeCallsAllowed": false },
+        "adapterIdentity": { "kind": "fixture-only-visual-adapter", "adapterId": "adapter:fixture-only:visual-scenario-corpus", "adapterVersion": "1.0.0", "provenanceOnly": true, "runtimeCallsAllowed": false }
+      },
+      "candidateVisualObservations": {
+        "kind": "candidate-visual-observations",
+        "observationId": "observation:facade-elevation-proportion:v1",
+        "sourceAssetId": "asset:synthetic:facade-elevation-proportion:v1",
+        "candidateEvidenceOnly": true,
+        "sourceTruth": false,
+        "coreInput": false,
+        "packageApiTruth": false,
+        "connectorTruth": false,
+        "observations": [
+          { "id": "candidate:rectangle:facade:left-bay", "kind": "rectangle", "x": 0, "y": 0, "width": 0.33, "height": 1, "confidence": 0.82 },
+          { "id": "candidate:rectangle:facade:center-bay", "kind": "rectangle", "x": 0.33, "y": 0, "width": 0.34, "height": 1, "confidence": 0.82 },
+          { "id": "candidate:rectangle:facade:right-bay", "kind": "rectangle", "x": 0.67, "y": 0, "width": 0.33, "height": 1, "confidence": 0.82 }
+        ],
+        "lossyConversionWarnings": [
+          "normalized coordinates omit original pixel dimensions",
+          "primitive vocabulary is reduced to rectangles",
+          "metric meaning remains unitless",
+          "pixel-origin conventions are fixture-declared",
+          "perspective and cropping are not recoverable from this fixture",
+          "provider confidence is diagnostic only",
+          "adapter/provider identity is provenance metadata only"
+        ],
+        "observationContentIdentity": "sha256:6a6c63379eb50766bc04536616bed9fc8dc4c658282dc089a5097980c1771945"
+      },
+      "acceptance": { "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "mode": "explicit_fixture_acceptance", "correctionHistory": [] },
+      "acceptedStructuredGeometry": {
+        "contractId": "norma.accepted-geometry@1",
+        "contractVersion": 1,
+        "acceptedGeometryId": "accepted:facade-elevation-proportion:v1",
+        "sourceObservationId": "observation:facade-elevation-proportion:v1",
+        "sourceObservationContentIdentity": "sha256:6a6c63379eb50766bc04536616bed9fc8dc4c658282dc089a5097980c1771945",
+        "acceptedRevision": 1,
+        "coordinateFrame": { "dimensions": 2, "coordinateScale": "normalized", "origin": "top-left", "xDirection": "right", "yDirection": "down", "bounds": { "x": [0, 1], "y": [0, 1] }, "sourcePixelWidth": 100, "sourcePixelHeight": 100 },
+        "primitives": [
+          { "id": "rectangle:facade:left-bay", "kind": "rectangle", "x": 0, "y": 0, "width": 0.33, "height": 1, "confidence": 1 },
+          { "id": "rectangle:facade:center-bay", "kind": "rectangle", "x": 0.33, "y": 0, "width": 0.34, "height": 1, "confidence": 1 },
+          { "id": "rectangle:facade:right-bay", "kind": "rectangle", "x": 0.67, "y": 0, "width": 0.33, "height": 1, "confidence": 1 }
+        ],
+        "correctionHistory": [],
+        "acceptance": {
+          "acceptanceId": "acceptance:facade-elevation-proportion:v1",
+          "accepted": true,
+          "actorType": "deterministic-test",
+          "actorId": "visual-static-scenario-corpus-test",
+          "acceptedAt": "2026-07-07T00:00:00Z",
+          "sourceObservationId": "observation:facade-elevation-proportion:v1",
+          "sourceObservationContentIdentity": "sha256:6a6c63379eb50766bc04536616bed9fc8dc4c658282dc089a5097980c1771945",
+          "acceptedRevision": 1,
+          "acceptedPrimitiveIds": ["rectangle:facade:left-bay", "rectangle:facade:center-bay", "rectangle:facade:right-bay"],
+          "acceptedContentIdentity": "sha256:8943899047562829e4d9517e311d56b1355c06b64efef44aacb83f5e8b403ecd",
+          "provenance": { "provenanceId": "provenance:acceptance:facade-elevation-proportion:v1", "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "operationId": "visual-adapter-static-scenario-corpus.accept", "operationVersion": "1.0.0", "inputContentIdentity": null, "createdAt": "2026-07-07T00:00:00Z", "notes": null }
+        },
+        "provenance": { "provenanceId": "provenance:accepted-geometry:facade-elevation-proportion:v1", "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "operationId": "visual-adapter-static-scenario-corpus.handoff", "operationVersion": "1.0.0", "inputContentIdentity": null, "createdAt": "2026-07-07T00:00:00Z", "notes": null },
+        "contentIdentity": "sha256:228e46d746c9a0c545694a2b214a8b493d795f5283868137f50487431a20fc17"
+      },
+      "acceptedGeometryContentIdentity": "sha256:228e46d746c9a0c545694a2b214a8b493d795f5283868137f50487431a20fc17",
+      "handoffProvenance": {
+        "sourceAssetIdentity": "asset:synthetic:facade-elevation-proportion:v1",
+        "providerIdentity": "provider:synthetic-fixture@0.0.0",
+        "adapterIdentity": "adapter:fixture-only:visual-scenario-corpus@1.0.0",
+        "observationIdentity": "observation:facade-elevation-proportion:v1",
+        "observationContentIdentity": "sha256:6a6c63379eb50766bc04536616bed9fc8dc4c658282dc089a5097980c1771945",
+        "acceptedGeometryContentIdentity": "sha256:228e46d746c9a0c545694a2b214a8b493d795f5283868137f50487431a20fc17",
+        "contractIdentity": "CC-20260707-pr107-static-synthetic-visual-scenario-corpus@1",
+        "operationIdentity": "PR107: static synthetic visual scenario corpus"
+      },
+      "truthBoundary": { "candidateEvidenceOnly": true, "providerAdapterIdentityProvenanceOnly": true, "visualEvidenceIsNotNormaTruth": true, "derivedArtifactsAreNotSourceTruth": true, "acceptedStructuredGeometryOnlyCoreHandoff": true, "structuredAnalyzeResultCanonical": true, "evidenceMetadataCannotOverrideAcceptedGeometry": true },
+      "derivedEvidence": [{ "kind": "scenario-summary", "artifactId": "artifact:facade-elevation-proportion:summary:v1", "candidateEvidenceOnly": true, "sourceTruth": false, "coreInput": false, "mayOverrideAcceptedGeometry": false, "metricPolicyAuthority": false }],
+      "metricPolicyInvariant": { "quantity": "length", "unit": "unit", "mayInferPhysicalMeasurementsFromPixels": false, "mayDropSurfaceOnlyMetricPolicy": false, "derivedArtifactsMayOverrideMetricPolicy": false, "metricPolicyMayGenerateGeometry": false },
+      "comparisonDelta": 0.05
+    },
+    {
+      "scenarioId": "scenario:floor-plan-room-layout-proportion:v1",
+      "name": "synthetic floor-plan/room-layout proportion observation",
+      "scenarioContentIdentity": "sha256:bb486257a174410d3036890002d6f911257ffaa53b0f80e9b227ad85eab12d55",
+      "syntheticSourceAsset": {
+        "kind": "synthetic-source-asset",
+        "assetId": "asset:synthetic:floor-plan-room-layout-proportion:v1",
+        "label": "synthetic floor-plan/room-layout proportion observation",
+        "syntheticOnly": true,
+        "localOnly": true,
+        "fixtureOnly": true,
+        "staticFixture": true,
+        "rawContentIncluded": false,
+        "contentIdentity": "sha256:8555c49ab6c4ec9c4af4f09c8607e21cbbf1a1172e80f2ee46a85e578da86559"
+      },
+      "providerAdapterProvenance": {
+        "providerIdentity": { "kind": "synthetic-fixture-provider", "providerId": "provider:synthetic-fixture", "providerVersion": "0.0.0", "provenanceOnly": true, "runtimeCallsAllowed": false },
+        "adapterIdentity": { "kind": "fixture-only-visual-adapter", "adapterId": "adapter:fixture-only:visual-scenario-corpus", "adapterVersion": "1.0.0", "provenanceOnly": true, "runtimeCallsAllowed": false }
+      },
+      "candidateVisualObservations": {
+        "kind": "candidate-visual-observations",
+        "observationId": "observation:floor-plan-room-layout-proportion:v1",
+        "sourceAssetId": "asset:synthetic:floor-plan-room-layout-proportion:v1",
+        "candidateEvidenceOnly": true,
+        "sourceTruth": false,
+        "coreInput": false,
+        "packageApiTruth": false,
+        "connectorTruth": false,
+        "observations": [
+          { "id": "candidate:rectangle:room:north", "kind": "rectangle", "x": 0, "y": 0, "width": 1, "height": 0.45, "confidence": 0.82 },
+          { "id": "candidate:rectangle:room:south-west", "kind": "rectangle", "x": 0, "y": 0.45, "width": 0.5, "height": 0.55, "confidence": 0.82 },
+          { "id": "candidate:rectangle:room:south-east", "kind": "rectangle", "x": 0.5, "y": 0.45, "width": 0.5, "height": 0.55, "confidence": 0.82 }
+        ],
+        "lossyConversionWarnings": [
+          "normalized coordinates omit original pixel dimensions",
+          "primitive vocabulary is reduced to rectangles",
+          "metric meaning remains unitless",
+          "pixel-origin conventions are fixture-declared",
+          "perspective and cropping are not recoverable from this fixture",
+          "provider confidence is diagnostic only",
+          "adapter/provider identity is provenance metadata only"
+        ],
+        "observationContentIdentity": "sha256:a3e02fedbccb5277041afe82db450fc59d575a10c82124161e465d0d45841185"
+      },
+      "acceptance": { "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "mode": "explicit_fixture_acceptance", "correctionHistory": [] },
+      "acceptedStructuredGeometry": {
+        "contractId": "norma.accepted-geometry@1",
+        "contractVersion": 1,
+        "acceptedGeometryId": "accepted:floor-plan-room-layout-proportion:v1",
+        "sourceObservationId": "observation:floor-plan-room-layout-proportion:v1",
+        "sourceObservationContentIdentity": "sha256:a3e02fedbccb5277041afe82db450fc59d575a10c82124161e465d0d45841185",
+        "acceptedRevision": 1,
+        "coordinateFrame": { "dimensions": 2, "coordinateScale": "normalized", "origin": "top-left", "xDirection": "right", "yDirection": "down", "bounds": { "x": [0, 1], "y": [0, 1] }, "sourcePixelWidth": 100, "sourcePixelHeight": 100 },
+        "primitives": [
+          { "id": "rectangle:room:north", "kind": "rectangle", "x": 0, "y": 0, "width": 1, "height": 0.45, "confidence": 1 },
+          { "id": "rectangle:room:south-west", "kind": "rectangle", "x": 0, "y": 0.45, "width": 0.5, "height": 0.55, "confidence": 1 },
+          { "id": "rectangle:room:south-east", "kind": "rectangle", "x": 0.5, "y": 0.45, "width": 0.5, "height": 0.55, "confidence": 1 }
+        ],
+        "correctionHistory": [],
+        "acceptance": {
+          "acceptanceId": "acceptance:floor-plan-room-layout-proportion:v1",
+          "accepted": true,
+          "actorType": "deterministic-test",
+          "actorId": "visual-static-scenario-corpus-test",
+          "acceptedAt": "2026-07-07T00:00:00Z",
+          "sourceObservationId": "observation:floor-plan-room-layout-proportion:v1",
+          "sourceObservationContentIdentity": "sha256:a3e02fedbccb5277041afe82db450fc59d575a10c82124161e465d0d45841185",
+          "acceptedRevision": 1,
+          "acceptedPrimitiveIds": ["rectangle:room:north", "rectangle:room:south-west", "rectangle:room:south-east"],
+          "acceptedContentIdentity": "sha256:d66e5deb968c4acf3f542c1e4202daf848ddc701bfcabcccbf8835fa6fcec6a3",
+          "provenance": { "provenanceId": "provenance:acceptance:floor-plan-room-layout-proportion:v1", "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "operationId": "visual-adapter-static-scenario-corpus.accept", "operationVersion": "1.0.0", "inputContentIdentity": null, "createdAt": "2026-07-07T00:00:00Z", "notes": null }
+        },
+        "provenance": { "provenanceId": "provenance:accepted-geometry:floor-plan-room-layout-proportion:v1", "actorType": "deterministic-test", "actorId": "visual-static-scenario-corpus-test", "operationId": "visual-adapter-static-scenario-corpus.handoff", "operationVersion": "1.0.0", "inputContentIdentity": null, "createdAt": "2026-07-07T00:00:00Z", "notes": null },
+        "contentIdentity": "sha256:15799b173e754e2f1cedc17862c754c6196482c8f175058e2883d3e2eb46581b"
+      },
+      "acceptedGeometryContentIdentity": "sha256:15799b173e754e2f1cedc17862c754c6196482c8f175058e2883d3e2eb46581b",
+      "handoffProvenance": {
+        "sourceAssetIdentity": "asset:synthetic:floor-plan-room-layout-proportion:v1",
+        "providerIdentity": "provider:synthetic-fixture@0.0.0",
+        "adapterIdentity": "adapter:fixture-only:visual-scenario-corpus@1.0.0",
+        "observationIdentity": "observation:floor-plan-room-layout-proportion:v1",
+        "observationContentIdentity": "sha256:a3e02fedbccb5277041afe82db450fc59d575a10c82124161e465d0d45841185",
+        "acceptedGeometryContentIdentity": "sha256:15799b173e754e2f1cedc17862c754c6196482c8f175058e2883d3e2eb46581b",
+        "contractIdentity": "CC-20260707-pr107-static-synthetic-visual-scenario-corpus@1",
+        "operationIdentity": "PR107: static synthetic visual scenario corpus"
+      },
+      "truthBoundary": { "candidateEvidenceOnly": true, "providerAdapterIdentityProvenanceOnly": true, "visualEvidenceIsNotNormaTruth": true, "derivedArtifactsAreNotSourceTruth": true, "acceptedStructuredGeometryOnlyCoreHandoff": true, "structuredAnalyzeResultCanonical": true, "evidenceMetadataCannotOverrideAcceptedGeometry": true },
+      "derivedEvidence": [{ "kind": "scenario-summary", "artifactId": "artifact:floor-plan-room-layout-proportion:summary:v1", "candidateEvidenceOnly": true, "sourceTruth": false, "coreInput": false, "mayOverrideAcceptedGeometry": false, "metricPolicyAuthority": false }],
+      "metricPolicyInvariant": { "quantity": "length", "unit": "unit", "mayInferPhysicalMeasurementsFromPixels": false, "mayDropSurfaceOnlyMetricPolicy": false, "derivedArtifactsMayOverrideMetricPolicy": false, "metricPolicyMayGenerateGeometry": false },
+      "comparisonDelta": 0.07
+    }
+  ]
+}
