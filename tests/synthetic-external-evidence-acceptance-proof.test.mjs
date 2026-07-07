@@ -1,0 +1,343 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
+import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.dirname(__dirname);
+const fixturePath = path.join(
+  __dirname,
+  "fixtures",
+  "visual-adapter",
+  "synthetic-external-evidence-envelope-v1.json",
+);
+const helperSourcePath = path.join(
+  repoRoot,
+  "src",
+  "local-report",
+  "synthetic-external-evidence-acceptance-proof.ts",
+);
+const packageJsonPath = path.join(repoRoot, "package.json");
+const indexSourcePath = path.join(repoRoot, "src", "index.ts");
+
+test("PR111 accepts the PR110 fixture and returns only safe boundary facts", async () => {
+  const envelope = await readFixture();
+  const proof = createSyntheticExternalEvidenceAcceptanceProofV1(envelope);
+
+  assert.deepEqual(proof, {
+    boundarySourceTruth: "acceptedStructuredGeometry",
+    coreInputAuthority: "acceptedStructuredGeometry",
+    acceptedGeometryIsOnlyCoreInput: true,
+    providerEvidenceOnly: true,
+    observationEnvelopeCoreInput: false,
+    confidenceAuthority: false,
+    providerSelfAcceptance: false,
+    localOnly: true,
+    fixtureOnly: true,
+    syntheticOnly: true,
+    envelopeId: "external-evidence-envelope:synthetic:parcel-proportion:v1",
+    observationIdentity: "observation:synthetic:parcel-proportion:v1",
+    observationContentIdentity: "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+    acceptedGeometryId: "accepted:synthetic-external-evidence:parcel-proportion:v1",
+    acceptedGeometryContentIdentity: "sha256:38e3879a185071c1715e4511304319d8b57ddfee894672d990dca3c66ce8ab75",
+  });
+  assert.deepEqual(Object.keys(proof).sort(), [
+    "acceptedGeometryContentIdentity",
+    "acceptedGeometryId",
+    "acceptedGeometryIsOnlyCoreInput",
+    "boundarySourceTruth",
+    "confidenceAuthority",
+    "coreInputAuthority",
+    "envelopeId",
+    "fixtureOnly",
+    "localOnly",
+    "observationContentIdentity",
+    "observationEnvelopeCoreInput",
+    "observationIdentity",
+    "providerEvidenceOnly",
+    "providerSelfAcceptance",
+    "syntheticOnly",
+  ]);
+  assert.equal("sourceTruth" in proof, false);
+});
+
+test("PR111 delegates accepted geometry contract validation to validateAcceptedGeometryV1", async () => {
+  const envelope = await readFixture();
+  const helperSource = await readFile(helperSourcePath, "utf8");
+  const acceptedValidation = validateAcceptedGeometryV1(envelope.acceptedStructuredGeometry);
+
+  assert.equal(acceptedValidation.ok, true);
+  assert.deepEqual(acceptedValidation.diagnostics, []);
+  assert.match(helperSource, /import \{ validateAcceptedGeometryV1 \} from "\.\.\/geometry-observation\.js";/u);
+  assert.match(helperSource, /validateAcceptedGeometryV1\(acceptedStructuredGeometry\)/u);
+});
+
+test("PR111 rejects observation-only and candidate geometry as accepted Core input", async () => {
+  const envelope = await readFixture();
+
+  assert.equal(validateAcceptedGeometryV1(envelope.observationEnvelope).ok, false);
+  assert.throws(
+    () => createSyntheticExternalEvidenceAcceptanceProofV1({
+      ...envelope,
+      acceptedStructuredGeometry: envelope.observationEnvelope,
+    }),
+    /field "acceptedStructuredGeometry\.sourceObservationId": requires observation:synthetic:parcel-proportion:v1/u,
+  );
+
+  for (const candidateGeometry of envelope.observationEnvelope.candidateGeometrySuggestions) {
+    assert.equal(validateAcceptedGeometryV1(candidateGeometry).ok, false);
+    assert.throws(
+      () => createSyntheticExternalEvidenceAcceptanceProofV1({
+        ...envelope,
+        acceptedStructuredGeometry: candidateGeometry,
+      }),
+      /field "acceptedStructuredGeometry\.sourceObservationId": requires observation:synthetic:parcel-proportion:v1/u,
+    );
+  }
+});
+
+test("PR111 rejects provider suggestion copied into accepted geometry without matching acceptance provenance", async () => {
+  const envelope = await readFixture();
+  const copiedSuggestion = structuredClone(envelope.observationEnvelope.candidateGeometrySuggestions[0]);
+  const mutatedAccepted = {
+    ...structuredClone(envelope.acceptedStructuredGeometry),
+    acceptedGeometryId: copiedSuggestion.id,
+    sourceObservationId: "observation:provider-suggestion:v1",
+    sourceObservationContentIdentity: envelope.evidenceIdentity.observationContentIdentity,
+    primitives: [copiedSuggestion],
+  };
+
+  assert.throws(
+    () => createSyntheticExternalEvidenceAcceptanceProofV1({
+      ...envelope,
+      acceptedStructuredGeometry: mutatedAccepted,
+    }),
+    /field "acceptedStructuredGeometry\.sourceObservationId": requires observation:synthetic:parcel-proportion:v1/u,
+  );
+});
+
+test("PR111 rejects confidence value score ranking metadata prompts warnings and artifacts as acceptance authority", async () => {
+  const envelope = await readFixture();
+
+  for (const variant of [
+    {
+      observationEnvelope: {
+        ...structuredClone(envelope.observationEnvelope),
+        diagnosticMetadata: {
+          ...structuredClone(envelope.observationEnvelope.diagnosticMetadata),
+          canAuthorizeAcceptance: true,
+        },
+      },
+    },
+    {
+      observationEnvelope: {
+        ...structuredClone(envelope.observationEnvelope),
+        diagnosticMetadata: {
+          ...structuredClone(envelope.observationEnvelope.diagnosticMetadata),
+          canCreateGeometry: true,
+        },
+      },
+    },
+    {
+      observationEnvelope: {
+        ...structuredClone(envelope.observationEnvelope),
+        promptText: {
+          ...structuredClone(envelope.observationEnvelope.promptText),
+          sourceTruth: true,
+        },
+      },
+    },
+    {
+      warnings: {
+        ...structuredClone(envelope.warnings),
+        diagnosticOnly: false,
+      },
+    },
+    {
+      derivedArtifacts: [
+        {
+          ...structuredClone(envelope.derivedArtifacts[0]),
+          mayOverrideAcceptedGeometry: true,
+        },
+      ],
+    },
+  ]) {
+    assert.throws(
+      () => createSyntheticExternalEvidenceAcceptanceProofV1({ ...envelope, ...variant }),
+      /Invalid synthetic external evidence acceptance proof envelope field/u,
+    );
+  }
+});
+
+test("PR111 rejects provider metadata self-acceptance and boundary flag drift", async () => {
+  const envelope = await readFixture();
+
+  for (const variant of [
+    { acceptanceBoundary: { ...structuredClone(envelope.acceptanceBoundary), providerEvidenceSelfAccepted: true } },
+    { acceptanceBoundary: { ...structuredClone(envelope.acceptanceBoundary), outsideProviderBoundary: false } },
+    { notProviderResponseJson: false },
+    { notProviderSdkResponse: false },
+    { notProductionPayload: false },
+    { notFutureApiContract: false },
+    { localOnly: false },
+    { fixtureOnly: false },
+    { staticFixture: false },
+    { syntheticOnly: false },
+  ]) {
+    assert.throws(
+      () => createSyntheticExternalEvidenceAcceptanceProofV1({ ...envelope, ...variant }),
+      /Invalid synthetic external evidence acceptance proof envelope field/u,
+    );
+  }
+});
+
+test("PR111 rejects non-plain objects inherited fields missing fields and unknown version-1 fields", async () => {
+  const envelope = await readFixture();
+  const inheritedEnvelope = Object.create(envelope);
+  const missingKind = { ...envelope };
+  delete missingKind.kind;
+
+  for (const value of [null, [], new Date(), inheritedEnvelope]) {
+    assert.throws(
+      () => createSyntheticExternalEvidenceAcceptanceProofV1(value),
+      /field "envelope": requires plain object/u,
+    );
+  }
+
+  assert.throws(
+    () => createSyntheticExternalEvidenceAcceptanceProofV1(missingKind),
+    /field "envelope\.kind": requires own field/u,
+  );
+  assert.throws(
+    () => createSyntheticExternalEvidenceAcceptanceProofV1({ ...envelope, extra: true }),
+    /field "envelope\.extra": unknown field/u,
+  );
+  assert.throws(
+    () => createSyntheticExternalEvidenceAcceptanceProofV1({ ...envelope, version: 2 }),
+    /field "version": requires 1/u,
+  );
+});
+
+test("PR111 rejects stale accepted geometry identity and acceptance provenance mismatch variants", async () => {
+  const envelope = await readFixture();
+
+  for (const variant of [
+    {
+      acceptedStructuredGeometry: {
+        ...structuredClone(envelope.acceptedStructuredGeometry),
+        sourceObservationContentIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+    },
+    {
+      acceptedStructuredGeometry: {
+        ...structuredClone(envelope.acceptedStructuredGeometry),
+        acceptance: {
+          ...structuredClone(envelope.acceptedStructuredGeometry.acceptance),
+          sourceObservationId: "observation:mismatch:v1",
+        },
+      },
+    },
+    {
+      acceptedStructuredGeometry: {
+        ...structuredClone(envelope.acceptedStructuredGeometry),
+        provenance: {
+          ...structuredClone(envelope.acceptedStructuredGeometry.provenance),
+          inputContentIdentity: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+      },
+    },
+    {
+      acceptanceBoundary: {
+        ...structuredClone(envelope.acceptanceBoundary),
+        provenance: {
+          ...structuredClone(envelope.acceptanceBoundary.provenance),
+          inputObservationIdentity: "observation:mismatch:v1",
+        },
+      },
+    },
+  ]) {
+    assert.throws(
+      () => createSyntheticExternalEvidenceAcceptanceProofV1({ ...envelope, ...variant }),
+      /Invalid synthetic external evidence acceptance proof envelope field/u,
+    );
+  }
+});
+
+test("PR111 helper does not mutate input", async () => {
+  const envelope = await readFixture();
+  const before = structuredClone(envelope);
+
+  createSyntheticExternalEvidenceAcceptanceProofV1(envelope);
+
+  assert.deepEqual(envelope, before);
+});
+
+test("PR111 helper has no forbidden imports or package-public exposure", async () => {
+  const helperSource = await readFile(helperSourcePath, "utf8");
+  const indexSource = await readFile(indexSourcePath, "utf8");
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
+  const packageRoot = await import("../dist/src/index.js");
+
+  assert.doesNotMatch(
+    helperSource,
+    /node:fs|node:child_process|node:https?|fetch|OpenAI|provider SDK|provider runtime|provider parser|image|vision|CAD|Figma|mcp|chatgpt|from "\.\.\/index|from "@norma\/core"/iu,
+  );
+  assert.equal("createSyntheticExternalEvidenceAcceptanceProofV1" in packageRoot, false);
+  assert.doesNotMatch(indexSource, /synthetic-external-evidence-acceptance-proof/u);
+  assert.deepEqual(packageJson.exports, {
+    ".": {
+      types: "./dist/src/index.d.ts",
+      default: "./dist/src/index.js",
+    },
+  });
+  assert.equal("dependencies" in packageJson, false);
+  assert.equal("publishConfig" in packageJson, false);
+});
+
+test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
+  const changedFiles = await gitDiffNames();
+
+  assert.deepEqual(changedFiles, [
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "docs/",
+    "tests/fixtures/",
+    "src/index.ts",
+  ]) {
+    assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
+  }
+});
+
+async function readFixture() {
+  return JSON.parse(await readFile(fixturePath, "utf8"));
+}
+
+async function gitDiffNames() {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+  const { stdout } = await execFileAsync("git", ["diff", "--name-only", "origin/main...HEAD"], {
+    cwd: repoRoot,
+  });
+  const baseNames = stdout.split(/\r?\n/u).filter(Boolean);
+  const workingTree = await execFileAsync("git", ["diff", "--name-only"], { cwd: repoRoot });
+  const untracked = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: repoRoot });
+
+  return [...new Set([
+    ...baseNames,
+    ...workingTree.stdout.split(/\r?\n/u).filter(Boolean),
+    ...untracked.stdout.split(/\r?\n/u).filter(Boolean),
+  ])].sort();
+}

@@ -89,6 +89,7 @@ import {
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
   syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
+  syntheticExternalEvidenceAcceptanceProofChangedFiles,
   visualAdapterFixtureContractChangedFiles,
   visualAdapterStaticScenarioCorpusChangedFiles,
   visualAdapterStaticFixtureHandoffChangedFiles,
@@ -520,6 +521,78 @@ test("shared exact changed-file guard rejects forbidden extras in the PR110 synt
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR111 synthetic evidence acceptance proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(syntheticExternalEvidenceAcceptanceProofChangedFiles),
+    syntheticExternalEvidenceAcceptanceProofChangedFiles,
+  );
+
+  assert.deepEqual(syntheticExternalEvidenceAcceptanceProofChangedFiles, [
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        syntheticExternalEvidenceAcceptanceProofChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR111 synthetic proof set", () => {
+  const forbiddenFiles = [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-synthetic-external-evidence-acceptance-boundary.md",
+    "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/index.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...syntheticExternalEvidenceAcceptanceProofChangedFiles,
         forbiddenFile,
       ]),
       null,
