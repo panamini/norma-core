@@ -606,6 +606,13 @@ export const syntheticExternalEvidenceAcceptanceBoundaryChangedFiles = Object.fr
   "tests/synthetic-external-evidence-acceptance-boundary.test.mjs",
 ].sort());
 
+export const syntheticExternalEvidenceAcceptanceProofChangedFiles = Object.freeze([
+  "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -697,6 +704,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  syntheticExternalEvidenceAcceptanceProofChangedFiles,
   syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
   openaiVisionStyleEvidencePilotContractChangedFiles,
   localVisualPilotBoundaryChangedFiles,
