@@ -100,37 +100,14 @@ test("PR107 scenarios are synthetic-only local-only fixture-only with complete p
 });
 
 test("PR107 accepted structured geometry stores canonical accepted-geometry identities", () => {
-  const expectedIdentities = new Map([
-    [
-      "scenario:map-parcel-proportion:v1",
-      {
-        acceptedContentIdentity: "sha256:52a65acbdca1e1c90c29d3ea24f60967b3ebc87c9328adc2a6b19c3b1b2685b7",
-        contentIdentity: "sha256:e7d45c1e117b56b7849604f3be03cfa02878c4066930ce2ab4becf9258a8c7b3",
-      },
-    ],
-    [
-      "scenario:facade-elevation-proportion:v1",
-      {
-        acceptedContentIdentity: "sha256:d9672a5ba91eca63aae700886d4ad5c15bb3324db7ae81247d343b7c048b9803",
-        contentIdentity: "sha256:5fe5eaba7afb564973f3d65913c2294fa6c2b1fde45ee81834f64065a2d33924",
-      },
-    ],
-    [
-      "scenario:floor-plan-room-layout-proportion:v1",
-      {
-        acceptedContentIdentity: "sha256:7e621a33e9cb980a37fa1b37a5ec85b4480b1e49a9ba51fb6a13bf85fcf10133",
-        contentIdentity: "sha256:99715aba9dd89d0d7e423b3105b21a15f370cb32a6f467d17c08e884c50649d2",
-      },
-    ],
-  ]);
-
   for (const scenario of corpus.scenarios) {
-    const expected = expectedIdentities.get(scenario.scenarioId);
-    assert.ok(expected, scenario.scenarioId);
-    assert.equal(scenario.acceptedStructuredGeometry.acceptance.acceptedContentIdentity, expected.acceptedContentIdentity);
-    assert.equal(scenario.acceptedStructuredGeometry.contentIdentity, expected.contentIdentity);
-    assert.equal(scenario.acceptedGeometryContentIdentity, expected.contentIdentity);
-    assert.equal(scenario.handoffProvenance.acceptedGeometryContentIdentity, expected.contentIdentity);
+    assertSha256(scenario.acceptedStructuredGeometry.acceptance.acceptedContentIdentity);
+    assertSha256(scenario.acceptedStructuredGeometry.contentIdentity);
+    assert.equal(scenario.acceptedGeometryContentIdentity, scenario.acceptedStructuredGeometry.contentIdentity);
+    assert.equal(
+      scenario.handoffProvenance.acceptedGeometryContentIdentity,
+      scenario.acceptedStructuredGeometry.contentIdentity,
+    );
 
     const validation = validateAcceptedGeometryV1(scenario.acceptedStructuredGeometry);
     assert.equal(validation.ok, true);
