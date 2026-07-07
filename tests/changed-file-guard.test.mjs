@@ -45,6 +45,7 @@ import {
   localStructuredAnalyzeDemoWorkflowSmokeNonSemgrepMaintenanceChangedFiles,
   localStructuredAnalyzeDemoWorkflowSmokeChangedFiles,
   localInspectionSurfaceBoundaryChangedFiles,
+  localVisualPilotBoundaryChangedFiles,
   localStructuredAnalyzeInspectionSurfaceChangedFiles,
   localStructuredAnalyzeProductSurfaceApprovalChangedFiles,
   localStructuredAnalyzeDemoSmokeChangedFiles,
@@ -332,6 +333,82 @@ test("shared exact changed-file guard rejects forbidden extras in the PR107 stat
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...visualAdapterStaticScenarioCorpusChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR108 local visual pilot boundary set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localVisualPilotBoundaryChangedFiles),
+    localVisualPilotBoundaryChangedFiles,
+  );
+
+  assert.deepEqual(localVisualPilotBoundaryChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-07-local-visual-pilot-boundary.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/local-visual-pilot-boundary.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-07-local-visual-pilot-boundary.md",
+    "tests/local-visual-pilot-boundary.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        localVisualPilotBoundaryChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package wiki hosted ChatGPT CAD Figma extras in the PR108 set", () => {
+  const forbiddenFiles = [
+    "tests/fixtures/visual-adapter/static-scenario-corpus-v1.json",
+    "tests/fixtures/visual-adapter/new-real-provider-fixture.json",
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "viewer/read-only-result-viewer.html",
+    "bin/norma-core-mcp-http.mjs",
+    "docs/examples/openai-vision-pilot.md",
+    "docs/decisions/2026-07-08-openai-vision-pilot-contract.md",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    "tests/fixtures/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...localVisualPilotBoundaryChangedFiles,
         forbiddenFile,
       ]),
       null,

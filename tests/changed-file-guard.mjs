@@ -581,6 +581,14 @@ export const postPr104VisualFixtureRoadmapTruthSyncChangedFiles = Object.freeze(
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+export const localVisualPilotBoundaryChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-07-local-visual-pilot-boundary.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/local-visual-pilot-boundary.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -672,6 +680,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  localVisualPilotBoundaryChangedFiles,
   visualAdapterStaticScenarioCorpusChangedFiles,
   visualFixtureGuidedInspectionConsumerProofChangedFiles,
   postPr104VisualFixtureRoadmapTruthSyncChangedFiles,

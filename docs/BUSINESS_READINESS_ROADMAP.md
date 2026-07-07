@@ -827,15 +827,50 @@ artifacts.
 
 ## Visual Fixture Roadmap Truth Sync After PR104
 
-Current truth-sync reference:
+Current boundary reference:
+`docs/decisions/2026-07-07-local-visual-pilot-boundary.md`.
+
+Prior truth-sync reference:
 `docs/decisions/2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md`.
 
 PR102 approved the local-only visual adapter fixture contract. PR103 added the
 static synthetic visual fixture handoff proof. PR104 added the local visual
 fixture guided inspection demo.
 
-This rail remains local-only, synthetic, static, and fixture/demo proof only.
-Visual observations are candidate evidence only. The only accepted bridge into
+PR106 completed the local consumer proof for the PR104 visual fixture demo
+envelope/result. PR107 completed the static synthetic scenario corpus while
+keeping recognition, providers, CAD, Figma, hosted MCP, and ChatGPT runtime out
+of scope.
+
+PR108 is the current local visual pilot boundary. It defines the external
+evidence integration boundary before any real external source is allowed:
+
+```text
+Untrusted external evidence
+        |
+        v
+Observation Envelope
+(untrusted, non-authoritative evidence container)
+        |
+        v
+Explicit Acceptance Boundary
+(human/system-approved transformation)
+        |
+        v
+Accepted Structured Geometry
+(only Core input)
+        |
+        v
+Norma Core / Structured Analyze
+        |
+        v
+result.json
+(canonical computational output where applicable)
+```
+
+Visual observations and future provider, image, CAD, Figma, or ChatGPT outputs
+are evidence only. Observation Envelope data is untrusted, non-authoritative,
+and cannot contain executable geometry truth. The only accepted bridge into
 existing Norma Core / Structured Analyze in this rail is explicit accepted
 structured geometry.
 
@@ -847,13 +882,22 @@ The following remain not approved: real image recognition, provider/OpenAI
 calls, CAD/Figma import, hosted MCP, ChatGPT connector runtime, package
 publication, new visual-fixture or additional package-root public exports,
 recommendation, correction, optimization, scoring, beauty judgment, automatic
-family selection, and prompt-derived source truth.
+family selection, provider payload contracts, OpenAI Vision JSON, CAD import
+JSON, Figma payloads, ChatGPT connector schemas, and prompt-derived,
+artifact-derived, provider-derived, or observation-derived source truth.
 
-The next sequence is only:
+The PR106 through PR108 sequence was:
 
 1. PR106: local consumer proof for PR104 visual fixture demo envelope/result.
 2. PR107: static synthetic scenario corpus, 2-3 fixtures, still no recognition.
-3. PR108: decision PR for first real external track.
+3. PR108: decision PR for first real external track, now the current local
+   visual pilot boundary.
+
+The next decision PR is PR109. It must choose exactly one first real external
+pilot track: OpenAI/vision-style provider pilot contract, CAD/Figma geometry
+pilot contract, or ChatGPT/MCP product path contract. The recommended next
+track may be OpenAI/vision-style provider pilot contract, but PR108 does not
+implement it.
 
 ## Definitions of Ready
 
