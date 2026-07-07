@@ -597,6 +597,15 @@ export const openaiVisionStyleEvidencePilotContractChangedFiles = Object.freeze(
   "tests/openai-vision-style-evidence-pilot-contract.test.mjs",
 ].sort());
 
+export const syntheticExternalEvidenceAcceptanceBoundaryChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-08-synthetic-external-evidence-acceptance-boundary.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+  "tests/synthetic-external-evidence-acceptance-boundary.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -688,6 +697,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
   openaiVisionStyleEvidencePilotContractChangedFiles,
   localVisualPilotBoundaryChangedFiles,
   visualAdapterStaticScenarioCorpusChangedFiles,

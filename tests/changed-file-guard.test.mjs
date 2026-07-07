@@ -88,6 +88,7 @@ import {
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
+  syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
   visualAdapterFixtureContractChangedFiles,
   visualAdapterStaticScenarioCorpusChangedFiles,
   visualAdapterStaticFixtureHandoffChangedFiles,
@@ -442,6 +443,87 @@ test("shared exact changed-file guard accepts the PR109 OpenAI vision-style evid
       ),
       null,
       missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR110 synthetic external evidence acceptance boundary set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(syntheticExternalEvidenceAcceptanceBoundaryChangedFiles),
+    syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
+  );
+
+  assert.deepEqual(syntheticExternalEvidenceAcceptanceBoundaryChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-synthetic-external-evidence-acceptance-boundary.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+    "tests/synthetic-external-evidence-acceptance-boundary.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-08-synthetic-external-evidence-acceptance-boundary.md",
+    "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+    "tests/synthetic-external-evidence-acceptance-boundary.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        syntheticExternalEvidenceAcceptanceBoundaryChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR110 synthetic boundary set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "bin/norma-cli.mjs",
+    "bin/norma-core-report.mjs",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "docs/examples/synthetic-external-evidence.md",
+    "docs/decisions/2026-07-08-provider-sdk-contract.md",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });

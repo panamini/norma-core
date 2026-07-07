@@ -925,6 +925,15 @@ PR110 may proceed, revise the contract, stop, or choose a different path if
 evidence shows the selected contract is not ready. PR110 must still not imply
 real API calls unless separately approved.
 
+PR110 proved the synthetic external evidence acceptance boundary. PR108
+established the external evidence boundary, PR109 selected the vision-style
+evidence pilot category, and PR110 proved that synthetic observation evidence
+can be rejected until an explicit acceptance boundary produces accepted
+structured geometry. PR110 does not approve OpenAI integration, image
+recognition, provider support, product readiness, CAD/Figma import, hosted MCP,
+ChatGPT connector runtime, package publication, package metadata/dependency
+changes, public exports, or Core schema/runtime widening.
+
 ## Definitions of Ready
 
 ### Local module ready
