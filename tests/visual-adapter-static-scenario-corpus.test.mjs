@@ -24,8 +24,7 @@ import {
   normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1,
 } from "../dist/src/accepted-geometry-to-structured-analyze-normalization.js";
 import {
-  computeAcceptedGeometryContentIdentity,
-  computeAcceptedGeometryRevisionContentIdentity,
+  validateAcceptedGeometryV1,
 } from "../dist/src/geometry-observation.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,7 +49,7 @@ test("PR107 corpus envelope has the expected static local-only identity", () => 
   assert.equal(corpus.version, 1);
   assert.equal(corpus.corpusId, "visual-adapter-static-scenario-corpus-v1");
   assert.equal(corpus.contractId, "CC-20260707-pr107-static-synthetic-visual-scenario-corpus");
-  assert.equal(corpus.operationId, "PR107: add static synthetic visual scenario corpus");
+  assert.equal(corpus.operationId, "PR107: static synthetic visual scenario corpus");
   assert.equal(corpus.localOnly, true);
   assert.equal(corpus.fixtureOnly, true);
   assert.equal(corpus.staticFixture, true);
@@ -97,6 +96,45 @@ test("PR107 scenarios are synthetic-only local-only fixture-only with complete p
     assert.deepEqual(scenario.acceptance.correctionHistory, []);
     assert.ok(scenario.acceptedStructuredGeometry.acceptedGeometryId);
     assert.equal(scenario.handoffProvenance.contractIdentity, `${corpus.contractId}@1`);
+  }
+});
+
+test("PR107 accepted structured geometry stores canonical accepted-geometry identities", () => {
+  const expectedIdentities = new Map([
+    [
+      "scenario:map-parcel-proportion:v1",
+      {
+        acceptedContentIdentity: "sha256:52a65acbdca1e1c90c29d3ea24f60967b3ebc87c9328adc2a6b19c3b1b2685b7",
+        contentIdentity: "sha256:e7d45c1e117b56b7849604f3be03cfa02878c4066930ce2ab4becf9258a8c7b3",
+      },
+    ],
+    [
+      "scenario:facade-elevation-proportion:v1",
+      {
+        acceptedContentIdentity: "sha256:d9672a5ba91eca63aae700886d4ad5c15bb3324db7ae81247d343b7c048b9803",
+        contentIdentity: "sha256:5fe5eaba7afb564973f3d65913c2294fa6c2b1fde45ee81834f64065a2d33924",
+      },
+    ],
+    [
+      "scenario:floor-plan-room-layout-proportion:v1",
+      {
+        acceptedContentIdentity: "sha256:7e621a33e9cb980a37fa1b37a5ec85b4480b1e49a9ba51fb6a13bf85fcf10133",
+        contentIdentity: "sha256:99715aba9dd89d0d7e423b3105b21a15f370cb32a6f467d17c08e884c50649d2",
+      },
+    ],
+  ]);
+
+  for (const scenario of corpus.scenarios) {
+    const expected = expectedIdentities.get(scenario.scenarioId);
+    assert.ok(expected, scenario.scenarioId);
+    assert.equal(scenario.acceptedStructuredGeometry.acceptance.acceptedContentIdentity, expected.acceptedContentIdentity);
+    assert.equal(scenario.acceptedStructuredGeometry.contentIdentity, expected.contentIdentity);
+    assert.equal(scenario.acceptedGeometryContentIdentity, expected.contentIdentity);
+    assert.equal(scenario.handoffProvenance.acceptedGeometryContentIdentity, expected.contentIdentity);
+
+    const validation = validateAcceptedGeometryV1(scenario.acceptedStructuredGeometry);
+    assert.equal(validation.ok, true);
+    assert.deepEqual(validation.diagnostics, []);
   }
 });
 
@@ -213,30 +251,37 @@ test("PR107 makes no forbidden real-recognition provider publication or judgment
   }
 });
 
-test("PR107 keeps PR103 fixture compatibility and PR106 consumer helper package-private", async () => {
+test("PR107 keeps PR103 fixture compatibility", () => {
   assert.equal(existsSync(pr103FixturePath), true);
   const pr103 = JSON.parse(readFileSync(pr103FixturePath, "utf8"));
   assert.equal(pr103.proofId, "visual-adapter-static-handoff-proof-v1");
   assert.equal(pr103.sourceTruthPolicy.coreInputAllowedFrom, "acceptedStructuredGeometryOnly");
+});
 
-  const packageRoot = await import("../dist/src/index.js");
+test("PR107 keeps package root exports unchanged", () => {
   const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-  const currentIndex = readFileSync(path.join(repoRoot, "src", "index.ts"), "utf8");
-  const testSource = readFileSync(__filename, "utf8");
-
-  assert.equal("createVisualFixtureGuidedInspectionConsumerProof" in packageRoot, false);
   assert.deepEqual(packageJson.exports, {
     ".": {
       types: "./dist/src/index.d.ts",
       default: "./dist/src/index.js",
     },
   });
+});
+
+test("PR107 keeps the PR106 consumer helper package-private", () => {
+  const currentIndex = readFileSync(path.join(repoRoot, "src", "index.ts"), "utf8");
+  const testSource = readFileSync(__filename, "utf8");
+
+  assert.equal("createVisualFixtureGuidedInspectionConsumerProof" in core, false);
   assert.doesNotMatch(currentIndex, /visual-fixture-guided-inspection-consumer-proof/u);
   assert.doesNotMatch(testSource, /visual-fixture-guided-inspection-consumer-proof\.js/u);
 });
 
 function createStructuredAnalyzeInputFromScenario(scenario) {
-  const acceptedGeometry = withComputedAcceptedGeometryIdentities(scenario.acceptedStructuredGeometry);
+  const acceptedGeometry = structuredClone(scenario.acceptedStructuredGeometry);
+  const acceptedValidation = validateAcceptedGeometryV1(acceptedGeometry);
+  assert.equal(acceptedValidation.ok, true);
+  assert.deepEqual(acceptedValidation.diagnostics, []);
   const mapped = requiredMappedGeometry(mapAcceptedGeometryToCoreV1(validMappingRequest(acceptedGeometry)));
   const baseComposition = mapped.mappedGeometry;
   const comparisonComposition = shiftedComposition(baseComposition, scenario.comparisonDelta);
@@ -326,13 +371,6 @@ function createStructuredAnalyzeInputFromScenario(scenario) {
       operationContextRef: operationContext.ref,
     },
   };
-}
-
-function withComputedAcceptedGeometryIdentities(acceptedGeometry) {
-  const accepted = structuredClone(acceptedGeometry);
-  accepted.acceptance.acceptedContentIdentity = computeAcceptedGeometryRevisionContentIdentity(accepted);
-  accepted.contentIdentity = computeAcceptedGeometryContentIdentity(accepted);
-  return accepted;
 }
 
 function validMappingRequest(acceptedGeometry) {
