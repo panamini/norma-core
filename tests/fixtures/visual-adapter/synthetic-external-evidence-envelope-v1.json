@@ -1,0 +1,244 @@
+{
+  "kind": "norma.external-evidence-envelope.synthetic",
+  "version": 1,
+  "envelopeId": "external-evidence-envelope:synthetic:parcel-proportion:v1",
+  "envelopeContentIdentity": "sha256:3577218cb1448cdc0db60ccfd52b12d9fbb4e9f6ced54cf3414eb7bd02c331f4",
+  "localOnly": true,
+  "fixtureOnly": true,
+  "staticFixture": true,
+  "syntheticOnly": true,
+  "notProviderResponseJson": true,
+  "notProviderSdkResponse": true,
+  "notProductionPayload": true,
+  "notFutureApiContract": true,
+  "evidenceIdentity": {
+    "syntheticSourceIdentity": "source:synthetic:parcel-proportion:v1",
+    "providerCategoryIdentity": "provider-category:synthetic-vision-style-evidence:v1",
+    "observationIdentity": "observation:synthetic:parcel-proportion:v1",
+    "observationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262"
+  },
+  "observationEnvelope": {
+    "kind": "ObservationEnvelope",
+    "trust": {
+      "untrusted": true,
+      "nonAuthoritative": true,
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false,
+      "coreInput": false,
+      "packageApiTruth": false,
+      "connectorTruth": false,
+      "acceptedStructuredGeometry": false
+    },
+    "candidateLabels": [
+      {
+        "id": "candidate-label:west-portion",
+        "label": "west portion",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.99
+      },
+      {
+        "id": "candidate-label:east-portion",
+        "label": "east portion",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "score": 999
+      }
+    ],
+    "candidateMeasurements": [
+      {
+        "id": "candidate-measurement:west-width",
+        "dimension": "width",
+        "value": 0.4,
+        "unit": "normalized",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "ranking": 1
+      },
+      {
+        "id": "candidate-measurement:east-width",
+        "dimension": "width",
+        "value": 0.6,
+        "unit": "normalized",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "ranking": 2
+      }
+    ],
+    "candidateGeometrySuggestions": [
+      {
+        "id": "candidate-geometry:west",
+        "kind": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 0.4,
+        "height": 1,
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.99
+      },
+      {
+        "id": "candidate-geometry:east",
+        "kind": "rectangle",
+        "x": 0.4,
+        "y": 0,
+        "width": 0.6,
+        "height": 1,
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.01
+      }
+    ],
+    "diagnosticMetadata": {
+      "providerCertainty": "synthetic-high",
+      "confidence": 1,
+      "score": 1000,
+      "valueMetadata": "diagnostic-only",
+      "untrusted": true,
+      "nonAuthoritative": true,
+      "candidateEvidenceOnly": true,
+      "canAuthorizeAcceptance": false,
+      "canCreateGeometry": false,
+      "canModifyEvaluation": false
+    },
+    "promptText": {
+      "value": "Synthetic prompt text describing two rectangles.",
+      "untrusted": true,
+      "nonAuthoritative": true,
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false
+    }
+  },
+  "acceptanceBoundary": {
+    "kind": "AcceptanceBoundary",
+    "acceptanceMode": "explicit_fixture_acceptance",
+    "acceptanceActor": {
+      "actorType": "deterministic-test",
+      "actorId": "synthetic-external-evidence-acceptance-boundary-test"
+    },
+    "acceptanceStatus": "accepted",
+    "outsideProviderBoundary": true,
+    "providerEvidenceSelfAccepted": false,
+    "provenance": {
+      "provenanceId": "provenance:acceptance:synthetic:parcel-proportion:v1",
+      "operationId": "synthetic-external-evidence.acceptance-boundary",
+      "operationVersion": "1.0.0",
+      "inputObservationIdentity": "observation:synthetic:parcel-proportion:v1",
+      "inputObservationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+      "createdAt": "2026-07-08T00:00:00Z",
+      "notes": "Acceptance happened outside provider evidence."
+    }
+  },
+  "acceptedStructuredGeometry": {
+    "contractId": "norma.accepted-geometry@1",
+    "contractVersion": 1,
+    "acceptedGeometryId": "accepted:synthetic-external-evidence:parcel-proportion:v1",
+    "sourceObservationId": "observation:synthetic:parcel-proportion:v1",
+    "sourceObservationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+    "acceptedRevision": 1,
+    "coordinateFrame": {
+      "dimensions": 2,
+      "coordinateScale": "normalized",
+      "origin": "top-left",
+      "xDirection": "right",
+      "yDirection": "down",
+      "bounds": {
+        "x": [0, 1],
+        "y": [0, 1]
+      },
+      "sourcePixelWidth": 100,
+      "sourcePixelHeight": 100
+    },
+    "primitives": [
+      {
+        "id": "rectangle:synthetic:parcel:west",
+        "kind": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 0.4,
+        "height": 1,
+        "confidence": 1
+      },
+      {
+        "id": "rectangle:synthetic:parcel:east",
+        "kind": "rectangle",
+        "x": 0.4,
+        "y": 0,
+        "width": 0.6,
+        "height": 1,
+        "confidence": 1
+      }
+    ],
+    "correctionHistory": [],
+    "acceptance": {
+      "acceptanceId": "acceptance:synthetic-external-evidence:parcel-proportion:v1",
+      "accepted": true,
+      "actorType": "deterministic-test",
+      "actorId": "synthetic-external-evidence-acceptance-boundary-test",
+      "acceptedAt": "2026-07-08T00:00:00Z",
+      "sourceObservationId": "observation:synthetic:parcel-proportion:v1",
+      "sourceObservationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+      "acceptedRevision": 1,
+      "acceptedPrimitiveIds": [
+        "rectangle:synthetic:parcel:west",
+        "rectangle:synthetic:parcel:east"
+      ],
+      "acceptedContentIdentity": "sha256:4adf70ba536c0bf2b7ec9bb7f9b6194d7f07f38e02e6092a6af4c80f91888f4d",
+      "provenance": {
+        "provenanceId": "provenance:accepted-structured-geometry:synthetic:parcel-proportion:v1",
+        "actorType": "deterministic-test",
+        "actorId": "synthetic-external-evidence-acceptance-boundary-test",
+        "operationId": "synthetic-external-evidence.accepted-structured-geometry",
+        "operationVersion": "1.0.0",
+        "inputContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+        "createdAt": "2026-07-08T00:00:00Z",
+        "notes": "Accepted structured geometry is the only Core input."
+      }
+    },
+    "provenance": {
+      "provenanceId": "provenance:accepted-geometry:synthetic:parcel-proportion:v1",
+      "actorType": "deterministic-test",
+      "actorId": "synthetic-external-evidence-acceptance-boundary-test",
+      "operationId": "synthetic-external-evidence.acceptance-boundary",
+      "operationVersion": "1.0.0",
+      "inputContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+      "createdAt": "2026-07-08T00:00:00Z",
+      "notes": "Provider evidence did not self-accept."
+    },
+    "contentIdentity": "sha256:38e3879a185071c1715e4511304319d8b57ddfee894672d990dca3c66ce8ab75"
+  },
+  "warnings": {
+    "lossyConversionWarnings": [
+      "normalized coordinates omit original pixel dimensions",
+      "primitive vocabulary is reduced to rectangles",
+      "metric meaning remains unitless",
+      "source media is synthetic and not embedded",
+      "candidate confidence is diagnostic only"
+    ],
+    "evidenceLimitations": [
+      "not a provider payload contract",
+      "not an image recognition result",
+      "not package API truth",
+      "not connector truth",
+      "not Core schema"
+    ],
+    "diagnosticOnly": true
+  },
+  "derivedArtifacts": [
+    {
+      "kind": "synthetic-summary",
+      "artifactId": "artifact:synthetic-external-evidence:summary:v1",
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false,
+      "coreInput": false,
+      "mayAuthorizeAcceptance": false,
+      "mayOverrideAcceptedGeometry": false
+    }
+  ]
+}
