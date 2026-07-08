@@ -134,11 +134,21 @@ its own Change Contract explicitly requests and justifies otherwise.
 
 ## PR115 Gate
 
-`PR115: controlled live provider experiment` is the first possible live-provider
-experiment.
+`PR115: approve controlled live provider experiment gate` is the approval gate
+before any controlled live-provider experiment implementation.
 
-PR115 may proceed only after a separate approval contract with explicit secret,
-network, redaction, replay, and retention rules.
+The next possible implementation gate after PR115 is:
+
+```text
+PR116: add disabled local live-provider experiment harness
+```
+
+PR116 must be disabled by default, manual-only, fail-closed without environment
+configuration, and excluded from CI live-network execution.
+
+PR116 must not run a provider call unless its own Change Contract explicitly
+requests and justifies live network/provider execution. Without that explicit
+request and justification, live provider execution remains PR117 or later.
 
 PR113 does not approve a live provider call by itself.
 
@@ -195,8 +205,10 @@ PR113 is acceptable only when tests prove:
 - no live provider output retention is approved without explicit redaction and
   replay contract;
 - PR114 remains local, gated, prototype-only, and no-live-API by default;
-- PR115 remains the first possible controlled live provider experiment and is
-  separately gated;
+- PR115 is an approval gate before any controlled live-provider implementation;
+- PR116 is the next possible disabled, manual, fail-closed local harness gate;
+- live provider execution remains PR117 or later unless a future Change
+  Contract explicitly requests and justifies it;
 - forbidden runtime, provider, package, MCP, ChatGPT, CAD/Figma, fixture, demo,
   dependency, lockfile, public API, package publication, and Core widening
   surfaces remain unapproved.

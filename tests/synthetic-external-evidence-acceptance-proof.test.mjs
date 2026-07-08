@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
+  controlledLiveProviderExperimentGateChangedFiles,
   isExactChangedFileSet,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
@@ -312,14 +313,17 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   const isPr113Set = isExactChangedFileSet(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
   const isPr114Set = isExactChangedFileSet(changedFiles, providerEvidenceReplayAdapterChangedFiles);
+  const isPr115Set = isExactChangedFileSet(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
 
-  assert.equal(isPr111Set || isPr112Set || isPr113Set || isPr114Set, true, changedFiles.join("\n"));
+  assert.equal(isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set, true, changedFiles.join("\n"));
   if (isPr111Set) {
     assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   } else if (isPr113Set) {
     assert.deepEqual(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
   } else if (isPr114Set) {
     assert.deepEqual(changedFiles, providerEvidenceReplayAdapterChangedFiles);
+  } else if (isPr115Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -343,11 +347,20 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       changedFiles.filter((file) => file.startsWith("docs/")),
       ["docs/examples/local-synthetic-evidence-acceptance-demo.md"],
     );
+  } else if (isPr113Set) {
+    assert.deepEqual(
+      changedFiles.filter((file) => file.startsWith("docs/")).sort(),
+      [
+        "docs/BUSINESS_READINESS_ROADMAP.md",
+        "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+      ],
+    );
   } else {
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")).sort(),
       [
         "docs/BUSINESS_READINESS_ROADMAP.md",
+        "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
