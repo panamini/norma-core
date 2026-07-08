@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
+  branchChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
   providerEvidenceReplayAdapterChangedFiles,
@@ -316,9 +318,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr114Set = isExactChangedFileSet(changedFiles, providerEvidenceReplayAdapterChangedFiles);
   const isPr115Set = isExactChangedFileSet(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
   const isPr116Set = isExactChangedFileSet(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
+  const isPr117Set = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeChangedFiles);
 
   assert.equal(
-    isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set || isPr116Set,
+    isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set || isPr116Set || isPr117Set,
     true,
     changedFiles.join("\n"),
   );
@@ -332,6 +335,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
   } else if (isPr116Set) {
     assert.deepEqual(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
+  } else if (isPr117Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderSmokeChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -363,7 +368,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else {
+  } else if (isPr116Set || isPr117Set) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -371,12 +376,20 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         ]
       : [
           "docs/BUSINESS_READINESS_ROADMAP.md",
-          "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
-          "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+          "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
         ];
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")).sort(),
       expectedDocs,
+    );
+  } else {
+    assert.deepEqual(
+      changedFiles.filter((file) => file.startsWith("docs/")).sort(),
+      [
+        "docs/BUSINESS_READINESS_ROADMAP.md",
+        "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+        "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+      ],
     );
   }
 });
@@ -386,19 +399,5 @@ async function readFixture() {
 }
 
 async function gitDiffNames() {
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const execFileAsync = promisify(execFile);
-  const { stdout } = await execFileAsync("git", ["diff", "--name-only", "origin/main...HEAD"], {
-    cwd: repoRoot,
-  });
-  const baseNames = stdout.split(/\r?\n/u).filter(Boolean);
-  const workingTree = await execFileAsync("git", ["diff", "--name-only"], { cwd: repoRoot });
-  const untracked = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: repoRoot });
-
-  return [...new Set([
-    ...baseNames,
-    ...workingTree.stdout.split(/\r?\n/u).filter(Boolean),
-    ...untracked.stdout.split(/\r?\n/u).filter(Boolean),
-  ])].sort();
+  return branchChangedFiles(repoRoot);
 }

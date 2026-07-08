@@ -670,6 +670,17 @@ export const disabledLiveProviderExperimentHarnessChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const controlledLiveProviderSmokeChangedFiles = Object.freeze([
+  "bin/norma-core-controlled-live-provider-smoke.mjs",
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+  "src/local-report/controlled-live-provider-smoke.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -761,6 +772,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
