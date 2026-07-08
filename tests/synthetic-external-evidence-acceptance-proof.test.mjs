@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   isExactChangedFileSet,
+  providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,
@@ -310,27 +311,32 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   const isPr113Set = isExactChangedFileSet(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
+  const isPr114Set = isExactChangedFileSet(changedFiles, providerEvidenceReplayAdapterChangedFiles);
 
-  assert.equal(isPr111Set || isPr112Set || isPr113Set, true, changedFiles.join("\n"));
+  assert.equal(isPr111Set || isPr112Set || isPr113Set || isPr114Set, true, changedFiles.join("\n"));
   if (isPr111Set) {
     assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   } else if (isPr113Set) {
     assert.deepEqual(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
+  } else if (isPr114Set) {
+    assert.deepEqual(changedFiles, providerEvidenceReplayAdapterChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
 
-  for (const forbidden of [
+  const forbiddenPaths = [
     "package.json",
     "package-lock.json",
     "pnpm-lock.yaml",
-    "tests/fixtures/",
     "src/index.ts",
-  ]) {
+    ...(isPr114Set ? [] : ["tests/fixtures/"]),
+  ];
+
+  for (const forbidden of forbiddenPaths) {
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
   }
 
-  if (isPr111Set) {
+  if (isPr111Set || isPr114Set) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   } else if (isPr112Set) {
     assert.deepEqual(
