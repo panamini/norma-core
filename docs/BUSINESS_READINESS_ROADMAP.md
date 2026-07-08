@@ -934,6 +934,51 @@ recognition, provider support, product readiness, CAD/Figma import, hosted MCP,
 ChatGPT connector runtime, package publication, package metadata/dependency
 changes, public exports, or Core schema/runtime widening.
 
+PR111 and PR112 are closed/complete. PR111 added the package-private synthetic
+external evidence acceptance proof helper, and PR112 added the local synthetic
+evidence acceptance demo command. The next readiness gate is PR113:
+
+```text
+PR113: approve real external evidence pilot readiness gate
+```
+
+PR113 is docs/tests-only. It approves the first real external evidence pilot
+readiness gate, keeps the selected pilot candidate on the OpenAI/vision-style
+track from PR109, and preserves the provider-neutral lifecycle:
+Provider output -> External Evidence Envelope -> Explicit Acceptance Boundary
+-> Accepted Structured Geometry -> Core / Structured Analyze ->
+result.json-shaped canonical computational output where applicable.
+
+PR113 does not approve live provider calls, OpenAI SDK/API usage, image
+recognition, provider payload contracts, provider-derived accepted geometry,
+provider truth, confidence-threshold acceptance, provider runtime, runtime
+adapters, MCP/ChatGPT changes, CAD/Figma import, package exports, publication,
+dependencies, lockfiles, source fixture changes, demo changes, or Core
+schema/runtime widening.
+
+The next allowed implementation PR is:
+
+```text
+PR114: local gated provider-evidence adapter prototype
+```
+
+PR114 must remain local/gated/prototype-only by default, preserve the
+provider-neutral envelope and unchanged PR111 helper boundary, avoid any direct
+provider-to-Core path, forbid provider-derived accepted geometry, avoid Core
+schema/runtime widening and package/public exports, include deterministic
+replay/redaction strategy, define fail-closed behavior, avoid CI live-network
+dependency, and make no live provider API call by default.
+
+The first possible live-provider experiment is:
+
+```text
+PR115: controlled live provider experiment
+```
+
+PR115 requires a separate approval contract with explicit secret, network,
+redaction, replay, and retention rules. PR113 does not approve a live provider
+call by itself.
+
 ## Definitions of Ready
 
 ### Local module ready
