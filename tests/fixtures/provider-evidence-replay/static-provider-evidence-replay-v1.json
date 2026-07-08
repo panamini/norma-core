@@ -16,7 +16,8 @@
     "syntheticSourceIdentity": "source:synthetic:parcel-proportion:v1",
     "providerCategoryIdentity": "provider-category:synthetic-vision-style-evidence:v1",
     "observationIdentity": "observation:synthetic:parcel-proportion:v1",
-    "observationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262"
+    "observationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+    "observationEnvelopeContentIdentity": "sha256:425f7c0986fd62d79c16168f4b12bcb3aa3dfe8850410b494c7fbe111bc914fc"
   },
   "providerEvidence": {
     "kind": "SyntheticProviderStyleEvidence",

@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "./local-report/synthetic-external-evidence-acceptance-proof.js";
+import {
+  DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
+  serializeCanonicalJson,
+} from "./serialization.js";
 
 export interface ProviderEvidenceReplayExplicitAcceptanceV1 {
   readonly acceptanceBoundary: Record<string, unknown>;
@@ -114,6 +120,12 @@ const PROMPT_TEXT_FIELDS = Object.freeze([
   "sourceTruth",
 ] as const);
 
+const WARNINGS_FIELDS = Object.freeze([
+  "lossyConversionWarnings",
+  "evidenceLimitations",
+  "diagnosticOnly",
+] as const);
+
 const ARTIFACT_FIELDS = Object.freeze([
   "kind",
   "artifactId",
@@ -158,8 +170,33 @@ const FORBIDDEN_REPLAY_DATA_STRING_PATTERN = new RegExp(
     "\\/Users\\/",
     "\\/Volumes\\/",
   ].join("|"),
-  "u",
+  "iu",
 );
+
+const ACCEPTANCE_BOUNDARY_FIELDS = Object.freeze([
+  "kind",
+  "acceptanceMode",
+  "acceptanceStatus",
+  "outsideProviderBoundary",
+  "providerEvidenceSelfAccepted",
+  "acceptanceActor",
+  "provenance",
+] as const);
+
+const ACCEPTANCE_ACTOR_FIELDS = Object.freeze([
+  "actorType",
+  "actorId",
+] as const);
+
+const ACCEPTANCE_PROVENANCE_FIELDS = Object.freeze([
+  "provenanceId",
+  "operationId",
+  "operationVersion",
+  "inputObservationIdentity",
+  "inputObservationContentIdentity",
+  "createdAt",
+  "notes",
+] as const);
 
 class ProviderEvidenceReplayAdapterError extends Error {
   constructor(message: string) {
@@ -182,17 +219,27 @@ export function createProviderNeutralEnvelopeFromReplayV1(
   const providerEvidence = requirePlainOwnRecord(record, "providerEvidence", "replay.providerEvidence");
   const warnings = requirePlainOwnRecord(record, "warnings", "replay.warnings");
   const artifacts = requireArray(record.artifacts, "replay.artifacts");
-  const acceptanceBoundary = requirePlainRecord(explicitAcceptance.acceptanceBoundary, "explicitAcceptance.acceptanceBoundary");
-  const acceptedStructuredGeometry = requirePlainRecord(
+  const acceptanceBoundary = structuredClone(
+    requirePlainRecord(explicitAcceptance.acceptanceBoundary, "explicitAcceptance.acceptanceBoundary"),
+  );
+  const acceptedStructuredGeometry = structuredClone(requirePlainRecord(
     explicitAcceptance.acceptedStructuredGeometry,
     "explicitAcceptance.acceptedStructuredGeometry",
-  );
+  ));
+  rejectForbiddenReplayDataClasses(acceptanceBoundary, "explicitAcceptance.acceptanceBoundary");
 
   validateEvidenceIdentity(evidenceIdentity);
   validateProviderEvidence(providerEvidence);
   validateWarnings(warnings);
   validateArtifacts(artifacts);
   validateExplicitAcceptance(acceptanceBoundary, acceptedStructuredGeometry, evidenceIdentity);
+
+  const observationEnvelope = providerEvidenceToObservationEnvelope(providerEvidence);
+  requireValue(
+    evidenceIdentity.observationEnvelopeContentIdentity,
+    "replay.evidenceIdentity.observationEnvelopeContentIdentity",
+    contentIdentityFor(observationEnvelope),
+  );
 
   const providerNeutralEnvelope: Record<string, unknown> = {
     kind: "norma.external-evidence-envelope.synthetic",
@@ -227,12 +274,16 @@ export function createProviderNeutralEnvelopeFromReplayV1(
         evidenceIdentity.observationContentIdentity,
         "replay.evidenceIdentity.observationContentIdentity",
       ),
+      observationEnvelopeContentIdentity: requireString(
+        evidenceIdentity.observationEnvelopeContentIdentity,
+        "replay.evidenceIdentity.observationEnvelopeContentIdentity",
+      ),
     },
-    observationEnvelope: providerEvidenceToObservationEnvelope(providerEvidence),
+    observationEnvelope,
     acceptanceBoundary,
     acceptedStructuredGeometry,
-    warnings,
-    derivedArtifacts: artifacts,
+    warnings: structuredClone(warnings),
+    derivedArtifacts: structuredClone(artifacts),
   };
   createSyntheticExternalEvidenceAcceptanceProofV1(providerNeutralEnvelope);
 
@@ -270,6 +321,7 @@ function validateEvidenceIdentity(record: Record<string, unknown>): void {
     "providerCategoryIdentity",
     "observationIdentity",
     "observationContentIdentity",
+    "observationEnvelopeContentIdentity",
   ]) {
     requireString(record[field], `replay.evidenceIdentity.${field}`);
   }
@@ -293,6 +345,7 @@ function validateProviderEvidence(record: Record<string, unknown>): void {
       validateEvidenceOnlyRecord(candidate, path);
       rejectForbiddenAuthorityFields(candidate, path);
       rejectUnknownFields(candidate, expectedCandidateFields(field), path);
+      validateCandidateRecord(candidate, field, path);
     }
   }
 
@@ -306,17 +359,23 @@ function validateProviderEvidence(record: Record<string, unknown>): void {
   requireValue(diagnosticMetadata.canAuthorizeAcceptance, "replay.providerEvidence.diagnosticMetadata.canAuthorizeAcceptance", false);
   requireValue(diagnosticMetadata.canCreateGeometry, "replay.providerEvidence.diagnosticMetadata.canCreateGeometry", false);
   requireValue(diagnosticMetadata.canModifyEvaluation, "replay.providerEvidence.diagnosticMetadata.canModifyEvaluation", false);
+  requireString(diagnosticMetadata.providerCertainty, "replay.providerEvidence.diagnosticMetadata.providerCertainty");
+  requireString(diagnosticMetadata.valueMetadata, "replay.providerEvidence.diagnosticMetadata.valueMetadata");
+  requireNumber(diagnosticMetadata.confidence, "replay.providerEvidence.diagnosticMetadata.confidence");
+  requireNumber(diagnosticMetadata.score, "replay.providerEvidence.diagnosticMetadata.score");
 
   const promptText = requirePlainOwnRecord(record, "promptText", "replay.providerEvidence.promptText");
   rejectUnknownFields(promptText, PROMPT_TEXT_FIELDS, "replay.providerEvidence.promptText");
   validateEvidenceOnlyRecord(promptText, "replay.providerEvidence.promptText");
   requireValue(promptText.sourceTruth, "replay.providerEvidence.promptText.sourceTruth", false);
+  requireString(promptText.value, "replay.providerEvidence.promptText.value");
 }
 
 function validateWarnings(record: Record<string, unknown>): void {
+  rejectUnknownFields(record, WARNINGS_FIELDS, "replay.warnings");
   requireValue(record.diagnosticOnly, "replay.warnings.diagnosticOnly", true);
-  requireArray(record.lossyConversionWarnings, "replay.warnings.lossyConversionWarnings");
-  requireArray(record.evidenceLimitations, "replay.warnings.evidenceLimitations");
+  requireStringArray(record.lossyConversionWarnings, "replay.warnings.lossyConversionWarnings");
+  requireStringArray(record.evidenceLimitations, "replay.warnings.evidenceLimitations");
 }
 
 function validateArtifacts(values: readonly unknown[]): void {
@@ -328,7 +387,39 @@ function validateArtifacts(values: readonly unknown[]): void {
     requireValue(record.coreInput, `replay.artifacts[${index}].coreInput`, false);
     requireValue(record.mayAuthorizeAcceptance, `replay.artifacts[${index}].mayAuthorizeAcceptance`, false);
     requireValue(record.mayOverrideAcceptedGeometry, `replay.artifacts[${index}].mayOverrideAcceptedGeometry`, false);
+    requireString(record.kind, `replay.artifacts[${index}].kind`);
+    requireString(record.artifactId, `replay.artifacts[${index}].artifactId`);
   }
+}
+
+function validateCandidateRecord(
+  record: Record<string, unknown>,
+  field: "candidateLabels" | "candidateMeasurements" | "candidateGeometrySuggestions",
+  path: string,
+): void {
+  requireString(record.id, `${path}.id`);
+
+  if (field === "candidateLabels") {
+    requireString(record.label, `${path}.label`);
+    requireOptionalNumber(record.confidence, `${path}.confidence`);
+    requireOptionalNumber(record.score, `${path}.score`);
+    return;
+  }
+
+  if (field === "candidateMeasurements") {
+    requireString(record.dimension, `${path}.dimension`);
+    requireString(record.unit, `${path}.unit`);
+    requireNumber(record.value, `${path}.value`);
+    requireNumber(record.ranking, `${path}.ranking`);
+    return;
+  }
+
+  requireString(record.kind, `${path}.kind`);
+  requireNumber(record.x, `${path}.x`);
+  requireNumber(record.y, `${path}.y`);
+  requireNumber(record.width, `${path}.width`);
+  requireNumber(record.height, `${path}.height`);
+  requireNumber(record.confidence, `${path}.confidence`);
 }
 
 function expectedCandidateFields(field: "candidateLabels" | "candidateMeasurements" | "candidateGeometrySuggestions"): readonly string[] {
@@ -354,8 +445,21 @@ function validateExplicitAcceptance(
     "replay.evidenceIdentity.observationContentIdentity",
   );
 
+  rejectUnknownFields(acceptanceBoundary, ACCEPTANCE_BOUNDARY_FIELDS, "explicitAcceptance.acceptanceBoundary");
   requireValue(acceptanceBoundary.outsideProviderBoundary, "explicitAcceptance.acceptanceBoundary.outsideProviderBoundary", true);
   requireValue(acceptanceBoundary.providerEvidenceSelfAccepted, "explicitAcceptance.acceptanceBoundary.providerEvidenceSelfAccepted", false);
+  const acceptanceActor = requirePlainOwnRecord(
+    acceptanceBoundary,
+    "acceptanceActor",
+    "explicitAcceptance.acceptanceBoundary.acceptanceActor",
+  );
+  const acceptanceProvenance = requirePlainOwnRecord(
+    acceptanceBoundary,
+    "provenance",
+    "explicitAcceptance.acceptanceBoundary.provenance",
+  );
+  rejectUnknownFields(acceptanceActor, ACCEPTANCE_ACTOR_FIELDS, "explicitAcceptance.acceptanceBoundary.acceptanceActor");
+  rejectUnknownFields(acceptanceProvenance, ACCEPTANCE_PROVENANCE_FIELDS, "explicitAcceptance.acceptanceBoundary.provenance");
   requireValue(acceptedStructuredGeometry.sourceObservationId, "explicitAcceptance.acceptedStructuredGeometry.sourceObservationId", observationIdentity);
   requireValue(
     acceptedStructuredGeometry.sourceObservationContentIdentity,
@@ -386,6 +490,12 @@ function rejectForbiddenReplayDataClasses(value: unknown, path: string): void {
   if (typeof value === "string" && FORBIDDEN_REPLAY_DATA_STRING_PATTERN.test(value)) {
     throw invalid(path, "forbidden replay data value");
   }
+}
+
+function contentIdentityFor(value: unknown): string {
+  return `sha256:${createHash("sha256")
+    .update(serializeCanonicalJson(value, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY))
+    .digest("hex")}`;
 }
 
 function providerEvidenceToObservationEnvelope(providerEvidence: Record<string, unknown>): Record<string, unknown> {
@@ -484,6 +594,32 @@ function requireString(value: unknown, path: string): string {
   }
 
   return value;
+}
+
+function requireNumber(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw invalid(path, "requires finite number");
+  }
+
+  return value;
+}
+
+function requireOptionalNumber(value: unknown, path: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return requireNumber(value, path);
+}
+
+function requireStringArray(value: unknown, path: string): readonly string[] {
+  const array = requireArray(value, path);
+
+  for (const [index, item] of array.entries()) {
+    requireString(item, `${path}[${index}]`);
+  }
+
+  return array as readonly string[];
 }
 
 function requireValue(value: unknown, path: string, expected: unknown): void {
