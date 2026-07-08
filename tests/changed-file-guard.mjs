@@ -659,6 +659,17 @@ export const controlledLiveProviderExperimentGateChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const disabledLiveProviderExperimentHarnessChangedFiles = Object.freeze([
+  "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md",
+  "src/local-report/disabled-live-provider-experiment-harness.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/disabled-live-provider-experiment-harness.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -750,6 +761,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  disabledLiveProviderExperimentHarnessChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,

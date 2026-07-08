@@ -16,6 +16,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  disabledLiveProviderExperimentHarnessChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
@@ -954,6 +955,99 @@ test("shared exact changed-file guard rejects runtime provider package MCP ChatG
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...controlledLiveProviderExperimentGateChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR116 disabled live provider experiment harness set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(disabledLiveProviderExperimentHarnessChangedFiles),
+    disabledLiveProviderExperimentHarnessChangedFiles,
+  );
+
+  assert.deepEqual(disabledLiveProviderExperimentHarnessChangedFiles, [
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md",
+    "src/local-report/disabled-live-provider-experiment-harness.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/disabled-live-provider-experiment-harness.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md",
+    "src/local-report/disabled-live-provider-experiment-harness.ts",
+    "tests/disabled-live-provider-experiment-harness.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        disabledLiveProviderExperimentHarnessChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package public fixture and integration extras in the PR116 set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "docs/examples/disabled-local-live-provider-experiment-harness.md",
+    "docs/examples/openai-vision-pilot.md",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...disabledLiveProviderExperimentHarnessChangedFiles,
         forbiddenFile,
       ]),
       null,

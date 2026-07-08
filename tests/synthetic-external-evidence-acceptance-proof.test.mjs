@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   controlledLiveProviderExperimentGateChangedFiles,
+  disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
@@ -314,8 +315,13 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr113Set = isExactChangedFileSet(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
   const isPr114Set = isExactChangedFileSet(changedFiles, providerEvidenceReplayAdapterChangedFiles);
   const isPr115Set = isExactChangedFileSet(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
+  const isPr116Set = isExactChangedFileSet(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 
-  assert.equal(isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set, true, changedFiles.join("\n"));
+  assert.equal(
+    isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set || isPr116Set,
+    true,
+    changedFiles.join("\n"),
+  );
   if (isPr111Set) {
     assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   } else if (isPr113Set) {
@@ -324,6 +330,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, providerEvidenceReplayAdapterChangedFiles);
   } else if (isPr115Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
+  } else if (isPr116Set) {
+    assert.deepEqual(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -356,13 +364,19 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       ],
     );
   } else {
+    const expectedDocs = isPr116Set
+      ? [
+          "docs/BUSINESS_READINESS_ROADMAP.md",
+          "docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md",
+        ]
+      : [
+          "docs/BUSINESS_READINESS_ROADMAP.md",
+          "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+          "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+        ];
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")).sort(),
-      [
-        "docs/BUSINESS_READINESS_ROADMAP.md",
-        "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
-        "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
-      ],
+      expectedDocs,
     );
   }
 });

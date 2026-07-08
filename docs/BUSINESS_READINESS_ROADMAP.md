@@ -1003,6 +1003,14 @@ live-network execution. If PR116 wants live network/provider execution, it must
 explicitly request and justify that in its own Change Contract; otherwise live
 provider execution remains PR117 or later.
 
+PR116 now adds only the disabled local harness boundary described in
+`docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md`:
+a package-private helper plus an unregistered local developer command that
+returns structured fail-closed state and always reports no live provider
+execution. PR116 does not add package exports, package scripts, provider SDK/API
+usage, network calls, image recognition, provider payload parsing, fixtures,
+MCP/ChatGPT, CAD/Figma, package publication, or Core schema/runtime widening.
+
 ## Definitions of Ready
 
 ### Local module ready
