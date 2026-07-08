@@ -16,6 +16,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
@@ -1048,6 +1049,99 @@ test("shared exact changed-file guard rejects runtime provider package public fi
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...disabledLiveProviderExperimentHarnessChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR117 controlled live provider smoke set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderSmokeChangedFiles),
+    controlledLiveProviderSmokeChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderSmokeChangedFiles, [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(controlledLiveProviderSmokeChangedFiles.filter((file) => file !== missingFile)),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package public fixture and integration extras in the PR117 set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "docs/examples/controlled-live-provider-smoke.md",
+    "docs/examples/openai-vision-pilot.md",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "tests/disabled-live-provider-experiment-harness.test.mjs",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...controlledLiveProviderSmokeChangedFiles,
         forbiddenFile,
       ]),
       null,

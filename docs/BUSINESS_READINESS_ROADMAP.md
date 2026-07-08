@@ -1011,6 +1011,19 @@ execution. PR116 does not add package exports, package scripts, provider SDK/API
 usage, network calls, image recognition, provider payload parsing, fixtures,
 MCP/ChatGPT, CAD/Figma, package publication, or Core schema/runtime widening.
 
+PR117 adds the controlled manual live-provider smoke behind the PR116 disabled
+harness:
+
+```text
+PR117: add controlled live provider smoke behind disabled harness
+```
+
+PR117 keeps the default command disabled and network-free, requires explicit
+local operator opt-in for any live transport, and approves no CI live-network
+behavior. No CI live-network behavior is approved. Provider evidence remains
+non-truth. It does not add product readiness, package/API support, ChatGPT/MCP
+support, hosted support, or provider output as Core truth.
+
 ## Definitions of Ready
 
 ### Local module ready
