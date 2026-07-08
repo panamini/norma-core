@@ -217,8 +217,8 @@ test("roadmap records PR113 readiness gate and PR114 PR115 sequencing", async ()
   assert.match(roadmap, /Provider output -> External Evidence Envelope -> Explicit Acceptance Boundary/u);
   assert.match(roadmap, /PR114: local gated provider-evidence adapter prototype/u);
   assert.match(roadmap, /no live provider API call by default/u);
-  assert.match(roadmap, /PR115: controlled live provider experiment/u);
-  assert.match(roadmap, /PR113 does not approve a live provider\ncall by itself/u);
+  assert.match(roadmap, /PR115: approve controlled live provider experiment gate/u);
+  assert.match(roadmap, /PR113 does not approve live provider calls/u);
 });
 
 async function readDecisionDoc() {

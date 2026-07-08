@@ -15,6 +15,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
+  controlledLiveProviderExperimentGateChangedFiles,
   familyRatioPackMeaningSmokeChangedFiles,
   geometryHarmonyPackReportExamplesChangedFiles,
   guidedInspectionArtifactContractChangedFiles,
@@ -856,6 +857,101 @@ test("shared exact changed-file guard rejects runtime provider package public an
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...providerEvidenceReplayAdapterChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR115 controlled live provider experiment gate set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderExperimentGateChangedFiles),
+    controlledLiveProviderExperimentGateChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderExperimentGateChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-experiment-gate.test.mjs",
+    "tests/real-external-evidence-pilot-readiness.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+    "tests/controlled-live-provider-experiment-gate.test.mjs",
+    "tests/real-external-evidence-pilot-readiness.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledLiveProviderExperimentGateChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package MCP ChatGPT CAD Figma wiki and dependency extras in the PR115 set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/structured-composition-analysis.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "bin/norma-cli.mjs",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "docs/examples/openai-vision-pilot.md",
+    "docs/decisions/2026-07-08-provider-sdk-contract.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...controlledLiveProviderExperimentGateChangedFiles,
         forbiddenFile,
       ]),
       null,

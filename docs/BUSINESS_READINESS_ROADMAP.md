@@ -969,15 +969,39 @@ schema/runtime widening and package/public exports, include deterministic
 replay/redaction strategy, define fail-closed behavior, avoid CI live-network
 dependency, and make no live provider API call by default.
 
-The first possible live-provider experiment is:
+PR115 is the controlled live provider experiment gate:
 
 ```text
-PR115: controlled live provider experiment
+PR115: approve controlled live provider experiment gate
 ```
 
-PR115 requires a separate approval contract with explicit secret, network,
-redaction, replay, and retention rules. PR113 does not approve a live provider
-call by itself.
+PR115 is docs/tests-only. It approves only the controlled live provider
+experiment gate and approval contract. It does not implement live provider
+runtime, provider SDK/API usage, image recognition, provider payload parsing,
+live network calls, provider fixtures, package exports, package metadata,
+dependencies, lockfiles, MCP/ChatGPT runtime, CAD/Figma import, demo commands,
+or Core schema/runtime widening.
+
+OpenAI/vision-style remains the selected pilot candidate. The architecture
+remains provider-neutral, and provider-specific mapping must terminate at a
+provider-neutral External Evidence Envelope or repository-equivalent boundary
+before any explicit Acceptance Boundary can produce Accepted Structured
+Geometry.
+
+Real provider calls remain unapproved until a later PR explicitly approves
+them.
+
+The next possible implementation gate is:
+
+```text
+PR116: add disabled local live-provider experiment harness
+```
+
+PR116, if later approved, must be disabled by default, manual-only,
+fail-closed without environment configuration, and excluded from CI
+live-network execution. If PR116 wants live network/provider execution, it must
+explicitly request and justify that in its own Change Contract; otherwise live
+provider execution remains PR117 or later.
 
 ## Definitions of Ready
 
