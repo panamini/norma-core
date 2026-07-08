@@ -88,6 +88,8 @@ import {
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
+  syntheticEvidenceAcceptanceDemoChangedFiles,
+  syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles,
   syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,
   visualAdapterFixtureContractChangedFiles,
@@ -593,6 +595,96 @@ test("shared exact changed-file guard rejects forbidden extras in the PR111 synt
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...syntheticExternalEvidenceAcceptanceProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR112 synthetic evidence acceptance demo set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(syntheticEvidenceAcceptanceDemoChangedFiles),
+    syntheticEvidenceAcceptanceDemoChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles),
+    syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles,
+  );
+
+  assert.deepEqual(syntheticEvidenceAcceptanceDemoChangedFiles, [
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "docs/examples/local-synthetic-evidence-acceptance-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-approval.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+    "tests/synthetic-evidence-acceptance-demo.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+  assert.deepEqual(syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles, [
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "docs/examples/local-synthetic-evidence-acceptance-demo.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/onboarding-examples-docs.test.mjs",
+    "tests/synthetic-evidence-acceptance-demo.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "docs/examples/local-synthetic-evidence-acceptance-demo.md",
+    "tests/synthetic-evidence-acceptance-demo.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        syntheticEvidenceAcceptanceDemoChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR112 synthetic evidence demo set", () => {
+  const forbiddenFiles = [
+    "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+    "src/structured-composition-analysis.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "docs/examples/synthetic-external-evidence.md",
+    "viewer/read-only-result-viewer.html",
+    "src/local-report/visual-viewer.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...syntheticEvidenceAcceptanceDemoChangedFiles,
         forbiddenFile,
       ]),
       null,

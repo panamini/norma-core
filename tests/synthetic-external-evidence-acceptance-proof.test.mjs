@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
+import {
+  isExactChangedFileSet,
+  syntheticEvidenceAcceptanceDemoChangedFiles,
+  syntheticExternalEvidenceAcceptanceProofChangedFiles,
+} from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -301,22 +306,33 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
+  const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
 
-  assert.deepEqual(changedFiles, [
-    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
-    "tests/changed-file-guard.mjs",
-    "tests/changed-file-guard.test.mjs",
-    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
-  ]);
+  assert.equal(isPr111Set || isPr112Set, true, changedFiles.join("\n"));
+  if (isPr111Set) {
+    assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
+  } else {
+    assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
+  }
+
   for (const forbidden of [
     "package.json",
     "package-lock.json",
     "pnpm-lock.yaml",
-    "docs/",
     "tests/fixtures/",
     "src/index.ts",
   ]) {
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
+  }
+
+  if (isPr111Set) {
+    assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
+  } else {
+    assert.deepEqual(
+      changedFiles.filter((file) => file.startsWith("docs/")),
+      ["docs/examples/local-synthetic-evidence-acceptance-demo.md"],
+    );
   }
 });
 
