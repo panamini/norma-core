@@ -56,7 +56,7 @@ Live execution requires all of:
 
 1. `--live`;
 2. no recognized non-empty CI marker such as `CI=1`, `CI=true`,
-   `GITHUB_ACTIONS=true`, or `GITLAB_CI=1`;
+   `GITHUB_ACTIONS=true`, `GITLAB_CI=1`, or AWS CodeBuild markers;
 3. `NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT=1`;
 4. `NORMA_LIVE_PROVIDER=openai-responses-vision`;
 5. `NORMA_LIVE_PROVIDER_MODEL`;
@@ -84,6 +84,11 @@ Raw provider output is ephemeral and not persisted. The provider request must
 disable provider-side response storage when the selected API supports that
 control. Redacted provider-neutral evidence output is the only allowed
 persisted result.
+
+Non-JSON provider bodies still count as observed provider output, but their raw
+text must not be persisted. If the provider call completes and a later artifact
+write fails, the command must report a structured artifact-write failure with the
+redacted provider status instead of classifying it as a transport failure.
 
 The persisted output must not include secrets, API keys, bearer tokens,
 authorization headers, raw request JSON, raw image bytes, base64 image data,
@@ -177,6 +182,10 @@ PR117 is acceptable only when tests prove:
 - fake transport is called only after all gates are represented;
 - fake transport output is reduced to redacted provider-neutral evidence only;
 - raw provider responses and raw images are not persisted;
+- non-JSON provider responses are recorded as observed output without storing
+  raw text;
+- artifact write failures after a completed provider call are distinct from
+  transport failures;
 - provider-neutral evidence cannot produce accepted structured geometry;
 - provider output cannot enter Core;
 - confidence, score, value, prompt, artifact, or provider metadata cannot

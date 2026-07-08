@@ -146,6 +146,8 @@ test("PR117 explicit live mode fails closed for CI marker variants before networ
     completeEnv({ CI: "true" }),
     completeEnv({ CI: undefined, GITHUB_ACTIONS: "true" }),
     completeEnv({ CI: undefined, GITLAB_CI: "1" }),
+    completeEnv({ CI: undefined, CODEBUILD_BUILD_ID: "norma-core:build-1" }),
+    completeEnv({ CI: undefined, CODEBUILD_BUILD_ARN: "arn:aws:codebuild:example" }),
   ]) {
     const result = await runLiveMissingGate({
       args: ["--live", "--input-image", "unused.png", "--output", "unused"],
@@ -366,6 +368,49 @@ test("PR117 fake transport is called only after every live gate is represented",
   }
 });
 
+test("PR117 artifact write failures after provider completion keep provider status distinct from transport errors", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    let transportCalls = 0;
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => {
+        transportCalls += 1;
+        return {
+          ok: true,
+          statusCode: 200,
+          body: { status: "completed" },
+        };
+      },
+      writeFile: async (filePath, data, options) => {
+        if (String(filePath).endsWith("provider-evidence-envelope.json")) {
+          throw new Error("disk full after provider response");
+        }
+
+        return writeFile(filePath, data, options);
+      },
+    });
+    const parsed = JSON.parse(result.stdout);
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(transportCalls, 1);
+    assert.equal(parsed.status, "artifact_write_error");
+    assert.equal(parsed.providerResponseStatusCode, 200);
+    assert.equal(parsed.providerResponseClass, "success");
+    assert.equal(parsed.providerOutputObserved, true);
+    assert.equal(parsed.artifactsPersisted, false);
+    assert.equal(parsed.liveProviderExecution, true);
+    assertNoForbiddenOutputValue(parsed);
+    assert.doesNotMatch(result.stdout, /transport_error|disk full|FAKE_SECRET_VALUE_DO_NOT_PRINT|Bearer/u);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("PR117 output directory is proven writable before live transport", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
 
@@ -382,6 +427,40 @@ test("PR117 output directory is proven writable before live transport", async ()
     assert.equal(result.parsed.gateStatus, "blocked_output_directory_unwritable");
     assert.equal(result.transportCalls, 0);
   } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("PR117 non-JSON provider bodies are observed without persisting raw text", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
+  const previousFetch = globalThis.fetch;
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    await writeFile(imagePath, pngBytes());
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 502,
+      text: async () => "Bad Gateway from proxy",
+    });
+
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+    });
+    const parsed = JSON.parse(result.stdout);
+    const envelope = JSON.parse(await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8"));
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(parsed.status, "provider_error");
+    assert.equal(envelope.providerCall.responseStatusCode, 502);
+    assert.equal(envelope.providerCall.providerOutputObserved, true);
+    assert.equal(envelope.evidenceSummary.providerOutputObserved, true);
+    assert.equal(envelope.rawProviderOutputPersisted, false);
+    await assertSafeArtifacts(outputDir, imagePath);
+    assert.doesNotMatch(result.stdout, /Bad Gateway|FAKE_SECRET_VALUE_DO_NOT_PRINT|Bearer/u);
+  } finally {
+    globalThis.fetch = previousFetch;
     await rm(tmp, { recursive: true, force: true });
   }
 });

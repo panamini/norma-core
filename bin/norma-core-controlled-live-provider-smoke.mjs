@@ -133,8 +133,9 @@ async function runControlledLiveProviderSmokeCli({
   });
   const transport = options.transport ?? builtInTransport;
 
+  let providerResponse;
   try {
-    const providerResponse = await transport({
+    providerResponse = await transport({
       url: CONTROLLED_LIVE_PROVIDER_SMOKE_URL,
       timeoutMs,
       headers: {
@@ -143,30 +144,6 @@ async function runControlledLiveProviderSmokeCli({
       },
       body: JSON.stringify(requestBody),
     });
-    const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
-      image,
-      responseStatusCode: providerResponse.statusCode,
-      responseOk: providerResponse.ok,
-      providerOutputObserved: providerResponse.body !== null,
-      timeoutMs,
-    });
-    const summary = helpers.createControlledLiveProviderSmokeSummaryV1(envelope);
-
-    await writeSafeArtifacts(outputDir, envelope, summary, options, helpers);
-    stdout.write(`${JSON.stringify({
-      status: providerResponse.ok ? "ok" : "provider_error",
-      liveProviderExecution: true,
-      providerEvidenceOnly: true,
-      requiresExplicitAcceptance: true,
-      providerOutputIsCoreTruth: false,
-      acceptedStructuredGeometryOnlyCoreInput: true,
-      rawProviderOutputPersisted: false,
-      rawImagePersisted: false,
-      redacted: true,
-      ciLiveNetworkDependency: false,
-      artifacts: summary.artifacts,
-    })}\n`);
-    return providerResponse.ok ? 0 : 2;
   } catch {
     stdout.write(`${JSON.stringify({
       status: "transport_error",
@@ -181,11 +158,60 @@ async function runControlledLiveProviderSmokeCli({
       ciLiveNetworkDependency: false,
     })}\n`);
     return 2;
+  }
+
+  const providerOutputObserved = typeof providerResponse.providerOutputObserved === "boolean"
+    ? providerResponse.providerOutputObserved
+    : providerResponse.body !== null;
+  const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
+    image,
+    responseStatusCode: providerResponse.statusCode,
+    responseOk: providerResponse.ok,
+    providerOutputObserved,
+    timeoutMs,
+  });
+  const summary = helpers.createControlledLiveProviderSmokeSummaryV1(envelope);
+
+  try {
+    await writeSafeArtifacts(outputDir, envelope, summary, options, helpers);
+  } catch {
+    stdout.write(`${JSON.stringify({
+      status: "artifact_write_error",
+      liveProviderExecution: true,
+      providerResponseStatusCode: providerResponse.statusCode,
+      providerResponseClass: providerResponse.ok ? "success" : "provider_error",
+      providerOutputObserved,
+      providerEvidenceOnly: true,
+      requiresExplicitAcceptance: true,
+      providerOutputIsCoreTruth: false,
+      acceptedStructuredGeometryOnlyCoreInput: true,
+      rawProviderOutputPersisted: false,
+      rawImagePersisted: false,
+      redacted: true,
+      ciLiveNetworkDependency: false,
+      artifactsPersisted: false,
+    })}\n`);
+    return 2;
   } finally {
     if (typeof stderr.flush === "function") {
       stderr.flush();
     }
   }
+
+  stdout.write(`${JSON.stringify({
+    status: providerResponse.ok ? "ok" : "provider_error",
+    liveProviderExecution: true,
+    providerEvidenceOnly: true,
+    requiresExplicitAcceptance: true,
+    providerOutputIsCoreTruth: false,
+    acceptedStructuredGeometryOnlyCoreInput: true,
+    rawProviderOutputPersisted: false,
+    rawImagePersisted: false,
+    redacted: true,
+    ciLiveNetworkDependency: false,
+    artifacts: summary.artifacts,
+  })}\n`);
+  return providerResponse.ok ? 0 : 2;
 }
 
 function parseArgs(args) {
@@ -328,6 +354,7 @@ async function builtInTransport({ url, timeoutMs, headers, body }) {
       ok: response.ok,
       statusCode: response.status,
       body: safeJson(text),
+      providerOutputObserved: text.length > 0,
     };
   } finally {
     clearTimeout(timeout);
@@ -413,6 +440,16 @@ function isCiEnvironmentPresent(env) {
     "CIRCLECI",
     "TF_BUILD",
     "TEAMCITY_VERSION",
+    "CODEBUILD_BUILD_ID",
+    "CODEBUILD_BUILD_ARN",
+    "CODEBUILD_INITIATOR",
+    "BITBUCKET_BUILD_NUMBER",
+    "DRONE",
+    "TRAVIS",
+    "APPVEYOR",
+    "JENKINS_URL",
+    "BUILD_ID",
+    "BUILD_NUMBER",
   ].some((name) => isTruthyEnvMarker(env[name]));
 }
 
