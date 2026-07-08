@@ -381,6 +381,10 @@ export function createControlledLiveProviderSmokeSummaryMarkdownV1(
 }
 
 export function isRemoteOrFileUrlInput(value: string): boolean {
+  if (/^[a-z]:[\\/]/iu.test(value)) {
+    return false;
+  }
+
   return /^[a-z][a-z0-9+.-]*:/iu.test(value);
 }
 

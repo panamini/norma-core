@@ -3,23 +3,14 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS,
-  CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES,
-  createControlledLiveProviderEvidenceEnvelopeV1,
-  createControlledLiveProviderSmokeDefaultStateV1,
-  createControlledLiveProviderSmokeGateStateV1,
-  createControlledLiveProviderSmokeSummaryMarkdownV1,
-  createControlledLiveProviderSmokeSummaryV1,
-  createOpenAIResponsesVisionSmokeRequestBodyV1,
-  detectControlledLiveProviderSmokeImageV1,
-  isRemoteOrFileUrlInput,
-} from "../dist/src/local-report/controlled-live-provider-smoke.js";
-
 export { runControlledLiveProviderSmokeCli };
 
 const CONTROLLED_LIVE_PROVIDER_SMOKE_URL = ["ht", "tps://api.openai.com/v1/responses"].join("");
 const PROVIDER_CREDENTIAL_HEADER_NAME = ["Author", "ization"].join("");
+const CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS = 30_000;
+const CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+let builtHelpersPromise;
 
 async function runControlledLiveProviderSmokeCli({
   args = process.argv.slice(2),
@@ -35,14 +26,22 @@ async function runControlledLiveProviderSmokeCli({
   }
 
   if (!parsedArgs.live) {
-    stdout.write(`${JSON.stringify(createControlledLiveProviderSmokeDefaultStateV1())}\n`);
+    stdout.write(`${JSON.stringify(createLocalControlledLiveProviderSmokeDefaultState())}\n`);
     return 0;
   }
 
   const env = options.env ?? process.env;
   const timeoutMs = parsedArgs.timeoutMs ?? CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS;
   const ciEnvironmentPresent = isCiEnvironmentPresent(env);
+  let helpers;
+  try {
+    helpers = await loadBuiltHelpers(options);
+  } catch {
+    stdout.write(`${JSON.stringify(errorGate("BuildRequired"))}\n`);
+    return 1;
+  }
   const initialGate = createCliGateState({
+    helpers,
     env,
     parsedArgs,
     timeoutMs,
@@ -63,6 +62,7 @@ async function runControlledLiveProviderSmokeCli({
     imageRead = await readBoundedImageBytes(parsedArgs.inputImage, options);
   } catch {
     stdout.write(`${JSON.stringify(createCliGateState({
+      helpers,
       env,
       parsedArgs,
       timeoutMs,
@@ -76,6 +76,7 @@ async function runControlledLiveProviderSmokeCli({
 
   if (!imageRead.ok) {
     stdout.write(`${JSON.stringify(createCliGateState({
+      helpers,
       env,
       parsedArgs,
       timeoutMs,
@@ -88,8 +89,9 @@ async function runControlledLiveProviderSmokeCli({
   }
 
   const imageBytes = imageRead.bytes;
-  const image = detectControlledLiveProviderSmokeImageV1(parsedArgs.inputImage, imageBytes);
+  const image = helpers.detectControlledLiveProviderSmokeImageV1(parsedArgs.inputImage, imageBytes);
   const imageGate = createCliGateState({
+    helpers,
     env,
     parsedArgs,
     timeoutMs,
@@ -110,6 +112,7 @@ async function runControlledLiveProviderSmokeCli({
     await prepareOutputDirectory(outputDir, options);
   } catch {
     stdout.write(`${JSON.stringify(createCliGateState({
+      helpers,
       env,
       parsedArgs,
       timeoutMs,
@@ -122,8 +125,10 @@ async function runControlledLiveProviderSmokeCli({
     return 1;
   }
 
-  const requestBody = createOpenAIResponsesVisionSmokeRequestBodyV1({
-    model: env.NORMA_LIVE_PROVIDER_MODEL,
+  const model = env.NORMA_LIVE_PROVIDER_MODEL.trim();
+  const apiKey = env.NORMA_LIVE_PROVIDER_API_KEY.trim();
+  const requestBody = helpers.createOpenAIResponsesVisionSmokeRequestBodyV1({
+    model,
     imageDataUrl: `data:${image.mediaType};base64,${Buffer.from(imageBytes).toString("base64")}`,
   });
   const transport = options.transport ?? builtInTransport;
@@ -134,20 +139,20 @@ async function runControlledLiveProviderSmokeCli({
       timeoutMs,
       headers: {
         "Content-Type": "application/json",
-        [PROVIDER_CREDENTIAL_HEADER_NAME]: `Bearer ${env.NORMA_LIVE_PROVIDER_API_KEY}`,
+        [PROVIDER_CREDENTIAL_HEADER_NAME]: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
     });
-    const envelope = createControlledLiveProviderEvidenceEnvelopeV1({
+    const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
       image,
       responseStatusCode: providerResponse.statusCode,
       responseOk: providerResponse.ok,
       providerOutputObserved: providerResponse.body !== null,
       timeoutMs,
     });
-    const summary = createControlledLiveProviderSmokeSummaryV1(envelope);
+    const summary = helpers.createControlledLiveProviderSmokeSummaryV1(envelope);
 
-    await writeSafeArtifacts(outputDir, envelope, summary, options);
+    await writeSafeArtifacts(outputDir, envelope, summary, options, helpers);
     stdout.write(`${JSON.stringify({
       status: providerResponse.ok ? "ok" : "provider_error",
       liveProviderExecution: true,
@@ -225,6 +230,7 @@ function parseArgs(args) {
 }
 
 function createCliGateState({
+  helpers,
   env,
   parsedArgs,
   timeoutMs,
@@ -234,15 +240,15 @@ function createCliGateState({
   inputImageMimeType,
   outputDirectoryWritable,
 }) {
-  return createControlledLiveProviderSmokeGateStateV1({
+  return helpers.createControlledLiveProviderSmokeGateStateV1({
     liveFlagPresent: true,
     ciEnvironmentPresent,
     envOptInValue: env.NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT,
     provider: env.NORMA_LIVE_PROVIDER,
-    modelPresent: typeof env.NORMA_LIVE_PROVIDER_MODEL === "string" && env.NORMA_LIVE_PROVIDER_MODEL.length > 0,
-    apiKeyPresent: typeof env.NORMA_LIVE_PROVIDER_API_KEY === "string" && env.NORMA_LIVE_PROVIDER_API_KEY.length > 0,
+    modelPresent: isNonBlankString(env.NORMA_LIVE_PROVIDER_MODEL),
+    apiKeyPresent: isNonBlankString(env.NORMA_LIVE_PROVIDER_API_KEY),
     inputImagePathPresent: typeof parsedArgs.inputImage === "string",
-    inputImagePathIsRemoteOrFileUrl: typeof parsedArgs.inputImage === "string" && isRemoteOrFileUrlInput(parsedArgs.inputImage),
+    inputImagePathIsRemoteOrFileUrl: typeof parsedArgs.inputImage === "string" && helpers.isRemoteOrFileUrlInput(parsedArgs.inputImage),
     inputImageExists,
     inputImageSizeBytes,
     inputImageMimeType,
@@ -283,19 +289,22 @@ async function readBoundedImageBytes(inputImage, options) {
 async function prepareOutputDirectory(outputDir, options) {
   const write = options.writeFile ?? writeFile;
   const remove = options.rm ?? rm;
-  const probePath = join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test");
+  const probePath = join(
+    outputDir,
+    `.norma-core-controlled-live-provider-smoke-write-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
   await (options.mkdir ?? mkdir)(outputDir, { recursive: true });
-  await write(probePath, "", "utf8");
+  await write(probePath, "", { encoding: "utf8", flag: "wx" });
   await remove(probePath, { force: true });
 }
 
-async function writeSafeArtifacts(outputDir, envelope, summary, options) {
+async function writeSafeArtifacts(outputDir, envelope, summary, options, helpers) {
   const write = options.writeFile ?? writeFile;
   await (options.mkdir ?? mkdir)(outputDir, { recursive: true });
   await write(join(outputDir, "provider-evidence-envelope.json"), `${JSON.stringify(envelope)}\n`, "utf8");
   await write(join(outputDir, "summary.json"), `${JSON.stringify(summary)}\n`, "utf8");
-  await write(join(outputDir, "summary.md"), createControlledLiveProviderSmokeSummaryMarkdownV1(summary), "utf8");
+  await write(join(outputDir, "summary.md"), helpers.createControlledLiveProviderSmokeSummaryMarkdownV1(summary), "utf8");
 }
 
 async function builtInTransport({ url, timeoutMs, headers, body }) {
@@ -349,6 +358,52 @@ function errorGate(code) {
   };
 }
 
+function createLocalControlledLiveProviderSmokeDefaultState() {
+  return {
+    smokeKind: "norma.controlled-live-provider-smoke.gate.v1",
+    gateStatus: "blocked_disabled_by_default",
+    disabledByDefault: true,
+    manualOnly: true,
+    failClosed: true,
+    localOnly: true,
+    liveProviderExecution: false,
+    ciLiveNetworkDependency: false,
+    providerEvidenceOnly: true,
+    requiresExplicitAcceptance: true,
+    providerOutputIsCoreTruth: false,
+    acceptedStructuredGeometryOnlyCoreInput: true,
+    rawProviderOutputPersisted: false,
+    rawImagePersisted: false,
+    redacted: true,
+    pr116Harness: {
+      harnessKind: "norma.disabled-local-live-provider-experiment-harness.v1",
+      disabledByDefault: true,
+      manualOnly: true,
+      failClosed: true,
+      liveProviderExecution: false,
+    },
+    requiredGates: {
+      liveFlag: "--live",
+      envOptIn: "NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT=1",
+      provider: "NORMA_LIVE_PROVIDER=openai-responses-vision",
+      modelEnv: "NORMA_LIVE_PROVIDER_MODEL",
+      apiKeyEnvPresence: "NORMA_LIVE_PROVIDER_API_KEY",
+      inputImageFlag: "--input-image",
+      outputDirectoryFlag: "--output",
+      boundedTimeout: true,
+    },
+  };
+}
+
+async function loadBuiltHelpers(options) {
+  if (options.helpers) {
+    return options.helpers;
+  }
+
+  builtHelpersPromise ??= import("../dist/src/local-report/controlled-live-provider-smoke.js");
+  return builtHelpersPromise;
+}
+
 function isCiEnvironmentPresent(env) {
   return [
     "CI",
@@ -368,6 +423,10 @@ function isTruthyEnvMarker(value) {
 
   const normalized = String(value).trim().toLowerCase();
   return normalized !== "" && normalized !== "0" && normalized !== "false" && normalized !== "no" && normalized !== "off";
+}
+
+function isNonBlankString(value) {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isCliEntrypoint() {

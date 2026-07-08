@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir as mkdirp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +16,7 @@ import {
   createControlledLiveProviderSmokeGateStateV1,
   createOpenAIResponsesVisionSmokeRequestBodyV1,
   detectControlledLiveProviderSmokeImageV1,
+  isRemoteOrFileUrlInput,
 } from "../dist/src/local-report/controlled-live-provider-smoke.js";
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
@@ -104,6 +105,34 @@ test("PR117 default command emits safe structured JSON from the real command ent
   assert.doesNotMatch(stdout, /FAKE_ENTRYPOINT_SECRET|Bearer/u);
 });
 
+test("PR117 default command remains runnable without prebuilt dist helpers", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-no-dist-"));
+
+  try {
+    const isolatedCommandPath = join(tmp, "norma-core-controlled-live-provider-smoke.mjs");
+    await writeFile(isolatedCommandPath, await readFile(commandPath, "utf8"), "utf8");
+    const { stdout, stderr } = await execFileAsync(process.execPath, [isolatedCommandPath], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        NORMA_LIVE_PROVIDER_API_KEY: "FAKE_NO_DIST_SECRET",
+      },
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
+    });
+    const parsed = JSON.parse(stdout);
+
+    assert.equal(stderr, "");
+    assert.equal(parsed.gateStatus, "blocked_disabled_by_default");
+    assert.equal(parsed.liveProviderExecution, false);
+    assert.equal(parsed.failClosed, true);
+    assertNoForbiddenOutputValue(parsed);
+    assert.doesNotMatch(stdout, /FAKE_NO_DIST_SECRET|Bearer/u);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("PR117 explicit live mode fails closed when opt-in env is missing", async () => {
   const result = await runLiveMissingGate({ env: completeEnv({ NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT: undefined }) });
 
@@ -142,8 +171,22 @@ test("PR117 explicit live mode fails closed when model env is missing", async ()
   assert.equal(result.transportCalls, 0);
 });
 
+test("PR117 explicit live mode fails closed when model env is whitespace only", async () => {
+  const result = await runLiveMissingGate({ env: completeEnv({ NORMA_LIVE_PROVIDER_MODEL: "   \t  " }) });
+
+  assert.equal(result.parsed.gateStatus, "blocked_missing_provider_model");
+  assert.equal(result.transportCalls, 0);
+});
+
 test("PR117 explicit live mode fails closed when API key presence is missing", async () => {
   const result = await runLiveMissingGate({ env: completeEnv({ NORMA_LIVE_PROVIDER_API_KEY: undefined }) });
+
+  assert.equal(result.parsed.gateStatus, "blocked_missing_provider_api_key");
+  assert.equal(result.transportCalls, 0);
+});
+
+test("PR117 explicit live mode fails closed when API key env is whitespace only", async () => {
+  const result = await runLiveMissingGate({ env: completeEnv({ NORMA_LIVE_PROVIDER_API_KEY: "   \t  " }) });
 
   assert.equal(result.parsed.gateStatus, "blocked_missing_provider_api_key");
   assert.equal(result.transportCalls, 0);
@@ -166,6 +209,21 @@ test("PR117 explicit live mode rejects remote and file URL image input before ne
     assert.equal(result.parsed.gateStatus, "blocked_remote_or_file_url_input");
     assert.equal(result.transportCalls, 0);
   }
+});
+
+test("PR117 input URL check preserves Windows drive-letter paths as local paths", async () => {
+  assert.equal(isRemoteOrFileUrlInput("C:\\tmp\\source.png"), false);
+  assert.equal(isRemoteOrFileUrlInput("d:/tmp/source.png"), false);
+  assert.equal(isRemoteOrFileUrlInput("https://example.invalid/source.png"), true);
+  assert.equal(isRemoteOrFileUrlInput("file:///tmp/source.png"), true);
+
+  const result = await runLiveMissingGate({
+    args: ["--live", "--input-image", "C:\\tmp\\source.png", "--output", "unused"],
+    env: completeEnv(),
+  });
+
+  assert.equal(result.parsed.gateStatus, "blocked_input_image_not_found");
+  assert.equal(result.transportCalls, 0);
 });
 
 test("PR117 explicit live mode fails closed before network when image file is missing", async () => {
@@ -260,12 +318,18 @@ test("PR117 fake transport is called only after every live gate is represented",
     const imagePath = join(tmp, "source.png");
     const outputDir = join(tmp, "out");
     await writeFile(imagePath, pngBytes());
+    await mkdirp(outputDir);
+    await writeFile(join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test"), "do not overwrite", "utf8");
     const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
-      env: completeEnv(),
+      env: completeEnv({
+        NORMA_LIVE_PROVIDER_MODEL: "  gpt-fake  ",
+        NORMA_LIVE_PROVIDER_API_KEY: "  FAKE_SECRET_VALUE_DO_NOT_PRINT  ",
+      }),
       transport: async (request) => {
         assert.equal(request.url, "https://api.openai.com/v1/responses");
         assert.equal(request.timeoutMs, 30_000);
         assert.equal(request.headers.Authorization, "Bearer FAKE_SECRET_VALUE_DO_NOT_PRINT");
+        assert.equal(JSON.parse(request.body).model, "gpt-fake");
         assert.equal(JSON.parse(request.body).store, false);
         assert.match(request.body, /"type":"input_image"/u);
         assert.match(request.body, /data:image\/png;base64/u);
@@ -293,6 +357,10 @@ test("PR117 fake transport is called only after every live gate is represented",
       "summary.md",
     ]);
     await assertSafeArtifacts(outputDir, imagePath);
+    assert.equal(
+      await readFile(join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test"), "utf8"),
+      "do not overwrite",
+    );
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -401,6 +469,8 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
   assertDocMentions(doc, [
     "PR117 adds a controlled manual live-provider smoke behind the PR116 disabled harness",
     "Default command remains safe and does not call network",
+    "The default disabled command can run without prebuilt `dist/` output",
+    "Live mode requires `npm run build` first",
     "Live execution requires explicit opt-in and local operator credentials",
     "Live execution must not run in CI",
     "no recognized non-empty CI marker",

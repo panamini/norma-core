@@ -29,6 +29,10 @@ The default command remains safe and does not call network:
 node bin/norma-core-controlled-live-provider-smoke.mjs
 ```
 
+The default disabled command can run without prebuilt `dist/` output. Live mode
+requires `npm run build` first in source checkouts because live execution uses
+the compiled package-private helper.
+
 Default execution does not read provider API keys, does not read `.env`, does
 not read image files, does not call network, and emits structured JSON with:
 
