@@ -874,6 +874,7 @@ test("shared exact changed-file guard accepts the PR115 controlled live provider
   assert.deepEqual(controlledLiveProviderExperimentGateChangedFiles, [
     "docs/BUSINESS_READINESS_ROADMAP.md",
     "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+    "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/controlled-live-provider-experiment-gate.test.mjs",
@@ -883,6 +884,7 @@ test("shared exact changed-file guard accepts the PR115 controlled live provider
 
   for (const missingFile of [
     "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+    "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
     "tests/controlled-live-provider-experiment-gate.test.mjs",
     "tests/real-external-evidence-pilot-readiness.test.mjs",
     "tests/synthetic-external-evidence-acceptance-proof.test.mjs",

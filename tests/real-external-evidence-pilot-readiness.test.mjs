@@ -165,11 +165,13 @@ test("PR114 gate is local gated prototype-only and no live API by default", asyn
   }
 });
 
-test("PR115 is the first possible controlled live provider experiment and separately gated", async () => {
+test("PR115 is an approval gate and PR116 is the next disabled implementation gate", async () => {
   const doc = await readDecisionDoc();
 
-  assert.match(doc, /`PR115: controlled live provider experiment` is the first possible live-provider\nexperiment/u);
-  assert.match(doc, /separate approval contract with explicit secret,\nnetwork, redaction, replay, and retention rules/u);
+  assert.match(doc, /`PR115: approve controlled live provider experiment gate` is the approval gate\nbefore any controlled live-provider experiment implementation/u);
+  assert.match(doc, /PR116: add disabled local live-provider experiment harness/u);
+  assert.match(doc, /PR116 must be disabled by default, manual-only, fail-closed without environment\nconfiguration, and excluded from CI live-network execution/u);
+  assert.match(doc, /live provider execution remains PR117 or later/u);
   assert.match(doc, /PR113 does not approve a live provider call by itself/u);
 });
 

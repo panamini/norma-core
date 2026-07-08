@@ -279,6 +279,7 @@ test("PR115 changed-file guard accepts exactly the docs tests gate set", () => {
   assert.deepEqual(controlledLiveProviderExperimentGateChangedFiles, [
     "docs/BUSINESS_READINESS_ROADMAP.md",
     "docs/decisions/2026-07-08-controlled-live-provider-experiment-gate.md",
+    "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
     "tests/changed-file-guard.mjs",
     "tests/changed-file-guard.test.mjs",
     "tests/controlled-live-provider-experiment-gate.test.mjs",
