@@ -1,0 +1,144 @@
+{
+  "kind": "norma.provider-evidence-replay.synthetic",
+  "version": 1,
+  "replayId": "provider-evidence-replay:synthetic:parcel-proportion:v1",
+  "localOnly": true,
+  "fixtureOnly": true,
+  "staticFixture": true,
+  "syntheticOnly": true,
+  "notProviderResponseJson": true,
+  "notProviderSdkResponse": true,
+  "notProductionPayload": true,
+  "notFutureApiContract": true,
+  "evidenceIdentity": {
+    "envelopeId": "external-evidence-envelope:synthetic:parcel-proportion:v1",
+    "envelopeContentIdentity": "sha256:3577218cb1448cdc0db60ccfd52b12d9fbb4e9f6ced54cf3414eb7bd02c331f4",
+    "syntheticSourceIdentity": "source:synthetic:parcel-proportion:v1",
+    "providerCategoryIdentity": "provider-category:synthetic-vision-style-evidence:v1",
+    "observationIdentity": "observation:synthetic:parcel-proportion:v1",
+    "observationContentIdentity": "sha256:79330dcca3d6629d91f86b6beece5cf7a4377de5f8208fc7a3c559871c981262",
+    "observationEnvelopeContentIdentity": "sha256:425f7c0986fd62d79c16168f4b12bcb3aa3dfe8850410b494c7fbe111bc914fc"
+  },
+  "providerEvidence": {
+    "kind": "SyntheticProviderStyleEvidence",
+    "untrusted": true,
+    "nonAuthoritative": true,
+    "candidateEvidenceOnly": true,
+    "providerSelfAcceptance": false,
+    "canAuthorizeAcceptance": false,
+    "canCreateGeometry": false,
+    "candidateLabels": [
+      {
+        "id": "candidate-label:west-portion",
+        "label": "west portion",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.99
+      },
+      {
+        "id": "candidate-label:east-portion",
+        "label": "east portion",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "score": 999
+      }
+    ],
+    "candidateMeasurements": [
+      {
+        "id": "candidate-measurement:west-width",
+        "dimension": "width",
+        "value": 0.4,
+        "unit": "normalized",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "ranking": 1
+      },
+      {
+        "id": "candidate-measurement:east-width",
+        "dimension": "width",
+        "value": 0.6,
+        "unit": "normalized",
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "ranking": 2
+      }
+    ],
+    "candidateGeometrySuggestions": [
+      {
+        "id": "candidate-geometry:west",
+        "kind": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 0.4,
+        "height": 1,
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.99
+      },
+      {
+        "id": "candidate-geometry:east",
+        "kind": "rectangle",
+        "x": 0.4,
+        "y": 0,
+        "width": 0.6,
+        "height": 1,
+        "untrusted": true,
+        "nonAuthoritative": true,
+        "candidateEvidenceOnly": true,
+        "confidence": 0.01
+      }
+    ],
+    "diagnosticMetadata": {
+      "providerCertainty": "synthetic-high",
+      "confidence": 1,
+      "score": 1000,
+      "valueMetadata": "diagnostic-only",
+      "untrusted": true,
+      "nonAuthoritative": true,
+      "candidateEvidenceOnly": true,
+      "canAuthorizeAcceptance": false,
+      "canCreateGeometry": false,
+      "canModifyEvaluation": false
+    },
+    "promptText": {
+      "value": "Synthetic prompt text describing two rectangles.",
+      "untrusted": true,
+      "nonAuthoritative": true,
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false
+    }
+  },
+  "warnings": {
+    "lossyConversionWarnings": [
+      "normalized coordinates omit original pixel dimensions",
+      "primitive vocabulary is reduced to rectangles",
+      "metric meaning remains unitless",
+      "source media is synthetic and not embedded",
+      "candidate confidence is diagnostic only"
+    ],
+    "evidenceLimitations": [
+      "not a provider payload contract",
+      "not an image recognition result",
+      "not package API truth",
+      "not connector truth",
+      "not Core schema"
+    ],
+    "diagnosticOnly": true
+  },
+  "artifacts": [
+    {
+      "kind": "synthetic-summary",
+      "artifactId": "artifact:synthetic-provider-evidence:summary:v1",
+      "candidateEvidenceOnly": true,
+      "sourceTruth": false,
+      "coreInput": false,
+      "mayAuthorizeAcceptance": false,
+      "mayOverrideAcceptedGeometry": false
+    }
+  ]
+}

@@ -639,6 +639,15 @@ export const realExternalEvidencePilotReadinessGateChangedFiles = Object.freeze(
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const providerEvidenceReplayAdapterChangedFiles = Object.freeze([
+  "src/provider-evidence-replay-adapter.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/provider-evidence-replay/static-provider-evidence-replay-v1.json",
+  "tests/provider-evidence-replay-adapter.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -730,6 +739,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,

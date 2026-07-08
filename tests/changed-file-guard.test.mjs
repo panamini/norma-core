@@ -63,6 +63,7 @@ import {
   postR31RoadmapTruthSyncChangedFiles,
   postR14RoadmapCheckpointChangedFiles,
   publicApiContractFreezeChangedFiles,
+  providerEvidenceReplayAdapterChangedFiles,
   ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
@@ -771,6 +772,90 @@ test("shared exact changed-file guard rejects forbidden extras in the PR113 read
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...realExternalEvidencePilotReadinessGateChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR114 provider evidence replay adapter set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(providerEvidenceReplayAdapterChangedFiles),
+    providerEvidenceReplayAdapterChangedFiles,
+  );
+
+  assert.deepEqual(providerEvidenceReplayAdapterChangedFiles, [
+    "src/provider-evidence-replay-adapter.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/fixtures/provider-evidence-replay/static-provider-evidence-replay-v1.json",
+    "tests/provider-evidence-replay-adapter.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/provider-evidence-replay-adapter.ts",
+    "tests/fixtures/provider-evidence-replay/static-provider-evidence-replay-v1.json",
+    "tests/provider-evidence-replay-adapter.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(providerEvidenceReplayAdapterChangedFiles.filter((file) => file !== missingFile)),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects runtime provider package public and wiki extras in the PR114 set", () => {
+  const forbiddenFiles = [
+    "src/index.ts",
+    "src/structured-composition-analysis.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "bin/norma-cli.mjs",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/examples/openai-vision-pilot.md",
+    "docs/decisions/2026-07-08-provider-sdk-contract.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...providerEvidenceReplayAdapterChangedFiles,
         forbiddenFile,
       ]),
       null,
