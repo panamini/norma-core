@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   isExactChangedFileSet,
+  realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -308,10 +309,13 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const changedFiles = await gitDiffNames();
   const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
+  const isPr113Set = isExactChangedFileSet(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
 
-  assert.equal(isPr111Set || isPr112Set, true, changedFiles.join("\n"));
+  assert.equal(isPr111Set || isPr112Set || isPr113Set, true, changedFiles.join("\n"));
   if (isPr111Set) {
     assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
+  } else if (isPr113Set) {
+    assert.deepEqual(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -328,10 +332,18 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
 
   if (isPr111Set) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
-  } else {
+  } else if (isPr112Set) {
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")),
       ["docs/examples/local-synthetic-evidence-acceptance-demo.md"],
+    );
+  } else {
+    assert.deepEqual(
+      changedFiles.filter((file) => file.startsWith("docs/")).sort(),
+      [
+        "docs/BUSINESS_READINESS_ROADMAP.md",
+        "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+      ],
     );
   }
 });

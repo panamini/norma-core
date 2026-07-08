@@ -630,6 +630,15 @@ export const syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles = 
     .sort(),
 );
 
+export const realExternalEvidencePilotReadinessGateChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/real-external-evidence-pilot-readiness.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -721,6 +730,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,

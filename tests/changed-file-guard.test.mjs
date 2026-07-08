@@ -66,6 +66,7 @@ import {
   ratioPackFamilyCatalogBoundaryChangedFiles,
   ratioPackAuthoringContractChangedFiles,
   ratioPackStrictContractChangedFiles,
+  realExternalEvidencePilotReadinessGateChangedFiles,
   realUsecaseStructuredLayoutDemoChangedFiles,
   realUsecaseStructuredLayoutDemoNonSemgrepMaintenanceChangedFiles,
   realUsecaseLocalDemoCommandChangedFiles,
@@ -685,6 +686,91 @@ test("shared exact changed-file guard rejects forbidden extras in the PR112 synt
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...syntheticEvidenceAcceptanceDemoChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR113 real external evidence pilot readiness gate set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(realExternalEvidencePilotReadinessGateChangedFiles),
+    realExternalEvidencePilotReadinessGateChangedFiles,
+  );
+
+  assert.deepEqual(realExternalEvidencePilotReadinessGateChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/real-external-evidence-pilot-readiness.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
+    "tests/real-external-evidence-pilot-readiness.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        realExternalEvidencePilotReadinessGateChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR113 readiness gate set", () => {
+  const forbiddenFiles = [
+    "src/structured-composition-analysis.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/index.ts",
+    "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+    "bin/norma-cli.mjs",
+    "tests/fixtures/visual-adapter/synthetic-external-evidence-envelope-v1.json",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "tests/fixtures/provider/openai-response.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "docs/examples/openai-vision-pilot.md",
+    "docs/examples/local-synthetic-evidence-acceptance-demo.md",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...realExternalEvidencePilotReadinessGateChangedFiles,
         forbiddenFile,
       ]),
       null,
