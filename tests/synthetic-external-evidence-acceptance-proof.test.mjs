@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
+  branchChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
@@ -398,19 +399,5 @@ async function readFixture() {
 }
 
 async function gitDiffNames() {
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const execFileAsync = promisify(execFile);
-  const { stdout } = await execFileAsync("git", ["diff", "--name-only", "origin/main...HEAD"], {
-    cwd: repoRoot,
-  });
-  const baseNames = stdout.split(/\r?\n/u).filter(Boolean);
-  const workingTree = await execFileAsync("git", ["diff", "--name-only"], { cwd: repoRoot });
-  const untracked = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: repoRoot });
-
-  return [...new Set([
-    ...baseNames,
-    ...workingTree.stdout.split(/\r?\n/u).filter(Boolean),
-    ...untracked.stdout.split(/\r?\n/u).filter(Boolean),
-  ])].sort();
+  return branchChangedFiles(repoRoot);
 }

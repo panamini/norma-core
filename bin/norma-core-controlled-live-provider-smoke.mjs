@@ -1,10 +1,11 @@
 import { realpathSync } from "node:fs";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS,
+  CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES,
   createControlledLiveProviderEvidenceEnvelopeV1,
   createControlledLiveProviderSmokeDefaultStateV1,
   createControlledLiveProviderSmokeGateStateV1,
@@ -40,20 +41,16 @@ async function runControlledLiveProviderSmokeCli({
 
   const env = options.env ?? process.env;
   const timeoutMs = parsedArgs.timeoutMs ?? CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS;
-  const initialGate = createControlledLiveProviderSmokeGateStateV1({
-    liveFlagPresent: true,
-    ciEnvironmentPresent: env.CI === "true",
-    envOptInValue: env.NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT,
-    provider: env.NORMA_LIVE_PROVIDER,
-    modelPresent: typeof env.NORMA_LIVE_PROVIDER_MODEL === "string" && env.NORMA_LIVE_PROVIDER_MODEL.length > 0,
-    apiKeyPresent: typeof env.NORMA_LIVE_PROVIDER_API_KEY === "string" && env.NORMA_LIVE_PROVIDER_API_KEY.length > 0,
-    inputImagePathPresent: typeof parsedArgs.inputImage === "string",
-    inputImagePathIsRemoteOrFileUrl: typeof parsedArgs.inputImage === "string" && isRemoteOrFileUrlInput(parsedArgs.inputImage),
+  const ciEnvironmentPresent = isCiEnvironmentPresent(env);
+  const initialGate = createCliGateState({
+    env,
+    parsedArgs,
+    timeoutMs,
+    ciEnvironmentPresent,
     inputImageExists: typeof parsedArgs.inputImage === "string" ? true : undefined,
     inputImageSizeBytes: 1,
     inputImageMimeType: "image/png",
-    outputDirectoryPresent: typeof parsedArgs.output === "string",
-    timeoutMs,
+    outputDirectoryWritable: true,
   });
 
   if (initialGate.gateStatus !== "ready_for_manual_live_transport") {
@@ -61,47 +58,67 @@ async function runControlledLiveProviderSmokeCli({
     return 1;
   }
 
-  let imageBytes;
+  let imageRead;
   try {
-    imageBytes = await readImageBytes(parsedArgs.inputImage, options);
+    imageRead = await readBoundedImageBytes(parsedArgs.inputImage, options);
   } catch {
-    stdout.write(`${JSON.stringify(createControlledLiveProviderSmokeGateStateV1({
-      liveFlagPresent: true,
-      ciEnvironmentPresent: false,
-      envOptInValue: "1",
-      provider: "openai-responses-vision",
-      modelPresent: true,
-      apiKeyPresent: true,
-      inputImagePathPresent: true,
-      inputImagePathIsRemoteOrFileUrl: false,
+    stdout.write(`${JSON.stringify(createCliGateState({
+      env,
+      parsedArgs,
+      timeoutMs,
+      ciEnvironmentPresent,
       inputImageExists: false,
       inputImageSizeBytes: 1,
       inputImageMimeType: "image/png",
-      outputDirectoryPresent: true,
-      timeoutMs,
     }))}\n`);
     return 1;
   }
 
+  if (!imageRead.ok) {
+    stdout.write(`${JSON.stringify(createCliGateState({
+      env,
+      parsedArgs,
+      timeoutMs,
+      ciEnvironmentPresent,
+      inputImageExists: imageRead.inputImageExists,
+      inputImageSizeBytes: imageRead.inputImageSizeBytes,
+      inputImageMimeType: "image/png",
+    }))}\n`);
+    return 1;
+  }
+
+  const imageBytes = imageRead.bytes;
   const image = detectControlledLiveProviderSmokeImageV1(parsedArgs.inputImage, imageBytes);
-  const imageGate = createControlledLiveProviderSmokeGateStateV1({
-    liveFlagPresent: true,
-    ciEnvironmentPresent: false,
-    envOptInValue: "1",
-    provider: "openai-responses-vision",
-    modelPresent: true,
-    apiKeyPresent: true,
-    inputImagePathPresent: true,
-    inputImagePathIsRemoteOrFileUrl: false,
+  const imageGate = createCliGateState({
+    env,
+    parsedArgs,
+    timeoutMs,
+    ciEnvironmentPresent,
     inputImageExists: true,
     inputImageSizeBytes: imageBytes.byteLength,
     inputImageMimeType: image?.mediaType ?? null,
-    outputDirectoryPresent: true,
-    timeoutMs,
+    outputDirectoryWritable: true,
   });
 
   if (imageGate.gateStatus !== "ready_for_manual_live_transport" || image === null) {
     stdout.write(`${JSON.stringify(imageGate)}\n`);
+    return 1;
+  }
+
+  const outputDir = resolve(parsedArgs.output);
+  try {
+    await prepareOutputDirectory(outputDir, options);
+  } catch {
+    stdout.write(`${JSON.stringify(createCliGateState({
+      env,
+      parsedArgs,
+      timeoutMs,
+      ciEnvironmentPresent,
+      inputImageExists: true,
+      inputImageSizeBytes: imageBytes.byteLength,
+      inputImageMimeType: image.mediaType,
+      outputDirectoryWritable: false,
+    }))}\n`);
     return 1;
   }
 
@@ -110,7 +127,6 @@ async function runControlledLiveProviderSmokeCli({
     imageDataUrl: `data:${image.mediaType};base64,${Buffer.from(imageBytes).toString("base64")}`,
   });
   const transport = options.transport ?? builtInTransport;
-  const outputDir = resolve(parsedArgs.output);
 
   try {
     const providerResponse = await transport({
@@ -208,13 +224,70 @@ function parseArgs(args) {
   return parsed;
 }
 
-async function readImageBytes(inputImage, options) {
+function createCliGateState({
+  env,
+  parsedArgs,
+  timeoutMs,
+  ciEnvironmentPresent,
+  inputImageExists,
+  inputImageSizeBytes,
+  inputImageMimeType,
+  outputDirectoryWritable,
+}) {
+  return createControlledLiveProviderSmokeGateStateV1({
+    liveFlagPresent: true,
+    ciEnvironmentPresent,
+    envOptInValue: env.NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT,
+    provider: env.NORMA_LIVE_PROVIDER,
+    modelPresent: typeof env.NORMA_LIVE_PROVIDER_MODEL === "string" && env.NORMA_LIVE_PROVIDER_MODEL.length > 0,
+    apiKeyPresent: typeof env.NORMA_LIVE_PROVIDER_API_KEY === "string" && env.NORMA_LIVE_PROVIDER_API_KEY.length > 0,
+    inputImagePathPresent: typeof parsedArgs.inputImage === "string",
+    inputImagePathIsRemoteOrFileUrl: typeof parsedArgs.inputImage === "string" && isRemoteOrFileUrlInput(parsedArgs.inputImage),
+    inputImageExists,
+    inputImageSizeBytes,
+    inputImageMimeType,
+    outputDirectoryPresent: typeof parsedArgs.output === "string",
+    outputDirectoryWritable,
+    timeoutMs,
+  });
+}
+
+async function readBoundedImageBytes(inputImage, options) {
   const fileStat = await (options.stat ?? stat)(inputImage);
   if (!fileStat.isFile()) {
-    throw new Error("Input image is not a file.");
+    return {
+      ok: false,
+      inputImageExists: false,
+      inputImageSizeBytes: 1,
+    };
   }
 
-  return new Uint8Array(await (options.readFile ?? readFile)(inputImage));
+  if (
+    typeof fileStat.size !== "number" ||
+    fileStat.size <= 0 ||
+    fileStat.size > CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES
+  ) {
+    return {
+      ok: false,
+      inputImageExists: true,
+      inputImageSizeBytes: typeof fileStat.size === "number" ? fileStat.size : 0,
+    };
+  }
+
+  return {
+    ok: true,
+    bytes: new Uint8Array(await (options.readFile ?? readFile)(inputImage)),
+  };
+}
+
+async function prepareOutputDirectory(outputDir, options) {
+  const write = options.writeFile ?? writeFile;
+  const remove = options.rm ?? rm;
+  const probePath = join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test");
+
+  await (options.mkdir ?? mkdir)(outputDir, { recursive: true });
+  await write(probePath, "", "utf8");
+  await remove(probePath, { force: true });
 }
 
 async function writeSafeArtifacts(outputDir, envelope, summary, options) {
@@ -274,6 +347,27 @@ function errorGate(code) {
     acceptedStructuredGeometryOnlyCoreInput: true,
     redacted: true,
   };
+}
+
+function isCiEnvironmentPresent(env) {
+  return [
+    "CI",
+    "GITHUB_ACTIONS",
+    "GITLAB_CI",
+    "BUILDKITE",
+    "CIRCLECI",
+    "TF_BUILD",
+    "TEAMCITY_VERSION",
+  ].some((name) => isTruthyEnvMarker(env[name]));
+}
+
+function isTruthyEnvMarker(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return normalized !== "" && normalized !== "0" && normalized !== "false" && normalized !== "no" && normalized !== "off";
 }
 
 function isCliEntrypoint() {

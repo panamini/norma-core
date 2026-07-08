@@ -51,14 +51,15 @@ execution must not run in CI.
 Live execution requires all of:
 
 1. `--live`;
-2. no `CI=true`;
+2. no recognized non-empty CI marker such as `CI=1`, `CI=true`,
+   `GITHUB_ACTIONS=true`, or `GITLAB_CI=1`;
 3. `NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT=1`;
 4. `NORMA_LIVE_PROVIDER=openai-responses-vision`;
 5. `NORMA_LIVE_PROVIDER_MODEL`;
 6. `NORMA_LIVE_PROVIDER_API_KEY`;
 7. `--input-image <local path>`;
 8. a supported local image file under the small bounded size limit;
-9. `--output <dir>`;
+9. a writable `--output <dir>`;
 10. a bounded timeout.
 
 Missing or invalid configuration fails closed before any network call.
@@ -75,8 +76,10 @@ CI, it may write only:
 - `summary.json`;
 - `summary.md`.
 
-Raw provider output is ephemeral and not persisted. Redacted provider-neutral
-evidence output is the only allowed persisted result.
+Raw provider output is ephemeral and not persisted. The provider request must
+disable provider-side response storage when the selected API supports that
+control. Redacted provider-neutral evidence output is the only allowed
+persisted result.
 
 The persisted output must not include secrets, API keys, bearer tokens,
 authorization headers, raw request JSON, raw image bytes, base64 image data,

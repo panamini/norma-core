@@ -15,6 +15,7 @@ export type ControlledLiveProviderSmokeGateStatusV1 =
   | "blocked_input_image_too_large"
   | "blocked_unsupported_image_type"
   | "blocked_missing_output_directory"
+  | "blocked_output_directory_unwritable"
   | "blocked_invalid_timeout"
   | "ready_for_manual_live_transport";
 
@@ -33,6 +34,7 @@ export interface ControlledLiveProviderSmokeGateRequestV1 {
   readonly inputImageSizeBytes?: number;
   readonly inputImageMimeType?: string | null;
   readonly outputDirectoryPresent?: boolean;
+  readonly outputDirectoryWritable?: boolean;
   readonly timeoutMs?: number;
 }
 
@@ -216,6 +218,10 @@ export function createControlledLiveProviderSmokeGateStateV1(
     return createGateState("blocked_missing_output_directory");
   }
 
+  if (request.outputDirectoryWritable !== true) {
+    return createGateState("blocked_output_directory_unwritable");
+  }
+
   if (!isValidTimeoutMs(request.timeoutMs)) {
     return createGateState("blocked_invalid_timeout");
   }
@@ -233,7 +239,7 @@ export function detectControlledLiveProviderSmokeImageV1(
   }
 
   return {
-    contentIdentity: `sha256:${createHash("sha256").update(hexStringForHash(bytes)).digest("hex")}`,
+    contentIdentity: `sha256:${createHash("sha256").update(bytes as unknown as string).digest("hex")}`,
     mediaType,
     sizeBytes: bytes.byteLength,
     sourcePathPersisted: false,
@@ -264,6 +270,7 @@ export function createOpenAIResponsesVisionSmokeRequestBodyV1({
       },
     ],
     max_output_tokens: 80,
+    store: false,
   };
 }
 
@@ -457,8 +464,4 @@ function hasAsciiAt(bytes: Uint8Array, offset: number, expected: string): boolea
   }
 
   return [...expected].every((char, index) => bytes[offset + index] === char.charCodeAt(0));
-}
-
-function hexStringForHash(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

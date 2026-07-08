@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,12 +11,15 @@ import test from "node:test";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
+  CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES,
   createControlledLiveProviderSmokeDefaultStateV1,
   createControlledLiveProviderSmokeGateStateV1,
+  createOpenAIResponsesVisionSmokeRequestBodyV1,
   detectControlledLiveProviderSmokeImageV1,
 } from "../dist/src/local-report/controlled-live-provider-smoke.js";
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
+  branchChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -107,6 +111,23 @@ test("PR117 explicit live mode fails closed when opt-in env is missing", async (
   assert.equal(result.transportCalls, 0);
 });
 
+test("PR117 explicit live mode fails closed for CI marker variants before network", async () => {
+  for (const env of [
+    completeEnv({ CI: "1" }),
+    completeEnv({ CI: "true" }),
+    completeEnv({ CI: undefined, GITHUB_ACTIONS: "true" }),
+    completeEnv({ CI: undefined, GITLAB_CI: "1" }),
+  ]) {
+    const result = await runLiveMissingGate({
+      args: ["--live", "--input-image", "unused.png", "--output", "unused"],
+      env,
+    });
+
+    assert.equal(result.parsed.gateStatus, "blocked_ci_live_network_dependency");
+    assert.equal(result.transportCalls, 0);
+  }
+});
+
 test("PR117 explicit live mode fails closed when provider selection is missing", async () => {
   const result = await runLiveMissingGate({ env: completeEnv({ NORMA_LIVE_PROVIDER: undefined }) });
 
@@ -157,8 +178,31 @@ test("PR117 explicit live mode fails closed before network when image file is mi
   assert.equal(result.transportCalls, 0);
 });
 
+test("PR117 explicit live mode fails closed on oversized input before reading bytes", async () => {
+  let readCalls = 0;
+  const result = await runLiveMissingGate({
+    args: ["--live", "--input-image", "large.png", "--output", "unused"],
+    env: completeEnv(),
+    options: {
+      stat: async () => ({
+        isFile: () => true,
+        size: CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES + 1,
+      }),
+      readFile: async () => {
+        readCalls += 1;
+        throw new Error("readFile should not be called for oversized input");
+      },
+    },
+  });
+
+  assert.equal(result.parsed.gateStatus, "blocked_input_image_too_large");
+  assert.equal(result.transportCalls, 0);
+  assert.equal(readCalls, 0);
+});
+
 test("PR117 image validation allows only supported local PNG JPEG and WEBP magic bytes", () => {
-  const png = detectControlledLiveProviderSmokeImageV1("source.png", pngBytes());
+  const bytes = pngBytes();
+  const png = detectControlledLiveProviderSmokeImageV1("source.png", bytes);
   const jpeg = detectControlledLiveProviderSmokeImageV1("source.jpg", Uint8Array.from([0xff, 0xd8, 0xff, 0x00]));
   const webp = detectControlledLiveProviderSmokeImageV1(
     "source.webp",
@@ -166,10 +210,47 @@ test("PR117 image validation allows only supported local PNG JPEG and WEBP magic
   );
 
   assert.equal(png?.mediaType, "image/png");
+  assert.equal(png?.contentIdentity, `sha256:${createHash("sha256").update(bytes).digest("hex")}`);
   assert.equal(jpeg?.mediaType, "image/jpeg");
   assert.equal(webp?.mediaType, "image/webp");
   assert.equal(detectControlledLiveProviderSmokeImageV1("source.gif", asciiBytes("GIF89a")), null);
   assert.equal(detectControlledLiveProviderSmokeImageV1("source.png", asciiBytes("not-png")), null);
+});
+
+test("PR117 OpenAI Responses request disables provider-side response storage", () => {
+  const body = createOpenAIResponsesVisionSmokeRequestBodyV1({
+    model: "gpt-fake",
+    imageDataUrl: "data:image/png;base64,AAAA",
+  });
+
+  assert.equal(body.store, false);
+});
+
+test("PR117 gate helper requires writable output proof before ready state", () => {
+  const request = {
+    liveFlagPresent: true,
+    ciEnvironmentPresent: false,
+    envOptInValue: "1",
+    provider: "openai-responses-vision",
+    modelPresent: true,
+    apiKeyPresent: true,
+    inputImagePathPresent: true,
+    inputImagePathIsRemoteOrFileUrl: false,
+    inputImageExists: true,
+    inputImageSizeBytes: 12,
+    inputImageMimeType: "image/png",
+    outputDirectoryPresent: true,
+    timeoutMs: 30_000,
+  };
+
+  assert.equal(
+    createControlledLiveProviderSmokeGateStateV1(request).gateStatus,
+    "blocked_output_directory_unwritable",
+  );
+  assert.equal(
+    createControlledLiveProviderSmokeGateStateV1({ ...request, outputDirectoryWritable: true }).gateStatus,
+    "ready_for_manual_live_transport",
+  );
 });
 
 test("PR117 fake transport is called only after every live gate is represented", async () => {
@@ -185,6 +266,7 @@ test("PR117 fake transport is called only after every live gate is represented",
         assert.equal(request.url, "https://api.openai.com/v1/responses");
         assert.equal(request.timeoutMs, 30_000);
         assert.equal(request.headers.Authorization, "Bearer FAKE_SECRET_VALUE_DO_NOT_PRINT");
+        assert.equal(JSON.parse(request.body).store, false);
         assert.match(request.body, /"type":"input_image"/u);
         assert.match(request.body, /data:image\/png;base64/u);
         return {
@@ -211,6 +293,26 @@ test("PR117 fake transport is called only after every live gate is represented",
       "summary.md",
     ]);
     await assertSafeArtifacts(outputDir, imagePath);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("PR117 output directory is proven writable before live transport", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputPath = join(tmp, "not-a-directory");
+    await writeFile(imagePath, pngBytes());
+    await writeFile(outputPath, "existing-file", "utf8");
+    const result = await runLiveMissingGate({
+      args: ["--live", "--input-image", imagePath, "--output", outputPath],
+      env: completeEnv(),
+    });
+
+    assert.equal(result.parsed.gateStatus, "blocked_output_directory_unwritable");
+    assert.equal(result.transportCalls, 0);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -301,9 +403,12 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
     "Default command remains safe and does not call network",
     "Live execution requires explicit opt-in and local operator credentials",
     "Live execution must not run in CI",
+    "no recognized non-empty CI marker",
+    "a writable `--output <dir>`",
     "No secrets may be committed",
     "No `.env` files may be committed or mutated",
     "Raw provider output is ephemeral and not persisted",
+    "disable provider-side response storage",
     "Redacted provider-neutral evidence output is the only allowed persisted result",
     "Provider output remains evidence only",
     "Accepted structured geometry remains the only Core input",
@@ -411,9 +516,10 @@ function completeEnv(overrides = {}) {
   };
 }
 
-async function runLiveMissingGate({ args = ["--live"], env }) {
+async function runLiveMissingGate({ args = ["--live"], env, options = {} }) {
   let transportCalls = 0;
   const result = await runCli(args, {
+    ...options,
     env,
     transport: async () => {
       transportCalls += 1;
@@ -456,15 +562,7 @@ async function assertSafeArtifacts(outputDir, imagePath) {
 }
 
 async function gitDiffNames() {
-  const base = await execFileAsync("git", ["diff", "--name-only", "origin/main...HEAD"], { cwd: repoRoot });
-  const workingTree = await execFileAsync("git", ["diff", "--name-only"], { cwd: repoRoot });
-  const untracked = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: repoRoot });
-
-  return [...new Set([
-    ...base.stdout.split(/\r?\n/u).filter(Boolean),
-    ...workingTree.stdout.split(/\r?\n/u).filter(Boolean),
-    ...untracked.stdout.split(/\r?\n/u).filter(Boolean),
-  ])].sort();
+  return branchChangedFiles(repoRoot);
 }
 
 function pngBytes() {
