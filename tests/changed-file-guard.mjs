@@ -613,6 +613,23 @@ export const syntheticExternalEvidenceAcceptanceProofChangedFiles = Object.freez
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const syntheticEvidenceAcceptanceDemoChangedFiles = Object.freeze([
+  "bin/norma-core-synthetic-evidence-acceptance-demo.mjs",
+  "docs/examples/local-synthetic-evidence-acceptance-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  "tests/synthetic-evidence-acceptance-demo.test.mjs",
+].sort());
+
+export const syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles = Object.freeze(
+  syntheticEvidenceAcceptanceDemoChangedFiles
+    .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+    .sort(),
+);
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -704,6 +721,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  syntheticEvidenceAcceptanceDemoNonSemgrepMaintenanceChangedFiles,
+  syntheticEvidenceAcceptanceDemoChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,
   syntheticExternalEvidenceAcceptanceBoundaryChangedFiles,
   openaiVisionStyleEvidencePilotContractChangedFiles,
