@@ -118,10 +118,7 @@ export function createControlledProviderObservationContractV1(
   const artifactProof = resolveArtifactProof(record);
   validateArtifactProof(artifactProof);
 
-  const providerEvidenceEnvelope = optionalPlainRecord(
-    record.providerEvidenceEnvelope,
-    "input.providerEvidenceEnvelope",
-  );
+  const providerEvidenceEnvelope = resolveProviderEvidenceEnvelope(record);
   const image = optionalPlainRecord(providerEvidenceEnvelope?.image, "input.providerEvidenceEnvelope.image");
   const providerCall = optionalPlainRecord(
     providerEvidenceEnvelope?.providerCall,
@@ -184,6 +181,19 @@ function resolveArtifactProof(record: Record<string, unknown>): ControlledLivePr
   }
 
   return createControlledLiveProviderSmokeArtifactProofV1(record);
+}
+
+function resolveProviderEvidenceEnvelope(record: Record<string, unknown>): Record<string, unknown> | null {
+  const providerEvidenceEnvelope = optionalPlainRecord(
+    record.providerEvidenceEnvelope,
+    "input.providerEvidenceEnvelope",
+  );
+
+  if ("artifactProof" in record) {
+    return null;
+  }
+
+  return providerEvidenceEnvelope;
 }
 
 function validateArtifactProof(proof: ControlledLiveProviderSmokeArtifactProofV1): void {

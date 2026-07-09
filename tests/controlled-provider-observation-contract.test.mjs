@@ -129,6 +129,43 @@ test("PR124 existing PR123 proof alone remains provider-evidence-only and cannot
   assert.equal(analyzeStructuredCompositionV1(observation).status, "invalid");
 });
 
+test("PR124 artifactProof wrapper ignores unproved envelope metadata instead of corrupting observation facts", () => {
+  const artifacts = createRedactedSuccessArtifacts();
+  const proof = createControlledLiveProviderSmokeArtifactProofV1(artifacts);
+  const mismatchedEnvelope = structuredClone(artifacts.providerEvidenceEnvelope);
+
+  mismatchedEnvelope.image.contentIdentity =
+    "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  mismatchedEnvelope.image.mediaType = "image/jpeg";
+  mismatchedEnvelope.image.sizeBytes = 900_000;
+  mismatchedEnvelope.providerCall.provider = "openai-responses-vision";
+  mismatchedEnvelope.providerCall.endpointKind = "openai_responses_api";
+  mismatchedEnvelope.providerCall.responseStatusCode = 204;
+
+  const observation = createControlledProviderObservationContractV1({
+    artifactProof: proof,
+    providerEvidenceEnvelope: mismatchedEnvelope,
+    summary: artifacts.summary,
+  });
+
+  assert.equal(
+    observation.observationId,
+    "controlled-provider-observation:v1:provider-evidence-envelope.json+summary.json",
+  );
+  assert.equal(observation.imageContentIdentity, null);
+  assert.equal(observation.mediaTypeClass, "unknown_redacted_media_type");
+  assert.equal(observation.imageSizeClass, "unknown_redacted_size");
+  assert.equal(observation.providerClass, "unknown_redacted_provider");
+  assert.equal(observation.endpointClass, "unknown_redacted_endpoint");
+  assert.equal(observation.responseStatusClass, "unknown_redacted_status");
+  assert.equal(observation.providerEvidenceOnly, true);
+  assert.equal(observation.untrusted, true);
+  assert.equal(observation.acceptedGeometry, false);
+  assert.equal(observation.coreInputProduced, false);
+  assert.equal(observation.structuredAnalyzeRun, false);
+  assert.equal(observation.resultJsonProduced, false);
+});
+
 test("PR124 status diagnostics confidence provider metadata and artifacts cannot authorize acceptance", () => {
   for (const [name, mutate] of [
     ["status gate", (input) => { input.providerStatusAuthorizedAcceptance = true; }],
