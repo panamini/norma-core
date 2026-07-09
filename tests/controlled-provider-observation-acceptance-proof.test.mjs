@@ -218,27 +218,34 @@ test("PR125 rejects mismatched observation and accepted geometry links", () => {
 });
 
 test("PR125 rejects a forged observation id even when all dependent identities are recomputed", () => {
-  const input = createValidProofInput();
-  const forgedObservationId = "controlled-provider-observation:v1:forged";
+  for (const imageContentIdentity of [
+    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    null,
+  ]) {
+    const input = createValidProofInput();
+    const forgedObservationId = "controlled-provider-observation:v1:forged";
 
-  input.providerObservationContract.observationId = forgedObservationId;
-  const forgedObservationContentIdentity =
-    computeControlledProviderObservationContractContentIdentityV1(input.providerObservationContract);
-  input.acceptanceBoundary.providerObservationId = forgedObservationId;
-  input.acceptanceBoundary.providerObservationContentIdentity = forgedObservationContentIdentity;
-  input.acceptedStructuredGeometry.sourceObservationId = forgedObservationId;
-  input.acceptedStructuredGeometry.sourceObservationContentIdentity = forgedObservationContentIdentity;
-  input.acceptedStructuredGeometry.acceptance.sourceObservationId = forgedObservationId;
-  input.acceptedStructuredGeometry.acceptance.sourceObservationContentIdentity = forgedObservationContentIdentity;
-  input.acceptedStructuredGeometry.provenance.inputContentIdentity = forgedObservationContentIdentity;
-  input.acceptedStructuredGeometry.acceptance.provenance.inputContentIdentity =
-    forgedObservationContentIdentity;
-  refreshAcceptedGeometryIdentities(input);
+    input.providerObservationContract.imageContentIdentity = imageContentIdentity;
+    input.providerObservationContract.observationId = forgedObservationId;
+    const forgedObservationContentIdentity =
+      computeControlledProviderObservationContractContentIdentityV1(input.providerObservationContract);
+    input.acceptanceBoundary.providerObservationId = forgedObservationId;
+    input.acceptanceBoundary.providerObservationContentIdentity = forgedObservationContentIdentity;
+    input.acceptedStructuredGeometry.sourceObservationId = forgedObservationId;
+    input.acceptedStructuredGeometry.sourceObservationContentIdentity = forgedObservationContentIdentity;
+    input.acceptedStructuredGeometry.acceptance.sourceObservationId = forgedObservationId;
+    input.acceptedStructuredGeometry.acceptance.sourceObservationContentIdentity = forgedObservationContentIdentity;
+    input.acceptedStructuredGeometry.provenance.inputContentIdentity = forgedObservationContentIdentity;
+    input.acceptedStructuredGeometry.acceptance.provenance.inputContentIdentity =
+      forgedObservationContentIdentity;
+    refreshAcceptedGeometryIdentities(input);
 
-  assert.throws(
-    () => createControlledProviderObservationAcceptanceProofV1(input),
-    /providerObservationContract\.observationId/u,
-  );
+    assert.throws(
+      () => createControlledProviderObservationAcceptanceProofV1(input),
+      /providerObservationContract\.observationId/u,
+      String(imageContentIdentity),
+    );
+  }
 });
 
 test("PR125 rejects provider-authored correction history", () => {
