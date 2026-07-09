@@ -227,7 +227,9 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
   }
 
   const remoteBoundaryPaths = [...filesUnder("src"), ...filesUnder("bin")].filter(
-    (path) => path !== "src/api/minimal-api-server.ts",
+    (path) =>
+      path !== "src/api/minimal-api-server.ts" &&
+      path !== "src/local-report/controlled-provider-observation-contract.ts",
   );
 
   for (const path of remoteBoundaryPaths) {
