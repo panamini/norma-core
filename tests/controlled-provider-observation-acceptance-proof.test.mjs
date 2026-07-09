@@ -217,6 +217,84 @@ test("PR125 rejects mismatched observation and accepted geometry links", () => {
   }
 });
 
+test("PR125 rejects a forged observation id even when all dependent identities are recomputed", () => {
+  const input = createValidProofInput();
+  const forgedObservationId = "controlled-provider-observation:v1:forged";
+
+  input.providerObservationContract.observationId = forgedObservationId;
+  const forgedObservationContentIdentity =
+    computeControlledProviderObservationContractContentIdentityV1(input.providerObservationContract);
+  input.acceptanceBoundary.providerObservationId = forgedObservationId;
+  input.acceptanceBoundary.providerObservationContentIdentity = forgedObservationContentIdentity;
+  input.acceptedStructuredGeometry.sourceObservationId = forgedObservationId;
+  input.acceptedStructuredGeometry.sourceObservationContentIdentity = forgedObservationContentIdentity;
+  input.acceptedStructuredGeometry.acceptance.sourceObservationId = forgedObservationId;
+  input.acceptedStructuredGeometry.acceptance.sourceObservationContentIdentity = forgedObservationContentIdentity;
+  input.acceptedStructuredGeometry.provenance.inputContentIdentity = forgedObservationContentIdentity;
+  input.acceptedStructuredGeometry.acceptance.provenance.inputContentIdentity =
+    forgedObservationContentIdentity;
+  refreshAcceptedGeometryIdentities(input);
+
+  assert.throws(
+    () => createControlledProviderObservationAcceptanceProofV1(input),
+    /providerObservationContract\.observationId/u,
+  );
+});
+
+test("PR125 rejects provider-authored correction history", () => {
+  for (const [name, mutate] of [
+    ["correction actor", (correction) => { correction.actorType = "provider"; }],
+    ["correction provenance actor", (correction) => { correction.provenance.actorType = "provider"; }],
+  ]) {
+    const input = createValidProofInput();
+    const correction = createCorrectionEntry();
+    mutate(correction);
+    input.acceptedStructuredGeometry.correctionHistory.push(correction);
+    refreshAcceptedGeometryIdentities(input);
+
+    assert.throws(
+      () => createControlledProviderObservationAcceptanceProofV1(input),
+      /acceptedStructuredGeometry\.correctionHistory\.0/u,
+      name,
+    );
+  }
+});
+
+test("PR125 validates acceptance provenance against the non-provider acceptance actor and input", () => {
+  const mismatchIdentity = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+  for (const [name, mutate, pattern] of [
+    [
+      "acceptance provenance actor type",
+      (provenance) => { provenance.actorType = "provider"; },
+      /acceptedStructuredGeometry\.acceptance\.provenance\.actorType/u,
+    ],
+    [
+      "acceptance provenance actor id",
+      (provenance) => { provenance.actorId = "stale-actor"; },
+      /acceptedStructuredGeometry\.acceptance\.provenance\.actorId/u,
+    ],
+    [
+      "acceptance provenance input",
+      (provenance) => { provenance.inputContentIdentity = mismatchIdentity; },
+      /acceptedStructuredGeometry\.acceptance\.provenance\.inputContentIdentity/u,
+    ],
+  ]) {
+    const input = createValidProofInput();
+    input.acceptedStructuredGeometry.acceptance.provenance = structuredClone(
+      input.acceptedStructuredGeometry.acceptance.provenance,
+    );
+    mutate(input.acceptedStructuredGeometry.acceptance.provenance);
+    refreshAcceptedGeometryIdentities(input);
+
+    assert.throws(
+      () => createControlledProviderObservationAcceptanceProofV1(input),
+      pattern,
+      name,
+    );
+  }
+});
+
 test("PR125 rejects provider model prompt artifact confidence diagnostic and metadata acceptance actors", () => {
   for (const actorClass of [
     "provider",
@@ -527,6 +605,40 @@ function createAcceptedGeometry(sourceObservationId, sourceObservationContentIde
   accepted.contentIdentity = computeAcceptedGeometryContentIdentity(accepted);
   assert.equal(validateAcceptedGeometryV1(accepted).ok, true);
   return accepted;
+}
+
+function createCorrectionEntry() {
+  return {
+    correctionId: "correction:pr125:provider-authorship-check",
+    sequence: 0,
+    actorType: "deterministic-test",
+    operation: "update",
+    targetPrimitiveId: "point:center",
+    reason: "Exercise correction authorship validation.",
+    beforeContentIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    afterContentIdentity: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    provenance: {
+      provenanceId: "prov:pr125:correction",
+      actorType: "deterministic-test",
+      actorId: "pr125-test",
+      operationId: "controlled-provider-observation.acceptance-boundary",
+      operationVersion: "1",
+      inputContentIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      createdAt: "2026-07-09T00:00:00Z",
+      notes: null,
+    },
+  };
+}
+
+function refreshAcceptedGeometryIdentities(input) {
+  input.acceptedStructuredGeometry.acceptance.acceptedContentIdentity =
+    computeAcceptedGeometryRevisionContentIdentity(input.acceptedStructuredGeometry);
+  input.acceptedStructuredGeometry.contentIdentity =
+    computeAcceptedGeometryContentIdentity(input.acceptedStructuredGeometry);
+  input.acceptanceBoundary.acceptedGeometryContentIdentity =
+    input.acceptedStructuredGeometry.contentIdentity;
+  input.acceptanceBoundary.acceptedGeometryRevisionContentIdentity =
+    input.acceptedStructuredGeometry.acceptance.acceptedContentIdentity;
 }
 
 function createRedactedSuccessArtifacts() {
