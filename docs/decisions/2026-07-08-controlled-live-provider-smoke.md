@@ -169,8 +169,10 @@ Allowed `providerErrorParamClass` values are:
 - `unknown`.
 
 `providerErrorCode` may be persisted only when it is derived from provider error
-`code` or `type`, from an allowlisted Responses API top-level status, or from an
-allowlisted `incomplete_details.reason`. It must be short, sanitized, and
+`code` or `type`, from an allowlisted Responses API top-level status, from a
+classifier-token-safe future Responses API top-level status, or from an
+allowlisted `incomplete_details.reason`. Unsafe or non-token future status text
+must be mapped to `unknown_response_status`. It must be short, sanitized, and
 allowlisted or mapped to one of the low-cardinality safe categories. It must
 never contain raw message text, raw param text, raw response body, raw request
 body, raw output text, image data, local paths, secrets, or account-identifying

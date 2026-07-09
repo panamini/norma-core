@@ -46,7 +46,6 @@ test("PR123 local caller reads temp redacted smoke artifacts and receives only s
     const proof = createControlledLiveProviderSmokeArtifactProofV1({
       providerEvidenceEnvelope: parsedEnvelope,
       summary: parsedSummary,
-      artifactRefs: ["summary.md"],
     });
 
     assert.deepEqual(proof, {
@@ -70,21 +69,27 @@ test("PR123 local caller reads temp redacted smoke artifacts and receives only s
         "provider-evidence-envelope.json",
         "summary.json",
       ],
-      derivedArtifactRefs: [
-        {
-          artifact: "summary.md",
-          role: "derived-redacted-smoke-summary",
-          providerEvidenceOnly: true,
-          sourceTruth: false,
-          coreInputAuthority: false,
-          resultJsonCanonicalTruth: false,
-        },
-      ],
+      derivedArtifactRefs: [],
       nextAllowedStep: "controlled_provider_observation_contract",
     });
   } finally {
     await rm(outputDir, { recursive: true, force: true });
   }
+});
+
+test("PR123 rejects unvalidated derived summary.md artifact refs", () => {
+  const artifacts = createRedactedSuccessArtifacts();
+
+  assert.throws(
+    () => createControlledLiveProviderSmokeArtifactProofV1({
+      ...artifacts,
+      artifactRefs: ["summary.md"],
+    }),
+    /Invalid controlled live provider smoke artifact proof input field "input\.artifactRefs": unknown field/u,
+  );
+
+  const proof = createControlledLiveProviderSmokeArtifactProofV1(artifacts);
+  assert.deepEqual(proof.derivedArtifactRefs, []);
 });
 
 test("PR123 rejects artifacts that try to cross the evidence-to-truth boundary", () => {
@@ -125,8 +130,12 @@ test("PR123 rejects raw provider, request, image, credential, path, prompt, and 
     ["API key", (artifacts) => { artifacts.providerEvidenceEnvelope.apiKey = "sk-fakeUnsafeCredentialValue000"; }],
     ["bearer token", (artifacts) => { artifacts.providerEvidenceEnvelope.authorization = "Bearer fake-token"; }],
     ["lowercase bearer token in allowed summary array", (artifacts) => { artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, "bearer fake-token"]; }],
+    ["basic authorization header in summary", (artifacts) => { artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, "authorization: Basic dGVzdA=="]; }],
+    ["API key env assignment in summary", (artifacts) => { artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, "OPENAI_API_KEY=[REDACTED]"]; }],
     ["credential-like value", (artifacts) => { artifacts.providerEvidenceEnvelope.secret = "fake"; }],
     ["local absolute path", (artifacts) => { artifacts.providerEvidenceEnvelope.localPath = "/Users/pana/private/source.png"; }],
+    ["file URL local path in summary", (artifacts) => { artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, "file:///Users/pana/private/source.png"]; }],
+    ["parenthesized local path in summary", (artifacts) => { artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, "see(/Users/pana/private/source.png)"]; }],
     ["provider request ID", (artifacts) => { artifacts.providerEvidenceEnvelope.providerRequestId = "req_unsafe"; }],
     ["account ID", (artifacts) => { artifacts.providerEvidenceEnvelope.accountId = "acct_unsafe"; }],
     ["hidden prompt", (artifacts) => { artifacts.providerEvidenceEnvelope.hiddenPrompt = "unsafe prompt"; }],
@@ -140,6 +149,39 @@ test("PR123 rejects raw provider, request, image, credential, path, prompt, and 
       name,
     );
   }
+});
+
+test("PR123 rejects extra summary nonGoals even when they look harmless", () => {
+  for (const extraNonGoal of [
+    "provider says image was received",
+    "not a provider checkpoint",
+    "raw provider text omitted",
+  ]) {
+    const artifacts = createRedactedSuccessArtifacts();
+    artifacts.summary.nonGoals = [...artifacts.summary.nonGoals, extraNonGoal];
+
+    assert.throws(
+      () => createControlledLiveProviderSmokeArtifactProofV1(artifacts),
+      /Invalid controlled live provider smoke artifact proof input field "summary\.nonGoals": requires/u,
+      extraNonGoal,
+    );
+  }
+});
+
+test("PR123 accepts exactly the smoke writer summary nonGoals list", () => {
+  const artifacts = createRedactedSuccessArtifacts();
+  const proof = createControlledLiveProviderSmokeArtifactProofV1(artifacts);
+
+  assert.deepEqual(artifacts.summary.nonGoals, [
+    "not production OpenAI integration",
+    "not provider output truth",
+    "not accepted structured geometry",
+    "not Core input",
+    "not result.json production",
+    "not CI live-network behavior",
+    "not package API or export expansion",
+  ]);
+  assert.equal(proof.artifactsRedacted, true);
 });
 
 test("PR123 rejects incomplete and provider-error artifacts", () => {

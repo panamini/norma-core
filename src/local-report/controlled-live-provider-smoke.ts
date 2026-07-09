@@ -265,6 +265,8 @@ const OPENAI_RESPONSES_NON_COMPLETED_STATUSES = new Set([
   "incomplete",
 ]);
 
+const UNKNOWN_OPENAI_RESPONSES_STATUS_CODE = "unknown_response_status";
+
 const REQUIRED_GATES = Object.freeze({
   liveFlag: "--live",
   envOptIn: "NORMA_ENABLE_LIVE_PROVIDER_EXPERIMENT=1",
@@ -831,7 +833,17 @@ function openAiResponsesStatus(providerBody: Record<string, unknown>): string | 
     return status;
   }
 
-  return undefined;
+  return isSafeOpenAiResponsesStatusCode(providerBody.status, status)
+    ? status
+    : UNKNOWN_OPENAI_RESPONSES_STATUS_CODE;
+}
+
+function isSafeOpenAiResponsesStatusCode(rawStatus: string, status: string): boolean {
+  return (
+    status.length > 0 &&
+    status === rawStatus.trim().toLowerCase() &&
+    /^[a-z][a-z0-9_.-]{0,63}$/u.test(status)
+  );
 }
 
 function providerErrorMetadata(providerBody: unknown): {

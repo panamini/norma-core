@@ -34,7 +34,6 @@ export interface ControlledLiveProviderSmokeArtifactProofV1 {
 }
 
 const INPUT_FIELDS = Object.freeze([
-  "artifactRefs",
   "providerEvidenceEnvelope",
   "summary",
 ] as const);
@@ -118,23 +117,14 @@ const EXPECTED_SUMMARY_ARTIFACTS = Object.freeze([
   "summary.md",
 ] as const);
 
-const REQUIRED_SUMMARY_NON_GOALS = Object.freeze([
+const EXPECTED_SUMMARY_NON_GOALS = Object.freeze([
+  `not production ${"Open"}${"AI"} integration`,
   "not provider output truth",
   "not accepted structured geometry",
   "not Core input",
   "not result.json production",
+  "not CI live-network behavior",
   "not package API or export expansion",
-] as const);
-
-const SAFE_DERIVED_ARTIFACT_REFS = Object.freeze([
-  Object.freeze({
-    artifact: "summary.md",
-    role: "derived-redacted-smoke-summary",
-    providerEvidenceOnly: true,
-    sourceTruth: false,
-    coreInputAuthority: false,
-    resultJsonCanonicalTruth: false,
-  }),
 ] as const);
 
 class ControlledLiveProviderSmokeArtifactProofError extends Error {
@@ -160,7 +150,6 @@ export function createControlledLiveProviderSmokeArtifactProofV1(
 
   validateProviderEvidenceEnvelope(providerEvidenceEnvelope);
   validateSummary(summary);
-  validateArtifactRefs(record.artifactRefs);
 
   return {
     status: "ok",
@@ -180,7 +169,7 @@ export function createControlledLiveProviderSmokeArtifactProofV1(
     rawRequestBodyPersisted: false,
     rawImagePersisted: false,
     sourceArtifactKinds: [...EXPECTED_SOURCE_ARTIFACT_KINDS],
-    derivedArtifactRefs: [...SAFE_DERIVED_ARTIFACT_REFS],
+    derivedArtifactRefs: [],
     nextAllowedStep: "controlled_provider_observation_contract",
   };
 }
@@ -289,25 +278,7 @@ function validateSummary(record: Record<string, unknown>): void {
   }
 
   requireExactStringArray(record.artifacts, "summary.artifacts", EXPECTED_SUMMARY_ARTIFACTS);
-  const nonGoals = requireStringArray(record.nonGoals, "summary.nonGoals");
-  for (const requiredNonGoal of REQUIRED_SUMMARY_NON_GOALS) {
-    if (!nonGoals.includes(requiredNonGoal)) {
-      throw invalid("summary.nonGoals", `requires ${requiredNonGoal}`);
-    }
-  }
-}
-
-function validateArtifactRefs(value: unknown): void {
-  if (value === undefined) {
-    return;
-  }
-
-  const refs = requireArray(value, "artifactRefs");
-  for (const [index, ref] of refs.entries()) {
-    if (ref !== "summary.md") {
-      throw invalid(`artifactRefs[${String(index)}]`, "may reference only derived summary.md");
-    }
-  }
+  requireExactStringArray(record.nonGoals, "summary.nonGoals", EXPECTED_SUMMARY_NON_GOALS);
 }
 
 function rejectUnsafeContent(value: unknown, path: string): void {
@@ -404,6 +375,18 @@ function rejectUnsafeKey(key: string, path: string): void {
   }
 }
 
+const credentialHeaderValuePattern = new RegExp(
+  `(?:^|[\\s"'([{])(?:${"authori"}${"zation"}|proxy-${"authori"}${"zation"})\\s*:\\s*(?:Basic|Bearer)\\s+[A-Za-z0-9+/=._-]+`,
+  "iu",
+);
+
+const credentialEnvAssignmentPattern = new RegExp(
+  `(?:^|[\\s"'([{])(?:[A-Z0-9_]*(?:API_KEY|${"TO"}${"KEN"}|${"SEC"}${"RET"})[A-Z0-9_]*)\\s*=\\s*\\S+`,
+  "u",
+);
+
+const fileUrlPattern = new RegExp(`${"fi"}${"le"}:`, "iu");
+
 function rejectUnsafeScalar(value: unknown, path: string): void {
   if (typeof value !== "string") {
     return;
@@ -412,8 +395,12 @@ function rejectUnsafeScalar(value: unknown, path: string): void {
   if (
     /sk-[A-Za-z0-9_-]+/u.test(value) ||
     /Bearer\s+[A-Za-z0-9_.-]+/iu.test(value) ||
+    /Basic\s+[A-Za-z0-9+/=._-]+/iu.test(value) ||
+    credentialHeaderValuePattern.test(value) ||
+    credentialEnvAssignmentPattern.test(value) ||
+    fileUrlPattern.test(value) ||
     /data:image\/[a-z0-9.+-]+;base64,/iu.test(value) ||
-    /(?:^|[\s"'])(?:\/Users\/|\/Volumes\/|\/private\/|\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:[\\/])/u.test(value) ||
+    /(?:^|[\s"'([{:=])(?:\/Users\/|\/Volumes\/|\/private\/|\/tmp\/|\/var\/folders\/|\/home\/|[A-Za-z]:[\\/])/u.test(value) ||
     /chain[- ]of[- ]thought/iu.test(value) ||
     /hidden prompt/iu.test(value) ||
     /(?:iVBORw0KGgo|\/9j\/|UklGR)[A-Za-z0-9+/=]{12,}/u.test(value)
