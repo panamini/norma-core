@@ -9,6 +9,7 @@ import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/lo
 import {
   branchChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
@@ -319,9 +320,17 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr115Set = isExactChangedFileSet(changedFiles, controlledLiveProviderExperimentGateChangedFiles);
   const isPr116Set = isExactChangedFileSet(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
   const isPr117Set = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeChangedFiles);
+  const isPr118Set = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
 
   assert.equal(
-    isPr111Set || isPr112Set || isPr113Set || isPr114Set || isPr115Set || isPr116Set || isPr117Set,
+    isPr111Set ||
+      isPr112Set ||
+      isPr113Set ||
+      isPr114Set ||
+      isPr115Set ||
+      isPr116Set ||
+      isPr117Set ||
+      isPr118Set,
     true,
     changedFiles.join("\n"),
   );
@@ -337,6 +346,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
   } else if (isPr117Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeChangedFiles);
+  } else if (isPr118Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -368,7 +379,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else if (isPr116Set || isPr117Set) {
+  } else if (isPr116Set || isPr117Set || isPr118Set) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",

@@ -145,9 +145,11 @@ async function runControlledLiveProviderSmokeCli({
       body: JSON.stringify(requestBody),
     });
   } catch {
+    const providerDiagnostic = helpers.createControlledLiveProviderSmokeNetworkDiagnosticV1();
     stdout.write(`${JSON.stringify({
       status: "transport_error",
       liveProviderExecution: true,
+      ...providerDiagnostic,
       providerEvidenceOnly: true,
       requiresExplicitAcceptance: true,
       providerOutputIsCoreTruth: false,
@@ -163,24 +165,37 @@ async function runControlledLiveProviderSmokeCli({
   const providerOutputObserved = typeof providerResponse.providerOutputObserved === "boolean"
     ? providerResponse.providerOutputObserved
     : providerResponse.body !== null;
+  const providerDiagnostic = providerResponse.ok
+    ? undefined
+    : helpers.createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
+      responseStatusCode: providerResponse.statusCode,
+      providerOutputObserved,
+      providerBody: providerResponse.body,
+    });
   const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
     image,
     responseStatusCode: providerResponse.statusCode,
     responseOk: providerResponse.ok,
     providerOutputObserved,
     timeoutMs,
+    providerDiagnostic,
   });
   const summary = helpers.createControlledLiveProviderSmokeSummaryV1(envelope);
 
   try {
     await writeSafeArtifacts(outputDir, envelope, summary, options, helpers);
   } catch {
+    const artifactDiagnostic = helpers.createControlledLiveProviderSmokeArtifactWriteDiagnosticV1({
+      responseStatusCode: providerResponse.statusCode,
+      providerOutputObserved,
+    });
     stdout.write(`${JSON.stringify({
       status: "artifact_write_error",
       liveProviderExecution: true,
       providerResponseStatusCode: providerResponse.statusCode,
       providerResponseClass: providerResponse.ok ? "success" : "provider_error",
       providerOutputObserved,
+      ...artifactDiagnostic,
       providerEvidenceOnly: true,
       requiresExplicitAcceptance: true,
       providerOutputIsCoreTruth: false,
@@ -201,6 +216,7 @@ async function runControlledLiveProviderSmokeCli({
   stdout.write(`${JSON.stringify({
     status: providerResponse.ok ? "ok" : "provider_error",
     liveProviderExecution: true,
+    ...(providerDiagnostic ?? {}),
     providerEvidenceOnly: true,
     requiresExplicitAcceptance: true,
     providerOutputIsCoreTruth: false,

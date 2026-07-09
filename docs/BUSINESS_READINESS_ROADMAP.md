@@ -1024,6 +1024,35 @@ behavior. No CI live-network behavior is approved. Provider evidence remains
 non-truth. It does not add product readiness, package/API support, ChatGPT/MCP
 support, hosted support, or provider output as Core truth.
 
+PR118 adds redacted controlled live smoke diagnostics after the blocked live
+smoke reached the provider and returned a provider error:
+
+```text
+PR118: add redacted controlled live smoke diagnostics
+```
+
+PR118 keeps the smoke manual-only, disabled by default, and CI-network-free. It
+adds only low-cardinality redacted diagnostics for provider HTTP failures,
+network failures, and artifact-write failures. It does not persist raw provider
+output, raw request bodies, raw response bodies, raw provider messages, raw
+params, image data, base64, local paths, secrets, or provider fixtures. It does
+not add provider SDKs, dependencies, package metadata, package exports,
+MCP/ChatGPT runtime, hosted support, Core schema/runtime widening, accepted
+geometry, `result.json` production, provider truth, automatic acceptance,
+confidence-threshold acceptance, scoring, correction, recommendation,
+optimization, or family selection.
+
+If a later controlled live smoke returns `status: "ok"`, the next evidence
+checkpoint may be:
+
+```text
+PR119: record controlled live provider smoke evidence checkpoint
+```
+
+If the live smoke still returns `provider_error`, the next PR must be a focused
+diagnostic follow-up based on the redacted diagnostic class, not an evidence
+checkpoint.
+
 ## Definitions of Ready
 
 ### Local module ready

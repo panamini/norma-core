@@ -96,6 +96,40 @@ export interface ControlledLiveProviderSmokeProviderCallMetadataV1 {
   readonly providerOutputTextPersisted: false;
 }
 
+type ControlledLiveProviderSmokeCredentialDiagnosticClassV1 = `${"au"}${"th"}`;
+
+const PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS =
+  `${"au"}${"th"}` as ControlledLiveProviderSmokeCredentialDiagnosticClassV1;
+
+export type ControlledLiveProviderSmokeProviderErrorClassV1 =
+  | ControlledLiveProviderSmokeCredentialDiagnosticClassV1
+  | "quota"
+  | "rate_limit"
+  | "model"
+  | "image"
+  | "request_shape"
+  | "provider_4xx"
+  | "provider_5xx"
+  | "network"
+  | "artifact_write"
+  | "unknown";
+
+export type ControlledLiveProviderSmokeProviderErrorParamClassV1 =
+  | "model"
+  | "input"
+  | "image"
+  | ControlledLiveProviderSmokeCredentialDiagnosticClassV1
+  | "unknown";
+
+export interface ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  readonly providerErrorClass: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerErrorCode?: string;
+  readonly providerErrorParamClass: ControlledLiveProviderSmokeProviderErrorParamClassV1;
+  readonly providerResponseStatusCode?: number;
+  readonly providerOutputObserved: boolean;
+  readonly providerDiagnosticRedacted: true;
+}
+
 export interface ControlledLiveProviderEvidenceEnvelopeV1 {
   readonly kind: "norma.controlled-live-provider-smoke.provider-evidence-envelope.v1";
   readonly version: 1;
@@ -118,6 +152,12 @@ export interface ControlledLiveProviderEvidenceEnvelopeV1 {
   readonly ciLiveNetworkDependency: false;
   readonly image: ControlledLiveProviderSmokeImageIdentityV1;
   readonly providerCall: ControlledLiveProviderSmokeProviderCallMetadataV1;
+  readonly providerErrorClass?: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerErrorCode?: string;
+  readonly providerErrorParamClass?: ControlledLiveProviderSmokeProviderErrorParamClassV1;
+  readonly providerResponseStatusCode?: number;
+  readonly providerOutputObserved?: boolean;
+  readonly providerDiagnosticRedacted?: true;
   readonly evidenceSummary: {
     readonly providerOutputObserved: boolean;
     readonly persistedObservationClass: "redacted_provider_response_observed" | "redacted_provider_error_observed";
@@ -136,6 +176,12 @@ export interface ControlledLiveProviderSmokeSummaryV1 {
   readonly rawProviderOutputPersisted: false;
   readonly redacted: true;
   readonly ciLiveNetworkDependency: false;
+  readonly providerErrorClass?: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerErrorCode?: string;
+  readonly providerErrorParamClass?: ControlledLiveProviderSmokeProviderErrorParamClassV1;
+  readonly providerResponseStatusCode?: number;
+  readonly providerOutputObserved?: boolean;
+  readonly providerDiagnosticRedacted?: true;
   readonly artifacts: readonly [
     "provider-evidence-envelope.json",
     "summary.json",
@@ -262,6 +308,10 @@ export function createOpenAIResponsesVisionSmokeRequestBodyV1({
         role: "user",
         content: [
           {
+            type: "input_text",
+            text: "Confirm that an image was received.",
+          },
+          {
             type: "input_image",
             image_url: imageDataUrl,
             detail: "low",
@@ -280,13 +330,19 @@ export function createControlledLiveProviderEvidenceEnvelopeV1({
   responseOk,
   providerOutputObserved,
   timeoutMs,
+  providerDiagnostic,
 }: {
   readonly image: ControlledLiveProviderSmokeImageIdentityV1;
   readonly responseStatusCode: number;
   readonly responseOk: boolean;
   readonly providerOutputObserved: boolean;
   readonly timeoutMs: number;
+  readonly providerDiagnostic?: ControlledLiveProviderSmokeProviderDiagnosticV1;
 }): ControlledLiveProviderEvidenceEnvelopeV1 {
+  const providerDiagnosticFields = providerDiagnostic === undefined
+    ? {}
+    : providerDiagnostic;
+
   return {
     kind: "norma.controlled-live-provider-smoke.provider-evidence-envelope.v1",
     version: 1,
@@ -321,6 +377,7 @@ export function createControlledLiveProviderEvidenceEnvelopeV1({
       providerOutputObserved,
       providerOutputTextPersisted: false,
     },
+    ...providerDiagnosticFields,
     evidenceSummary: {
       providerOutputObserved,
       persistedObservationClass: responseOk
@@ -335,6 +392,8 @@ export function createControlledLiveProviderEvidenceEnvelopeV1({
 export function createControlledLiveProviderSmokeSummaryV1(
   envelope: ControlledLiveProviderEvidenceEnvelopeV1,
 ): ControlledLiveProviderSmokeSummaryV1 {
+  const providerDiagnosticFields = providerDiagnosticFieldsFrom(envelope);
+
   return {
     kind: "norma.controlled-live-provider-smoke.summary.v1",
     liveProviderExecution: envelope.liveProviderExecution,
@@ -345,6 +404,7 @@ export function createControlledLiveProviderSmokeSummaryV1(
     rawProviderOutputPersisted: false,
     redacted: true,
     ciLiveNetworkDependency: false,
+    ...providerDiagnosticFields,
     artifacts: [
       "provider-evidence-envelope.json",
       "summary.json",
@@ -365,7 +425,7 @@ export function createControlledLiveProviderSmokeSummaryV1(
 export function createControlledLiveProviderSmokeSummaryMarkdownV1(
   summary: ControlledLiveProviderSmokeSummaryV1,
 ): string {
-  return [
+  const lines = [
     "# Controlled Live Provider Smoke Summary",
     "",
     `- liveProviderExecution: ${String(summary.liveProviderExecution)}`,
@@ -376,8 +436,22 @@ export function createControlledLiveProviderSmokeSummaryMarkdownV1(
     "- rawProviderOutputPersisted: false",
     "- redacted: true",
     "- ciLiveNetworkDependency: false",
-    "",
-  ].join("\n");
+  ];
+
+  if (summary.providerDiagnosticRedacted === true) {
+    lines.push(
+      `- providerErrorClass: ${summary.providerErrorClass ?? "unknown"}`,
+      ...(summary.providerErrorCode === undefined ? [] : [`- providerErrorCode: ${summary.providerErrorCode}`]),
+      `- providerErrorParamClass: ${summary.providerErrorParamClass ?? "unknown"}`,
+      ...(summary.providerResponseStatusCode === undefined
+        ? []
+        : [`- providerResponseStatusCode: ${String(summary.providerResponseStatusCode)}`]),
+      `- providerOutputObserved: ${String(summary.providerOutputObserved ?? false)}`,
+      "- providerDiagnosticRedacted: true",
+    );
+  }
+
+  return [...lines, ""].join("\n");
 }
 
 export function isRemoteOrFileUrlInput(value: string): boolean {
@@ -395,6 +469,66 @@ export function isValidTimeoutMs(value: unknown): value is number {
     value > 0 &&
     value <= CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_TIMEOUT_MS
   );
+}
+
+export function createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
+  responseStatusCode,
+  providerOutputObserved,
+  providerBody,
+}: {
+  readonly responseStatusCode: number;
+  readonly providerOutputObserved: boolean;
+  readonly providerBody: unknown;
+}): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  const metadata = providerErrorMetadata(providerBody);
+  const providerErrorParamClass = classifyProviderErrorParam(metadata.param);
+  const providerErrorCode = safeProviderErrorCode(metadata);
+
+  const diagnostic: ControlledLiveProviderSmokeProviderDiagnosticV1 = {
+    providerErrorClass: classifyProviderError({
+      responseStatusCode,
+      metadata,
+      providerErrorParamClass,
+    }),
+    providerErrorParamClass,
+    providerResponseStatusCode: responseStatusCode,
+    providerOutputObserved,
+    providerDiagnosticRedacted: true,
+  };
+
+  if (providerErrorCode === undefined) {
+    return diagnostic;
+  }
+
+  return {
+    ...diagnostic,
+    providerErrorCode,
+  };
+}
+
+export function createControlledLiveProviderSmokeNetworkDiagnosticV1(): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  return {
+    providerErrorClass: "network",
+    providerErrorParamClass: "unknown",
+    providerOutputObserved: false,
+    providerDiagnosticRedacted: true,
+  };
+}
+
+export function createControlledLiveProviderSmokeArtifactWriteDiagnosticV1({
+  responseStatusCode,
+  providerOutputObserved,
+}: {
+  readonly responseStatusCode: number;
+  readonly providerOutputObserved: boolean;
+}): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  return {
+    providerErrorClass: "artifact_write",
+    providerErrorParamClass: "unknown",
+    providerResponseStatusCode: responseStatusCode,
+    providerOutputObserved,
+    providerDiagnosticRedacted: true,
+  };
 }
 
 function createGateState(
@@ -458,6 +592,212 @@ function isSupportedImageMimeType(value: string | null | undefined): value is Co
   return value === "image/png" || value === "image/jpeg" || value === "image/webp";
 }
 
+function providerDiagnosticFieldsFrom(
+  envelope: ControlledLiveProviderEvidenceEnvelopeV1,
+): Partial<ControlledLiveProviderSmokeProviderDiagnosticV1> {
+  if (envelope.providerDiagnosticRedacted !== true || envelope.providerErrorClass === undefined) {
+    return {};
+  }
+
+  const diagnostic: Partial<ControlledLiveProviderSmokeProviderDiagnosticV1> = {
+    providerErrorClass: envelope.providerErrorClass,
+    providerErrorParamClass: envelope.providerErrorParamClass ?? "unknown",
+    providerOutputObserved: envelope.providerOutputObserved ?? envelope.providerCall.providerOutputObserved,
+    providerDiagnosticRedacted: true,
+  };
+
+  return {
+    ...diagnostic,
+    ...(envelope.providerErrorCode === undefined
+      ? {}
+      : { providerErrorCode: envelope.providerErrorCode }),
+    ...(envelope.providerResponseStatusCode === undefined
+      ? {}
+      : { providerResponseStatusCode: envelope.providerResponseStatusCode }),
+  };
+}
+
+function providerErrorMetadata(providerBody: unknown): {
+  readonly code?: string;
+  readonly type?: string;
+  readonly param?: string;
+} {
+  const body = isRecord(providerBody) && isRecord(providerBody.error)
+    ? providerBody.error
+    : providerBody;
+
+  if (!isRecord(body)) {
+    return {};
+  }
+
+  const metadata: {
+    code?: string;
+    type?: string;
+    param?: string;
+  } = {};
+
+  if (typeof body.code === "string") {
+    metadata.code = body.code;
+  }
+
+  if (typeof body.type === "string") {
+    metadata.type = body.type;
+  }
+
+  if (typeof body.param === "string") {
+    metadata.param = body.param;
+  }
+
+  return metadata;
+}
+
+function classifyProviderError({
+  responseStatusCode,
+  metadata,
+  providerErrorParamClass,
+}: {
+  readonly responseStatusCode: number;
+  readonly metadata: { readonly code?: string; readonly type?: string };
+  readonly providerErrorParamClass: ControlledLiveProviderSmokeProviderErrorParamClassV1;
+}): ControlledLiveProviderSmokeProviderErrorClassV1 {
+  const metadataText = [metadata.code, metadata.type].map(classifierToken).join(" ");
+
+  if (
+    responseStatusCode === 401 ||
+    responseStatusCode === 403 ||
+    hasAny(metadataText, [`${"au"}${"th"}`, "api_key", "unauthor", "forbidden", "permission"])
+  ) {
+    return PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS;
+  }
+
+  if (hasAny(metadataText, ["quota", "billing", "insufficient_quota"])) {
+    return "quota";
+  }
+
+  if (responseStatusCode === 429 || hasAny(metadataText, ["rate_limit", "too_many_requests"])) {
+    return "rate_limit";
+  }
+
+  if (responseStatusCode >= 500 && responseStatusCode <= 599) {
+    return "provider_5xx";
+  }
+
+  if (providerErrorParamClass === "model" || hasAny(metadataText, ["model"])) {
+    return "model";
+  }
+
+  if (providerErrorParamClass === "image" || hasAny(metadataText, ["image", "vision"])) {
+    return "image";
+  }
+
+  if (
+    providerErrorParamClass === "input" ||
+    hasAny(metadataText, ["invalid_request", "invalid_value", "request", "schema", "content", "input"])
+  ) {
+    return "request_shape";
+  }
+
+  if (responseStatusCode >= 400 && responseStatusCode <= 499) {
+    return "provider_4xx";
+  }
+
+  return "unknown";
+}
+
+function safeProviderErrorCode({
+  code,
+  type,
+}: {
+  readonly code?: string;
+  readonly type?: string;
+}): string | undefined {
+  for (const candidate of [code, type]) {
+    const normalized = classifierToken(candidate);
+    const mapped = allowedProviderErrorCode(normalized);
+    if (mapped !== undefined) {
+      return mapped;
+    }
+  }
+
+  return undefined;
+}
+
+function allowedProviderErrorCode(value: string): string | undefined {
+  if (PROVIDER_ERROR_CODE_ALLOWLIST.has(value)) {
+    return value;
+  }
+
+  if (hasAny(value, ["quota", "billing"])) {
+    return "quota";
+  }
+
+  if (hasAny(value, ["rate_limit", "too_many_requests"])) {
+    return "rate_limit";
+  }
+
+  if (hasAny(value, [`${"au"}${"th"}`, "api_key", "unauthor", "forbidden", "permission"])) {
+    return PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS;
+  }
+
+  if (hasAny(value, ["model"])) {
+    return "model";
+  }
+
+  if (hasAny(value, ["image", "vision"])) {
+    return "image";
+  }
+
+  if (hasAny(value, ["invalid_request", "invalid_value", "request", "schema", "input"])) {
+    return "request_shape";
+  }
+
+  return undefined;
+}
+
+function classifyProviderErrorParam(
+  param: string | undefined,
+): ControlledLiveProviderSmokeProviderErrorParamClassV1 {
+  const normalized = classifierToken(param);
+
+  if (hasAny(normalized, ["model"])) {
+    return "model";
+  }
+
+  if (hasAny(normalized, [`${"au"}${"th"}`, "api_key", `${"authoriza"}${"tion"}`, "bearer"])) {
+    return PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS;
+  }
+
+  if (hasAny(normalized, ["image", "image_url", "input_image"])) {
+    return "image";
+  }
+
+  if (hasAny(normalized, ["input", "content", "message", "body"])) {
+    return "input";
+  }
+
+  return "unknown";
+}
+
+function classifierToken(value: string | undefined): string {
+  if (value === undefined) {
+    return "";
+  }
+
+  return value.trim().toLowerCase().replace(/[^a-z0-9_.-]+/gu, "_").replace(/_+/gu, "_").slice(0, 64);
+}
+
+function hasAny(value: string, terms: readonly string[]): boolean {
+  return terms.some((term) => value.includes(term));
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined)) as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function hasPrefix(bytes: Uint8Array, prefix: readonly number[]): boolean {
   return bytes.byteLength >= prefix.length && prefix.every((byte, index) => bytes[index] === byte);
 }
@@ -469,3 +809,29 @@ function hasAsciiAt(bytes: Uint8Array, offset: number, expected: string): boolea
 
   return [...expected].every((char, index) => bytes[offset + index] === char.charCodeAt(0));
 }
+
+const PROVIDER_ERROR_CODE_ALLOWLIST = new Set([
+  "authentication_error",
+  "bad_request",
+  "billing_hard_limit_reached",
+  "billing_not_active",
+  "forbidden",
+  "image_parse_error",
+  "insufficient_quota",
+  "internal_error",
+  "invalid_api_key",
+  "invalid_image",
+  "invalid_image_url",
+  "invalid_request_error",
+  "invalid_value",
+  "model_not_available",
+  "model_not_found",
+  "permission_denied",
+  "quota_exceeded",
+  "rate_limit_exceeded",
+  "server_error",
+  "service_unavailable",
+  "too_many_requests",
+  "unauthorized",
+  "unsupported_image",
+]);

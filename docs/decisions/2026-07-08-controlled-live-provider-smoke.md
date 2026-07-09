@@ -21,6 +21,21 @@ The checked image-input requirements list PNG, JPEG, WEBP, and non-animated GIF
 as supported file types. PR117 uses only local operator-provided PNG, JPEG, or
 WEBP files with extension plus magic-byte checks.
 
+PR118 rechecked the same official OpenAI documentation on 2026-07-09, plus the
+official OpenAPI `/responses` schema surfaced by the OpenAI developer docs
+connector. The current request body already matched the required `input_image`
+and `image_url` shape and preserved `store: false`. The checked image examples
+pair image input with text input, so PR118 adds only the minimal static text
+input:
+
+```text
+Confirm that an image was received.
+```
+
+The request still must not ask for geometry extraction, ratio detection,
+acceptance, scoring, recommendations, correction, optimization, family
+selection, source truth, or Core truth.
+
 ## Command Boundary
 
 The default command remains safe and does not call network:
@@ -109,6 +124,63 @@ Output metadata must state:
 
 Failures are structured and redacted.
 
+## PR118 Redacted Diagnostic Boundary
+
+PR118 adds a redacted low-cardinality diagnostic boundary for controlled live
+provider smoke failures. It does not persist raw provider output, raw request
+bodies, raw response bodies, raw messages, raw params, image bytes, base64 image
+data, local paths, request IDs, authorization headers, bearer tokens, API keys,
+or provider payload fixtures.
+
+Allowed diagnostic fields are only:
+
+- `providerErrorClass`;
+- `providerErrorCode`;
+- `providerErrorParamClass`;
+- `providerResponseStatusCode`;
+- `providerOutputObserved`;
+- `providerDiagnosticRedacted: true`.
+
+Allowed `providerErrorClass` values are:
+
+- `auth`;
+- `quota`;
+- `rate_limit`;
+- `model`;
+- `image`;
+- `request_shape`;
+- `provider_4xx`;
+- `provider_5xx`;
+- `network`;
+- `artifact_write`;
+- `unknown`.
+
+Allowed `providerErrorParamClass` values are:
+
+- `model`;
+- `input`;
+- `image`;
+- `auth`;
+- `unknown`.
+
+`providerErrorCode` may be persisted only when it is derived from provider error
+`code` or `type`, short, sanitized, allowlisted or mapped to one of the
+low-cardinality safe categories. It must never contain raw message text, raw
+param text, raw response body, raw request body, raw output text, image data,
+local paths, secrets, or account-identifying request IDs.
+
+Diagnostics are included only in redacted operator-facing output and redacted
+artifacts for:
+
+- provider HTTP/provider errors;
+- network/transport failures;
+- artifact write failures after provider completion.
+
+If provider completion succeeds but artifact writing fails, the failure is
+classified as `artifact_write` while preserving the redacted provider completion
+status. Provider completion status must not be hidden, and artifact failures
+must not be misclassified as provider transport failures.
+
 ## Core Truth Rule
 
 Provider output remains evidence only.
@@ -131,6 +203,12 @@ cannot authorize acceptance.
 PR117 does not implement production OpenAI integration.
 
 PR117 does not approve provider output as truth.
+
+PR118 does not approve a provider evidence checkpoint while the live smoke still
+returns `provider_error`. If a later live smoke returns `status: "ok"`, the next
+PR may be `PR119: record controlled live provider smoke evidence checkpoint`.
+If the live smoke still returns `provider_error`, the next PR must be a focused
+follow-up based on the redacted diagnostic class, not an evidence checkpoint.
 
 PR117 does not approve:
 
@@ -184,6 +262,13 @@ PR117 is acceptable only when tests prove:
 - raw provider responses and raw images are not persisted;
 - non-JSON provider responses are recorded as observed output without storing
   raw text;
+- provider HTTP, network, and artifact-write failures expose only the redacted
+  low-cardinality PR118 diagnostic fields;
+- raw provider error messages, raw params, raw bodies, raw request bodies, and
+  image data are not printed or persisted;
+- request body text remains limited to confirming image receipt and does not ask
+  for geometry, ratios, acceptance, source truth, scoring, recommendations,
+  correction, optimization, family selection, or Core truth;
 - artifact write failures after a completed provider call are distinct from
   transport failures;
 - provider-neutral evidence cannot produce accepted structured geometry;
