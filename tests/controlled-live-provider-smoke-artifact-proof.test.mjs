@@ -61,7 +61,7 @@ test("PR123 local caller reads temp redacted smoke artifacts and receives only s
       resultJsonProduced: false,
       resultJsonCanonicalTruth: false,
       acceptedStructuredGeometryOnlyCoreInput: true,
-      artifactsRedacted: true,
+      sourceArtifactsRedacted: true,
       rawProviderOutputPersisted: false,
       rawRequestBodyPersisted: false,
       rawImagePersisted: false,
@@ -181,7 +181,7 @@ test("PR123 accepts exactly the smoke writer summary nonGoals list", () => {
     "not CI live-network behavior",
     "not package API or export expansion",
   ]);
-  assert.equal(proof.artifactsRedacted, true);
+    assert.equal(proof.sourceArtifactsRedacted, true);
 });
 
 test("PR123 rejects incomplete and provider-error artifacts", () => {

@@ -1051,6 +1051,79 @@ test("HTTP-success unknown string Responses statuses fail closed with safe redac
   }
 });
 
+test("HTTP-success Responses bodies without string status fail closed with safe redacted status", async () => {
+  for (const { name, body, rawValues } of [
+    {
+      name: "non-json-body",
+      body: null,
+      rawValues: ["RAW_NON_JSON_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+    {
+      name: "missing-status",
+      body: {
+        output_text: "RAW_MISSING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST",
+      },
+      rawValues: ["RAW_MISSING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+    {
+      name: "non-string-status",
+      body: {
+        status: 42,
+        output_text: "RAW_NON_STRING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST",
+      },
+      rawValues: ["RAW_NON_STRING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+  ]) {
+    const tmp = await mkdtemp(join(tmpdir(), "norma-core-missing-response-status-"));
+
+    try {
+      const imagePath = join(tmp, "source.png");
+      const outputDir = join(tmp, "out");
+
+      await writeFile(imagePath, pngBytes());
+      const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+        env: completeEnv(),
+        transport: async () => ({
+          ok: true,
+          statusCode: 200,
+          body,
+          providerOutputObserved: true,
+        }),
+      });
+      const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+      const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+      const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+      const parsed = JSON.parse(result.stdout);
+      const envelope = JSON.parse(envelopeText);
+      const summary = JSON.parse(summaryText);
+      const expected = {
+        providerErrorClass: "provider_response_status",
+        providerDiagnosticNextAction: "inspect_redacted_diagnostic_context",
+        providerErrorCode: "unknown_response_status",
+        providerErrorParamClass: "unknown",
+        providerResponseStatusCode: 200,
+        providerOutputObserved: true,
+      };
+      const allText = `${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`;
+
+      assert.equal(result.exitCode, 2, name);
+      assert.equal(parsed.status, "provider_error");
+      assert.equal(envelope.providerCall.responseClass, "provider_error");
+      assert.equal(envelope.evidenceSummary.persistedObservationClass, "redacted_provider_error_observed");
+      for (const value of [parsed, envelope, summary]) {
+        assertRedactedDiagnostic(value, expected);
+      }
+      assert.match(summaryMd, /providerErrorClass: provider_response_status/u);
+      assert.match(summaryMd, /providerDiagnosticNextAction: inspect_redacted_diagnostic_context/u);
+      assert.match(summaryMd, /providerErrorCode: unknown_response_status/u);
+      await assertSafeArtifacts(outputDir, imagePath);
+      assertNoRawProviderDiagnosticLeak(allText, rawValues);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  }
+});
+
 test("HTTP-success content-filter incomplete Responses use content-filter diagnostics", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-content-filter-"));
 

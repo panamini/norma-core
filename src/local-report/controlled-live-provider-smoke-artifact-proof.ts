@@ -24,7 +24,7 @@ export interface ControlledLiveProviderSmokeArtifactProofV1 {
   readonly resultJsonProduced: false;
   readonly resultJsonCanonicalTruth: false;
   readonly acceptedStructuredGeometryOnlyCoreInput: true;
-  readonly artifactsRedacted: true;
+  readonly sourceArtifactsRedacted: true;
   readonly rawProviderOutputPersisted: false;
   readonly rawRequestBodyPersisted: false;
   readonly rawImagePersisted: false;
@@ -164,7 +164,7 @@ export function createControlledLiveProviderSmokeArtifactProofV1(
     resultJsonProduced: false,
     resultJsonCanonicalTruth: false,
     acceptedStructuredGeometryOnlyCoreInput: true,
-    artifactsRedacted: true,
+    sourceArtifactsRedacted: true,
     rawProviderOutputPersisted: false,
     rawRequestBodyPersisted: false,
     rawImagePersisted: false,

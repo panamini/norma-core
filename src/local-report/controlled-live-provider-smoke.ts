@@ -612,12 +612,8 @@ export function createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1(
   readonly providerOutputObserved: boolean;
   readonly providerBody: unknown;
 }): ControlledLiveProviderSmokeProviderDiagnosticV1 | undefined {
-  if (!isRecord(providerBody)) {
-    return undefined;
-  }
-
   const responseStatus = openAiResponsesStatus(providerBody);
-  if (responseStatus === undefined || responseStatus === "completed") {
+  if (responseStatus === "completed") {
     return undefined;
   }
 
@@ -632,7 +628,7 @@ export function createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1(
   return createControlledLiveProviderSmokeIncompleteStatusDiagnostic({
     responseStatusCode,
     providerOutputObserved,
-    reason: incompleteResponseReason(providerBody),
+    reason: isRecord(providerBody) ? incompleteResponseReason(providerBody) : undefined,
   });
 }
 
@@ -823,9 +819,9 @@ function incompleteResponseReason(providerBody: Record<string, unknown>): string
   return classifierToken(incompleteDetails.reason);
 }
 
-function openAiResponsesStatus(providerBody: Record<string, unknown>): string | undefined {
-  if (typeof providerBody.status !== "string") {
-    return undefined;
+function openAiResponsesStatus(providerBody: unknown): string {
+  if (!isRecord(providerBody) || typeof providerBody.status !== "string") {
+    return UNKNOWN_OPENAI_RESPONSES_STATUS_CODE;
   }
 
   const status = classifierToken(providerBody.status);
