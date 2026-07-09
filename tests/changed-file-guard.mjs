@@ -712,6 +712,17 @@ export const controlledLiveProviderDiagnosticNextActionsChangedFiles = Object.fr
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const controlledLiveProviderSmokeOutcomeCheckpointChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+  "src/local-report/controlled-live-provider-smoke.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-outcome-checkpoint.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -803,6 +814,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,

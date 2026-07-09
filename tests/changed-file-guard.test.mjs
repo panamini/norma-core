@@ -18,6 +18,7 @@ import {
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
+  controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
@@ -1473,6 +1474,113 @@ test("shared exact changed-file guard rejects forbidden extras in the PR120 diag
       continue;
     }
 
+    assert.equal(
+      sharedExactApprovedChangedFiles(changedFiles),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR121 controlled live provider smoke outcome checkpoint set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderSmokeOutcomeCheckpointChangedFiles),
+    controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderSmokeOutcomeCheckpointChangedFiles, [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-outcome-checkpoint.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/controlled-live-provider-smoke-outcome-checkpoint.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledLiveProviderSmokeOutcomeCheckpointChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR121 smoke outcome checkpoint set", () => {
+  const forbiddenFiles = [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/local-report/controlled-live-provider-runtime.ts",
+    "src/providers/openai.ts",
+    "src/providers/openai-sdk.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/provider/openai-response-parser.ts",
+    "src/provider-runtime/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "docs/examples/controlled-live-provider-smoke.md",
+    "docs/examples/openai-vision-pilot.md",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lockb",
+    ".npmrc",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    const changedFiles = [
+      ...controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+      forbiddenFile,
+    ];
+    assert.equal(
+      isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles),
+      false,
+      forbiddenFile,
+    );
     assert.equal(
       sharedExactApprovedChangedFiles(changedFiles),
       null,

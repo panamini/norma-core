@@ -372,6 +372,9 @@ export function createOpenAIResponsesVisionSmokeRequestBodyV1({
         ],
       },
     ],
+    reasoning: {
+      effort: "low",
+    },
     max_output_tokens: 80,
     store: false,
   };
