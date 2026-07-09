@@ -15,6 +15,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
+  controlledProviderObservationContractChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
@@ -1810,6 +1811,101 @@ test("shared exact changed-file guard rejects forbidden extras in the response-s
     );
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null, forbiddenFile);
   }
+});
+
+test("shared exact changed-file guard accepts the PR124 controlled provider observation contract set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
+    controlledProviderObservationContractChangedFiles,
+  );
+
+  assert.deepEqual(controlledProviderObservationContractChangedFiles, [
+    "src/local-report/controlled-provider-observation-contract.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/mcp-remote-package-dependency-decision.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/local-report/controlled-provider-observation-contract.ts",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/mcp-remote-package-dependency-decision.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledProviderObservationContractChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR124 observation contract set", () => {
+  for (const forbiddenFile of [
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "src/index.ts",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...controlledProviderObservationContractChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard recognizes the active PR124 observation contract branch", () => {
+  const changedFiles = branchChangedFiles();
+
+  assert.equal(isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles), true);
+  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), controlledProviderObservationContractChangedFiles);
 });
 
 test("shared exact changed-file guard rejects forbidden extras in the PR123 smoke artifact proof set", () => {
