@@ -28,7 +28,7 @@ import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-
 import {
   branchChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
-  controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+  controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -739,6 +739,7 @@ test("PR120 maps each current redacted provider diagnostic class to one allowlis
     rate_limit: "retry_later_or_reduce_request_rate",
     model: "check_provider_model_selection",
     image: "check_image_format_size_or_capability",
+    incomplete: "increase_output_token_budget_or_reduce_reasoning",
     input_compatibility: "check_model_config_or_input_capability",
     request_shape: "inspect_request_shape_contract",
     provider_4xx: "inspect_redacted_provider_client_error",
@@ -852,6 +853,65 @@ test("PR120 next actions stay absent when no redacted provider diagnostic exists
     assert.equal("providerDiagnosticNextAction" in envelope, false);
     assert.equal("providerDiagnosticNextAction" in summary, false);
     assert.doesNotMatch(markdown, /providerDiagnosticNextAction/u);
+  }
+});
+
+test("PR122 HTTP-success incomplete Responses bodies fail closed as redacted provider errors", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr122-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    const rawOutput = "RAW_INCOMPLETE_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST";
+    const body = {
+      status: "incomplete",
+      incomplete_details: {
+        reason: "max_output_tokens",
+      },
+      output_text: rawOutput,
+    };
+
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => ({
+        ok: true,
+        statusCode: 200,
+        body,
+      }),
+    });
+    const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+    const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+    const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+    const parsed = JSON.parse(result.stdout);
+    const envelope = JSON.parse(envelopeText);
+    const summary = JSON.parse(summaryText);
+    const expected = {
+      providerErrorClass: "incomplete",
+      providerDiagnosticNextAction: "increase_output_token_budget_or_reduce_reasoning",
+      providerErrorCode: "max_output_tokens",
+      providerErrorParamClass: "input",
+      providerResponseStatusCode: 200,
+      providerOutputObserved: true,
+    };
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(parsed.status, "provider_error");
+    assert.equal(envelope.providerCall.responseClass, "provider_error");
+    assert.equal(envelope.evidenceSummary.persistedObservationClass, "redacted_provider_error_observed");
+    for (const value of [parsed, envelope, summary]) {
+      assertRedactedDiagnostic(value, expected);
+    }
+    assert.match(summaryMd, /providerErrorClass: incomplete/u);
+    assert.match(summaryMd, /providerDiagnosticNextAction: increase_output_token_budget_or_reduce_reasoning/u);
+    await assertSafeArtifacts(outputDir, imagePath);
+    assertNoRawProviderDiagnosticLeak(`${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`, [
+      JSON.stringify(body),
+      rawOutput,
+      "incomplete_details",
+    ]);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
   }
 });
 
@@ -1064,10 +1124,10 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
   assert.notDeepEqual(controlledLiveProviderSmokeChangedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 });
 
-test("PR121 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
+test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles);
+  assert.deepEqual(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles);
   for (const forbidden of [
     "package.json",
     "package-lock.json",
