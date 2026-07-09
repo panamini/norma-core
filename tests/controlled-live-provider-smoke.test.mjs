@@ -761,6 +761,13 @@ test("PR120 maps each current redacted provider diagnostic class to one allowlis
     createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("future_provider_error_class"),
     "inspect_redacted_diagnostic_context",
   );
+  for (const inheritedObjectName of ["toString", "constructor", "__proto__"]) {
+    assert.equal(
+      createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(inheritedObjectName),
+      "inspect_redacted_diagnostic_context",
+      inheritedObjectName,
+    );
+  }
 });
 
 test("PR120 advisory next actions appear only on redacted diagnostic provider-error artifacts", async () => {

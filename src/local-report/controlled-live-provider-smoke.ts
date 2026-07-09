@@ -380,11 +380,16 @@ export function createOpenAIResponsesVisionSmokeRequestBodyV1({
 export function createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
   providerErrorClass: string | undefined,
 ): ControlledLiveProviderSmokeProviderDiagnosticNextActionV1 {
-  return (
-    CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS as Readonly<
-      Record<string, ControlledLiveProviderSmokeProviderDiagnosticNextActionV1>
-    >
-  )[providerErrorClass ?? ""] ?? CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS.unknown;
+  if (
+    providerErrorClass !== undefined &&
+    Object.hasOwn(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS, providerErrorClass)
+  ) {
+    return CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS[
+      providerErrorClass as ControlledLiveProviderSmokeProviderErrorClassV1
+    ];
+  }
+
+  return CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS.unknown;
 }
 
 export function createControlledLiveProviderEvidenceEnvelopeV1({
