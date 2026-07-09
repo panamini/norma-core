@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
 import {
   branchChangedFiles,
+  controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
@@ -248,15 +249,25 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     changedFiles,
     controlledProviderObservationContractChangedFiles,
   );
+  const isPr125Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationAcceptanceProofChangedFiles,
+  );
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
-  assert.equal(isArtifactProofSet || isResponseStatusSet || isPr124Set, true, changedFiles.join("\n"));
+  assert.equal(
+    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set,
+    true,
+    changedFiles.join("\n"),
+  );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr124Set
+    isPr125Set
+      ? controlledProviderObservationAcceptanceProofChangedFiles
+      : isPr124Set
       ? controlledProviderObservationContractChangedFiles
       : isResponseStatusSet
       ? controlledLiveProviderSmokeResponseStatusGuardChangedFiles

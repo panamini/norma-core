@@ -27,6 +27,7 @@ import {
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
   branchChangedFiles,
+  controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
@@ -1404,6 +1405,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     [
+      controlledProviderObservationAcceptanceProofChangedFiles,
       controlledProviderObservationContractChangedFiles,
       controlledLiveProviderIncompleteResponseGuardChangedFiles,
       controlledLiveProviderSmokeArtifactProofChangedFiles,
