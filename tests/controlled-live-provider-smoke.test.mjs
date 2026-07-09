@@ -29,6 +29,8 @@ import {
   branchChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
+  controlledLiveProviderSmokeArtifactProofChangedFiles,
+  controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -739,7 +741,9 @@ test("PR120 maps each current redacted provider diagnostic class to one allowlis
     rate_limit: "retry_later_or_reduce_request_rate",
     model: "check_provider_model_selection",
     image: "check_image_format_size_or_capability",
+    content_filter: "inspect_redacted_provider_client_error",
     incomplete: "increase_output_token_budget_or_reduce_reasoning",
+    provider_response_status: "inspect_redacted_diagnostic_context",
     input_compatibility: "check_model_config_or_input_capability",
     request_shape: "inspect_request_shape_contract",
     provider_4xx: "inspect_redacted_provider_client_error",
@@ -752,7 +756,10 @@ test("PR120 maps each current redacted provider diagnostic class to one allowlis
 
   assert.deepEqual(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES, Object.keys(expected));
   assert.deepEqual(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS, expected);
-  assert.equal(allowlist.size, CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES.length);
+  assert.equal(
+    Object.keys(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS).length,
+    CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES.length,
+  );
 
   for (const providerErrorClass of CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES) {
     const nextAction = createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(providerErrorClass);
@@ -915,6 +922,268 @@ test("PR122 HTTP-success incomplete Responses bodies fail closed as redacted pro
   }
 });
 
+test("HTTP-success non-completed Responses statuses fail closed without success artifacts", async () => {
+  for (const responseStatus of ["failed", "cancelled", "queued", "in_progress"]) {
+    const tmp = await mkdtemp(join(tmpdir(), "norma-core-response-status-"));
+
+    try {
+      const imagePath = join(tmp, "source.png");
+      const outputDir = join(tmp, "out");
+      const rawOutput = `RAW_${responseStatus.toUpperCase()}_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST`;
+      const body = {
+        status: responseStatus,
+        output_text: rawOutput,
+      };
+
+      await writeFile(imagePath, pngBytes());
+      const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+        env: completeEnv(),
+        transport: async () => ({
+          ok: true,
+          statusCode: 200,
+          body,
+        }),
+      });
+      const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+      const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+      const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+      const parsed = JSON.parse(result.stdout);
+      const envelope = JSON.parse(envelopeText);
+      const summary = JSON.parse(summaryText);
+      const expected = {
+        providerErrorClass: "provider_response_status",
+        providerDiagnosticNextAction: "inspect_redacted_diagnostic_context",
+        providerErrorCode: responseStatus,
+        providerErrorParamClass: "unknown",
+        providerResponseStatusCode: 200,
+        providerOutputObserved: true,
+      };
+
+      assert.equal(result.exitCode, 2, responseStatus);
+      assert.equal(parsed.status, "provider_error");
+      assert.equal(envelope.providerCall.responseClass, "provider_error");
+      assert.equal(envelope.evidenceSummary.persistedObservationClass, "redacted_provider_error_observed");
+      for (const value of [parsed, envelope, summary]) {
+        assertRedactedDiagnostic(value, expected);
+      }
+      assert.match(summaryMd, /providerErrorClass: provider_response_status/u);
+      assert.match(summaryMd, /providerDiagnosticNextAction: inspect_redacted_diagnostic_context/u);
+      assert.match(summaryMd, new RegExp(`providerErrorCode: ${responseStatus}`, "u"));
+      await assertSafeArtifacts(outputDir, imagePath);
+      assertNoRawProviderDiagnosticLeak(`${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`, [
+        JSON.stringify(body),
+        rawOutput,
+      ]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  }
+});
+
+test("HTTP-success unknown string Responses statuses fail closed with safe redacted codes", async () => {
+  for (const { responseStatus, expectedErrorCode, rawStatusMustBeAbsent } of [
+    {
+      responseStatus: "requires_action",
+      expectedErrorCode: "requires_action",
+      rawStatusMustBeAbsent: false,
+    },
+    {
+      responseStatus: "manual review at /Users/pana/private",
+      expectedErrorCode: "unknown_response_status",
+      rawStatusMustBeAbsent: true,
+    },
+  ]) {
+    const tmp = await mkdtemp(join(tmpdir(), "norma-core-unknown-response-status-"));
+
+    try {
+      const imagePath = join(tmp, "source.png");
+      const outputDir = join(tmp, "out");
+      const rawOutput = "RAW_UNKNOWN_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST";
+      const body = {
+        status: responseStatus,
+        output_text: rawOutput,
+      };
+
+      await writeFile(imagePath, pngBytes());
+      const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+        env: completeEnv(),
+        transport: async () => ({
+          ok: true,
+          statusCode: 200,
+          body,
+        }),
+      });
+      const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+      const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+      const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+      const parsed = JSON.parse(result.stdout);
+      const envelope = JSON.parse(envelopeText);
+      const summary = JSON.parse(summaryText);
+      const expected = {
+        providerErrorClass: "provider_response_status",
+        providerDiagnosticNextAction: "inspect_redacted_diagnostic_context",
+        providerErrorCode: expectedErrorCode,
+        providerErrorParamClass: "unknown",
+        providerResponseStatusCode: 200,
+        providerOutputObserved: true,
+      };
+      const allText = `${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`;
+
+      assert.equal(result.exitCode, 2, responseStatus);
+      assert.equal(parsed.status, "provider_error");
+      assert.equal(envelope.providerCall.responseClass, "provider_error");
+      assert.equal(envelope.evidenceSummary.persistedObservationClass, "redacted_provider_error_observed");
+      for (const value of [parsed, envelope, summary]) {
+        assertRedactedDiagnostic(value, expected);
+      }
+      assert.match(summaryMd, /providerErrorClass: provider_response_status/u);
+      assert.match(summaryMd, /providerDiagnosticNextAction: inspect_redacted_diagnostic_context/u);
+      assert.match(summaryMd, new RegExp(`providerErrorCode: ${expectedErrorCode}`, "u"));
+      await assertSafeArtifacts(outputDir, imagePath);
+      assertNoRawProviderDiagnosticLeak(allText, [rawOutput]);
+      if (rawStatusMustBeAbsent) {
+        assert.doesNotMatch(allText, new RegExp(escapeRegExp(responseStatus), "u"));
+        assert.doesNotMatch(allText, /\/Users\//u);
+      }
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  }
+});
+
+test("HTTP-success Responses bodies without string status fail closed with safe redacted status", async () => {
+  for (const { name, body, rawValues } of [
+    {
+      name: "non-json-body",
+      body: null,
+      rawValues: ["RAW_NON_JSON_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+    {
+      name: "missing-status",
+      body: {
+        output_text: "RAW_MISSING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST",
+      },
+      rawValues: ["RAW_MISSING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+    {
+      name: "non-string-status",
+      body: {
+        status: 42,
+        output_text: "RAW_NON_STRING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST",
+      },
+      rawValues: ["RAW_NON_STRING_STATUS_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST"],
+    },
+  ]) {
+    const tmp = await mkdtemp(join(tmpdir(), "norma-core-missing-response-status-"));
+
+    try {
+      const imagePath = join(tmp, "source.png");
+      const outputDir = join(tmp, "out");
+
+      await writeFile(imagePath, pngBytes());
+      const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+        env: completeEnv(),
+        transport: async () => ({
+          ok: true,
+          statusCode: 200,
+          body,
+          providerOutputObserved: true,
+        }),
+      });
+      const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+      const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+      const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+      const parsed = JSON.parse(result.stdout);
+      const envelope = JSON.parse(envelopeText);
+      const summary = JSON.parse(summaryText);
+      const expected = {
+        providerErrorClass: "provider_response_status",
+        providerDiagnosticNextAction: "inspect_redacted_diagnostic_context",
+        providerErrorCode: "unknown_response_status",
+        providerErrorParamClass: "unknown",
+        providerResponseStatusCode: 200,
+        providerOutputObserved: true,
+      };
+      const allText = `${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`;
+
+      assert.equal(result.exitCode, 2, name);
+      assert.equal(parsed.status, "provider_error");
+      assert.equal(envelope.providerCall.responseClass, "provider_error");
+      assert.equal(envelope.evidenceSummary.persistedObservationClass, "redacted_provider_error_observed");
+      for (const value of [parsed, envelope, summary]) {
+        assertRedactedDiagnostic(value, expected);
+      }
+      assert.match(summaryMd, /providerErrorClass: provider_response_status/u);
+      assert.match(summaryMd, /providerDiagnosticNextAction: inspect_redacted_diagnostic_context/u);
+      assert.match(summaryMd, /providerErrorCode: unknown_response_status/u);
+      await assertSafeArtifacts(outputDir, imagePath);
+      assertNoRawProviderDiagnosticLeak(allText, rawValues);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  }
+});
+
+test("HTTP-success content-filter incomplete Responses use content-filter diagnostics", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-content-filter-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    const rawOutput = "RAW_CONTENT_FILTER_PROVIDER_OUTPUT_SHOULD_NOT_PERSIST";
+    const body = {
+      status: "incomplete",
+      incomplete_details: {
+        reason: "content_filter",
+      },
+      output_text: rawOutput,
+    };
+
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => ({
+        ok: true,
+        statusCode: 200,
+        body,
+      }),
+    });
+    const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+    const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+    const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+    const parsed = JSON.parse(result.stdout);
+    const envelope = JSON.parse(envelopeText);
+    const summary = JSON.parse(summaryText);
+    const expected = {
+      providerErrorClass: "content_filter",
+      providerDiagnosticNextAction: "inspect_redacted_provider_client_error",
+      providerErrorCode: "content_filter",
+      providerErrorParamClass: "input",
+      providerResponseStatusCode: 200,
+      providerOutputObserved: true,
+    };
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(parsed.status, "provider_error");
+    assert.equal(envelope.providerCall.responseClass, "provider_error");
+    for (const value of [parsed, envelope, summary]) {
+      assertRedactedDiagnostic(value, expected);
+    }
+    assert.match(summaryMd, /providerErrorClass: content_filter/u);
+    assert.match(summaryMd, /providerDiagnosticNextAction: inspect_redacted_provider_client_error/u);
+    assert.match(summaryMd, /providerErrorCode: content_filter/u);
+    assert.doesNotMatch(summaryMd, /increase_output_token_budget_or_reduce_reasoning/u);
+    await assertSafeArtifacts(outputDir, imagePath);
+    assertNoRawProviderDiagnosticLeak(`${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`, [
+      JSON.stringify(body),
+      rawOutput,
+      "incomplete_details",
+    ]);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("PR118 thrown transport failures classify as redacted network diagnostics", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr118-"));
 
@@ -1040,6 +1309,11 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
     "disable provider-side response storage",
     "Redacted provider-neutral evidence output is the only allowed persisted result",
     "input_compatibility",
+    "content_filter",
+    "provider_response_status",
+    "unknown_response_status",
+    "HTTP-success Responses API bodies whose top-level `status` is not",
+    "allowlisted `incomplete_details.reason`",
     "provider rejected an otherwise docs-aligned input/model/config combination",
     "PR120 adds `providerDiagnosticNextAction` as advisory operator guidance only",
     "derived only from redacted `providerErrorClass`",
@@ -1127,7 +1401,15 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles);
+  assert.equal(
+    [
+      controlledLiveProviderIncompleteResponseGuardChangedFiles,
+      controlledLiveProviderSmokeArtifactProofChangedFiles,
+      controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
+    ].some((expectedChangedFiles) => JSON.stringify(changedFiles) === JSON.stringify(expectedChangedFiles)),
+    true,
+    changedFiles.join("\n"),
+  );
   for (const forbidden of [
     "package.json",
     "package-lock.json",

@@ -107,7 +107,9 @@ export type ControlledLiveProviderSmokeProviderErrorClassV1 =
   | "rate_limit"
   | "model"
   | "image"
+  | "content_filter"
   | "incomplete"
+  | "provider_response_status"
   | "input_compatibility"
   | "request_shape"
   | "provider_4xx"
@@ -137,7 +139,9 @@ export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES = Object.free
   "rate_limit",
   "model",
   "image",
+  "content_filter",
   "incomplete",
+  "provider_response_status",
   "input_compatibility",
   "request_shape",
   "provider_4xx",
@@ -153,7 +157,9 @@ export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS = O
   rate_limit: "retry_later_or_reduce_request_rate",
   model: "check_provider_model_selection",
   image: "check_image_format_size_or_capability",
+  content_filter: "inspect_redacted_provider_client_error",
   incomplete: "increase_output_token_budget_or_reduce_reasoning",
+  provider_response_status: "inspect_redacted_diagnostic_context",
   input_compatibility: "check_model_config_or_input_capability",
   request_shape: "inspect_request_shape_contract",
   provider_4xx: "inspect_redacted_provider_client_error",
@@ -250,6 +256,16 @@ export interface ControlledLiveProviderSmokeSummaryV1 {
 export const CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS = 30_000;
 export const CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_TIMEOUT_MS = 30_000;
+
+const OPENAI_RESPONSES_NON_COMPLETED_STATUSES = new Set([
+  "failed",
+  "in_progress",
+  "cancelled",
+  "queued",
+  "incomplete",
+]);
+
+const UNKNOWN_OPENAI_RESPONSES_STATUS_CODE = "unknown_response_status";
 
 const REQUIRED_GATES = Object.freeze({
   liveFlag: "--live",
@@ -596,26 +612,74 @@ export function createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1(
   readonly providerOutputObserved: boolean;
   readonly providerBody: unknown;
 }): ControlledLiveProviderSmokeProviderDiagnosticV1 | undefined {
-  if (!isRecord(providerBody) || providerBody.status !== "incomplete") {
+  const responseStatus = openAiResponsesStatus(providerBody);
+  if (responseStatus === "completed") {
     return undefined;
   }
 
-  const reason = incompleteResponseReason(providerBody);
+  if (responseStatus !== "incomplete") {
+    return createControlledLiveProviderSmokeResponseStatusDiagnostic({
+      responseStatusCode,
+      providerOutputObserved,
+      responseStatus,
+    });
+  }
 
+  return createControlledLiveProviderSmokeIncompleteStatusDiagnostic({
+    responseStatusCode,
+    providerOutputObserved,
+    reason: isRecord(providerBody) ? incompleteResponseReason(providerBody) : undefined,
+  });
+}
+
+function createControlledLiveProviderSmokeResponseStatusDiagnostic({
+  responseStatusCode,
+  providerOutputObserved,
+  responseStatus,
+}: {
+  readonly responseStatusCode: number;
+  readonly providerOutputObserved: boolean;
+  readonly responseStatus: string;
+}): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  return {
+    providerErrorClass: "provider_response_status",
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
+      "provider_response_status",
+    ),
+    providerErrorCode: responseStatus,
+    providerErrorParamClass: "unknown",
+    providerResponseStatusCode: responseStatusCode,
+    providerOutputObserved,
+    providerDiagnosticRedacted: true,
+  };
+}
+
+function createControlledLiveProviderSmokeIncompleteStatusDiagnostic({
+  responseStatusCode,
+  providerOutputObserved,
+  reason,
+}: {
+  readonly responseStatusCode: number;
+  readonly providerOutputObserved: boolean;
+  readonly reason: string | undefined;
+}): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  const providerErrorClass = reason === "content_filter" ? "content_filter" : "incomplete";
   const diagnostic: ControlledLiveProviderSmokeProviderDiagnosticV1 = {
-    providerErrorClass: "incomplete",
-    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("incomplete"),
-    providerErrorParamClass: reason === "max_output_tokens" ? "input" : "unknown",
+    providerErrorClass,
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
+      providerErrorClass,
+    ),
+    providerErrorParamClass: reason === "max_output_tokens" || reason === "content_filter" ? "input" : "unknown",
     providerResponseStatusCode: responseStatusCode,
     providerOutputObserved,
     providerDiagnosticRedacted: true,
   };
 
-  return reason !== "max_output_tokens"
+  return reason !== "max_output_tokens" && reason !== "content_filter"
     ? diagnostic
     : {
         ...diagnostic,
-        providerErrorCode: "max_output_tokens",
+        providerErrorCode: reason,
       };
 }
 
@@ -753,6 +817,29 @@ function incompleteResponseReason(providerBody: Record<string, unknown>): string
   }
 
   return classifierToken(incompleteDetails.reason);
+}
+
+function openAiResponsesStatus(providerBody: unknown): string {
+  if (!isRecord(providerBody) || typeof providerBody.status !== "string") {
+    return UNKNOWN_OPENAI_RESPONSES_STATUS_CODE;
+  }
+
+  const status = classifierToken(providerBody.status);
+  if (status === "completed" || OPENAI_RESPONSES_NON_COMPLETED_STATUSES.has(status)) {
+    return status;
+  }
+
+  return isSafeOpenAiResponsesStatusCode(providerBody.status, status)
+    ? status
+    : UNKNOWN_OPENAI_RESPONSES_STATUS_CODE;
+}
+
+function isSafeOpenAiResponsesStatusCode(rawStatus: string, status: string): boolean {
+  return (
+    status.length > 0 &&
+    status === rawStatus.trim().toLowerCase() &&
+    /^[a-z][a-z0-9_.-]{0,63}$/u.test(status)
+  );
 }
 
 function providerErrorMetadata(providerBody: unknown): {

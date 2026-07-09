@@ -19,7 +19,9 @@ import {
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
+  controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+  controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
@@ -1683,6 +1685,201 @@ test("shared exact changed-file guard rejects forbidden extras in the PR122 inco
     ];
     assert.equal(
       isExactChangedFileSet(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles),
+      false,
+      forbiddenFile,
+    );
+    assert.equal(
+      sharedExactApprovedChangedFiles(changedFiles),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR123 controlled live provider smoke artifact proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
+    controlledLiveProviderSmokeArtifactProofChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderSmokeArtifactProofChangedFiles, [
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledLiveProviderSmokeArtifactProofChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the controlled live provider response-status guard set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderSmokeResponseStatusGuardChangedFiles),
+    controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderSmokeResponseStatusGuardChangedFiles, [
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledLiveProviderSmokeResponseStatusGuardChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the response-status guard set", () => {
+  const forbiddenFiles = [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/providers/openai.ts",
+    "src/provider-runtime/openai.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    const changedFiles = [
+      ...controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
+      forbiddenFile,
+    ];
+    assert.equal(
+      isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeResponseStatusGuardChangedFiles),
+      false,
+      forbiddenFile,
+    );
+    assert.equal(sharedExactApprovedChangedFiles(changedFiles), null, forbiddenFile);
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR123 smoke artifact proof set", () => {
+  const forbiddenFiles = [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+    "docs/examples/controlled-live-provider-smoke.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lockb",
+    ".npmrc",
+    ".github/workflows/ci.yml",
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/local-report/controlled-live-provider-runtime.ts",
+    "src/providers/openai.ts",
+    "src/providers/openai-sdk.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/provider/openai-response-parser.ts",
+    "src/provider-runtime/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    const changedFiles = [
+      ...controlledLiveProviderSmokeArtifactProofChangedFiles,
+      forbiddenFile,
+    ];
+    assert.equal(
+      isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeArtifactProofChangedFiles),
       false,
       forbiddenFile,
     );
