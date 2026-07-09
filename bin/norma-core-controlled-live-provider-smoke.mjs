@@ -165,9 +165,17 @@ async function runControlledLiveProviderSmokeCli({
   const providerOutputObserved = typeof providerResponse.providerOutputObserved === "boolean"
     ? providerResponse.providerOutputObserved
     : providerResponse.body !== null;
-  const providerDiagnostic = providerResponse.ok
+  const incompleteResponseDiagnostic = providerResponse.ok
+    ? helpers.createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1({
+      responseStatusCode: providerResponse.statusCode,
+      providerOutputObserved,
+      providerBody: providerResponse.body,
+    })
+    : undefined;
+  const providerSucceeded = providerResponse.ok && incompleteResponseDiagnostic === undefined;
+  const providerDiagnostic = providerSucceeded
     ? undefined
-    : helpers.createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
+    : incompleteResponseDiagnostic ?? helpers.createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
       responseStatusCode: providerResponse.statusCode,
       providerOutputObserved,
       providerBody: providerResponse.body,
@@ -175,7 +183,7 @@ async function runControlledLiveProviderSmokeCli({
   const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
     image,
     responseStatusCode: providerResponse.statusCode,
-    responseOk: providerResponse.ok,
+    responseOk: providerSucceeded,
     providerOutputObserved,
     timeoutMs,
     providerDiagnostic,
@@ -193,7 +201,7 @@ async function runControlledLiveProviderSmokeCli({
       status: "artifact_write_error",
       liveProviderExecution: true,
       providerResponseStatusCode: providerResponse.statusCode,
-      providerResponseClass: providerResponse.ok ? "success" : "provider_error",
+      providerResponseClass: providerSucceeded ? "success" : "provider_error",
       providerOutputObserved,
       ...artifactDiagnostic,
       providerEvidenceOnly: true,
@@ -214,7 +222,7 @@ async function runControlledLiveProviderSmokeCli({
   }
 
   stdout.write(`${JSON.stringify({
-    status: providerResponse.ok ? "ok" : "provider_error",
+    status: providerSucceeded ? "ok" : "provider_error",
     liveProviderExecution: true,
     ...(providerDiagnostic ?? {}),
     providerEvidenceOnly: true,
@@ -227,7 +235,7 @@ async function runControlledLiveProviderSmokeCli({
     ciLiveNetworkDependency: false,
     artifacts: summary.artifacts,
   })}\n`);
-  return providerResponse.ok ? 0 : 2;
+  return providerSucceeded ? 0 : 2;
 }
 
 function parseArgs(args) {

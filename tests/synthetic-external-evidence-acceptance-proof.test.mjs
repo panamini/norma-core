@@ -11,6 +11,7 @@ import {
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
@@ -336,6 +337,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   );
+  const isPr122Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderIncompleteResponseGuardChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -348,7 +353,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr118Set ||
       isPr119Set ||
       isPr120Set ||
-      isPr121Set,
+      isPr121Set ||
+      isPr122Set,
     true,
     changedFiles.join("\n"),
   );
@@ -372,6 +378,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderDiagnosticNextActionsChangedFiles);
   } else if (isPr121Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles);
+  } else if (isPr122Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -388,7 +396,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
   }
 
-  if (isPr111Set || isPr114Set) {
+  if (isPr111Set || isPr114Set || isPr122Set) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   } else if (isPr112Set) {
     assert.deepEqual(

@@ -17,6 +17,7 @@ import {
   branchChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
@@ -1578,6 +1579,110 @@ test("shared exact changed-file guard rejects forbidden extras in the PR121 smok
     ];
     assert.equal(
       isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles),
+      false,
+      forbiddenFile,
+    );
+    assert.equal(
+      sharedExactApprovedChangedFiles(changedFiles),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR122 controlled live provider incomplete-response guard set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLiveProviderIncompleteResponseGuardChangedFiles),
+    controlledLiveProviderIncompleteResponseGuardChangedFiles,
+  );
+
+  assert.deepEqual(controlledLiveProviderIncompleteResponseGuardChangedFiles, [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "src/local-report/controlled-live-provider-smoke.ts",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledLiveProviderIncompleteResponseGuardChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR122 incomplete-response guard set", () => {
+  const forbiddenFiles = [
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
+    "docs/examples/controlled-live-provider-smoke.md",
+    "bin/norma-core-disabled-live-provider-experiment-harness.mjs",
+    "bin/norma-core-live-provider-experiment.mjs",
+    "src/index.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/local-report/synthetic-external-evidence-acceptance-proof.ts",
+    "src/local-report/controlled-live-provider-runtime.ts",
+    "src/providers/openai.ts",
+    "src/providers/openai-sdk.ts",
+    "src/providers/vision.ts",
+    "src/providers/image.ts",
+    "src/provider/openai-response-parser.ts",
+    "src/provider-runtime/openai.ts",
+    "src/adapters/visual.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/http-server.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/publication/npm.ts",
+    "tests/fixtures/provider-evidence-replay/openai-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-provider-response.json",
+    "tests/fixtures/provider-evidence-replay/raw-image.png",
+    "tests/fixtures/provider-evidence-replay/source-image.png",
+    "tests/fixtures/visual-adapter/openai-response.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lockb",
+    ".npmrc",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/structured-analyze/report.html",
+    "src/**",
+    "bin/**",
+    "docs/**",
+    "tests/**",
+    "tests/fixtures/**",
+    ".github/**",
+    "../norma-core-wiki/**",
+    "examples/**",
+    "viewer/**",
+    "reports/**",
+  ];
+
+  for (const forbiddenFile of forbiddenFiles) {
+    const changedFiles = [
+      ...controlledLiveProviderIncompleteResponseGuardChangedFiles,
+      forbiddenFile,
+    ];
+    assert.equal(
+      isExactChangedFileSet(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles),
       false,
       forbiddenFile,
     );

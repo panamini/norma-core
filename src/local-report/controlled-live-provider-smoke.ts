@@ -107,6 +107,7 @@ export type ControlledLiveProviderSmokeProviderErrorClassV1 =
   | "rate_limit"
   | "model"
   | "image"
+  | "incomplete"
   | "input_compatibility"
   | "request_shape"
   | "provider_4xx"
@@ -123,6 +124,7 @@ export type ControlledLiveProviderSmokeProviderDiagnosticNextActionV1 =
   | "retry_later_or_reduce_request_rate"
   | "check_provider_model_selection"
   | "check_image_format_size_or_capability"
+  | "increase_output_token_budget_or_reduce_reasoning"
   | "inspect_redacted_provider_client_error"
   | "retry_later_or_check_provider_status"
   | "check_local_network_or_provider_reachability"
@@ -135,6 +137,7 @@ export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES = Object.free
   "rate_limit",
   "model",
   "image",
+  "incomplete",
   "input_compatibility",
   "request_shape",
   "provider_4xx",
@@ -150,6 +153,7 @@ export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS = O
   rate_limit: "retry_later_or_reduce_request_rate",
   model: "check_provider_model_selection",
   image: "check_image_format_size_or_capability",
+  incomplete: "increase_output_token_budget_or_reduce_reasoning",
   input_compatibility: "check_model_config_or_input_capability",
   request_shape: "inspect_request_shape_contract",
   provider_4xx: "inspect_redacted_provider_client_error",
@@ -583,6 +587,38 @@ export function createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
   };
 }
 
+export function createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1({
+  responseStatusCode,
+  providerOutputObserved,
+  providerBody,
+}: {
+  readonly responseStatusCode: number;
+  readonly providerOutputObserved: boolean;
+  readonly providerBody: unknown;
+}): ControlledLiveProviderSmokeProviderDiagnosticV1 | undefined {
+  if (!isRecord(providerBody) || providerBody.status !== "incomplete") {
+    return undefined;
+  }
+
+  const reason = incompleteResponseReason(providerBody);
+
+  const diagnostic: ControlledLiveProviderSmokeProviderDiagnosticV1 = {
+    providerErrorClass: "incomplete",
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("incomplete"),
+    providerErrorParamClass: reason === "max_output_tokens" ? "input" : "unknown",
+    providerResponseStatusCode: responseStatusCode,
+    providerOutputObserved,
+    providerDiagnosticRedacted: true,
+  };
+
+  return reason !== "max_output_tokens"
+    ? diagnostic
+    : {
+        ...diagnostic,
+        providerErrorCode: "max_output_tokens",
+      };
+}
+
 export function createControlledLiveProviderSmokeNetworkDiagnosticV1(): ControlledLiveProviderSmokeProviderDiagnosticV1 {
   return {
     providerErrorClass: "network",
@@ -708,6 +744,15 @@ function providerDiagnosticFieldsFrom(
       ? {}
       : { providerResponseStatusCode: envelope.providerResponseStatusCode }),
   };
+}
+
+function incompleteResponseReason(providerBody: Record<string, unknown>): string | undefined {
+  const incompleteDetails = providerBody.incomplete_details;
+  if (!isRecord(incompleteDetails) || typeof incompleteDetails.reason !== "string") {
+    return undefined;
+  }
+
+  return classifierToken(incompleteDetails.reason);
 }
 
 function providerErrorMetadata(providerBody: unknown): {
