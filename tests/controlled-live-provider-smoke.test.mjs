@@ -21,6 +21,7 @@ import {
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
   branchChangedFiles,
+  controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -277,13 +278,21 @@ test("PR117 image validation allows only supported local PNG JPEG and WEBP magic
   assert.equal(detectControlledLiveProviderSmokeImageV1("source.png", asciiBytes("not-png")), null);
 });
 
-test("PR117 OpenAI Responses request disables provider-side response storage", () => {
+test("PR118 OpenAI Responses request disables provider-side storage and uses only minimal image receipt text", () => {
   const body = createOpenAIResponsesVisionSmokeRequestBodyV1({
     model: "gpt-fake",
     imageDataUrl: "data:image/png;base64,AAAA",
   });
+  const serialized = JSON.stringify(body);
+  const input = body.input?.[0];
+  const content = input?.content;
 
   assert.equal(body.store, false);
+  assert.equal(content?.[0]?.type, "input_text");
+  assert.equal(content?.[0]?.text, "Confirm that an image was received.");
+  assert.equal(content?.[1]?.type, "input_image");
+  assert.equal(content?.[1]?.image_url, "data:image/png;base64,AAAA");
+  assert.doesNotMatch(serialized, /geometry|ratio|accept|accepted|structured|core truth|score|recommend|optimi[sz]e|family|correction|beauty/iu);
 });
 
 test("PR117 gate helper requires writable output proof before ready state", () => {
@@ -333,8 +342,11 @@ test("PR117 fake transport is called only after every live gate is represented",
         assert.equal(request.headers.Authorization, "Bearer FAKE_SECRET_VALUE_DO_NOT_PRINT");
         assert.equal(JSON.parse(request.body).model, "gpt-fake");
         assert.equal(JSON.parse(request.body).store, false);
+        assert.match(request.body, /"type":"input_text"/u);
+        assert.match(request.body, /Confirm that an image was received\./u);
         assert.match(request.body, /"type":"input_image"/u);
         assert.match(request.body, /data:image\/png;base64/u);
+        assert.doesNotMatch(request.body, /geometry|ratio|accept|accepted|structured|core truth|score|recommend|optimi[sz]e|family|correction|beauty/iu);
         return {
           ok: true,
           statusCode: 200,
@@ -402,6 +414,9 @@ test("PR117 artifact write failures after provider completion keep provider stat
     assert.equal(parsed.providerResponseStatusCode, 200);
     assert.equal(parsed.providerResponseClass, "success");
     assert.equal(parsed.providerOutputObserved, true);
+    assert.equal(parsed.providerErrorClass, "artifact_write");
+    assert.equal(parsed.providerErrorParamClass, "unknown");
+    assert.equal(parsed.providerDiagnosticRedacted, true);
     assert.equal(parsed.artifactsPersisted, false);
     assert.equal(parsed.liveProviderExecution, true);
     assertNoForbiddenOutputValue(parsed);
@@ -453,14 +468,173 @@ test("PR117 non-JSON provider bodies are observed without persisting raw text", 
 
     assert.equal(result.exitCode, 2);
     assert.equal(parsed.status, "provider_error");
+    assert.equal(parsed.providerErrorClass, "provider_5xx");
+    assert.equal(parsed.providerErrorParamClass, "unknown");
+    assert.equal(parsed.providerResponseStatusCode, 502);
+    assert.equal(parsed.providerOutputObserved, true);
+    assert.equal(parsed.providerDiagnosticRedacted, true);
     assert.equal(envelope.providerCall.responseStatusCode, 502);
     assert.equal(envelope.providerCall.providerOutputObserved, true);
+    assert.equal(envelope.providerErrorClass, "provider_5xx");
+    assert.equal(envelope.providerErrorParamClass, "unknown");
+    assert.equal(envelope.providerResponseStatusCode, 502);
+    assert.equal(envelope.providerOutputObserved, true);
+    assert.equal(envelope.providerDiagnosticRedacted, true);
     assert.equal(envelope.evidenceSummary.providerOutputObserved, true);
     assert.equal(envelope.rawProviderOutputPersisted, false);
     await assertSafeArtifacts(outputDir, imagePath);
     assert.doesNotMatch(result.stdout, /Bad Gateway|FAKE_SECRET_VALUE_DO_NOT_PRINT|Bearer/u);
   } finally {
     globalThis.fetch = previousFetch;
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("PR118 fake HTTP 400 JSON with unsafe raw message persists only redacted diagnostics", async () => {
+  const rawMessage = "UNSAFE_RAW_PROVIDER_MESSAGE /Users/pana/private Bearer SECRET_TOKEN_SHOULD_NOT_PRINT";
+  const rawParam = "input[0].content[1].image_url";
+  const rawDebug = "RAW_PROVIDER_BODY_SHOULD_NOT_PERSIST";
+  const result = await runProviderErrorCase({
+    statusCode: 400,
+    body: {
+      error: {
+        message: rawMessage,
+        type: "invalid_request_error",
+        code: "invalid_value",
+        param: rawParam,
+      },
+      debug: rawDebug,
+    },
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.equal(result.parsed.status, "provider_error");
+  assertRedactedDiagnostic(result.parsed, {
+    providerErrorClass: "image",
+    providerErrorCode: "invalid_value",
+    providerErrorParamClass: "image",
+    providerResponseStatusCode: 400,
+    providerOutputObserved: true,
+  });
+  assertRedactedDiagnostic(result.envelope, {
+    providerErrorClass: "image",
+    providerErrorCode: "invalid_value",
+    providerErrorParamClass: "image",
+    providerResponseStatusCode: 400,
+    providerOutputObserved: true,
+  });
+  assertRedactedDiagnostic(result.summary, {
+    providerErrorClass: "image",
+    providerErrorCode: "invalid_value",
+    providerErrorParamClass: "image",
+    providerResponseStatusCode: 400,
+    providerOutputObserved: true,
+  });
+  assert.match(result.summaryMd, /providerErrorClass: image/u);
+  assert.match(result.summaryMd, /providerDiagnosticRedacted: true/u);
+  assert.equal(hasKey(result.envelope, "message"), false);
+  assert.equal(hasKey(result.envelope, "param"), false);
+  assert.equal(hasKey(result.envelope, "error"), false);
+  assertNoRawProviderDiagnosticLeak(result.allText, [rawMessage, rawParam, rawDebug]);
+});
+
+test("PR118 provider diagnostic classifier maps low-cardinality status code and metadata classes", async () => {
+  const cases = [
+    {
+      statusCode: 401,
+      body: { error: { type: "authentication_error", code: "invalid_api_key", param: "Authorization" } },
+      expected: { providerErrorClass: "auth", providerErrorCode: "invalid_api_key", providerErrorParamClass: "auth" },
+    },
+    {
+      statusCode: 403,
+      body: { error: { type: "permission_denied", code: "permission_denied", param: "auth" } },
+      expected: { providerErrorClass: "auth", providerErrorCode: "permission_denied", providerErrorParamClass: "auth" },
+    },
+    {
+      statusCode: 429,
+      body: { error: { type: "rate_limit_exceeded", code: "rate_limit_exceeded" } },
+      expected: { providerErrorClass: "rate_limit", providerErrorCode: "rate_limit_exceeded", providerErrorParamClass: "unknown" },
+    },
+    {
+      statusCode: 429,
+      body: { error: { type: "insufficient_quota", code: "insufficient_quota" } },
+      expected: { providerErrorClass: "quota", providerErrorCode: "insufficient_quota", providerErrorParamClass: "unknown" },
+    },
+    {
+      statusCode: 429,
+      body: { error: { type: "quota_exceeded", code: "quota_exceeded" } },
+      expected: { providerErrorClass: "quota", providerErrorCode: "quota_exceeded", providerErrorParamClass: "unknown" },
+    },
+    {
+      statusCode: 400,
+      body: { error: { type: "invalid_request_error", code: "model_not_found", param: "model" } },
+      expected: { providerErrorClass: "model", providerErrorCode: "model_not_found", providerErrorParamClass: "model" },
+    },
+    {
+      statusCode: 400,
+      body: { error: { type: "invalid_request_error", code: "invalid_image", param: "input[0].content[1].image_url" } },
+      expected: { providerErrorClass: "image", providerErrorCode: "invalid_image", providerErrorParamClass: "image" },
+    },
+    {
+      statusCode: 400,
+      body: { error: { type: "invalid_request_error", code: "invalid_request_error", param: "input[0].content" } },
+      expected: { providerErrorClass: "request_shape", providerErrorCode: "invalid_request_error", providerErrorParamClass: "input" },
+    },
+    {
+      statusCode: 500,
+      body: { error: { type: "server_error", code: "server_error" } },
+      expected: { providerErrorClass: "provider_5xx", providerErrorCode: "server_error", providerErrorParamClass: "unknown" },
+    },
+  ];
+
+  for (const { statusCode, body, expected } of cases) {
+    const result = await runProviderErrorCase({ statusCode, body });
+
+    assert.equal(result.exitCode, 2);
+    assertRedactedDiagnostic(result.parsed, {
+      ...expected,
+      providerResponseStatusCode: statusCode,
+      providerOutputObserved: true,
+    });
+    assertRedactedDiagnostic(result.envelope, {
+      ...expected,
+      providerResponseStatusCode: statusCode,
+      providerOutputObserved: true,
+    });
+    assertNoRawProviderDiagnosticLeak(result.allText, [
+      JSON.stringify(body),
+      "input[0].content[1].image_url",
+      "input[0].content",
+      "Authorization",
+    ]);
+  }
+});
+
+test("PR118 thrown transport failures classify as redacted network diagnostics", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr118-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => {
+        throw new Error("RAW_NETWORK_ERROR_SHOULD_NOT_PRINT");
+      },
+    });
+    const parsed = JSON.parse(result.stdout);
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(parsed.status, "transport_error");
+    assertRedactedDiagnostic(parsed, {
+      providerErrorClass: "network",
+      providerErrorParamClass: "unknown",
+      providerOutputObserved: false,
+    });
+    assert.equal("providerResponseStatusCode" in parsed, false);
+    assertNoRawProviderDiagnosticLeak(result.stdout, ["RAW_NETWORK_ERROR_SHOULD_NOT_PRINT"]);
+  } finally {
     await rm(tmp, { recursive: true, force: true });
   }
 });
@@ -636,10 +810,10 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
   assert.notDeepEqual(controlledLiveProviderSmokeChangedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 });
 
-test("PR117 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
+test("PR118 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderSmokeChangedFiles);
+  assert.deepEqual(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
   for (const forbidden of [
     "package.json",
     "package-lock.json",
@@ -696,6 +870,40 @@ async function runCli(args, options = {}) {
   return { exitCode, stdout, stderr };
 }
 
+async function runProviderErrorCase({ statusCode, body }) {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr118-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => ({
+        ok: false,
+        statusCode,
+        body,
+      }),
+    });
+    const envelopeText = await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8");
+    const summaryText = await readFile(join(outputDir, "summary.json"), "utf8");
+    const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+
+    await assertSafeArtifacts(outputDir, imagePath);
+
+    return {
+      ...result,
+      parsed: JSON.parse(result.stdout),
+      envelope: JSON.parse(envelopeText),
+      summary: JSON.parse(summaryText),
+      summaryMd,
+      allText: `${result.stdout}\n${envelopeText}\n${summaryText}\n${summaryMd}`,
+    };
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+}
+
 async function assertSafeArtifacts(outputDir, imagePath) {
   const artifactTexts = await Promise.all([
     readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8"),
@@ -705,9 +913,30 @@ async function assertSafeArtifacts(outputDir, imagePath) {
 
   for (const text of artifactTexts) {
     assert.doesNotMatch(text, new RegExp(escapeRegExp(imagePath), "u"));
-    assert.doesNotMatch(text, /FAKE_SECRET_VALUE_DO_NOT_PRINT|FAKE_PROVIDER_RAW_TEXT|FAKE_PROVIDER_TOKEN|Bearer|data:image|;base64,|\/Users\/|\/Volumes\//u);
+    assert.doesNotMatch(text, /FAKE_SECRET_VALUE_DO_NOT_PRINT|FAKE_PROVIDER_RAW_TEXT|FAKE_PROVIDER_TOKEN|Bearer|data:image|;base64,|Confirm that an image was received|input_image|input_text|image_url|\/Users\/|\/Volumes\//u);
     assert.doesNotMatch(text, /acceptedStructuredGeometry"\s*:/u);
   }
+}
+
+function assertRedactedDiagnostic(value, expected) {
+  assert.equal(value.providerErrorClass, expected.providerErrorClass);
+  if ("providerErrorCode" in expected) {
+    assert.equal(value.providerErrorCode, expected.providerErrorCode);
+  }
+  assert.equal(value.providerErrorParamClass, expected.providerErrorParamClass);
+  if ("providerResponseStatusCode" in expected) {
+    assert.equal(value.providerResponseStatusCode, expected.providerResponseStatusCode);
+  }
+  assert.equal(value.providerOutputObserved, expected.providerOutputObserved);
+  assert.equal(value.providerDiagnosticRedacted, true);
+}
+
+function assertNoRawProviderDiagnosticLeak(text, rawValues) {
+  for (const rawValue of rawValues) {
+    assert.doesNotMatch(text, new RegExp(escapeRegExp(rawValue), "u"), rawValue);
+  }
+  assert.doesNotMatch(text, /UNSAFE_RAW_PROVIDER_MESSAGE|RAW_PROVIDER_BODY_SHOULD_NOT_PERSIST|SECRET_TOKEN_SHOULD_NOT_PRINT/u);
+  assert.doesNotMatch(text, /"message"\s*:|"param"\s*:|"body"\s*:|"request"\s*:/u);
 }
 
 async function gitDiffNames() {
