@@ -12,7 +12,9 @@ import {
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
+  controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+  controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
@@ -341,6 +343,14 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledLiveProviderIncompleteResponseGuardChangedFiles,
   );
+  const isPr123Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderSmokeArtifactProofChangedFiles,
+  );
+  const isResponseStatusSet = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -354,7 +364,9 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr119Set ||
       isPr120Set ||
       isPr121Set ||
-      isPr122Set,
+      isPr122Set ||
+      isPr123Set ||
+      isResponseStatusSet,
     true,
     changedFiles.join("\n"),
   );
@@ -380,6 +392,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles);
   } else if (isPr122Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderIncompleteResponseGuardChangedFiles);
+  } else if (isPr123Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderSmokeArtifactProofChangedFiles);
+  } else if (isResponseStatusSet) {
+    assert.deepEqual(changedFiles, controlledLiveProviderSmokeResponseStatusGuardChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -396,7 +412,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
   }
 
-  if (isPr111Set || isPr114Set || isPr122Set) {
+  if (isPr111Set || isPr114Set || isPr122Set || isPr123Set) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   } else if (isPr112Set) {
     assert.deepEqual(
@@ -411,7 +427,15 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set || isPr120Set || isPr121Set) {
+  } else if (
+    isPr116Set ||
+    isPr117Set ||
+    isPr118Set ||
+    isPr119Set ||
+    isPr120Set ||
+    isPr121Set ||
+    isResponseStatusSet
+  ) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -422,6 +446,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
             "docs/BUSINESS_READINESS_ROADMAP.md",
             "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
           ]
+      : isResponseStatusSet
+        ? ["docs/decisions/2026-07-08-controlled-live-provider-smoke.md"]
       : [
           "docs/BUSINESS_READINESS_ROADMAP.md",
           "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
