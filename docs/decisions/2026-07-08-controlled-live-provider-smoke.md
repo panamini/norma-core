@@ -148,6 +148,7 @@ Allowed `providerErrorClass` values are:
 - `rate_limit`;
 - `model`;
 - `image`;
+- `input_compatibility`;
 - `request_shape`;
 - `provider_4xx`;
 - `provider_5xx`;
@@ -175,6 +176,14 @@ artifacts for:
 - provider HTTP/provider errors;
 - network/transport failures;
 - artifact write failures after provider completion.
+
+PR119 classifies a provider `invalid_value` response whose redacted param class
+is `input` as `input_compatibility`, not `request_shape`. This means the
+provider rejected an otherwise docs-aligned input/model/config combination and
+the next diagnostic should focus on model access, account configuration, or
+input-capability compatibility. It remains low-cardinality diagnostic evidence
+only and does not expose raw provider messages, raw params, raw bodies, request
+bodies, image data, secrets, or provider truth.
 
 If provider completion succeeds but artifact writing fails, the failure is
 classified as `artifact_write` while preserving the redacted provider completion
@@ -206,9 +215,14 @@ PR117 does not approve provider output as truth.
 
 PR118 does not approve a provider evidence checkpoint while the live smoke still
 returns `provider_error`. If a later live smoke returns `status: "ok"`, the next
-PR may be `PR119: record controlled live provider smoke evidence checkpoint`.
+PR may be a future controlled live provider smoke evidence checkpoint.
 If the live smoke still returns `provider_error`, the next PR must be a focused
 follow-up based on the redacted diagnostic class, not an evidence checkpoint.
+
+PR119 follows that diagnostic path for the observed `invalid_value` plus `input`
+case. It does not change the request body, transport, provider, credentials,
+artifacts, or Core boundary. A future evidence checkpoint still requires a
+separate successful controlled live smoke.
 
 PR117 does not approve:
 
@@ -264,6 +278,9 @@ PR117 is acceptable only when tests prove:
   raw text;
 - provider HTTP, network, and artifact-write failures expose only the redacted
   low-cardinality PR118 diagnostic fields;
+- provider `invalid_value` with redacted `input` param class is classified as
+  `input_compatibility` while generic invalid request input/content errors
+  remain `request_shape`;
 - raw provider error messages, raw params, raw bodies, raw request bodies, and
   image data are not printed or persisted;
 - request body text remains limited to confirming image receipt and does not ask

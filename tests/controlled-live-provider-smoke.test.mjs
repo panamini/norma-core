@@ -21,7 +21,7 @@ import {
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
   branchChangedFiles,
-  controlledLiveProviderSmokeDiagnosticsChangedFiles,
+  controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -538,6 +538,74 @@ test("PR118 fake HTTP 400 JSON with unsafe raw message persists only redacted di
   assertNoRawProviderDiagnosticLeak(result.allText, [rawMessage, rawParam, rawDebug]);
 });
 
+test("PR119 observed invalid_value input provider error is an input compatibility diagnostic", async () => {
+  const rawMessage = "UNSAFE_RAW_PROVIDER_MESSAGE model input rejected /Users/pana/private";
+  const rawDebug = "RAW_PROVIDER_BODY_SHOULD_NOT_PERSIST";
+  const result = await runProviderErrorCase({
+    statusCode: 400,
+    body: {
+      error: {
+        message: rawMessage,
+        type: "invalid_request_error",
+        code: "invalid_value",
+        param: "input",
+      },
+      debug: rawDebug,
+    },
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.equal(result.parsed.status, "provider_error");
+  for (const value of [result.parsed, result.envelope, result.summary]) {
+    assertRedactedDiagnostic(value, {
+      providerErrorClass: "input_compatibility",
+      providerErrorCode: "invalid_value",
+      providerErrorParamClass: "input",
+      providerResponseStatusCode: 400,
+      providerOutputObserved: true,
+    });
+  }
+  assert.match(result.summaryMd, /providerErrorClass: input_compatibility/u);
+  assert.match(result.summaryMd, /providerDiagnosticRedacted: true/u);
+  assert.equal(hasKey(result.envelope, "message"), false);
+  assert.equal(hasKey(result.envelope, "param"), false);
+  assert.equal(hasKey(result.envelope, "error"), false);
+  assertNoRawProviderDiagnosticLeak(result.allText, [rawMessage, rawDebug]);
+});
+
+test("PR119 generic invalid_request input content errors remain request shape diagnostics", async () => {
+  const rawMessage = "UNSAFE_RAW_PROVIDER_MESSAGE content schema rejected";
+  const rawParam = "input[0].content";
+  const result = await runProviderErrorCase({
+    statusCode: 400,
+    body: {
+      error: {
+        message: rawMessage,
+        type: "invalid_request_error",
+        code: "invalid_request_error",
+        param: rawParam,
+      },
+    },
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.equal(result.parsed.status, "provider_error");
+  for (const value of [result.parsed, result.envelope, result.summary]) {
+    assertRedactedDiagnostic(value, {
+      providerErrorClass: "request_shape",
+      providerErrorCode: "invalid_request_error",
+      providerErrorParamClass: "input",
+      providerResponseStatusCode: 400,
+      providerOutputObserved: true,
+    });
+  }
+  assert.match(result.summaryMd, /providerErrorClass: request_shape/u);
+  assert.equal(hasKey(result.envelope, "message"), false);
+  assert.equal(hasKey(result.envelope, "param"), false);
+  assert.equal(hasKey(result.envelope, "error"), false);
+  assertNoRawProviderDiagnosticLeak(result.allText, [rawMessage, rawParam]);
+});
+
 test("PR118 provider diagnostic classifier maps low-cardinality status code and metadata classes", async () => {
   const cases = [
     {
@@ -733,6 +801,8 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
     "Raw provider output is ephemeral and not persisted",
     "disable provider-side response storage",
     "Redacted provider-neutral evidence output is the only allowed persisted result",
+    "input_compatibility",
+    "provider rejected an otherwise docs-aligned input/model/config combination",
     "Provider output remains evidence only",
     "Accepted structured geometry remains the only Core input",
     "PR117 does not implement production OpenAI integration",
@@ -810,10 +880,10 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
   assert.notDeepEqual(controlledLiveProviderSmokeChangedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 });
 
-test("PR118 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
+test("PR119 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
+  assert.deepEqual(changedFiles, controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles);
   for (const forbidden of [
     "package.json",
     "package-lock.json",

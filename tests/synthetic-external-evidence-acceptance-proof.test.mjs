@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   branchChangedFiles,
+  controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
@@ -321,6 +322,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr116Set = isExactChangedFileSet(changedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
   const isPr117Set = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeChangedFiles);
   const isPr118Set = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
+  const isPr119Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -330,7 +335,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr115Set ||
       isPr116Set ||
       isPr117Set ||
-      isPr118Set,
+      isPr118Set ||
+      isPr119Set,
     true,
     changedFiles.join("\n"),
   );
@@ -348,6 +354,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeChangedFiles);
   } else if (isPr118Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
+  } else if (isPr119Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -379,7 +387,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else if (isPr116Set || isPr117Set || isPr118Set) {
+  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",
