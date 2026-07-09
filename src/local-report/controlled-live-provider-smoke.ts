@@ -107,6 +107,7 @@ export type ControlledLiveProviderSmokeProviderErrorClassV1 =
   | "rate_limit"
   | "model"
   | "image"
+  | "input_compatibility"
   | "request_shape"
   | "provider_4xx"
   | "provider_5xx"
@@ -688,6 +689,10 @@ function classifyProviderError({
 
   if (providerErrorParamClass === "image" || hasAny(metadataText, ["image", "vision"])) {
     return "image";
+  }
+
+  if (providerErrorParamClass === "input" && hasAny(metadataText, ["invalid_value"])) {
+    return "input_compatibility";
   }
 
   if (

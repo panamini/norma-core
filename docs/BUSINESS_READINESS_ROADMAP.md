@@ -1042,16 +1042,25 @@ geometry, `result.json` production, provider truth, automatic acceptance,
 confidence-threshold acceptance, scoring, correction, recommendation,
 optimization, or family selection.
 
-If a later controlled live smoke returns `status: "ok"`, the next evidence
-checkpoint may be:
+PR119 classifies the observed docs-aligned request failure more honestly:
 
 ```text
-PR119: record controlled live provider smoke evidence checkpoint
+PR119: classify controlled live provider input compatibility diagnostics
 ```
 
-If the live smoke still returns `provider_error`, the next PR must be a focused
-diagnostic follow-up based on the redacted diagnostic class, not an evidence
-checkpoint.
+When the provider returns HTTP `400` with redacted `invalid_value` and input
+param class, the smoke now reports `input_compatibility` instead of
+`request_shape`. That routes operators toward model access, account
+configuration, selected model, or input-capability follow-up while preserving
+the existing request body, `store: false`, manual gates, redaction, no raw
+provider output, no provider fixtures, no package/API changes, and no Core truth
+changes.
+
+If a later controlled live smoke returns `status: "ok"`, the next evidence
+checkpoint may be a future controlled live provider smoke evidence checkpoint.
+If the live smoke still returns `provider_error`, the next PR must remain a
+focused diagnostic follow-up based on the redacted diagnostic class, not an
+evidence checkpoint.
 
 ## Definitions of Ready
 
