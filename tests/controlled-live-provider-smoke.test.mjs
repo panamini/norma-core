@@ -28,6 +28,7 @@ import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-
 import {
   branchChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
+  controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -314,9 +315,13 @@ test("PR118 OpenAI Responses request disables provider-side storage and uses onl
         ],
       },
     ],
+    reasoning: {
+      effort: "low",
+    },
     max_output_tokens: 80,
     store: false,
   });
+  assert.deepEqual(body.reasoning, { effort: "low" });
   assert.equal(body.store, false);
   assert.equal(content?.[0]?.type, "input_text");
   assert.equal(content?.[0]?.text, "Confirm that an image was received.");
@@ -1059,10 +1064,10 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
   assert.notDeepEqual(controlledLiveProviderSmokeChangedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 });
 
-test("PR120 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
+test("PR121 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderDiagnosticNextActionsChangedFiles);
+  assert.deepEqual(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles);
   for (const forbidden of [
     "package.json",
     "package-lock.json",

@@ -11,6 +11,7 @@ import {
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
+  controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
@@ -331,6 +332,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledLiveProviderDiagnosticNextActionsChangedFiles,
   );
+  const isPr121Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderSmokeOutcomeCheckpointChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -342,7 +347,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr117Set ||
       isPr118Set ||
       isPr119Set ||
-      isPr120Set,
+      isPr120Set ||
+      isPr121Set,
     true,
     changedFiles.join("\n"),
   );
@@ -364,6 +370,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles);
   } else if (isPr120Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderDiagnosticNextActionsChangedFiles);
+  } else if (isPr121Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderSmokeOutcomeCheckpointChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -395,12 +403,17 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set || isPr120Set) {
+  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set || isPr120Set || isPr121Set) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",
           "docs/decisions/2026-07-08-disabled-local-live-provider-experiment-harness.md",
         ]
+      : isPr121Set
+        ? [
+            "docs/BUSINESS_READINESS_ROADMAP.md",
+            "docs/decisions/2026-07-09-controlled-live-provider-smoke-outcome-checkpoint.md",
+          ]
       : [
           "docs/BUSINESS_READINESS_ROADMAP.md",
           "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",

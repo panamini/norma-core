@@ -1075,6 +1075,23 @@ If the live smoke still returns `provider_error`, the next PR must remain a
 focused diagnostic follow-up based on the redacted diagnostic class, not an
 evidence checkpoint.
 
+PR121 records the first redacted controlled live provider smoke success
+checkpoint:
+
+```text
+PR121: controlled live provider smoke outcome checkpoint
+```
+
+The smoke completed only through manual operator gates, an accessible GPT-5
+family vision model, `reasoning.effort: "low"`, and image `detail: "low"`.
+The checkpoint keeps raw provider output, raw request body, raw image/base64,
+local absolute input path, credentials, and the exact model environment value
+out of durable repo artifacts. Provider output remains evidence only; no
+accepted structured geometry, Core input, Structured Analyze run, or
+`result.json` was produced. This does not approve production OpenAI integration,
+package/API readiness, hosted MCP, ChatGPT runtime, CAD/Figma adapters,
+automatic acceptance, provider truth, or product launch.
+
 ## Definitions of Ready
 
 ### Local module ready
