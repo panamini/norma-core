@@ -115,6 +115,55 @@ export type ControlledLiveProviderSmokeProviderErrorClassV1 =
   | "artifact_write"
   | "unknown";
 
+export type ControlledLiveProviderSmokeProviderDiagnosticNextActionV1 =
+  | "check_model_config_or_input_capability"
+  | "inspect_request_shape_contract"
+  | "check_provider_auth_configuration"
+  | "check_provider_quota_or_billing"
+  | "retry_later_or_reduce_request_rate"
+  | "check_provider_model_selection"
+  | "check_image_format_size_or_capability"
+  | "inspect_redacted_provider_client_error"
+  | "retry_later_or_check_provider_status"
+  | "check_local_network_or_provider_reachability"
+  | "check_local_output_artifact_write"
+  | "inspect_redacted_diagnostic_context";
+
+export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES = Object.freeze([
+  PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS,
+  "quota",
+  "rate_limit",
+  "model",
+  "image",
+  "input_compatibility",
+  "request_shape",
+  "provider_4xx",
+  "provider_5xx",
+  "network",
+  "artifact_write",
+  "unknown",
+] as const satisfies readonly ControlledLiveProviderSmokeProviderErrorClassV1[]);
+
+export const CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS = Object.freeze({
+  [PROVIDER_DIAGNOSTIC_CREDENTIAL_CLASS]: "check_provider_auth_configuration",
+  quota: "check_provider_quota_or_billing",
+  rate_limit: "retry_later_or_reduce_request_rate",
+  model: "check_provider_model_selection",
+  image: "check_image_format_size_or_capability",
+  input_compatibility: "check_model_config_or_input_capability",
+  request_shape: "inspect_request_shape_contract",
+  provider_4xx: "inspect_redacted_provider_client_error",
+  provider_5xx: "retry_later_or_check_provider_status",
+  network: "check_local_network_or_provider_reachability",
+  artifact_write: "check_local_output_artifact_write",
+  unknown: "inspect_redacted_diagnostic_context",
+} satisfies Readonly<
+  Record<
+    ControlledLiveProviderSmokeProviderErrorClassV1,
+    ControlledLiveProviderSmokeProviderDiagnosticNextActionV1
+  >
+>);
+
 export type ControlledLiveProviderSmokeProviderErrorParamClassV1 =
   | "model"
   | "input"
@@ -124,6 +173,7 @@ export type ControlledLiveProviderSmokeProviderErrorParamClassV1 =
 
 export interface ControlledLiveProviderSmokeProviderDiagnosticV1 {
   readonly providerErrorClass: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerDiagnosticNextAction: ControlledLiveProviderSmokeProviderDiagnosticNextActionV1;
   readonly providerErrorCode?: string;
   readonly providerErrorParamClass: ControlledLiveProviderSmokeProviderErrorParamClassV1;
   readonly providerResponseStatusCode?: number;
@@ -154,6 +204,7 @@ export interface ControlledLiveProviderEvidenceEnvelopeV1 {
   readonly image: ControlledLiveProviderSmokeImageIdentityV1;
   readonly providerCall: ControlledLiveProviderSmokeProviderCallMetadataV1;
   readonly providerErrorClass?: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerDiagnosticNextAction?: ControlledLiveProviderSmokeProviderDiagnosticNextActionV1;
   readonly providerErrorCode?: string;
   readonly providerErrorParamClass?: ControlledLiveProviderSmokeProviderErrorParamClassV1;
   readonly providerResponseStatusCode?: number;
@@ -178,6 +229,7 @@ export interface ControlledLiveProviderSmokeSummaryV1 {
   readonly redacted: true;
   readonly ciLiveNetworkDependency: false;
   readonly providerErrorClass?: ControlledLiveProviderSmokeProviderErrorClassV1;
+  readonly providerDiagnosticNextAction?: ControlledLiveProviderSmokeProviderDiagnosticNextActionV1;
   readonly providerErrorCode?: string;
   readonly providerErrorParamClass?: ControlledLiveProviderSmokeProviderErrorParamClassV1;
   readonly providerResponseStatusCode?: number;
@@ -325,6 +377,21 @@ export function createOpenAIResponsesVisionSmokeRequestBodyV1({
   };
 }
 
+export function createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
+  providerErrorClass: string | undefined,
+): ControlledLiveProviderSmokeProviderDiagnosticNextActionV1 {
+  if (
+    providerErrorClass !== undefined &&
+    Object.hasOwn(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS, providerErrorClass)
+  ) {
+    return CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS[
+      providerErrorClass as ControlledLiveProviderSmokeProviderErrorClassV1
+    ];
+  }
+
+  return CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS.unknown;
+}
+
 export function createControlledLiveProviderEvidenceEnvelopeV1({
   image,
   responseStatusCode,
@@ -342,7 +409,7 @@ export function createControlledLiveProviderEvidenceEnvelopeV1({
 }): ControlledLiveProviderEvidenceEnvelopeV1 {
   const providerDiagnosticFields = providerDiagnostic === undefined
     ? {}
-    : providerDiagnostic;
+    : providerDiagnosticFieldsFromDiagnostic(providerDiagnostic);
 
   return {
     kind: "norma.controlled-live-provider-smoke.provider-evidence-envelope.v1",
@@ -439,9 +506,13 @@ export function createControlledLiveProviderSmokeSummaryMarkdownV1(
     "- ciLiveNetworkDependency: false",
   ];
 
-  if (summary.providerDiagnosticRedacted === true) {
+  if (summary.providerDiagnosticRedacted === true && summary.providerErrorClass !== undefined) {
+    const providerDiagnosticNextAction =
+      summary.providerDiagnosticNextAction ??
+      createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(summary.providerErrorClass);
     lines.push(
       `- providerErrorClass: ${summary.providerErrorClass ?? "unknown"}`,
+      `- providerDiagnosticNextAction: ${providerDiagnosticNextAction}`,
       ...(summary.providerErrorCode === undefined ? [] : [`- providerErrorCode: ${summary.providerErrorCode}`]),
       `- providerErrorParamClass: ${summary.providerErrorParamClass ?? "unknown"}`,
       ...(summary.providerResponseStatusCode === undefined
@@ -484,13 +555,15 @@ export function createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
   const metadata = providerErrorMetadata(providerBody);
   const providerErrorParamClass = classifyProviderErrorParam(metadata.param);
   const providerErrorCode = safeProviderErrorCode(metadata);
+  const providerErrorClass = classifyProviderError({
+    responseStatusCode,
+    metadata,
+    providerErrorParamClass,
+  });
 
   const diagnostic: ControlledLiveProviderSmokeProviderDiagnosticV1 = {
-    providerErrorClass: classifyProviderError({
-      responseStatusCode,
-      metadata,
-      providerErrorParamClass,
-    }),
+    providerErrorClass,
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(providerErrorClass),
     providerErrorParamClass,
     providerResponseStatusCode: responseStatusCode,
     providerOutputObserved,
@@ -510,6 +583,7 @@ export function createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
 export function createControlledLiveProviderSmokeNetworkDiagnosticV1(): ControlledLiveProviderSmokeProviderDiagnosticV1 {
   return {
     providerErrorClass: "network",
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("network"),
     providerErrorParamClass: "unknown",
     providerOutputObserved: false,
     providerDiagnosticRedacted: true,
@@ -525,6 +599,7 @@ export function createControlledLiveProviderSmokeArtifactWriteDiagnosticV1({
 }): ControlledLiveProviderSmokeProviderDiagnosticV1 {
   return {
     providerErrorClass: "artifact_write",
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("artifact_write"),
     providerErrorParamClass: "unknown",
     providerResponseStatusCode: responseStatusCode,
     providerOutputObserved,
@@ -593,6 +668,17 @@ function isSupportedImageMimeType(value: string | null | undefined): value is Co
   return value === "image/png" || value === "image/jpeg" || value === "image/webp";
 }
 
+function providerDiagnosticFieldsFromDiagnostic(
+  providerDiagnostic: ControlledLiveProviderSmokeProviderDiagnosticV1,
+): ControlledLiveProviderSmokeProviderDiagnosticV1 {
+  return {
+    ...providerDiagnostic,
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
+      providerDiagnostic.providerErrorClass,
+    ),
+  };
+}
+
 function providerDiagnosticFieldsFrom(
   envelope: ControlledLiveProviderEvidenceEnvelopeV1,
 ): Partial<ControlledLiveProviderSmokeProviderDiagnosticV1> {
@@ -602,6 +688,9 @@ function providerDiagnosticFieldsFrom(
 
   const diagnostic: Partial<ControlledLiveProviderSmokeProviderDiagnosticV1> = {
     providerErrorClass: envelope.providerErrorClass,
+    providerDiagnosticNextAction: createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(
+      envelope.providerErrorClass,
+    ),
     providerErrorParamClass: envelope.providerErrorParamClass ?? "unknown",
     providerOutputObserved: envelope.providerOutputObserved ?? envelope.providerCall.providerOutputObserved,
     providerDiagnosticRedacted: true,
