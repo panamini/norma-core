@@ -11,9 +11,15 @@ import test from "node:test";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
+  CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS,
+  CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES,
   CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES,
+  createControlledLiveProviderEvidenceEnvelopeV1,
   createControlledLiveProviderSmokeDefaultStateV1,
   createControlledLiveProviderSmokeGateStateV1,
+  createControlledLiveProviderSmokeProviderDiagnosticNextActionV1,
+  createControlledLiveProviderSmokeSummaryMarkdownV1,
+  createControlledLiveProviderSmokeSummaryV1,
   createOpenAIResponsesVisionSmokeRequestBodyV1,
   detectControlledLiveProviderSmokeImageV1,
   isRemoteOrFileUrlInput,
@@ -21,7 +27,7 @@ import {
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
   branchChangedFiles,
-  controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
+  controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -80,6 +86,7 @@ test("PR117 default command does not read live env secrets or call injected tran
   assert.equal(transportCalls, 0);
   assert.equal(parsed.liveProviderExecution, false);
   assert.equal(parsed.disabledByDefault, true);
+  assert.equal("providerDiagnosticNextAction" in parsed, false);
   assertNoForbiddenOutputValue(parsed);
   assert.doesNotMatch(stdout, /FAKE_SECRET_VALUE_SHOULD_NOT_PRINT|Bearer/u);
 });
@@ -102,6 +109,7 @@ test("PR117 default command emits safe structured JSON from the real command ent
   assert.equal(parsed.disabledByDefault, true);
   assert.equal(parsed.manualOnly, true);
   assert.equal(parsed.failClosed, true);
+  assert.equal("providerDiagnosticNextAction" in parsed, false);
   assertNoForbiddenOutputValue(parsed);
   assert.doesNotMatch(stdout, /FAKE_ENTRYPOINT_SECRET|Bearer/u);
 });
@@ -127,6 +135,7 @@ test("PR117 default command remains runnable without prebuilt dist helpers", asy
     assert.equal(parsed.gateStatus, "blocked_disabled_by_default");
     assert.equal(parsed.liveProviderExecution, false);
     assert.equal(parsed.failClosed, true);
+    assert.equal("providerDiagnosticNextAction" in parsed, false);
     assertNoForbiddenOutputValue(parsed);
     assert.doesNotMatch(stdout, /FAKE_NO_DIST_SECRET|Bearer/u);
   } finally {
@@ -287,6 +296,27 @@ test("PR118 OpenAI Responses request disables provider-side storage and uses onl
   const input = body.input?.[0];
   const content = input?.content;
 
+  assert.deepEqual(body, {
+    model: "gpt-fake",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Confirm that an image was received.",
+          },
+          {
+            type: "input_image",
+            image_url: "data:image/png;base64,AAAA",
+            detail: "low",
+          },
+        ],
+      },
+    ],
+    max_output_tokens: 80,
+    store: false,
+  });
   assert.equal(body.store, false);
   assert.equal(content?.[0]?.type, "input_text");
   assert.equal(content?.[0]?.text, "Confirm that an image was received.");
@@ -360,11 +390,19 @@ test("PR117 fake transport is called only after every live gate is represented",
       },
     });
     const parsed = JSON.parse(result.stdout);
+    const envelope = JSON.parse(await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8"));
+    const summary = JSON.parse(await readFile(join(outputDir, "summary.json"), "utf8"));
+    const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
 
     assert.equal(result.exitCode, 0);
+    assert.equal(parsed.status, "ok");
     assert.equal(parsed.liveProviderExecution, true);
     assert.equal(parsed.providerEvidenceOnly, true);
     assert.equal(parsed.rawProviderOutputPersisted, false);
+    assert.equal("providerDiagnosticNextAction" in parsed, false);
+    assert.equal("providerDiagnosticNextAction" in envelope, false);
+    assert.equal("providerDiagnosticNextAction" in summary, false);
+    assert.doesNotMatch(summaryMd, /providerDiagnosticNextAction/u);
     assert.deepEqual(parsed.artifacts, [
       "provider-evidence-envelope.json",
       "summary.json",
@@ -415,6 +453,7 @@ test("PR117 artifact write failures after provider completion keep provider stat
     assert.equal(parsed.providerResponseClass, "success");
     assert.equal(parsed.providerOutputObserved, true);
     assert.equal(parsed.providerErrorClass, "artifact_write");
+    assert.equal(parsed.providerDiagnosticNextAction, "check_local_output_artifact_write");
     assert.equal(parsed.providerErrorParamClass, "unknown");
     assert.equal(parsed.providerDiagnosticRedacted, true);
     assert.equal(parsed.artifactsPersisted, false);
@@ -469,6 +508,7 @@ test("PR117 non-JSON provider bodies are observed without persisting raw text", 
     assert.equal(result.exitCode, 2);
     assert.equal(parsed.status, "provider_error");
     assert.equal(parsed.providerErrorClass, "provider_5xx");
+    assert.equal(parsed.providerDiagnosticNextAction, "retry_later_or_check_provider_status");
     assert.equal(parsed.providerErrorParamClass, "unknown");
     assert.equal(parsed.providerResponseStatusCode, 502);
     assert.equal(parsed.providerOutputObserved, true);
@@ -476,6 +516,7 @@ test("PR117 non-JSON provider bodies are observed without persisting raw text", 
     assert.equal(envelope.providerCall.responseStatusCode, 502);
     assert.equal(envelope.providerCall.providerOutputObserved, true);
     assert.equal(envelope.providerErrorClass, "provider_5xx");
+    assert.equal(envelope.providerDiagnosticNextAction, "retry_later_or_check_provider_status");
     assert.equal(envelope.providerErrorParamClass, "unknown");
     assert.equal(envelope.providerResponseStatusCode, 502);
     assert.equal(envelope.providerOutputObserved, true);
@@ -511,6 +552,7 @@ test("PR118 fake HTTP 400 JSON with unsafe raw message persists only redacted di
   assert.equal(result.parsed.status, "provider_error");
   assertRedactedDiagnostic(result.parsed, {
     providerErrorClass: "image",
+    providerDiagnosticNextAction: "check_image_format_size_or_capability",
     providerErrorCode: "invalid_value",
     providerErrorParamClass: "image",
     providerResponseStatusCode: 400,
@@ -518,6 +560,7 @@ test("PR118 fake HTTP 400 JSON with unsafe raw message persists only redacted di
   });
   assertRedactedDiagnostic(result.envelope, {
     providerErrorClass: "image",
+    providerDiagnosticNextAction: "check_image_format_size_or_capability",
     providerErrorCode: "invalid_value",
     providerErrorParamClass: "image",
     providerResponseStatusCode: 400,
@@ -525,12 +568,14 @@ test("PR118 fake HTTP 400 JSON with unsafe raw message persists only redacted di
   });
   assertRedactedDiagnostic(result.summary, {
     providerErrorClass: "image",
+    providerDiagnosticNextAction: "check_image_format_size_or_capability",
     providerErrorCode: "invalid_value",
     providerErrorParamClass: "image",
     providerResponseStatusCode: 400,
     providerOutputObserved: true,
   });
   assert.match(result.summaryMd, /providerErrorClass: image/u);
+  assert.match(result.summaryMd, /providerDiagnosticNextAction: check_image_format_size_or_capability/u);
   assert.match(result.summaryMd, /providerDiagnosticRedacted: true/u);
   assert.equal(hasKey(result.envelope, "message"), false);
   assert.equal(hasKey(result.envelope, "param"), false);
@@ -559,6 +604,7 @@ test("PR119 observed invalid_value input provider error is an input compatibilit
   for (const value of [result.parsed, result.envelope, result.summary]) {
     assertRedactedDiagnostic(value, {
       providerErrorClass: "input_compatibility",
+      providerDiagnosticNextAction: "check_model_config_or_input_capability",
       providerErrorCode: "invalid_value",
       providerErrorParamClass: "input",
       providerResponseStatusCode: 400,
@@ -566,6 +612,7 @@ test("PR119 observed invalid_value input provider error is an input compatibilit
     });
   }
   assert.match(result.summaryMd, /providerErrorClass: input_compatibility/u);
+  assert.match(result.summaryMd, /providerDiagnosticNextAction: check_model_config_or_input_capability/u);
   assert.match(result.summaryMd, /providerDiagnosticRedacted: true/u);
   assert.equal(hasKey(result.envelope, "message"), false);
   assert.equal(hasKey(result.envelope, "param"), false);
@@ -593,6 +640,7 @@ test("PR119 generic invalid_request input content errors remain request shape di
   for (const value of [result.parsed, result.envelope, result.summary]) {
     assertRedactedDiagnostic(value, {
       providerErrorClass: "request_shape",
+      providerDiagnosticNextAction: "inspect_request_shape_contract",
       providerErrorCode: "invalid_request_error",
       providerErrorParamClass: "input",
       providerResponseStatusCode: 400,
@@ -600,6 +648,7 @@ test("PR119 generic invalid_request input content errors remain request shape di
     });
   }
   assert.match(result.summaryMd, /providerErrorClass: request_shape/u);
+  assert.match(result.summaryMd, /providerDiagnosticNextAction: inspect_request_shape_contract/u);
   assert.equal(hasKey(result.envelope, "message"), false);
   assert.equal(hasKey(result.envelope, "param"), false);
   assert.equal(hasKey(result.envelope, "error"), false);
@@ -678,6 +727,122 @@ test("PR118 provider diagnostic classifier maps low-cardinality status code and 
   }
 });
 
+test("PR120 maps each current redacted provider diagnostic class to one allowlisted next action", () => {
+  const expected = {
+    auth: "check_provider_auth_configuration",
+    quota: "check_provider_quota_or_billing",
+    rate_limit: "retry_later_or_reduce_request_rate",
+    model: "check_provider_model_selection",
+    image: "check_image_format_size_or_capability",
+    input_compatibility: "check_model_config_or_input_capability",
+    request_shape: "inspect_request_shape_contract",
+    provider_4xx: "inspect_redacted_provider_client_error",
+    provider_5xx: "retry_later_or_check_provider_status",
+    network: "check_local_network_or_provider_reachability",
+    artifact_write: "check_local_output_artifact_write",
+    unknown: "inspect_redacted_diagnostic_context",
+  };
+  const allowlist = new Set(Object.values(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS));
+
+  assert.deepEqual(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES, Object.keys(expected));
+  assert.deepEqual(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS, expected);
+  assert.equal(allowlist.size, CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES.length);
+
+  for (const providerErrorClass of CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_ERROR_CLASSES) {
+    const nextAction = createControlledLiveProviderSmokeProviderDiagnosticNextActionV1(providerErrorClass);
+
+    assert.equal(nextAction, expected[providerErrorClass]);
+    assert.equal(allowlist.has(nextAction), true);
+    assert.match(nextAction, /^[a-z0-9_]+$/u);
+    assert.doesNotMatch(nextAction, /Bearer|api[_ -]?key|gpt|http|file:|data:image|base64|\/Users\/|\/Volumes\//iu);
+  }
+
+  assert.equal(
+    createControlledLiveProviderSmokeProviderDiagnosticNextActionV1("future_provider_error_class"),
+    "inspect_redacted_diagnostic_context",
+  );
+});
+
+test("PR120 advisory next actions appear only on redacted diagnostic provider-error artifacts", async () => {
+  const rawMessage = "UNSAFE_RAW_PROVIDER_MESSAGE with hidden request body";
+  const rawParam = "input[0].content[1].image_url";
+  const rawDebug = "RAW_PROVIDER_BODY_SHOULD_NOT_PERSIST";
+  const result = await runProviderErrorCase({
+    statusCode: 400,
+    body: {
+      error: {
+        message: rawMessage,
+        type: "invalid_request_error",
+        code: "invalid_value",
+        param: "input",
+      },
+      rawParam,
+      debug: rawDebug,
+    },
+  });
+
+  assert.equal(result.parsed.status, "provider_error");
+  assert.equal(result.envelope.providerCall.responseClass, "provider_error");
+  assert.equal(result.envelope.acceptedStructuredGeometryProduced, false);
+  assert.equal(result.envelope.coreInputProduced, false);
+  assert.equal(result.envelope.resultJsonProduced, false);
+  assert.equal(result.envelope.providerOutputIsCoreTruth, false);
+  assert.equal(result.envelope.acceptedStructuredGeometryOnlyCoreInput, true);
+  for (const value of [result.parsed, result.envelope, result.summary]) {
+    assertRedactedDiagnostic(value, {
+      providerErrorClass: "input_compatibility",
+      providerDiagnosticNextAction: "check_model_config_or_input_capability",
+      providerErrorCode: "invalid_value",
+      providerErrorParamClass: "input",
+      providerResponseStatusCode: 400,
+      providerOutputObserved: true,
+    });
+  }
+  assert.match(result.summaryMd, /providerDiagnosticNextAction: check_model_config_or_input_capability/u);
+  assertNoRawProviderDiagnosticLeak(result.allText, [rawMessage, rawParam, rawDebug]);
+  assert.doesNotMatch(
+    result.allText,
+    /gpt-fake|Confirm that an image was received|input_image|input_text|image_url|data:image|;base64,|Bearer|FAKE_SECRET_VALUE_DO_NOT_PRINT/u,
+  );
+});
+
+test("PR120 next actions stay absent when no redacted provider diagnostic exists", () => {
+  const image = {
+    contentIdentity: "sha256:0123456789abcdef",
+    mediaType: "image/png",
+    sizeBytes: 12,
+    sourcePathPersisted: false,
+    rawImagePersisted: false,
+    base64Persisted: false,
+  };
+  const successEnvelope = createControlledLiveProviderEvidenceEnvelopeV1({
+    image,
+    responseStatusCode: 200,
+    responseOk: true,
+    providerOutputObserved: true,
+    timeoutMs: 30_000,
+  });
+  const providerErrorWithoutRedactedDiagnostic = {
+    ...createControlledLiveProviderEvidenceEnvelopeV1({
+      image,
+      responseStatusCode: 400,
+      responseOk: false,
+      providerOutputObserved: true,
+      timeoutMs: 30_000,
+    }),
+    providerErrorClass: "request_shape",
+  };
+
+  for (const envelope of [successEnvelope, providerErrorWithoutRedactedDiagnostic]) {
+    const summary = createControlledLiveProviderSmokeSummaryV1(envelope);
+    const markdown = createControlledLiveProviderSmokeSummaryMarkdownV1(summary);
+
+    assert.equal("providerDiagnosticNextAction" in envelope, false);
+    assert.equal("providerDiagnosticNextAction" in summary, false);
+    assert.doesNotMatch(markdown, /providerDiagnosticNextAction/u);
+  }
+});
+
 test("PR118 thrown transport failures classify as redacted network diagnostics", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr118-"));
 
@@ -697,6 +862,7 @@ test("PR118 thrown transport failures classify as redacted network diagnostics",
     assert.equal(parsed.status, "transport_error");
     assertRedactedDiagnostic(parsed, {
       providerErrorClass: "network",
+      providerDiagnosticNextAction: "check_local_network_or_provider_reachability",
       providerErrorParamClass: "unknown",
       providerOutputObserved: false,
     });
@@ -803,6 +969,10 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
     "Redacted provider-neutral evidence output is the only allowed persisted result",
     "input_compatibility",
     "provider rejected an otherwise docs-aligned input/model/config combination",
+    "PR120 adds `providerDiagnosticNextAction` as advisory operator guidance only",
+    "derived only from redacted `providerErrorClass`",
+    "cannot authorize acceptance",
+    "cannot change the provider request body",
     "Provider output remains evidence only",
     "Accepted structured geometry remains the only Core input",
     "PR117 does not implement production OpenAI integration",
@@ -810,6 +980,8 @@ test("PR117 docs state manual live smoke boundary without approving provider tru
   ]);
   assertDocMentions(roadmap, [
     "PR117: add controlled live provider smoke behind disabled harness",
+    "PR120: add controlled live provider diagnostic next-action hints",
+    "allowlisted advisory `providerDiagnosticNextAction` values",
     "No CI live-network behavior is approved",
     "Provider evidence remains non-truth",
   ]);
@@ -880,10 +1052,10 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
   assert.notDeepEqual(controlledLiveProviderSmokeChangedFiles, disabledLiveProviderExperimentHarnessChangedFiles);
 });
 
-test("PR119 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
+test("PR120 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
 
-  assert.deepEqual(changedFiles, controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles);
+  assert.deepEqual(changedFiles, controlledLiveProviderDiagnosticNextActionsChangedFiles);
   for (const forbidden of [
     "package.json",
     "package-lock.json",
@@ -983,13 +1155,24 @@ async function assertSafeArtifacts(outputDir, imagePath) {
 
   for (const text of artifactTexts) {
     assert.doesNotMatch(text, new RegExp(escapeRegExp(imagePath), "u"));
-    assert.doesNotMatch(text, /FAKE_SECRET_VALUE_DO_NOT_PRINT|FAKE_PROVIDER_RAW_TEXT|FAKE_PROVIDER_TOKEN|Bearer|data:image|;base64,|Confirm that an image was received|input_image|input_text|image_url|\/Users\/|\/Volumes\//u);
+    assert.doesNotMatch(text, /gpt-fake|FAKE_SECRET_VALUE_DO_NOT_PRINT|FAKE_PROVIDER_RAW_TEXT|FAKE_PROVIDER_TOKEN|Bearer|data:image|;base64,|Confirm that an image was received|input_image|input_text|image_url|\/Users\/|\/Volumes\//u);
     assert.doesNotMatch(text, /acceptedStructuredGeometry"\s*:/u);
   }
 }
 
 function assertRedactedDiagnostic(value, expected) {
   assert.equal(value.providerErrorClass, expected.providerErrorClass);
+  if ("providerDiagnosticNextAction" in expected) {
+    assert.equal(value.providerDiagnosticNextAction, expected.providerDiagnosticNextAction);
+  }
+  if ("providerDiagnosticNextAction" in value) {
+    assert.equal(
+      Object.values(CONTROLLED_LIVE_PROVIDER_SMOKE_PROVIDER_DIAGNOSTIC_NEXT_ACTIONS).includes(
+        value.providerDiagnosticNextAction,
+      ),
+      true,
+    );
+  }
   if ("providerErrorCode" in expected) {
     assert.equal(value.providerErrorCode, expected.providerErrorCode);
   }

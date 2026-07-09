@@ -135,6 +135,7 @@ or provider payload fixtures.
 Allowed diagnostic fields are only:
 
 - `providerErrorClass`;
+- `providerDiagnosticNextAction`;
 - `providerErrorCode`;
 - `providerErrorParamClass`;
 - `providerResponseStatusCode`;
@@ -184,6 +185,13 @@ the next diagnostic should focus on model access, account configuration, or
 input-capability compatibility. It remains low-cardinality diagnostic evidence
 only and does not expose raw provider messages, raw params, raw bodies, request
 bodies, image data, secrets, or provider truth.
+
+PR120 adds `providerDiagnosticNextAction` as advisory operator guidance only.
+It is derived only from redacted `providerErrorClass`, is low-cardinality and
+allowlisted, and is not a gate. It cannot authorize acceptance, cannot change
+Core input, cannot change the provider request body, cannot persist raw provider
+data, or turn provider output into Norma truth. For `input_compatibility`, the
+advisory route is model, configuration, or input-capability follow-up.
 
 If provider completion succeeds but artifact writing fails, the failure is
 classified as `artifact_write` while preserving the redacted provider completion

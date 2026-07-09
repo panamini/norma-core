@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   branchChangedFiles,
+  controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderSmokeDiagnosticsChangedFiles,
@@ -326,6 +327,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   );
+  const isPr120Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLiveProviderDiagnosticNextActionsChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -336,7 +341,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr116Set ||
       isPr117Set ||
       isPr118Set ||
-      isPr119Set,
+      isPr119Set ||
+      isPr120Set,
     true,
     changedFiles.join("\n"),
   );
@@ -356,6 +362,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledLiveProviderSmokeDiagnosticsChangedFiles);
   } else if (isPr119Set) {
     assert.deepEqual(changedFiles, controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles);
+  } else if (isPr120Set) {
+    assert.deepEqual(changedFiles, controlledLiveProviderDiagnosticNextActionsChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -387,7 +395,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
         "docs/decisions/2026-07-08-real-external-evidence-pilot-readiness.md",
       ],
     );
-  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set) {
+  } else if (isPr116Set || isPr117Set || isPr118Set || isPr119Set || isPr120Set) {
     const expectedDocs = isPr116Set
       ? [
           "docs/BUSINESS_READINESS_ROADMAP.md",

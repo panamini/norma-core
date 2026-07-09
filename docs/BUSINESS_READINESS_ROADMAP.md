@@ -1056,6 +1056,19 @@ the existing request body, `store: false`, manual gates, redaction, no raw
 provider output, no provider fixtures, no package/API changes, and no Core truth
 changes.
 
+PR120 adds controlled live provider diagnostic next-action hints:
+
+```text
+PR120: add controlled live provider diagnostic next-action hints
+```
+
+PR120 keeps the smoke manual-only, disabled by default, and CI-network-free. It
+adds only allowlisted advisory `providerDiagnosticNextAction` values derived from
+redacted `providerErrorClass`. It does not change the request body, `store:
+false`, provider runtime, raw provider persistence, package/API surface, Core
+input, accepted geometry, provider truth, automatic acceptance, scoring,
+correction, recommendation, optimization, or family selection.
+
 If a later controlled live smoke returns `status: "ok"`, the next evidence
 checkpoint may be a future controlled live provider smoke evidence checkpoint.
 If the live smoke still returns `provider_error`, the next PR must remain a
