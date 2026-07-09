@@ -308,6 +308,11 @@ function validateProviderObservationContract(
     "summary.json",
   ]);
   requireNullableSha256(record.imageContentIdentity, "providerObservationContract.imageContentIdentity");
+  requireValue(
+    record.observationId,
+    "providerObservationContract.observationId",
+    canonicalProviderObservationId(record),
+  );
   requireOneOf(record.mediaTypeClass, "providerObservationContract.mediaTypeClass", [
     "raster_png",
     "raster_jpeg",
@@ -459,6 +464,8 @@ function validateAcceptedStructuredGeometryBoundary(
     throw invalid("acceptedStructuredGeometry", "must satisfy validateAcceptedGeometryV1");
   }
 
+  rejectProviderAuthoredCorrections(accepted);
+
   const acceptedGeometryContentIdentity = computeAcceptedGeometryContentIdentity(accepted);
   const acceptedGeometryRevisionContentIdentity = computeAcceptedGeometryRevisionContentIdentity(accepted);
   const expectedActorType = acceptedActorTypeFor(boundary.acceptanceActor.actorClass);
@@ -492,6 +499,21 @@ function validateAcceptedStructuredGeometryBoundary(
     "acceptedStructuredGeometry.provenance.inputContentIdentity",
     providerObservationContentIdentity,
   );
+  requireValue(
+    accepted.acceptance.provenance.actorType,
+    "acceptedStructuredGeometry.acceptance.provenance.actorType",
+    expectedActorType,
+  );
+  requireValue(
+    accepted.acceptance.provenance.actorId,
+    "acceptedStructuredGeometry.acceptance.provenance.actorId",
+    boundary.acceptanceActor.actorId,
+  );
+  requireValue(
+    accepted.acceptance.provenance.inputContentIdentity,
+    "acceptedStructuredGeometry.acceptance.provenance.inputContentIdentity",
+    providerObservationContentIdentity,
+  );
   requireValue(boundary.acceptedGeometryId, "acceptanceBoundary.acceptedGeometryId", accepted.acceptedGeometryId);
   requireValue(
     boundary.acceptedGeometryContentIdentity,
@@ -509,6 +531,30 @@ function validateAcceptedStructuredGeometryBoundary(
     "acceptedStructuredGeometry.acceptance.acceptedContentIdentity",
     acceptedGeometryRevisionContentIdentity,
   );
+}
+
+function canonicalProviderObservationId(
+  contract: ControlledProviderObservationContractV1,
+): string {
+  const sourceIdentity = contract.imageContentIdentity ?? contract.sourceArtifactKinds.join("+");
+  return `controlled-provider-observation:v1:${sourceIdentity}`;
+}
+
+function rejectProviderAuthoredCorrections(accepted: AcceptedGeometry): void {
+  for (const [index, correction] of accepted.correctionHistory.entries()) {
+    if (correction.actorType === "provider") {
+      throw invalid(
+        `acceptedStructuredGeometry.correctionHistory.${String(index)}.actorType`,
+        "provider-authored corrections are not allowed",
+      );
+    }
+    if (correction.provenance.actorType === "provider") {
+      throw invalid(
+        `acceptedStructuredGeometry.correctionHistory.${String(index)}.provenance.actorType`,
+        "provider-authored correction provenance is not allowed",
+      );
+    }
+  }
 }
 
 function acceptedActorTypeFor(
