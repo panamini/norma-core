@@ -15,6 +15,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
+  controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
@@ -567,6 +568,84 @@ test("shared exact changed-file guard accepts the PR111 synthetic evidence accep
       ),
       null,
       missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR125 controlled provider observation acceptance proof set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
+    controlledProviderObservationAcceptanceProofChangedFiles,
+  );
+
+  assert.deepEqual(controlledProviderObservationAcceptanceProofChangedFiles, [
+    "src/local-report/controlled-provider-observation-acceptance-proof.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/mcp-remote-package-dependency-decision.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of [
+    "src/local-report/controlled-provider-observation-acceptance-proof.ts",
+    "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledProviderObservationAcceptanceProofChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR125 proof set", () => {
+  for (const forbiddenFile of [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "docs/decisions/2026-07-09-controlled-provider-observation-acceptance-proof.md",
+    "tests/fixtures/provider-evidence-replay/static-provider-evidence-replay-v1.json",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "src/index.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/geometry-observation.ts",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/controlled-provider/result.json",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    ".github/**",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...controlledProviderObservationAcceptanceProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
@@ -1901,11 +1980,21 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
   }
 });
 
-test("shared exact changed-file guard recognizes the active PR124 observation contract branch", () => {
+test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
+  const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
+  const isPr125Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationAcceptanceProofChangedFiles,
+  );
 
-  assert.equal(isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles), true);
-  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), controlledProviderObservationContractChangedFiles);
+  assert.equal(isPr124Set || isPr125Set, true);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(changedFiles),
+    isPr125Set
+      ? controlledProviderObservationAcceptanceProofChangedFiles
+      : controlledProviderObservationContractChangedFiles,
+  );
 });
 
 test("shared exact changed-file guard rejects forbidden extras in the PR123 smoke artifact proof set", () => {
