@@ -20,12 +20,14 @@ import {
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -378,6 +380,8 @@ test("PR124 helper is structural package-private and avoids forbidden dependenci
 
 test("PR124 no live provider call fixtures package metadata lockfiles or package root drift", async () => {
   const changedFiles = await gitDiffNames();
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
   const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
   const isPr125Set = isExactChangedFileSet(
@@ -394,7 +398,9 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
-  const expectedChangedFiles = isPr129Set
+  const expectedChangedFiles = isPr130Set
+    ? cleanMainValidationAndPr129OperatorProofChangedFiles
+    : isPr129Set
     ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
     : isPr128Set
     ? explicitAcceptedObservationToCoreHandoffChangedFiles
@@ -406,12 +412,12 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
         ? controlledProviderObservationAcceptanceProofChangedFiles
         : controlledProviderObservationContractChangedFiles;
 
-  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
     controlledProviderObservationContractChangedFiles,
   );
-  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), expectedChangedFiles);
+  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), isCleanBase ? null : expectedChangedFiles);
   for (const forbiddenPrefix of [
     "bin/",
     "tests/fixtures/",

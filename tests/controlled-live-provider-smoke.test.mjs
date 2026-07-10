@@ -30,6 +30,7 @@ import {
 } from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-demo.js";
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -42,6 +43,7 @@ import {
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
+  isCleanBaseValidationContext,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -1567,9 +1569,11 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
 
   assert.equal(
-    [
+    isCleanBase || [
+      cleanMainValidationAndPr129OperatorProofChangedFiles,
       controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
       explicitAcceptedObservationToCoreHandoffChangedFiles,
       localVisualObservationToCorePilotContractChangedFiles,

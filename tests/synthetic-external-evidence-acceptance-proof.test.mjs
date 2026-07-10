@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -24,6 +25,7 @@ import {
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   localVisualObservationToCorePilotContractChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
@@ -325,6 +327,8 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   const isPr113Set = isExactChangedFileSet(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
@@ -377,7 +381,9 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
 
   assert.equal(
-    isPr111Set ||
+    isCleanBase ||
+      isPr130Set ||
+      isPr111Set ||
       isPr112Set ||
       isPr113Set ||
       isPr114Set ||
@@ -400,7 +406,11 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     true,
     changedFiles.join("\n"),
   );
-  if (isPr111Set) {
+  if (isCleanBase) {
+    assert.deepEqual(changedFiles, []);
+  } else if (isPr130Set) {
+    assert.deepEqual(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
+  } else if (isPr111Set) {
     assert.deepEqual(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   } else if (isPr113Set) {
     assert.deepEqual(changedFiles, realExternalEvidencePilotReadinessGateChangedFiles);
@@ -454,7 +464,14 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
   }
 
-  if (
+  if (isCleanBase) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), []);
+  } else if (isPr130Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")).sort(), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+    ]);
+  } else if (
     isPr111Set ||
     isPr114Set ||
     isPr122Set ||

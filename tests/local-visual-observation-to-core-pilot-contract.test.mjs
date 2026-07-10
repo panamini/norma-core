@@ -7,9 +7,11 @@ import test from "node:test";
 
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -1106,10 +1108,13 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   );
 
   const changedFiles = branchChangedFiles(repoRoot);
-  assert.equal(isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles), true);
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
+  assert.equal(isCleanBase || isPr129Set || isPr130Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
+    isCleanBase ? null : isPr130Set ? cleanMainValidationAndPr129OperatorProofChangedFiles : controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   );
 });
 
