@@ -1092,6 +1092,104 @@ accepted structured geometry, Core input, Structured Analyze run, or
 package/API readiness, hosted MCP, ChatGPT runtime, CAD/Figma adapters,
 automatic acceptance, provider truth, or product launch.
 
+PR122 makes the receipt-only smoke fail closed on incomplete provider
+responses:
+
+```text
+PR122: fail closed on incomplete controlled live provider responses
+```
+
+PR122 rejects incomplete success responses instead of treating transport-level
+success as proof that provider output was observed. It preserves the existing
+manual, local, disabled-by-default, redacted, CI-network-free boundary and does
+not create accepted geometry, Core input, or `result.json`.
+
+PR123 consumes the redacted smoke artifacts without widening their authority:
+
+```text
+PR123: add controlled live smoke artifact consumer proof
+```
+
+PR123 proves that the persisted, allowlisted smoke artifacts describe only a
+provider response observation. The original prompt remains receipt-only:
+`Confirm that an image was received.` The proof does not claim rectangle
+detection, accepted geometry, Core input, or canonical output.
+
+PR124 maps those redacted artifacts to provider-neutral observation metadata:
+
+```text
+PR124: add controlled provider observation contract
+```
+
+The PR124 contract is package-private, provider-evidence-only, low-cardinality,
+and unable to self-accept. Provider-specific payloads remain outside Core and
+outside package contracts.
+
+PR125 adds the explicit acceptance proof:
+
+```text
+PR125: add controlled provider observation acceptance proof
+```
+
+PR125 links the exact provider-neutral observation identities to a separate
+explicit acceptance boundary and an existing valid `AcceptedGeometry@1`.
+Provider status, metadata, diagnostics, confidence, prompts, and artifacts
+cannot create acceptance.
+
+PR126 validates the PR123 -> PR124 -> PR125 chain and stops at the remaining
+unapproved mapping boundary:
+
+```text
+PR126: add controlled provider observation-to-Core handoff proof
+```
+
+Its current honest result remains
+`status: blocked_unapproved_mapping_boundary` with
+`nextAllowedStep: approve_provider_observation_mapping_boundary`. It does not
+relabel live evidence as `synthetic-only`, call the mapper, produce Core input,
+run Structured Analyze, or produce `result.json`.
+
+The compressed finish line is now strictly:
+
+```text
+PR127: approve local visual observation-to-Core pilot contract
+-> PR128: implement explicit-acceptance AcceptedGeometry-to-Core handoff
+-> PR129: implement controlled local live visual candidate observation demo
+```
+
+PR127 is docs/tests-only. It freezes the provider-neutral
+`explicit-external-evidence-acceptance@1` mapping-context literal, the exact
+package-private content-addressed provider execution receipt, candidate
+rectangle observation envelope, exact human candidate selection record, PR125
+proof reuse, identity linkage, fail-closed behavior, and the PR128/PR129 scopes.
+It does not implement either runtime.
+
+PR128 may start only after PR127 merges. It may extend the existing
+package-private mapper context while preserving `synthetic-only`, replace
+PR126's blocked result only after the PR125 proof succeeds, reuse existing
+mapper/normalization/Structured Analyze code, and produce deterministic local
+result evidence from already accepted geometry. It must not change provider
+request, body, parser, adapter, or network behavior and must not add public
+exports.
+
+PR129 may start only after PR128 merges. It may change the controlled manual
+local pilot from receipt-only output to validated rectangle candidate
+observations, convert provider-specific structured output in memory to the
+approved provider-neutral envelope, persist only the redacted allowlisted
+execution receipt and candidate observation, compute and propagate the redacted
+execution receipt identity
+through minimally extended PR123/PR124 paths without weakening their existing
+receipt-only compatibility, require a separate exact human selection record,
+reject cross-execution and candidate/geometry substitution, minimally extend
+the same package-private PR125 proof/PR128 handoff path for the execution,
+candidate, selection, and AcceptedGeometry identities, and reuse PR128 plus
+existing guided/report surfaces. It remains manual, local, disabled by default,
+and CI-network-free.
+
+Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
+OAuth/auth, package publication, any new public exports, autonomous acceptance,
+production data, real-user data, and public launch remain unapproved.
+
 ## Definitions of Ready
 
 ### Local module ready

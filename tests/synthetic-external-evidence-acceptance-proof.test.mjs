@@ -22,6 +22,7 @@ import {
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
+  localVisualObservationToCorePilotContractChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,
@@ -366,6 +367,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledProviderObservationToCoreHandoffChangedFiles,
   );
+  const isPr127Set = isExactChangedFileSet(
+    changedFiles,
+    localVisualObservationToCorePilotContractChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -384,7 +389,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isResponseStatusSet ||
       isPr124Set ||
       isPr125Set ||
-      isPr126Set,
+      isPr126Set ||
+      isPr127Set,
     true,
     changedFiles.join("\n"),
   );
@@ -420,6 +426,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledProviderObservationAcceptanceProofChangedFiles);
   } else if (isPr126Set) {
     assert.deepEqual(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles);
+  } else if (isPr127Set) {
+    assert.deepEqual(changedFiles, localVisualObservationToCorePilotContractChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -446,6 +454,14 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     isPr126Set
   ) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
+  } else if (isPr127Set) {
+    assert.deepEqual(
+      changedFiles.filter((file) => file.startsWith("docs/")).sort(),
+      [
+        "docs/BUSINESS_READINESS_ROADMAP.md",
+        "docs/decisions/2026-07-10-local-visual-observation-to-core-pilot-contract.md",
+      ],
+    );
   } else if (isPr112Set) {
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")),

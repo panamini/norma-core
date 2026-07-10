@@ -21,6 +21,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
+  localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
 
@@ -446,11 +447,17 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
     changedFiles,
     controlledProviderObservationToCoreHandoffChangedFiles,
   );
-  const expectedChangedFiles = isPr126Set
-    ? controlledProviderObservationToCoreHandoffChangedFiles
-    : controlledProviderObservationAcceptanceProofChangedFiles;
+  const isPr127Set = isExactChangedFileSet(
+    changedFiles,
+    localVisualObservationToCorePilotContractChangedFiles,
+  );
+  const expectedChangedFiles = isPr127Set
+    ? localVisualObservationToCorePilotContractChangedFiles
+    : isPr126Set
+      ? controlledProviderObservationToCoreHandoffChangedFiles
+      : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isPr125Set || isPr126Set, true);
+  assert.equal(isPr125Set || isPr126Set || isPr127Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,

@@ -14,6 +14,7 @@ import {
   controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   isExactChangedFileSet,
+  localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
 
@@ -258,19 +259,25 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     changedFiles,
     controlledProviderObservationToCoreHandoffChangedFiles,
   );
+  const isPr127Set = isExactChangedFileSet(
+    changedFiles,
+    localVisualObservationToCorePilotContractChangedFiles,
+  );
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set,
+    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set,
     true,
     changedFiles.join("\n"),
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr126Set
+    isPr127Set
+      ? localVisualObservationToCorePilotContractChangedFiles
+      : isPr126Set
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : isPr125Set
       ? controlledProviderObservationAcceptanceProofChangedFiles
@@ -291,7 +298,12 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   ]) {
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
-  if (isResponseStatusSet) {
+  if (isPr127Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-local-visual-observation-to-core-pilot-contract.md",
+    ]);
+  } else if (isResponseStatusSet) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
       "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
     ]);

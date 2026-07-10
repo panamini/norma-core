@@ -20,6 +20,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
+  localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
 
@@ -487,17 +488,27 @@ test("PR126 helper is package-private and avoids mapper runtime and external int
 
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
+  const isPr127Set = isExactChangedFileSet(
+    changedFiles,
+    localVisualObservationToCorePilotContractChangedFiles,
+  );
+  const expectedChangedFiles = isPr127Set
+    ? localVisualObservationToCorePilotContractChangedFiles
+    : controlledProviderObservationToCoreHandoffChangedFiles;
 
-  assert.equal(isExactChangedFileSet(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles), true);
+  assert.equal(isPr126Set || isPr127Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationToCoreHandoffChangedFiles),
     controlledProviderObservationToCoreHandoffChangedFiles,
   );
-  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), controlledProviderObservationToCoreHandoffChangedFiles);
+  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), expectedChangedFiles);
 
   for (const forbiddenPrefix of [
     "bin/",
-    "docs/",
     "tests/fixtures/",
     "examples/",
     "viewer/",
@@ -505,6 +516,14 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     ".github/",
   ]) {
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
+  }
+  if (isPr127Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-local-visual-observation-to-core-pilot-contract.md",
+    ]);
+  } else {
+    assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   }
   for (const forbiddenFile of [
     "package.json",

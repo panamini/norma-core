@@ -36,6 +36,7 @@ import {
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
+  localVisualObservationToCorePilotContractChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -1406,6 +1407,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     [
+      localVisualObservationToCorePilotContractChangedFiles,
       controlledProviderObservationToCoreHandoffChangedFiles,
       controlledProviderObservationAcceptanceProofChangedFiles,
       controlledProviderObservationContractChangedFiles,
