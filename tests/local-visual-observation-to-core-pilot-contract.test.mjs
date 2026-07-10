@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   branchChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -1104,10 +1105,10 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   );
 
   const changedFiles = branchChangedFiles(repoRoot);
-  assert.equal(isExactChangedFileSet(changedFiles, localVisualObservationToCorePilotContractChangedFiles), true);
+  assert.equal(isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles), true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    localVisualObservationToCorePilotContractChangedFiles,
+    explicitAcceptedObservationToCoreHandoffChangedFiles,
   );
 });
 

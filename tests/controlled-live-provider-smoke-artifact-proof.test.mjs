@@ -11,6 +11,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   isExactChangedFileSet,
@@ -263,19 +264,22 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     changedFiles,
     localVisualObservationToCorePilotContractChangedFiles,
   );
+  const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set,
+    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set,
     true,
     changedFiles.join("\n"),
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr127Set
+    isPr128Set
+      ? explicitAcceptedObservationToCoreHandoffChangedFiles
+      : isPr127Set
       ? localVisualObservationToCorePilotContractChangedFiles
       : isPr126Set
       ? controlledProviderObservationToCoreHandoffChangedFiles
@@ -316,12 +320,14 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     "package-lock.json",
     "pnpm-lock.yaml",
     "src/index.ts",
-    "src/accepted-geometry-to-core-mapping.ts",
     "src/accepted-geometry-to-structured-analyze-normalization.ts",
     "src/structured-composition-analysis.ts",
     "src/provider-evidence-replay-adapter.ts",
   ]) {
     assert.equal(changedFiles.includes(forbiddenFile), false, forbiddenFile);
+  }
+  if (!isPr128Set) {
+    assert.equal(changedFiles.includes("src/accepted-geometry-to-core-mapping.ts"), false);
   }
 });
 

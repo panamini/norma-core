@@ -20,6 +20,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -451,13 +452,16 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
     changedFiles,
     localVisualObservationToCorePilotContractChangedFiles,
   );
-  const expectedChangedFiles = isPr127Set
+  const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
+  const expectedChangedFiles = isPr128Set
+    ? explicitAcceptedObservationToCoreHandoffChangedFiles
+    : isPr127Set
     ? localVisualObservationToCorePilotContractChangedFiles
     : isPr126Set
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isPr125Set || isPr126Set || isPr127Set, true);
+  assert.equal(isPr125Set || isPr126Set || isPr127Set || isPr128Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,
@@ -476,7 +480,6 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
     "package-lock.json",
     "pnpm-lock.yaml",
     "src/index.ts",
-    "src/accepted-geometry-to-core-mapping.ts",
     "src/accepted-geometry-to-structured-analyze-normalization.ts",
     "src/structured-composition-analysis.ts",
     "src/geometry-observation.ts",

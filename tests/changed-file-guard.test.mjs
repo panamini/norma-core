@@ -19,6 +19,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
@@ -757,6 +758,27 @@ test("shared exact changed-file guard accepts the triggered PR127 local visual o
       missingFile,
     );
   }
+});
+
+test("shared exact changed-file guard accepts the PR128 explicit accepted handoff set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(explicitAcceptedObservationToCoreHandoffChangedFiles),
+    explicitAcceptedObservationToCoreHandoffChangedFiles,
+  );
+  assert.deepEqual(explicitAcceptedObservationToCoreHandoffChangedFiles, [
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/local-report/controlled-provider-observation-to-core-handoff.ts",
+    "tests/accepted-geometry-to-core-mapping.test.mjs",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+    "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
 });
 
 test("shared exact changed-file guard rejects forbidden extras in the PR127 pilot contract set", () => {
@@ -2134,6 +2156,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
+  const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
   const isPr125Set = isExactChangedFileSet(
     changedFiles,
@@ -2148,10 +2171,12 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set, true);
+  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr127Set
+    isPr128Set
+      ? explicitAcceptedObservationToCoreHandoffChangedFiles
+      : isPr127Set
       ? localVisualObservationToCorePilotContractChangedFiles
       : isPr126Set
       ? controlledProviderObservationToCoreHandoffChangedFiles

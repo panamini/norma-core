@@ -30,6 +30,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderSmokeArtifactProofChangedFiles,
@@ -1407,6 +1408,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     [
+      explicitAcceptedObservationToCoreHandoffChangedFiles,
       localVisualObservationToCorePilotContractChangedFiles,
       controlledProviderObservationToCoreHandoffChangedFiles,
       controlledProviderObservationAcceptanceProofChangedFiles,

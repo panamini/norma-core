@@ -801,6 +801,21 @@ export const localVisualObservationToCorePilotContractChangedFiles = Object.free
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const explicitAcceptedObservationToCoreHandoffChangedFiles = Object.freeze([
+  "src/accepted-geometry-to-core-mapping.ts",
+  "src/local-report/controlled-provider-observation-to-core-handoff.ts",
+  "tests/accepted-geometry-to-core-mapping.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const postR31RoadmapTruthSyncChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/PACKAGE_PUBLICATION_READINESS.md",
@@ -892,6 +907,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
