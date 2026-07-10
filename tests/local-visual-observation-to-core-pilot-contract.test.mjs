@@ -147,8 +147,10 @@ test("PR127 freezes one closed typed content-addressed provider execution receip
 test("PR127 makes same-image executions distinct and rejects every receipt/candidate cross-pair", () => {
   const receiptA = createExecutionReceipt("response body A");
   const receiptB = createExecutionReceipt("response body B");
-  const candidateA = createCandidateEnvelope(receiptA, "execution-a");
-  const candidateB = createCandidateEnvelope(receiptB, "execution-b");
+  const receiptObservationA = createCandidateCapablePr124Observation(receiptA);
+  const receiptObservationB = createCandidateCapablePr124Observation(receiptB);
+  const candidateA = createCandidateEnvelope(receiptA, "execution-a", receiptObservationA);
+  const candidateB = createCandidateEnvelope(receiptB, "execution-b", receiptObservationB);
 
   assert.notEqual(
     receiptA.providerResponseContentIdentity,
@@ -158,16 +160,91 @@ test("PR127 makes same-image executions distinct and rejects every receipt/candi
     receiptA.executionReceiptContentIdentity,
     receiptB.executionReceiptContentIdentity,
   );
-  assert.equal(validateReceiptCandidatePair(receiptA, candidateA), true);
-  assert.equal(validateReceiptCandidatePair(receiptB, candidateB), true);
+  assert.equal(validateReceiptCandidatePair(receiptA, receiptObservationA, candidateA), true);
+  assert.equal(validateReceiptCandidatePair(receiptB, receiptObservationB, candidateB), true);
   assert.throws(
-    () => validateReceiptCandidatePair(receiptA, candidateB),
+    () => validateReceiptCandidatePair(receiptA, receiptObservationA, candidateB),
     /execution receipt identity mismatch/u,
   );
   assert.throws(
-    () => validateReceiptCandidatePair(receiptB, candidateA),
+    () => validateReceiptCandidatePair(receiptB, receiptObservationB, candidateA),
     /execution receipt identity mismatch/u,
   );
+  assert.throws(
+    () => validateReceiptCandidatePair(receiptA, receiptObservationB, candidateB),
+    /PR124 execution receipt identity mismatch/u,
+  );
+  assert.throws(
+    () => validateReceiptCandidatePair(receiptB, receiptObservationA, candidateA),
+    /PR124 execution receipt identity mismatch/u,
+  );
+});
+
+test("PR127 binds candidate provenance to the canonical PR124 v2 observation object", () => {
+  const receipt = createExecutionReceipt("canonical PR124 observation response");
+  const receiptObservation = createCandidateCapablePr124Observation(receipt);
+  const candidateEnvelope = createCandidateEnvelope(
+    receipt,
+    "canonical-pr124-observation",
+    receiptObservation,
+  );
+  const expectedObservationContentIdentity = sha256Identity(canonicalJson(receiptObservation));
+
+  assert.equal(
+    candidateEnvelope.provenance.sourceReceiptObservationContentIdentity,
+    expectedObservationContentIdentity,
+  );
+
+  const fabricatedEnvelope = structuredClone(candidateEnvelope);
+  fabricatedEnvelope.provenance.sourceReceiptObservationContentIdentity = sha256Identity(
+    receiptObservation.observationId,
+  );
+  fabricatedEnvelope.observationContentIdentity = contentIdentityExcluding(
+    fabricatedEnvelope,
+    "observationContentIdentity",
+  );
+
+  assert.throws(
+    () => validateReceiptCandidatePair(receipt, receiptObservation, fabricatedEnvelope),
+    /PR124 observation content identity mismatch/u,
+  );
+
+  for (const mutateObservation of [
+    (observation) => {
+      observation.sourceTruth = true;
+    },
+    (observation) => {
+      observation.unapprovedField = "forbidden";
+    },
+  ]) {
+    const malformedObservation = structuredClone(receiptObservation);
+    mutateObservation(malformedObservation);
+    assert.throws(
+      () => createCandidateEnvelope(
+        receipt,
+        "malformed-pr124-observation",
+        malformedObservation,
+      ),
+      /PR124 observation is not the exact closed v2 contract|PR124 observation field mismatch/u,
+    );
+
+    const malformedPairEnvelope = structuredClone(candidateEnvelope);
+    malformedPairEnvelope.provenance.sourceReceiptObservationContentIdentity = sha256Identity(
+      canonicalJson(malformedObservation),
+    );
+    malformedPairEnvelope.observationContentIdentity = contentIdentityExcluding(
+      malformedPairEnvelope,
+      "observationContentIdentity",
+    );
+    assert.throws(
+      () => validateReceiptCandidatePair(
+        receipt,
+        malformedObservation,
+        malformedPairEnvelope,
+      ),
+      /PR124 observation is not the exact closed v2 contract|PR124 observation field mismatch/u,
+    );
+  }
 });
 
 test("PR127 freezes strict PR123 and PR124 execution identity propagation with v1 compatibility", async () => {
@@ -651,6 +728,142 @@ test("PR127 rejects candidate A paired with geometry B and accepts exact candida
   );
 });
 
+test("PR127 rejects empty human selection and empty AcceptedGeometry", () => {
+  const receipt = createExecutionReceipt("empty selection response");
+  const candidateEnvelope = createCandidateEnvelope(receipt, "empty-selection");
+  assert.throws(
+    () => createHumanSelection(candidateEnvelope, []),
+    /selection must contain at least one candidate/u,
+  );
+
+  const validSelection = createHumanSelection(candidateEnvelope, ["candidate:a"]);
+  const validAcceptedGeometry = createAcceptedGeometry(candidateEnvelope, validSelection);
+  const selection = structuredClone(validSelection);
+  selection.selections = [];
+  selection.selectionContentIdentity = contentIdentityExcluding(
+    selection,
+    "selectionContentIdentity",
+  );
+  assert.throws(
+    () => createAcceptedGeometry(candidateEnvelope, selection),
+    /selection must contain at least one candidate/u,
+  );
+
+  const acceptedGeometry = structuredClone(validAcceptedGeometry);
+  acceptedGeometry.primitives = [];
+  acceptedGeometry.acceptance.acceptedPrimitiveIds = [];
+  acceptedGeometry.acceptance.provenance.inputContentIdentity = selection.selectionContentIdentity;
+  finalizeAcceptedGeometryIdentities(acceptedGeometry);
+
+  assert.throws(
+    () => validateExactCandidateAcceptance(candidateEnvelope, selection, acceptedGeometry),
+    /selection must contain at least one candidate/u,
+  );
+});
+
+test("PR127 rejects duplicate candidate IDs and non-positional candidate order", () => {
+  const receipt = createExecutionReceipt("malformed candidate ordering response");
+  const candidateEnvelope = createCandidateEnvelope(receipt, "malformed-candidate-ordering");
+  const validSelection = createHumanSelection(candidateEnvelope, ["candidate:a"]);
+  const validAcceptedGeometry = createAcceptedGeometry(candidateEnvelope, validSelection);
+
+  const duplicateIds = structuredClone(candidateEnvelope);
+  duplicateIds.rectangleCandidates[1].candidateId =
+    duplicateIds.rectangleCandidates[0].candidateId;
+  duplicateIds.observationContentIdentity = contentIdentityExcluding(
+    duplicateIds,
+    "observationContentIdentity",
+  );
+  assert.throws(
+    () => createHumanSelection(duplicateIds, ["candidate:a"]),
+    /candidate IDs must be unique/u,
+  );
+  assert.throws(
+    () => createAcceptedGeometry(duplicateIds, validSelection),
+    /candidate IDs must be unique/u,
+  );
+  assert.throws(
+    () => validateExactCandidateAcceptance(duplicateIds, validSelection, validAcceptedGeometry),
+    /candidate IDs must be unique/u,
+  );
+
+  const nonPositionalOrder = structuredClone(candidateEnvelope);
+  nonPositionalOrder.rectangleCandidates[1].order = 7;
+  nonPositionalOrder.observationContentIdentity = contentIdentityExcluding(
+    nonPositionalOrder,
+    "observationContentIdentity",
+  );
+  assert.throws(
+    () => createHumanSelection(nonPositionalOrder, ["candidate:b"]),
+    /candidate order is not the zero-based array position/u,
+  );
+  assert.throws(
+    () => createAcceptedGeometry(nonPositionalOrder, validSelection),
+    /candidate order is not the zero-based array position/u,
+  );
+  assert.throws(
+    () => validateExactCandidateAcceptance(
+      nonPositionalOrder,
+      validSelection,
+      validAcceptedGeometry,
+    ),
+    /candidate order is not the zero-based array position/u,
+  );
+});
+
+test("PR127 rejects out-of-bounds candidates before selection or AcceptedGeometry construction", () => {
+  const receipt = createExecutionReceipt("out-of-bounds candidate response");
+  const candidateEnvelope = createCandidateEnvelope(receipt, "out-of-bounds-candidate");
+  const validSelection = createHumanSelection(candidateEnvelope, ["candidate:a"]);
+  const validAcceptedGeometry = createAcceptedGeometry(candidateEnvelope, validSelection);
+  candidateEnvelope.rectangleCandidates[0].x = 0.9;
+  candidateEnvelope.rectangleCandidates[0].width = 0.2;
+  candidateEnvelope.observationContentIdentity = contentIdentityExcluding(
+    candidateEnvelope,
+    "observationContentIdentity",
+  );
+  assert.throws(
+    () => createHumanSelection(candidateEnvelope, ["candidate:a"]),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+  assert.throws(
+    () => createAcceptedGeometry(candidateEnvelope, validSelection),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+  assert.throws(
+    () => validateExactCandidateAcceptance(
+      candidateEnvelope,
+      validSelection,
+      validAcceptedGeometry,
+    ),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+
+  const yOverflowEnvelope = createCandidateEnvelope(receipt, "y-overflow-candidate");
+  yOverflowEnvelope.rectangleCandidates[0].y = 0.9;
+  yOverflowEnvelope.rectangleCandidates[0].height = 0.2;
+  yOverflowEnvelope.observationContentIdentity = contentIdentityExcluding(
+    yOverflowEnvelope,
+    "observationContentIdentity",
+  );
+  assert.throws(
+    () => createHumanSelection(yOverflowEnvelope, ["candidate:a"]),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+  assert.throws(
+    () => createAcceptedGeometry(yOverflowEnvelope, validSelection),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+  assert.throws(
+    () => validateExactCandidateAcceptance(
+      yOverflowEnvelope,
+      validSelection,
+      validAcceptedGeometry,
+    ),
+    /candidate rectangle exceeds normalized bounds/u,
+  );
+});
+
 test("PR127 forbids correction repair reordering confidence and automatic selection", async () => {
   const section = sectionBetween(
     await readDecision(),
@@ -1075,8 +1288,57 @@ function createExecutionReceipt(responseBody) {
   return receipt;
 }
 
-function createCandidateEnvelope(receipt, suffix) {
+function createCandidateCapablePr124Observation(receipt) {
   const receiptHex = receipt.executionReceiptContentIdentity.slice("sha256:".length);
+  return {
+    kind: "norma.controlled-provider-observation-contract.v2",
+    version: 2,
+    observationId: `controlled-provider-observation:v2:${receiptHex}`,
+    providerExecutionReceiptContentIdentity: receipt.executionReceiptContentIdentity,
+    providerEvidenceOnly: true,
+    untrusted: true,
+    nonAuthoritative: true,
+    sourceArtifactsRedacted: true,
+    sourceArtifactKinds: ["provider-evidence-envelope.json", "summary.json"],
+    providerOutputObserved: true,
+    redactedDiagnosticClass: null,
+    redactedDiagnosticNextAction: null,
+    imageContentIdentity: receipt.sourceImageContentIdentity,
+    mediaTypeClass: "raster_png",
+    imageSizeClass: "medium",
+    providerClass: receipt.providerClass,
+    endpointClass: receipt.endpointClass,
+    responseStatusClass: receipt.responseStatusClass,
+    acceptedGeometry: false,
+    acceptedStructuredGeometryProduced: false,
+    coreInputProduced: false,
+    structuredAnalyzeInputProduced: false,
+    structuredAnalyzeRun: false,
+    resultJsonProduced: false,
+    resultJsonCanonicalTruth: false,
+    sourceTruth: false,
+    packageApiTruth: false,
+    connectorTruth: false,
+    hostedTruth: false,
+    metricPolicyAuthority: false,
+    providerSelfAcceptance: false,
+    confidenceScoreValueCanAuthorizeAcceptance: false,
+    providerStatusCanAuthorizeAcceptance: false,
+    providerDiagnosticCanAuthorizeAcceptance: false,
+    providerMetadataCanAuthorizeAcceptance: false,
+    artifactCanAuthorizeAcceptance: false,
+    cannotSelfAccept: true,
+    requiresExplicitFutureAcceptance: true,
+    nextAllowedStep: "explicit_acceptance_contract_required",
+  };
+}
+
+function createCandidateEnvelope(
+  receipt,
+  suffix,
+  receiptObservation = createCandidateCapablePr124Observation(receipt),
+) {
+  validateCandidateCapablePr124Observation(receipt, receiptObservation);
   const candidate = {
     contractId: "norma.local-visual-candidate-observation@1",
     contractVersion: 1,
@@ -1092,10 +1354,8 @@ function createCandidateEnvelope(receipt, suffix) {
     provenance: {
       provenanceClass: "controlled-local-live-visual-observation",
       adapterBoundary: "provider-specific-response-to-provider-neutral-candidate-observation@1",
-      sourceReceiptObservationId: `controlled-provider-observation:v2:${receiptHex}`,
-      sourceReceiptObservationContentIdentity: sha256Identity(
-        `controlled-provider-observation:v2:${receiptHex}`,
-      ),
+      sourceReceiptObservationId: receiptObservation.observationId,
+      sourceReceiptObservationContentIdentity: sha256Identity(canonicalJson(receiptObservation)),
       providerExecutionReceiptContentIdentity: receipt.executionReceiptContentIdentity,
       providerSpecificSchemaTerminated: true,
       manualOnly: true,
@@ -1153,6 +1413,10 @@ function createCandidateEnvelope(receipt, suffix) {
 }
 
 function createHumanSelection(candidateEnvelope, candidateIds) {
+  validateCandidateEnvelope(candidateEnvelope);
+  if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
+    throw new Error("selection must contain at least one candidate");
+  }
   const selection = {
     contractId: "norma.local-visual-human-candidate-selection@1",
     contractVersion: 1,
@@ -1182,13 +1446,12 @@ function createHumanSelection(candidateEnvelope, candidateIds) {
     selection,
     "selectionContentIdentity",
   );
+  validateHumanCandidateSelection(candidateEnvelope, selection);
   return selection;
 }
 
 function createAcceptedGeometry(candidateEnvelope, selection) {
-  const candidatesById = new Map(
-    candidateEnvelope.rectangleCandidates.map((candidate) => [candidate.candidateId, candidate]),
-  );
+  const selectedCandidates = validateHumanCandidateSelection(candidateEnvelope, selection);
   const acceptedGeometry = {
     contractId: "norma.accepted-geometry@1",
     contractVersion: 1,
@@ -1198,10 +1461,9 @@ function createAcceptedGeometry(candidateEnvelope, selection) {
     acceptedRevision: 1,
     coordinateFrame: structuredClone(candidateEnvelope.coordinateFrame),
     correctionHistory: [],
-    primitives: selection.selections.map(({ candidateId, acceptedPrimitiveId }) => {
-      const candidate = candidatesById.get(candidateId);
+    primitives: selectedCandidates.map(({ selected, candidate }) => {
       return {
-        id: acceptedPrimitiveId,
+        id: selected.acceptedPrimitiveId,
         kind: "rectangle",
         confidence: null,
         x: candidate.x,
@@ -1236,19 +1498,15 @@ function createAcceptedGeometry(candidateEnvelope, selection) {
   return acceptedGeometry;
 }
 
-function validateReceiptCandidatePair(receipt, candidateEnvelope) {
+function validateReceiptCandidatePair(receipt, receiptObservation, candidateEnvelope) {
   if (
     receipt.executionReceiptContentIdentity
     !== contentIdentityExcluding(receipt, "executionReceiptContentIdentity")
   ) {
     throw new Error("execution receipt content identity is invalid");
   }
-  if (
-    candidateEnvelope.observationContentIdentity
-    !== contentIdentityExcluding(candidateEnvelope, "observationContentIdentity")
-  ) {
-    throw new Error("candidate observation content identity is invalid");
-  }
+  validateCandidateCapablePr124Observation(receipt, receiptObservation);
+  validateCandidateEnvelope(candidateEnvelope);
   if (
     candidateEnvelope.provenance.providerExecutionReceiptContentIdentity
     !== receipt.executionReceiptContentIdentity
@@ -1258,38 +1516,20 @@ function validateReceiptCandidatePair(receipt, candidateEnvelope) {
   if (candidateEnvelope.sourceImage.contentIdentity !== receipt.sourceImageContentIdentity) {
     throw new Error("source image content identity mismatch");
   }
+  if (candidateEnvelope.provenance.sourceReceiptObservationId !== receiptObservation.observationId) {
+    throw new Error("PR124 observation ID linkage mismatch");
+  }
+  if (
+    candidateEnvelope.provenance.sourceReceiptObservationContentIdentity
+    !== sha256Identity(canonicalJson(receiptObservation))
+  ) {
+    throw new Error("PR124 observation content identity mismatch");
+  }
   return true;
 }
 
 function validateExactCandidateAcceptance(candidateEnvelope, selection, acceptedGeometry) {
-  if (
-    candidateEnvelope.observationContentIdentity
-    !== contentIdentityExcluding(candidateEnvelope, "observationContentIdentity")
-  ) {
-    throw new Error("candidate observation content identity is invalid");
-  }
-  if (
-    selection.selectionContentIdentity
-    !== contentIdentityExcluding(selection, "selectionContentIdentity")
-  ) {
-    throw new Error("selection content identity is invalid");
-  }
-  if (
-    selection.candidateObservationId !== candidateEnvelope.observationId
-    || selection.candidateObservationContentIdentity
-      !== candidateEnvelope.observationContentIdentity
-  ) {
-    throw new Error("selection candidate identity mismatch");
-  }
-  if (
-    selection.providerExecutionReceiptContentIdentity
-    !== candidateEnvelope.provenance.providerExecutionReceiptContentIdentity
-  ) {
-    throw new Error("selection execution receipt identity mismatch");
-  }
-  if (selection.acceptanceActor.actorClass !== "human" || selection.geometryAction !== "accept_exact") {
-    throw new Error("selection is not exact human acceptance");
-  }
+  const selectedCandidates = validateHumanCandidateSelection(candidateEnvelope, selection);
   if (
     acceptedGeometry.sourceObservationId !== candidateEnvelope.observationId
     || acceptedGeometry.sourceObservationContentIdentity
@@ -1334,14 +1574,127 @@ function validateExactCandidateAcceptance(candidateEnvelope, selection, accepted
     throw new Error("AcceptedGeometry accepted primitive order mismatch");
   }
 
+  selectedCandidates.forEach(({ selected, candidate }, index) => {
+    const primitive = acceptedGeometry.primitives[index];
+    if (
+      primitive.id !== selected.acceptedPrimitiveId
+      || primitive.kind !== "rectangle"
+      || primitive.confidence !== null
+    ) {
+      throw new Error("accepted primitive representation mismatch");
+    }
+    for (const field of ["x", "y", "width", "height"]) {
+      if (primitive[field] !== candidate[field]) {
+        throw new Error("accepted rectangle differs from selected candidate");
+      }
+    }
+  });
+
+  return true;
+}
+
+function validateCandidateCapablePr124Observation(receipt, receiptObservation) {
+  if (
+    receiptObservation === null
+    || typeof receiptObservation !== "object"
+    || Array.isArray(receiptObservation)
+    || Object.getPrototypeOf(receiptObservation) !== Object.prototype
+  ) {
+    throw new Error("PR124 observation is not the exact closed v2 contract");
+  }
+
+  const expectedObservation = createCandidateCapablePr124Observation(receipt);
+  const expectedFields = Object.keys(expectedObservation).sort();
+  const actualFields = Reflect.ownKeys(receiptObservation);
+  if (
+    actualFields.some((field) => typeof field !== "string")
+    || canonicalJson(actualFields.sort()) !== canonicalJson(expectedFields)
+  ) {
+    throw new Error("PR124 observation is not the exact closed v2 contract");
+  }
+  if (
+    receiptObservation.providerExecutionReceiptContentIdentity
+    !== receipt.executionReceiptContentIdentity
+  ) {
+    throw new Error("PR124 execution receipt identity mismatch");
+  }
+
+  const allowedMediaTypes = new Set([
+    "raster_png",
+    "raster_jpeg",
+    "raster_webp",
+    "unknown_redacted_media_type",
+  ]);
+  const allowedImageSizes = new Set([
+    "small",
+    "medium",
+    "large",
+    "unknown_redacted_size",
+  ]);
+  for (const field of expectedFields) {
+    if (field === "mediaTypeClass") {
+      if (!allowedMediaTypes.has(receiptObservation[field])) {
+        throw new Error(`PR124 observation field mismatch: ${field}`);
+      }
+      continue;
+    }
+    if (field === "imageSizeClass") {
+      if (!allowedImageSizes.has(receiptObservation[field])) {
+        throw new Error(`PR124 observation field mismatch: ${field}`);
+      }
+      continue;
+    }
+    if (field === "sourceArtifactKinds") {
+      if (
+        canonicalJson(receiptObservation[field])
+        !== canonicalJson(expectedObservation[field])
+      ) {
+        throw new Error(`PR124 observation field mismatch: ${field}`);
+      }
+      continue;
+    }
+    if (receiptObservation[field] !== expectedObservation[field]) {
+      throw new Error(`PR124 observation field mismatch: ${field}`);
+    }
+  }
+  return true;
+}
+
+function validateHumanCandidateSelection(candidateEnvelope, selection) {
+  validateCandidateEnvelope(candidateEnvelope);
+  if (
+    selection.selectionContentIdentity
+    !== contentIdentityExcluding(selection, "selectionContentIdentity")
+  ) {
+    throw new Error("selection content identity is invalid");
+  }
+  if (
+    selection.candidateObservationId !== candidateEnvelope.observationId
+    || selection.candidateObservationContentIdentity
+      !== candidateEnvelope.observationContentIdentity
+  ) {
+    throw new Error("selection candidate identity mismatch");
+  }
+  if (
+    selection.providerExecutionReceiptContentIdentity
+    !== candidateEnvelope.provenance.providerExecutionReceiptContentIdentity
+  ) {
+    throw new Error("selection execution receipt identity mismatch");
+  }
+  if (selection.acceptanceActor.actorClass !== "human" || selection.geometryAction !== "accept_exact") {
+    throw new Error("selection is not exact human acceptance");
+  }
+  if (!Array.isArray(selection.selections) || selection.selections.length === 0) {
+    throw new Error("selection must contain at least one candidate");
+  }
+
   const candidateIndexes = new Map(
     candidateEnvelope.rectangleCandidates.map((candidate, index) => [candidate.candidateId, index]),
   );
   const selectedCandidateIds = new Set();
   const acceptedPrimitiveIds = new Set();
   let priorCandidateIndex = -1;
-
-  selection.selections.forEach((selected, index) => {
+  return selection.selections.map((selected, index) => {
     if (selected.order !== index) {
       throw new Error("selection order is not the zero-based array position");
     }
@@ -1361,24 +1714,57 @@ function validateExactCandidateAcceptance(candidateEnvelope, selection, accepted
     priorCandidateIndex = candidateIndex;
     selectedCandidateIds.add(selected.candidateId);
     acceptedPrimitiveIds.add(selected.acceptedPrimitiveId);
+    return {
+      selected,
+      candidate: candidateEnvelope.rectangleCandidates[candidateIndex],
+    };
+  });
+}
 
-    const candidate = candidateEnvelope.rectangleCandidates[candidateIndex];
-    const primitive = acceptedGeometry.primitives[index];
-    if (
-      primitive.id !== selected.acceptedPrimitiveId
-      || primitive.kind !== "rectangle"
-      || primitive.confidence !== null
-    ) {
-      throw new Error("accepted primitive representation mismatch");
+function validateCandidateEnvelope(candidateEnvelope) {
+  if (
+    candidateEnvelope.observationContentIdentity
+    !== contentIdentityExcluding(candidateEnvelope, "observationContentIdentity")
+  ) {
+    throw new Error("candidate observation content identity is invalid");
+  }
+  if (
+    !Array.isArray(candidateEnvelope.rectangleCandidates)
+    || candidateEnvelope.rectangleCandidates.length === 0
+  ) {
+    throw new Error("candidate envelope must contain at least one rectangle");
+  }
+
+  const candidateIds = new Set();
+  candidateEnvelope.rectangleCandidates.forEach((candidate, index) => {
+    if (candidate.order !== index) {
+      throw new Error("candidate order is not the zero-based array position");
     }
-    for (const field of ["x", "y", "width", "height"]) {
-      if (primitive[field] !== candidate[field]) {
-        throw new Error("accepted rectangle differs from selected candidate");
-      }
+    if (candidateIds.has(candidate.candidateId)) {
+      throw new Error("candidate IDs must be unique");
+    }
+    candidateIds.add(candidate.candidateId);
+
+    const { x, y, width, height } = candidate;
+    if (![x, y, width, height].every(Number.isFinite)) {
+      throw new Error("candidate rectangle coordinates must be finite");
+    }
+    if (
+      x < 0
+      || x > 1
+      || y < 0
+      || y > 1
+      || width <= 0
+      || width > 1
+      || height <= 0
+      || height > 1
+    ) {
+      throw new Error("candidate rectangle coordinates are outside normalized bounds");
+    }
+    if (x + width > 1 || y + height > 1) {
+      throw new Error("candidate rectangle exceeds normalized bounds");
     }
   });
-
-  return true;
 }
 
 function createProvenance(provenanceId, inputContentIdentity) {
