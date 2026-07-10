@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +27,9 @@ test("PR127 decision exists with the complete approval-contract structure", asyn
     "# Local Visual Observation-to-Core Pilot Contract",
     "## Status",
     "## Approved Pipeline",
+    "## Provider Execution Receipt Identity",
     "## Trust And Acceptance Authority",
+    "## Human Candidate Selection Record",
     "## Approved Mapper Boundary",
     "## Candidate Visual Observation Envelope",
     "## Candidate Validation And Persistence",
@@ -42,7 +45,7 @@ test("PR127 decision exists with the complete approval-contract structure", asyn
   assertIncludes(doc, [
     "Approved as the PR127 docs/tests-only contract",
     "It does not implement either runtime",
-    "CC-20260710-PR127-LOCAL-VISUAL-OBSERVATION-TO-CORE v1",
+    "CC-20260710-PR127-LOCAL-VISUAL-OBSERVATION-TO-CORE v2",
     "The approved sequence is strictly PR127 -> PR128 -> PR129",
     "PR129 must not begin before PR128 merges",
   ]);
@@ -58,8 +61,9 @@ test("PR127 freezes the complete provider-to-canonical-truth pipeline", async ()
   assertIncludes(section, [
     "live provider-specific response, processed in memory",
     "-> provider-specific adapter validation, processed in memory",
+    "-> redacted content-addressed provider execution receipt",
     "-> exact provider-neutral candidate visual observation envelope",
-    "-> explicit human acceptance outside the provider boundary",
+    "-> exact human candidate selection record outside the provider boundary",
     "-> existing AcceptedGeometry@1",
     "-> existing PR125 controlled provider observation acceptance proof",
     "-> approved provider-neutral mapping-context boundary",
@@ -71,6 +75,145 @@ test("PR127 freezes the complete provider-to-canonical-truth pipeline", async ()
     "`result.json` remains canonical computational truth",
     "Guide, report, proof, viewer, and demo artifacts remain derived",
   ]);
+});
+
+test("PR127 freezes one closed typed content-addressed provider execution receipt", async () => {
+  const schema = await readExecutionReceiptSchema();
+
+  assertClosedObject(schema, [
+    "contractId",
+    "contractVersion",
+    "executionReceiptContentIdentity",
+    "sourceImageContentIdentity",
+    "providerClass",
+    "endpointClass",
+    "responseStatusClass",
+    "providerResponseContentIdentity",
+    "structuredOutputSchemaVersion",
+    "adapterOperationId",
+    "adapterOperationVersion",
+    "persistence",
+  ]);
+  assertContractIdSchema(schema.properties.contractId);
+  assert.equal(
+    schema.properties.contractId.const,
+    "norma.local-visual-provider-execution-receipt@1",
+  );
+  assert.equal(schema.properties.contractVersion.type, "integer");
+  assert.equal(schema.properties.contractVersion.const, 1);
+  for (const field of [
+    "executionReceiptContentIdentity",
+    "sourceImageContentIdentity",
+    "providerResponseContentIdentity",
+  ]) {
+    assertDigestSchema(schema.properties[field]);
+  }
+  assert.deepEqual(
+    ["providerClass", "endpointClass", "responseStatusClass"].map(
+      (field) => schema.properties[field].type,
+    ),
+    ["string", "string", "string"],
+  );
+  assert.equal(schema.properties.providerClass.const, "controlled_live_provider");
+  assert.equal(schema.properties.endpointClass.const, "responses_api");
+  assert.equal(schema.properties.responseStatusClass.const, "2xx_success");
+  assert.equal(
+    schema.properties.structuredOutputSchemaVersion.const,
+    "controlled-rectangle-candidates@1",
+  );
+  assert.equal(
+    schema.properties.structuredOutputSchemaVersion.format,
+    "norma-versioned-schema-identifier",
+  );
+  assertIdentifierSchema(schema.properties.adapterOperationId);
+  assert.equal(schema.properties.adapterOperationVersion.type, "integer");
+  assert.equal(schema.properties.adapterOperationVersion.const, 1);
+  assertClosedObject(schema.properties.persistence, [
+    "rawProviderResponsePersisted",
+    "requestBodyPersisted",
+    "rawImagePersisted",
+    "localPathPersisted",
+    "urlPersisted",
+    "providerRequestIdPersisted",
+    "exactModelValuePersisted",
+    "secretOrCredentialPersisted",
+  ]);
+  for (const field of schema.properties.persistence.required) {
+    assert.equal(schema.properties.persistence.properties[field].type, "boolean", field);
+    assert.equal(schema.properties.persistence.properties[field].const, false, field);
+  }
+});
+
+test("PR127 makes same-image executions distinct and rejects every receipt/candidate cross-pair", () => {
+  const receiptA = createExecutionReceipt("response body A");
+  const receiptB = createExecutionReceipt("response body B");
+  const candidateA = createCandidateEnvelope(receiptA, "execution-a");
+  const candidateB = createCandidateEnvelope(receiptB, "execution-b");
+
+  assert.notEqual(
+    receiptA.providerResponseContentIdentity,
+    receiptB.providerResponseContentIdentity,
+  );
+  assert.notEqual(
+    receiptA.executionReceiptContentIdentity,
+    receiptB.executionReceiptContentIdentity,
+  );
+  assert.equal(validateReceiptCandidatePair(receiptA, candidateA), true);
+  assert.equal(validateReceiptCandidatePair(receiptB, candidateB), true);
+  assert.throws(
+    () => validateReceiptCandidatePair(receiptA, candidateB),
+    /execution receipt identity mismatch/u,
+  );
+  assert.throws(
+    () => validateReceiptCandidatePair(receiptB, candidateA),
+    /execution receipt identity mismatch/u,
+  );
+});
+
+test("PR127 freezes strict PR123 and PR124 execution identity propagation with v1 compatibility", async () => {
+  const section = sectionBetween(
+    await readDecision(),
+    "## Provider Execution Receipt Identity",
+    "## Trust And Acceptance Authority",
+  );
+
+  assertIncludes(section, [
+    "SHA-256 identity of the exact raw provider response bytes/body computed before parsing and only in memory",
+    "complete receipt excluding only `executionReceiptContentIdentity` itself",
+    "The current PR123 proof and `norma.controlled-provider-observation-contract.v1` receipt-only path remain unchanged and compatible",
+    "may not fall back to those v1 receipt-only semantics",
+    "carry `providerExecutionReceiptContentIdentity`",
+    "`norma.controlled-provider-observation-contract.v2`, version `2`",
+    "`controlled-provider-observation:v2:<execution-receipt-hex>`",
+    "All other PR124 v1 authority flags remain unchanged",
+    "Two executions over the same image remain distinct when their response bytes differ",
+    "must fail closed even when every redacted class and source image identity matches",
+  ]);
+});
+
+test("PR127 execution and selection schemas persist no raw or provider-specific values", async () => {
+  for (const schema of [await readExecutionReceiptSchema(), await readSelectionSchema()]) {
+    const fields = collectPropertyNames(schema);
+    for (const forbiddenField of [
+      "providerPayload",
+      "providerResponse",
+      "rawResponse",
+      "rawImage",
+      "base64",
+      "localPath",
+      "url",
+      "secret",
+      "credential",
+      "providerRequestId",
+      "model",
+      "modelEnvironmentValue",
+      "hiddenPrompt",
+      "chainOfThought",
+      "realUserData",
+    ]) {
+      assert.equal(fields.has(forbiddenField), false, forbiddenField);
+    }
+  }
 });
 
 test("PR127 freezes one versioned mapper literal without weakening synthetic compatibility", async () => {
@@ -123,10 +266,12 @@ test("PR127 candidate envelope has an exact closed versioned top-level shape", a
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, topLevelFields);
   assert.deepEqual(Object.keys(schema.properties), topLevelFields);
+  assertContractIdSchema(schema.properties.contractId);
   assert.equal(schema.properties.contractId.const, "norma.local-visual-candidate-observation@1");
+  assert.equal(schema.properties.contractVersion.type, "integer");
   assert.equal(schema.properties.contractVersion.const, 1);
-  assert.equal(schema.properties.observationId.minLength, 1);
-  assert.equal(schema.properties.observationContentIdentity.pattern, "^sha256:[0-9a-f]{64}$");
+  assertIdentifierSchema(schema.properties.observationId);
+  assertDigestSchema(schema.properties.observationContentIdentity);
 });
 
 test("PR127 candidate envelope closes source provenance coordinate and authority objects", async () => {
@@ -139,7 +284,7 @@ test("PR127 candidate envelope closes source provenance coordinate and authority
     "localPathPersisted",
     "urlPersisted",
   ]);
-  assert.equal(properties.sourceImage.properties.contentIdentity.pattern, "^sha256:[0-9a-f]{64}$");
+  assertDigestSchema(properties.sourceImage.properties.contentIdentity);
   for (const field of ["rawImagePersisted", "base64Persisted", "localPathPersisted", "urlPersisted"]) {
     assert.equal(properties.sourceImage.properties[field].const, false, field);
   }
@@ -149,6 +294,7 @@ test("PR127 candidate envelope closes source provenance coordinate and authority
     "adapterBoundary",
     "sourceReceiptObservationId",
     "sourceReceiptObservationContentIdentity",
+    "providerExecutionReceiptContentIdentity",
     "providerSpecificSchemaTerminated",
     "manualOnly",
     "localOnly",
@@ -162,11 +308,13 @@ test("PR127 candidate envelope closes source provenance coordinate and authority
     properties.provenance.properties.adapterBoundary.const,
     "provider-specific-response-to-provider-neutral-candidate-observation@1",
   );
-  assert.equal(properties.provenance.properties.sourceReceiptObservationId.minLength, 1);
   assert.equal(
-    properties.provenance.properties.sourceReceiptObservationContentIdentity.pattern,
-    "^sha256:[0-9a-f]{64}$",
+    properties.provenance.properties.adapterBoundary.format,
+    "norma-versioned-boundary-identifier",
   );
+  assertIdentifierSchema(properties.provenance.properties.sourceReceiptObservationId);
+  assertDigestSchema(properties.provenance.properties.sourceReceiptObservationContentIdentity);
+  assertDigestSchema(properties.provenance.properties.providerExecutionReceiptContentIdentity);
   assert.equal(properties.provenance.properties.providerSpecificSchemaTerminated.const, true);
   assert.equal(properties.provenance.properties.manualOnly.const, true);
   assert.equal(properties.provenance.properties.localOnly.const, true);
@@ -179,6 +327,8 @@ test("PR127 candidate envelope closes source provenance coordinate and authority
     "xDirection",
     "yDirection",
     "bounds",
+    "sourcePixelWidth",
+    "sourcePixelHeight",
   ]);
   assert.equal(properties.coordinateFrame.properties.dimensions.const, 2);
   assert.equal(properties.coordinateFrame.properties.coordinateScale.const, "normalized");
@@ -188,6 +338,11 @@ test("PR127 candidate envelope closes source provenance coordinate and authority
   assertClosedObject(properties.coordinateFrame.properties.bounds, ["x", "y"]);
   assert.deepEqual(properties.coordinateFrame.properties.bounds.properties.x.const, [0, 1]);
   assert.deepEqual(properties.coordinateFrame.properties.bounds.properties.y.const, [0, 1]);
+  for (const field of ["sourcePixelWidth", "sourcePixelHeight"]) {
+    assert.equal(properties.coordinateFrame.properties[field].type, "integer", field);
+    assert.equal(properties.coordinateFrame.properties[field].format, "positive-source-pixel-dimension", field);
+    assert.equal(properties.coordinateFrame.properties[field].minimum, 1, field);
+  }
 
   assertClosedObject(properties.authority, [
     "providerEvidenceOnly",
@@ -234,17 +389,25 @@ test("PR127 rectangle candidates are ordered normalized rectangles with diagnost
   assertClosedObject(candidate, ["candidateId", "order", "x", "y", "width", "height"], [
     "diagnosticMetadata",
   ]);
+  assertIdentifierSchema(candidate.properties.candidateId);
   assert.equal(candidate.properties.order.type, "integer");
   assert.equal(candidate.properties.order.minimum, 0);
   for (const field of ["x", "y"]) {
     assert.equal(candidate.properties[field].minimum, 0, field);
     assert.equal(candidate.properties[field].maximum, 1, field);
+    assert.equal(candidate.properties[field].format, "finite-normalized-unit-interval", field);
   }
   for (const field of ["width", "height"]) {
     assert.equal(candidate.properties[field].exclusiveMinimum, 0, field);
     assert.equal(candidate.properties[field].maximum, 1, field);
+    assert.equal(candidate.properties[field].format, "finite-normalized-positive-unit-interval", field);
   }
   assertClosedObject(candidate.properties.diagnosticMetadata, ["providerConfidence"]);
+  assert.equal(candidate.properties.diagnosticMetadata.properties.providerConfidence.type, "number");
+  assert.equal(
+    candidate.properties.diagnosticMetadata.properties.providerConfidence.format,
+    "finite-normalized-unit-interval",
+  );
   assert.equal(candidate.properties.diagnosticMetadata.properties.providerConfidence.minimum, 0);
   assert.equal(candidate.properties.diagnosticMetadata.properties.providerConfidence.maximum, 1);
 
@@ -253,8 +416,11 @@ test("PR127 rectangle candidates are ordered normalized rectangles with diagnost
     "All rectangle numbers are finite",
     "`x + width <= 1`",
     "`y + height <= 1`",
-    "must match the validated PR124 receipt-metadata contract",
-    "`sourceImage.contentIdentity` must also match the PR124 non-null",
+    "sourcePixelWidth",
+    "must match the validated candidate-capable PR124 v2 observation",
+    "`provenance.providerExecutionReceiptContentIdentity` must match",
+    "`sourceImage.contentIdentity` must also match the receipt and PR124 non-null",
+    "Any cross-execution pairing fails closed",
     "carry no acceptance authority",
     "`diagnosticMetadata` is optional as a whole",
     "Confidence is diagnostic only",
@@ -265,12 +431,17 @@ test("PR127 freezes allowlisted lossy warnings and redacted-only persistence", a
   const { properties } = await readCandidateSchema();
 
   assertClosedObject(properties.lossyWarnings.items, ["warningId", "code", "candidateId"]);
+  assertIdentifierSchema(properties.lossyWarnings.items.properties.warningId);
   assert.deepEqual(properties.lossyWarnings.items.properties.code.enum, [
     "coordinate-normalization-loss",
     "rectangle-approximation-loss",
     "provider-confidence-diagnostic-only",
   ]);
   assert.deepEqual(properties.lossyWarnings.items.properties.candidateId.type, ["string", "null"]);
+  assert.equal(
+    properties.lossyWarnings.items.properties.candidateId.format,
+    "norma-local-identifier",
+  );
 
   assertClosedObject(properties.persistence, [
     "providerPayloadPersisted",
@@ -356,17 +527,157 @@ test("PR127 reuses PR125 human acceptance authority and rejects every automatic 
     "The first pilot requires a separate, affirmative human selection outside the provider boundary",
     "Absence of rejection is not acceptance",
     "cannot create `AcceptedGeometry`",
-    "must construct the existing PR125 acceptance boundary",
+    "the existing PR125 acceptance boundary",
     "createControlledProviderObservationAcceptanceProofV1",
     "must not introduce a second acceptance authority",
     "must minimally extend the same package-private PR125 proof path",
-    "validate the existing PR124 contract first",
+    "validate the candidate-capable PR124 contract first",
     "validate the exact candidate envelope second",
-    "source image content identity against PR124",
-    "bind the existing acceptance boundary and `AcceptedGeometry@1` to the candidate envelope's",
+    "validate the exact human selection third",
+    "validate the candidate envelope, selection record, and `AcceptedGeometry@1` together",
     "must require `acceptanceActor.actorClass: \"human\"`",
+    "must identify the candidate envelope, never the PR124 receipt-metadata observation",
     "The existing PR124 proof input remains compatible",
-    "no parallel proof type or acceptance mode is approved",
+    "no parallel acceptance authority is approved",
+    "On the candidate path, the PR125 proof result adds exactly",
+    "`providerExecutionReceiptContentIdentity`, `candidateObservationId`",
+    "`candidateObservationContentIdentity`, `humanSelectionId`",
+    "`humanSelectionContentIdentity` alongside its existing AcceptedGeometry identity fields",
+    "handoff result, local result evidence, canonical-result proof, and derived guide/report artifacts must repeat those exact five fields",
+  ]);
+});
+
+test("PR127 freezes one closed typed exact-human-selection record", async () => {
+  const schema = await readSelectionSchema();
+
+  assertClosedObject(schema, [
+    "contractId",
+    "contractVersion",
+    "selectionId",
+    "selectionContentIdentity",
+    "candidateObservationId",
+    "candidateObservationContentIdentity",
+    "providerExecutionReceiptContentIdentity",
+    "acceptanceActor",
+    "geometryAction",
+    "selections",
+    "authority",
+  ]);
+  assertContractIdSchema(schema.properties.contractId);
+  assert.equal(
+    schema.properties.contractId.const,
+    "norma.local-visual-human-candidate-selection@1",
+  );
+  assert.equal(schema.properties.contractVersion.type, "integer");
+  assert.equal(schema.properties.contractVersion.const, 1);
+  for (const field of ["selectionId", "candidateObservationId"]) {
+    assertIdentifierSchema(schema.properties[field]);
+  }
+  for (const field of [
+    "selectionContentIdentity",
+    "candidateObservationContentIdentity",
+    "providerExecutionReceiptContentIdentity",
+  ]) {
+    assertDigestSchema(schema.properties[field]);
+  }
+  assertClosedObject(schema.properties.acceptanceActor, ["actorClass", "actorId"]);
+  assert.equal(schema.properties.acceptanceActor.properties.actorClass.type, "string");
+  assert.equal(schema.properties.acceptanceActor.properties.actorClass.const, "human");
+  assertIdentifierSchema(schema.properties.acceptanceActor.properties.actorId);
+  assert.equal(schema.properties.geometryAction.type, "string");
+  assert.equal(schema.properties.geometryAction.const, "accept_exact");
+
+  const item = schema.properties.selections.items;
+  assert.equal(schema.properties.selections.type, "array");
+  assert.equal(schema.properties.selections.minItems, 1);
+  assertClosedObject(item, ["order", "candidateId", "acceptedPrimitiveId"]);
+  assert.equal(item.properties.order.type, "integer");
+  assert.equal(item.properties.order.minimum, 0);
+  assertIdentifierSchema(item.properties.candidateId);
+  assertIdentifierSchema(item.properties.acceptedPrimitiveId);
+
+  assertClosedObject(schema.properties.authority, [
+    "explicitHumanSelection",
+    "providerAuthority",
+    "confidenceAuthority",
+    "automaticAcceptance",
+    "coordinateCorrectionAllowed",
+    "coordinateRepairAllowed",
+  ]);
+  assert.equal(schema.properties.authority.properties.explicitHumanSelection.const, true);
+  for (const field of [
+    "providerAuthority",
+    "confidenceAuthority",
+    "automaticAcceptance",
+    "coordinateCorrectionAllowed",
+    "coordinateRepairAllowed",
+  ]) {
+    assert.equal(schema.properties.authority.properties[field].type, "boolean", field);
+    assert.equal(schema.properties.authority.properties[field].const, false, field);
+  }
+});
+
+test("PR127 rejects candidate A paired with geometry B and accepts exact candidate A", () => {
+  const receipt = createExecutionReceipt("selection response body");
+  const candidateEnvelope = createCandidateEnvelope(receipt, "selection-execution");
+  const selection = createHumanSelection(candidateEnvelope, ["candidate:a"]);
+  const exactAcceptedGeometry = createAcceptedGeometry(candidateEnvelope, selection);
+  const substitutedGeometry = structuredClone(exactAcceptedGeometry);
+  const candidateB = candidateEnvelope.rectangleCandidates[1];
+
+  Object.assign(substitutedGeometry.primitives[0], {
+    x: candidateB.x,
+    y: candidateB.y,
+    width: candidateB.width,
+    height: candidateB.height,
+  });
+  finalizeAcceptedGeometryIdentities(substitutedGeometry);
+
+  assert.equal(
+    substitutedGeometry.sourceObservationId,
+    candidateEnvelope.observationId,
+  );
+  assert.equal(
+    substitutedGeometry.sourceObservationContentIdentity,
+    candidateEnvelope.observationContentIdentity,
+  );
+  assert.throws(
+    () => validateExactCandidateAcceptance(candidateEnvelope, selection, substitutedGeometry),
+    /accepted rectangle differs from selected candidate/u,
+  );
+  assert.equal(
+    validateExactCandidateAcceptance(candidateEnvelope, selection, exactAcceptedGeometry),
+    true,
+  );
+});
+
+test("PR127 forbids correction repair reordering confidence and automatic selection", async () => {
+  const section = sectionBetween(
+    await readDecision(),
+    "## Human Candidate Selection Record",
+    "## Approved Mapper Boundary",
+  );
+
+  assertIncludes(section, [
+    "only explicit human selection of exact rectangle candidates",
+    "Every selected candidate ID must be unique",
+    "must exist in the validated candidate envelope",
+    "same relative order as the candidate envelope",
+    "Every `acceptedPrimitiveId` is unique",
+    "must contain exactly one rectangle for each selection, in selection order",
+    "`confidence` equal to `null`",
+    "must be numerically identical to the selected candidate",
+    "`correctionHistory` must be empty",
+    "There is no rounding, clamping, repair, inference, confidence threshold",
+    "Coordinate corrections remain unapproved",
+    "provider-observation fields must repeat the candidate observation ID/content identity",
+    "`AcceptedGeometry@1.acceptance.acceptanceId` must equal `selectionId`",
+    "ordered `acceptedPrimitiveIds` must equal the selection record's ordered `acceptedPrimitiveId` values",
+    "`acceptance.provenance.inputContentIdentity` must equal `selectionContentIdentity`",
+    "Both acceptance actor records must use the same human actor ID",
+    "Rejected or unselected candidates are omitted only",
+    "Candidate A paired with geometry B fails even when the envelope observation ID and content identity match",
+    "produces no partial `AcceptedGeometry`, Core input, mapped geometry, Structured Analyze result, or `result.json`",
   ]);
 });
 
@@ -379,10 +690,14 @@ test("PR127 makes every post-provider stage independently traceable", async () =
 
   assertIncludes(section, [
     "`sourceImage.contentIdentity`",
-    "validated PR124 receipt metadata",
+    "`providerResponseContentIdentity`",
+    "`executionReceiptContentIdentity`",
+    "candidate-capable PR123 proof and PR124 v2 observation",
     "`observationId`",
     "`observationContentIdentity`",
-    "the PR125 proof links that exact candidate observation identity",
+    "`selectionId` and `selectionContentIdentity`",
+    "the PR125 proof validates the receipt, PR124 observation, candidate envelope, selection record, acceptance boundary, and `AcceptedGeometry` together",
+    "preserves the exact selected rectangles and order",
     "accepted revision and envelope content identities",
     "the mapper request has its own `requestId`",
     "the mapper result repeats `requestId` and has `resultContentIdentity`",
@@ -405,10 +720,10 @@ test("PR127 fails closed without partial Core or result output", async () => {
   );
 
   assertIncludes(section, [
-    "Provider parsing, candidate validation, explicit acceptance, PR125 proof validation, identity linkage, mapping, normalization, Structured Analyze input validation, and result validation are sequential hard gates",
+    "Provider response identity, provider parsing, execution receipt validation, PR123/PR124 propagation, candidate validation, exact human selection, AcceptedGeometry equivalence, PR125 proof validation, identity linkage, mapping, normalization, Structured Analyze input validation, and result validation are sequential hard gates",
     "If any gate fails, execution stops with a deterministic diagnostic",
-    "No partial Core input, mapped geometry, Structured Analyze result, or `result.json` may be returned or persisted",
-    "cannot be relabeled as accepted, mapped, or canonical",
+    "No partial `AcceptedGeometry`, Core input, mapped geometry, Structured Analyze result, or `result.json` may be returned or persisted",
+    "neither can be relabeled as accepted, mapped, or canonical",
   ]);
 });
 
@@ -443,14 +758,20 @@ test("PR127 fixes the exact manual local PR129 implementation scope", async () =
 
   assertIncludes(section, [
     "from receipt-only evidence to structured rectangle candidate observations",
+    "compute the raw response content identity in memory",
+    "strict candidate-capable execution-receipt identity path",
+    "preserving existing receipt-only PR123/PR124 behavior",
     "validate provider-specific structured output in memory",
     "map it to the exact provider-neutral candidate envelope",
-    "persist only the allowlisted redacted structured candidate observation",
-    "require a separate explicit human acceptance action",
+    "persist only the allowlisted redacted execution receipt and structured candidate observation",
+    "require the exact separate human selection record",
     "minimally extend the existing package-private PR125 proof and PR128 handoff",
     "`candidateObservationEnvelope`",
+    "`humanCandidateSelection`",
     "acceptance actor class to be exactly `human`",
-    "bind `AcceptedGeometry@1` to the candidate observation identity rather than the receipt-metadata identity",
+    "validate exact selected-candidate rectangle equality and order",
+    "link the execution receipt identity through every stage",
+    "bind `AcceptedGeometry@1` to the candidate observation identity rather than the PR124 receipt-metadata identity",
     "pass the accepted result through the PR125 proof and PR128 handoff",
     "reuse existing guided inspection/report surfaces",
     "canonical `result.json` plus derived inspection artifacts",
@@ -533,7 +854,10 @@ test("roadmap records PR121 through PR126 and the compressed PR127 to PR129 fini
     "-> PR129: implement controlled local live visual candidate observation demo",
     "PR128 may start only after PR127 merges",
     "PR129 may start only after PR128 merges",
-    "link it to the PR124 receipt identity",
+    "content-addressed provider execution receipt",
+    "exact human candidate selection record",
+    "compute and propagate the redacted execution receipt identity",
+    "reject cross-execution and candidate/geometry substitution",
     "minimally extend the same package-private PR125 proof/PR128 handoff path",
     "Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment",
   ]);
@@ -633,6 +957,29 @@ async function readCandidateSchema() {
   return JSON.parse(match.groups.json);
 }
 
+async function readExecutionReceiptSchema() {
+  return readSchemaBlock(
+    "<!-- BEGIN LOCAL_VISUAL_PROVIDER_EXECUTION_RECEIPT_V1 -->",
+    "<!-- END LOCAL_VISUAL_PROVIDER_EXECUTION_RECEIPT_V1 -->",
+    "provider execution receipt schema JSON block must exist",
+  );
+}
+
+async function readSelectionSchema() {
+  return readSchemaBlock(
+    "<!-- BEGIN LOCAL_VISUAL_HUMAN_CANDIDATE_SELECTION_V1 -->",
+    "<!-- END LOCAL_VISUAL_HUMAN_CANDIDATE_SELECTION_V1 -->",
+    "human candidate selection schema JSON block must exist",
+  );
+}
+
+async function readSchemaBlock(start, end, message) {
+  const block = sectionBetween(await readDecision(), start, end);
+  const match = block.match(/```json\n(?<json>[\s\S]+?)\n```/u);
+  assert.ok(match?.groups?.json, message);
+  return JSON.parse(match.groups.json);
+}
+
 function assertHeadings(text, headings) {
   for (const heading of headings) {
     assert.match(text, new RegExp(`^${escapeRegExp(heading)}$`, "mu"), heading);
@@ -657,6 +1004,30 @@ function assertClosedObject(schema, required, optional = []) {
   assert.deepEqual(Object.keys(schema.properties), [...required, ...optional]);
 }
 
+function assertIdentifierSchema(schema) {
+  assert.equal(schema.type, "string");
+  assert.equal(schema.format, "norma-local-identifier");
+  assert.equal(schema.minLength, 1);
+  assert.equal(schema.maxLength, 128);
+  assert.equal(schema.pattern, "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$");
+}
+
+function assertContractIdSchema(schema) {
+  assert.equal(schema.type, "string");
+  assert.equal(schema.format, "norma-contract-identifier");
+  assert.equal(schema.minLength, 1);
+  assert.equal(schema.maxLength, 128);
+  assert.equal(schema.pattern, "^norma\\.[a-z0-9.-]+@[1-9][0-9]*$");
+}
+
+function assertDigestSchema(schema) {
+  assert.equal(schema.type, "string");
+  assert.equal(schema.format, "sha256-content-identity");
+  assert.equal(schema.minLength, 71);
+  assert.equal(schema.maxLength, 71);
+  assert.equal(schema.pattern, "^sha256:[0-9a-f]{64}$");
+}
+
 function collectPropertyNames(schema, names = new Set()) {
   if (schema === null || typeof schema !== "object") {
     return names;
@@ -671,6 +1042,415 @@ function collectPropertyNames(schema, names = new Set()) {
     collectPropertyNames(schema.items, names);
   }
   return names;
+}
+
+function createExecutionReceipt(responseBody) {
+  const receipt = {
+    contractId: "norma.local-visual-provider-execution-receipt@1",
+    contractVersion: 1,
+    executionReceiptContentIdentity: "",
+    sourceImageContentIdentity: sha256Identity("shared source image bytes"),
+    providerClass: "controlled_live_provider",
+    endpointClass: "responses_api",
+    responseStatusClass: "2xx_success",
+    providerResponseContentIdentity: sha256Identity(responseBody),
+    structuredOutputSchemaVersion: "controlled-rectangle-candidates@1",
+    adapterOperationId: "local-visual-provider-response-to-candidate-observation",
+    adapterOperationVersion: 1,
+    persistence: {
+      rawProviderResponsePersisted: false,
+      requestBodyPersisted: false,
+      rawImagePersisted: false,
+      localPathPersisted: false,
+      urlPersisted: false,
+      providerRequestIdPersisted: false,
+      exactModelValuePersisted: false,
+      secretOrCredentialPersisted: false,
+    },
+  };
+  receipt.executionReceiptContentIdentity = contentIdentityExcluding(
+    receipt,
+    "executionReceiptContentIdentity",
+  );
+  return receipt;
+}
+
+function createCandidateEnvelope(receipt, suffix) {
+  const receiptHex = receipt.executionReceiptContentIdentity.slice("sha256:".length);
+  const candidate = {
+    contractId: "norma.local-visual-candidate-observation@1",
+    contractVersion: 1,
+    observationId: `local-visual-candidate:${suffix}`,
+    observationContentIdentity: "",
+    sourceImage: {
+      contentIdentity: receipt.sourceImageContentIdentity,
+      rawImagePersisted: false,
+      base64Persisted: false,
+      localPathPersisted: false,
+      urlPersisted: false,
+    },
+    provenance: {
+      provenanceClass: "controlled-local-live-visual-observation",
+      adapterBoundary: "provider-specific-response-to-provider-neutral-candidate-observation@1",
+      sourceReceiptObservationId: `controlled-provider-observation:v2:${receiptHex}`,
+      sourceReceiptObservationContentIdentity: sha256Identity(
+        `controlled-provider-observation:v2:${receiptHex}`,
+      ),
+      providerExecutionReceiptContentIdentity: receipt.executionReceiptContentIdentity,
+      providerSpecificSchemaTerminated: true,
+      manualOnly: true,
+      localOnly: true,
+      realUserData: false,
+    },
+    coordinateFrame: {
+      dimensions: 2,
+      coordinateScale: "normalized",
+      origin: "top-left",
+      xDirection: "right",
+      yDirection: "down",
+      bounds: { x: [0, 1], y: [0, 1] },
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+    },
+    rectangleCandidates: [
+      { candidateId: "candidate:a", order: 0, x: 0.1, y: 0.15, width: 0.2, height: 0.25 },
+      { candidateId: "candidate:b", order: 1, x: 0.55, y: 0.5, width: 0.3, height: 0.35 },
+    ],
+    lossyWarnings: [],
+    authority: {
+      providerEvidenceOnly: true,
+      sourceTruth: false,
+      acceptedGeometry: false,
+      coreInput: false,
+      maySelfAccept: false,
+      requiresExplicitHumanAcceptance: true,
+      mayAuthorizeMapping: false,
+      mayAuthorizeResultJson: false,
+      ratioAuthority: false,
+      packAuthority: false,
+      ruleAuthority: false,
+      toleranceAuthority: false,
+      evaluationAuthority: false,
+    },
+    persistence: {
+      providerPayloadPersisted: false,
+      rawProviderResponsePersisted: false,
+      rawImagePersisted: false,
+      redactedStructuredObservationOnly: true,
+    },
+    outcomes: {
+      acceptedGeometryProduced: false,
+      coreInputProduced: false,
+      structuredAnalyzeRun: false,
+      resultJsonProduced: false,
+    },
+  };
+  candidate.observationContentIdentity = contentIdentityExcluding(
+    candidate,
+    "observationContentIdentity",
+  );
+  return candidate;
+}
+
+function createHumanSelection(candidateEnvelope, candidateIds) {
+  const selection = {
+    contractId: "norma.local-visual-human-candidate-selection@1",
+    contractVersion: 1,
+    selectionId: "human-selection:1",
+    selectionContentIdentity: "",
+    candidateObservationId: candidateEnvelope.observationId,
+    candidateObservationContentIdentity: candidateEnvelope.observationContentIdentity,
+    providerExecutionReceiptContentIdentity:
+      candidateEnvelope.provenance.providerExecutionReceiptContentIdentity,
+    acceptanceActor: { actorClass: "human", actorId: "local-human:1" },
+    geometryAction: "accept_exact",
+    selections: candidateIds.map((candidateId, order) => ({
+      order,
+      candidateId,
+      acceptedPrimitiveId: `accepted:${candidateId}`,
+    })),
+    authority: {
+      explicitHumanSelection: true,
+      providerAuthority: false,
+      confidenceAuthority: false,
+      automaticAcceptance: false,
+      coordinateCorrectionAllowed: false,
+      coordinateRepairAllowed: false,
+    },
+  };
+  selection.selectionContentIdentity = contentIdentityExcluding(
+    selection,
+    "selectionContentIdentity",
+  );
+  return selection;
+}
+
+function createAcceptedGeometry(candidateEnvelope, selection) {
+  const candidatesById = new Map(
+    candidateEnvelope.rectangleCandidates.map((candidate) => [candidate.candidateId, candidate]),
+  );
+  const acceptedGeometry = {
+    contractId: "norma.accepted-geometry@1",
+    contractVersion: 1,
+    acceptedGeometryId: "accepted-geometry:selection-1",
+    sourceObservationId: candidateEnvelope.observationId,
+    sourceObservationContentIdentity: candidateEnvelope.observationContentIdentity,
+    acceptedRevision: 1,
+    coordinateFrame: structuredClone(candidateEnvelope.coordinateFrame),
+    correctionHistory: [],
+    primitives: selection.selections.map(({ candidateId, acceptedPrimitiveId }) => {
+      const candidate = candidatesById.get(candidateId);
+      return {
+        id: acceptedPrimitiveId,
+        kind: "rectangle",
+        confidence: null,
+        x: candidate.x,
+        y: candidate.y,
+        width: candidate.width,
+        height: candidate.height,
+      };
+    }),
+    acceptance: {
+      acceptanceId: selection.selectionId,
+      accepted: true,
+      actorType: "human",
+      actorId: selection.acceptanceActor.actorId,
+      acceptedAt: "2026-07-10T00:00:00.000Z",
+      sourceObservationId: candidateEnvelope.observationId,
+      sourceObservationContentIdentity: candidateEnvelope.observationContentIdentity,
+      acceptedRevision: 1,
+      acceptedContentIdentity: "",
+      acceptedPrimitiveIds: selection.selections.map(({ acceptedPrimitiveId }) => acceptedPrimitiveId),
+      provenance: createProvenance(
+        "accepted-geometry-acceptance:selection-1",
+        selection.selectionContentIdentity,
+      ),
+    },
+    provenance: createProvenance(
+      "accepted-geometry:selection-1",
+      candidateEnvelope.observationContentIdentity,
+    ),
+    contentIdentity: "",
+  };
+  finalizeAcceptedGeometryIdentities(acceptedGeometry);
+  return acceptedGeometry;
+}
+
+function validateReceiptCandidatePair(receipt, candidateEnvelope) {
+  if (
+    receipt.executionReceiptContentIdentity
+    !== contentIdentityExcluding(receipt, "executionReceiptContentIdentity")
+  ) {
+    throw new Error("execution receipt content identity is invalid");
+  }
+  if (
+    candidateEnvelope.observationContentIdentity
+    !== contentIdentityExcluding(candidateEnvelope, "observationContentIdentity")
+  ) {
+    throw new Error("candidate observation content identity is invalid");
+  }
+  if (
+    candidateEnvelope.provenance.providerExecutionReceiptContentIdentity
+    !== receipt.executionReceiptContentIdentity
+  ) {
+    throw new Error("execution receipt identity mismatch");
+  }
+  if (candidateEnvelope.sourceImage.contentIdentity !== receipt.sourceImageContentIdentity) {
+    throw new Error("source image content identity mismatch");
+  }
+  return true;
+}
+
+function validateExactCandidateAcceptance(candidateEnvelope, selection, acceptedGeometry) {
+  if (
+    candidateEnvelope.observationContentIdentity
+    !== contentIdentityExcluding(candidateEnvelope, "observationContentIdentity")
+  ) {
+    throw new Error("candidate observation content identity is invalid");
+  }
+  if (
+    selection.selectionContentIdentity
+    !== contentIdentityExcluding(selection, "selectionContentIdentity")
+  ) {
+    throw new Error("selection content identity is invalid");
+  }
+  if (
+    selection.candidateObservationId !== candidateEnvelope.observationId
+    || selection.candidateObservationContentIdentity
+      !== candidateEnvelope.observationContentIdentity
+  ) {
+    throw new Error("selection candidate identity mismatch");
+  }
+  if (
+    selection.providerExecutionReceiptContentIdentity
+    !== candidateEnvelope.provenance.providerExecutionReceiptContentIdentity
+  ) {
+    throw new Error("selection execution receipt identity mismatch");
+  }
+  if (selection.acceptanceActor.actorClass !== "human" || selection.geometryAction !== "accept_exact") {
+    throw new Error("selection is not exact human acceptance");
+  }
+  if (
+    acceptedGeometry.sourceObservationId !== candidateEnvelope.observationId
+    || acceptedGeometry.sourceObservationContentIdentity
+      !== candidateEnvelope.observationContentIdentity
+  ) {
+    throw new Error("AcceptedGeometry source must identify the candidate envelope");
+  }
+  if (
+    acceptedGeometry.acceptance.acceptanceId !== selection.selectionId
+    || acceptedGeometry.acceptance.actorType !== "human"
+    || acceptedGeometry.acceptance.actorId !== selection.acceptanceActor.actorId
+    || acceptedGeometry.acceptance.sourceObservationId !== candidateEnvelope.observationId
+    || acceptedGeometry.acceptance.sourceObservationContentIdentity
+      !== candidateEnvelope.observationContentIdentity
+    || acceptedGeometry.acceptance.provenance.inputContentIdentity
+      !== selection.selectionContentIdentity
+    || acceptedGeometry.provenance.inputContentIdentity
+      !== candidateEnvelope.observationContentIdentity
+  ) {
+    throw new Error("AcceptedGeometry selection or acceptance linkage mismatch");
+  }
+  if (
+    acceptedGeometry.acceptance.acceptedContentIdentity
+      !== computeAcceptedGeometryRevisionIdentity(acceptedGeometry)
+    || acceptedGeometry.contentIdentity !== computeAcceptedGeometryIdentity(acceptedGeometry)
+  ) {
+    throw new Error("AcceptedGeometry content identity mismatch");
+  }
+  if (canonicalJson(acceptedGeometry.coordinateFrame) !== canonicalJson(candidateEnvelope.coordinateFrame)) {
+    throw new Error("AcceptedGeometry coordinate frame mismatch");
+  }
+  if (!Array.isArray(acceptedGeometry.correctionHistory) || acceptedGeometry.correctionHistory.length !== 0) {
+    throw new Error("AcceptedGeometry corrections are unapproved");
+  }
+  if (acceptedGeometry.primitives.length !== selection.selections.length) {
+    throw new Error("AcceptedGeometry primitive count mismatch");
+  }
+  if (
+    canonicalJson(acceptedGeometry.acceptance.acceptedPrimitiveIds)
+    !== canonicalJson(selection.selections.map(({ acceptedPrimitiveId }) => acceptedPrimitiveId))
+  ) {
+    throw new Error("AcceptedGeometry accepted primitive order mismatch");
+  }
+
+  const candidateIndexes = new Map(
+    candidateEnvelope.rectangleCandidates.map((candidate, index) => [candidate.candidateId, index]),
+  );
+  const selectedCandidateIds = new Set();
+  const acceptedPrimitiveIds = new Set();
+  let priorCandidateIndex = -1;
+
+  selection.selections.forEach((selected, index) => {
+    if (selected.order !== index) {
+      throw new Error("selection order is not the zero-based array position");
+    }
+    if (selectedCandidateIds.has(selected.candidateId)) {
+      throw new Error("selected candidate IDs must be unique");
+    }
+    if (acceptedPrimitiveIds.has(selected.acceptedPrimitiveId)) {
+      throw new Error("accepted primitive IDs must be unique");
+    }
+    const candidateIndex = candidateIndexes.get(selected.candidateId);
+    if (candidateIndex === undefined) {
+      throw new Error("selected candidate does not exist");
+    }
+    if (candidateIndex <= priorCandidateIndex) {
+      throw new Error("selections do not follow candidate-envelope order");
+    }
+    priorCandidateIndex = candidateIndex;
+    selectedCandidateIds.add(selected.candidateId);
+    acceptedPrimitiveIds.add(selected.acceptedPrimitiveId);
+
+    const candidate = candidateEnvelope.rectangleCandidates[candidateIndex];
+    const primitive = acceptedGeometry.primitives[index];
+    if (
+      primitive.id !== selected.acceptedPrimitiveId
+      || primitive.kind !== "rectangle"
+      || primitive.confidence !== null
+    ) {
+      throw new Error("accepted primitive representation mismatch");
+    }
+    for (const field of ["x", "y", "width", "height"]) {
+      if (primitive[field] !== candidate[field]) {
+        throw new Error("accepted rectangle differs from selected candidate");
+      }
+    }
+  });
+
+  return true;
+}
+
+function createProvenance(provenanceId, inputContentIdentity) {
+  return {
+    provenanceId,
+    actorType: "human",
+    actorId: "local-human:1",
+    operationId: "local-visual-human-candidate-selection",
+    operationVersion: "1",
+    inputContentIdentity,
+    createdAt: "2026-07-10T00:00:00.000Z",
+    notes: null,
+  };
+}
+
+function finalizeAcceptedGeometryIdentities(acceptedGeometry) {
+  acceptedGeometry.acceptance.acceptedContentIdentity =
+    computeAcceptedGeometryRevisionIdentity(acceptedGeometry);
+  acceptedGeometry.contentIdentity = computeAcceptedGeometryIdentity(acceptedGeometry);
+}
+
+function computeAcceptedGeometryRevisionIdentity(acceptedGeometry) {
+  return sha256Identity(canonicalJson({
+    contractId: acceptedGeometry.contractId,
+    contractVersion: acceptedGeometry.contractVersion,
+    acceptedGeometryId: acceptedGeometry.acceptedGeometryId,
+    sourceObservationId: acceptedGeometry.sourceObservationId,
+    sourceObservationContentIdentity: acceptedGeometry.sourceObservationContentIdentity,
+    acceptedRevision: acceptedGeometry.acceptedRevision,
+    coordinateFrame: acceptedGeometry.coordinateFrame,
+    primitives: acceptedGeometry.primitives,
+    correctionHistory: acceptedGeometry.correctionHistory,
+  }));
+}
+
+function computeAcceptedGeometryIdentity(acceptedGeometry) {
+  return sha256Identity(canonicalJson({
+    contractId: acceptedGeometry.contractId,
+    contractVersion: acceptedGeometry.contractVersion,
+    acceptedGeometryId: acceptedGeometry.acceptedGeometryId,
+    sourceObservationId: acceptedGeometry.sourceObservationId,
+    sourceObservationContentIdentity: acceptedGeometry.sourceObservationContentIdentity,
+    acceptedRevision: acceptedGeometry.acceptedRevision,
+    coordinateFrame: acceptedGeometry.coordinateFrame,
+    primitives: acceptedGeometry.primitives,
+    correctionHistory: acceptedGeometry.correctionHistory,
+    acceptance: acceptedGeometry.acceptance,
+    provenance: acceptedGeometry.provenance,
+  }));
+}
+
+function contentIdentityExcluding(value, excludedField) {
+  const projection = structuredClone(value);
+  delete projection[excludedField];
+  return sha256Identity(canonicalJson(projection));
+}
+
+function sha256Identity(value) {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function sectionBetween(text, start, end) {

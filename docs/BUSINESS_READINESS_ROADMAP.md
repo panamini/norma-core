@@ -1159,9 +1159,10 @@ PR127: approve local visual observation-to-Core pilot contract
 
 PR127 is docs/tests-only. It freezes the provider-neutral
 `explicit-external-evidence-acceptance@1` mapping-context literal, the exact
-package-private candidate rectangle observation envelope, PR125 proof reuse,
-identity linkage, fail-closed behavior, and the PR128/PR129 scopes. It does not
-implement either runtime.
+package-private content-addressed provider execution receipt, candidate
+rectangle observation envelope, exact human candidate selection record, PR125
+proof reuse, identity linkage, fail-closed behavior, and the PR128/PR129 scopes.
+It does not implement either runtime.
 
 PR128 may start only after PR127 merges. It may extend the existing
 package-private mapper context while preserving `synthetic-only`, replace
@@ -1175,9 +1176,13 @@ PR129 may start only after PR128 merges. It may change the controlled manual
 local pilot from receipt-only output to validated rectangle candidate
 observations, convert provider-specific structured output in memory to the
 approved provider-neutral envelope, persist only the redacted allowlisted
-observation, link it to the PR124 receipt identity, require a separate explicit
-human acceptance action, minimally extend the same package-private PR125
-proof/PR128 handoff path for the candidate identity, and reuse PR128 plus
+execution receipt and candidate observation, compute and propagate the redacted
+execution receipt identity
+through minimally extended PR123/PR124 paths without weakening their existing
+receipt-only compatibility, require a separate exact human selection record,
+reject cross-execution and candidate/geometry substitution, minimally extend
+the same package-private PR125 proof/PR128 handoff path for the execution,
+candidate, selection, and AcceptedGeometry identities, and reuse PR128 plus
 existing guided/report surfaces. It remains manual, local, disabled by default,
 and CI-network-free.
 
