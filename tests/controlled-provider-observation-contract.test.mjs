@@ -12,6 +12,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -334,11 +335,17 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
     changedFiles,
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
-  const expectedChangedFiles = isPr125Set
-    ? controlledProviderObservationAcceptanceProofChangedFiles
-    : controlledProviderObservationContractChangedFiles;
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
+  const expectedChangedFiles = isPr126Set
+    ? controlledProviderObservationToCoreHandoffChangedFiles
+    : isPr125Set
+      ? controlledProviderObservationAcceptanceProofChangedFiles
+      : controlledProviderObservationContractChangedFiles;
 
-  assert.equal(isPr124Set || isPr125Set, true);
+  assert.equal(isPr124Set || isPr125Set || isPr126Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
     controlledProviderObservationContractChangedFiles,

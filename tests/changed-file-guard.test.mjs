@@ -17,6 +17,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
@@ -642,6 +643,83 @@ test("shared exact changed-file guard rejects forbidden extras in the PR125 proo
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...controlledProviderObservationAcceptanceProofChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts the PR126 controlled provider observation-to-Core handoff set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledProviderObservationToCoreHandoffChangedFiles),
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
+
+  assert.deepEqual(controlledProviderObservationToCoreHandoffChangedFiles, [
+    "src/local-report/controlled-provider-observation-to-core-handoff.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const missingFile of controlledProviderObservationToCoreHandoffChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        controlledProviderObservationToCoreHandoffChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard rejects forbidden extras in the PR126 handoff set", () => {
+  for (const forbiddenFile of [
+    "tests/mcp-remote-package-dependency-decision.test.mjs",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/accepted-geometry-to-structured-analyze-normalization.ts",
+    "src/structured-composition-analysis.ts",
+    "src/geometry-observation.ts",
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "docs/BUSINESS_READINESS_ROADMAP.md",
+    "../norma-core-wiki/wiki/hot.md",
+    "/Volumes/video/git/norma-core-wiki/wiki/hot.md",
+    "tests/fixtures/provider-evidence-replay/static-provider-evidence-replay-v1.json",
+    "examples/structured-analyze/usecases/structured-layout-real-usecase.json",
+    "viewer/read-only-result-viewer.html",
+    "reports/controlled-provider/result.json",
+    ".github/workflows/ci.yml",
+    "src/providers/openai.ts",
+    "src/providers/vision.ts",
+    "src/provider-evidence-replay-adapter.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "src/adapters/cad.ts",
+    "src/adapters/figma.ts",
+    "src/server/upload.ts",
+    "src/auth/oauth.ts",
+    "src/deploy/hosted-mcp.ts",
+    "src/**",
+    "docs/**",
+    "tests/**",
+    "bin/**",
+    "tests/fixtures/**",
+    ".github/**",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...controlledProviderObservationToCoreHandoffChangedFiles,
         forbiddenFile,
       ]),
       null,
@@ -1987,11 +2065,17 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
 
-  assert.equal(isPr124Set || isPr125Set, true);
+  assert.equal(isPr124Set || isPr125Set || isPr126Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr125Set
+    isPr126Set
+      ? controlledProviderObservationToCoreHandoffChangedFiles
+      : isPr125Set
       ? controlledProviderObservationAcceptanceProofChangedFiles
       : controlledProviderObservationContractChangedFiles,
   );

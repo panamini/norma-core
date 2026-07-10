@@ -10,6 +10,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
@@ -361,6 +362,10 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
 
   assert.equal(
     isPr111Set ||
@@ -378,7 +383,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr123Set ||
       isResponseStatusSet ||
       isPr124Set ||
-      isPr125Set,
+      isPr125Set ||
+      isPr126Set,
     true,
     changedFiles.join("\n"),
   );
@@ -412,6 +418,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledProviderObservationContractChangedFiles);
   } else if (isPr125Set) {
     assert.deepEqual(changedFiles, controlledProviderObservationAcceptanceProofChangedFiles);
+  } else if (isPr126Set) {
+    assert.deepEqual(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles);
   } else {
     assert.deepEqual(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
   }
@@ -428,7 +436,15 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.equal(changedFiles.some((file) => file.startsWith(forbidden) || file === forbidden), false, forbidden);
   }
 
-  if (isPr111Set || isPr114Set || isPr122Set || isPr123Set || isPr124Set || isPr125Set) {
+  if (
+    isPr111Set ||
+    isPr114Set ||
+    isPr122Set ||
+    isPr123Set ||
+    isPr124Set ||
+    isPr125Set ||
+    isPr126Set
+  ) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   } else if (isPr112Set) {
     assert.deepEqual(
