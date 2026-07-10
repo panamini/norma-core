@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir as mkdirp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir as mkdirp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -26,7 +26,11 @@ import {
 } from "../dist/src/local-report/controlled-live-provider-smoke.js";
 import { runControlledLiveProviderSmokeCli } from "../bin/norma-core-controlled-live-provider-smoke.mjs";
 import {
+  finalizeLocalVisualHumanCandidateSelectionIdentityV1,
+} from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-demo.js";
+import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
@@ -364,7 +368,7 @@ test("PR117 gate helper requires writable output proof before ready state", () =
   );
 });
 
-test("PR117 fake transport is called only after every live gate is represented", async () => {
+test("PR129 fake transport captures only exact redacted candidate evidence after every live gate", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
 
   try {
@@ -373,6 +377,9 @@ test("PR117 fake transport is called only after every live gate is represented",
     await writeFile(imagePath, pngBytes());
     await mkdirp(outputDir);
     await writeFile(join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test"), "do not overwrite", "utf8");
+    const rawProviderResponseBytes = new TextEncoder().encode(providerCandidateResponseText([
+      { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: 0.99 },
+    ], { token: "FAKE_PROVIDER_TOKEN", model: "gpt-fake" }));
     const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
       env: completeEnv({
         NORMA_LIVE_PROVIDER_MODEL: "  gpt-fake  ",
@@ -385,46 +392,172 @@ test("PR117 fake transport is called only after every live gate is represented",
         assert.equal(JSON.parse(request.body).model, "gpt-fake");
         assert.equal(JSON.parse(request.body).store, false);
         assert.match(request.body, /"type":"input_text"/u);
-        assert.match(request.body, /Confirm that an image was received\./u);
+        assert.equal(JSON.parse(request.body).text.format.type, "json_schema");
+        assert.equal(JSON.parse(request.body).text.format.strict, true);
         assert.match(request.body, /"type":"input_image"/u);
         assert.match(request.body, /data:image\/png;base64/u);
-        assert.doesNotMatch(request.body, /geometry|ratio|accept|accepted|structured|core truth|score|recommend|optimi[sz]e|family|correction|beauty/iu);
+        assert.doesNotMatch(request.body, /ratio|accept|accepted|core truth|score|recommend|optimi[sz]e|family|correction|beauty/iu);
         return {
           ok: true,
           statusCode: 200,
-          body: {
-            status: "completed",
-            output: [{ content: [{ type: "output_text", text: "FAKE_PROVIDER_RAW_TEXT" }] }],
-            confidence: 0.99,
-            token: "FAKE_PROVIDER_TOKEN",
-          },
+          rawResponseBytes: rawProviderResponseBytes,
         };
       },
     });
     const parsed = JSON.parse(result.stdout);
-    const envelope = JSON.parse(await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8"));
-    const summary = JSON.parse(await readFile(join(outputDir, "summary.json"), "utf8"));
-    const summaryMd = await readFile(join(outputDir, "summary.md"), "utf8");
+    const receiptText = await readFile(join(outputDir, "provider-execution-receipt.json"), "utf8");
+    const candidateText = await readFile(join(outputDir, "candidate-observation.json"), "utf8");
+    const receipt = JSON.parse(receiptText);
+    const candidate = JSON.parse(candidateText);
 
     assert.equal(result.exitCode, 0);
-    assert.equal(parsed.status, "ok");
+    assert.equal(parsed.status, "selection_required");
     assert.equal(parsed.liveProviderExecution, true);
     assert.equal(parsed.providerEvidenceOnly, true);
-    assert.equal(parsed.rawProviderOutputPersisted, false);
+    assert.equal(parsed.rawProviderResponsePersisted, false);
+    assert.equal(parsed.acceptedGeometryProduced, false);
+    assert.equal(parsed.coreInputProduced, false);
+    assert.equal(parsed.resultJsonProduced, false);
     assert.equal("providerDiagnosticNextAction" in parsed, false);
-    assert.equal("providerDiagnosticNextAction" in envelope, false);
-    assert.equal("providerDiagnosticNextAction" in summary, false);
-    assert.doesNotMatch(summaryMd, /providerDiagnosticNextAction/u);
+    assert.equal(receipt.contractId, "norma.local-visual-provider-execution-receipt@1");
+    assert.equal(
+      receipt.providerResponseContentIdentity,
+      `sha256:${createHash("sha256").update(rawProviderResponseBytes).digest("hex")}`,
+    );
+    assert.equal(candidate.contractId, "norma.local-visual-candidate-observation@1");
+    assert.equal(candidate.rectangleCandidates[0].diagnosticMetadata.providerConfidence, 0.99);
     assert.deepEqual(parsed.artifacts, [
-      "provider-evidence-envelope.json",
-      "summary.json",
-      "summary.md",
+      "provider-execution-receipt.json",
+      "candidate-observation.json",
     ]);
-    await assertSafeArtifacts(outputDir, imagePath);
+    for (const text of [receiptText, candidateText]) {
+      assert.doesNotMatch(text, /FAKE_PROVIDER_TOKEN|gpt-fake|data:image|Bearer|output_text|message|annotations/u);
+    }
     assert.equal(
       await readFile(join(outputDir, ".norma-core-controlled-live-provider-smoke-write-test"), "utf8"),
       "do not overwrite",
     );
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("PR129 no-network resume requires an independent exact human selection and writes canonical result atomically", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr129-resume-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const captureDir = join(tmp, "capture");
+    const selectionPath = join(tmp, "selection.json");
+    const resultDir = join(tmp, "result");
+    await writeFile(imagePath, pngBytes());
+    const captureResult = await runCli(
+      ["--live", "--input-image", imagePath, "--output", captureDir],
+      {
+        env: completeEnv(),
+        transport: async () => ({
+          ok: true,
+          statusCode: 200,
+          rawResponseText: providerCandidateResponseText([
+            { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: 0.8 },
+            { x: 0.55, y: 0.15, width: 0.2, height: 0.25, providerConfidence: null },
+          ]),
+        }),
+      },
+    );
+    assert.equal(captureResult.exitCode, 0);
+    const candidate = JSON.parse(await readFile(join(captureDir, "candidate-observation.json"), "utf8"));
+    const selection = createHumanSelection(candidate, [0, 1]);
+    await writeFile(selectionPath, `${JSON.stringify(selection)}\n`, "utf8");
+    let transportCalls = 0;
+    const resumeResult = await runCli([
+      "--resume",
+      "--capture", captureDir,
+      "--selection", selectionPath,
+      "--accepted-at", "2026-07-10T12:34:56.000Z",
+      "--output", resultDir,
+    ], {
+      env: {},
+      transport: async () => {
+        transportCalls += 1;
+        throw new Error("resume must not use transport");
+      },
+    });
+    const parsed = JSON.parse(resumeResult.stdout);
+    const resultJson = await readFile(join(resultDir, "result.json"), "utf8");
+
+    assert.equal(resumeResult.exitCode, 0);
+    assert.equal(transportCalls, 0);
+    assert.equal(parsed.status, "completed");
+    assert.equal(parsed.networkTransportUsed, false);
+    assert.equal(parsed.explicitHumanSelectionValidated, true);
+    assert.equal(parsed.providerMetadataInfluencedComputation, false);
+    assert.equal(resultJson.endsWith("\n"), true);
+    assert.equal(
+      parsed.canonicalResultJsonContentIdentity,
+      `sha256:${createHash("sha256").update(resultJson).digest("hex")}`,
+    );
+    assert.equal("acceptedStructuredGeometryOnlyCoreInput" in parsed, false);
+    for (const name of [
+      "canonical-result-proof.json",
+      "derived-artifacts.json",
+      "local-result-evidence.json",
+      "report.html",
+      "summary.json",
+      "summary.md",
+      "visual.svg",
+    ]) {
+      assert.equal((await stat(join(resultDir, name))).isFile(), true, name);
+    }
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("PR129 resume write failures publish no partial authority Core or result artifacts", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr129-resume-write-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const captureDir = join(tmp, "capture");
+    const selectionPath = join(tmp, "selection.json");
+    const resultDir = join(tmp, "result");
+    await writeFile(imagePath, pngBytes());
+    await runCli(["--live", "--input-image", imagePath, "--output", captureDir], {
+      env: completeEnv(),
+      transport: async () => ({
+        ok: true,
+        statusCode: 200,
+        rawResponseText: providerCandidateResponseText([
+          { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: null },
+        ]),
+      }),
+    });
+    const candidate = JSON.parse(await readFile(join(captureDir, "candidate-observation.json"), "utf8"));
+    await writeFile(selectionPath, `${JSON.stringify(createHumanSelection(candidate, [0]))}\n`, "utf8");
+    const resumeResult = await runCli([
+      "--resume",
+      "--capture", captureDir,
+      "--selection", selectionPath,
+      "--accepted-at", "2026-07-10T12:34:56.000Z",
+      "--output", resultDir,
+    ], {
+      writeFile: async (filePath, data, options) => {
+        if (String(filePath).includes(".staging-") && String(filePath).endsWith("summary.json")) {
+          throw new Error("simulated staged write failure");
+        }
+        return writeFile(filePath, data, options);
+      },
+    });
+    const parsed = JSON.parse(resumeResult.stdout);
+
+    assert.equal(resumeResult.exitCode, 2);
+    assert.equal(parsed.status, "artifact_write_error");
+    assert.equal(parsed.phase, "candidate_resume");
+    assert.equal(parsed.acceptedGeometryProduced, false);
+    assert.equal(parsed.coreInputProduced, false);
+    assert.equal(parsed.resultJsonProduced, false);
+    await assert.rejects(() => stat(resultDir));
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -445,11 +578,13 @@ test("PR117 artifact write failures after provider completion keep provider stat
         return {
           ok: true,
           statusCode: 200,
-          body: { status: "completed" },
+          rawResponseText: providerCandidateResponseText([
+            { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: null },
+          ]),
         };
       },
       writeFile: async (filePath, data, options) => {
-        if (String(filePath).endsWith("provider-evidence-envelope.json")) {
+        if (String(filePath).endsWith("provider-execution-receipt.json")) {
           throw new Error("disk full after provider response");
         }
 
@@ -461,13 +596,12 @@ test("PR117 artifact write failures after provider completion keep provider stat
     assert.equal(result.exitCode, 2);
     assert.equal(transportCalls, 1);
     assert.equal(parsed.status, "artifact_write_error");
+    assert.equal(parsed.phase, "candidate_capture");
     assert.equal(parsed.providerResponseStatusCode, 200);
-    assert.equal(parsed.providerResponseClass, "success");
     assert.equal(parsed.providerOutputObserved, true);
-    assert.equal(parsed.providerErrorClass, "artifact_write");
-    assert.equal(parsed.providerDiagnosticNextAction, "check_local_output_artifact_write");
-    assert.equal(parsed.providerErrorParamClass, "unknown");
-    assert.equal(parsed.providerDiagnosticRedacted, true);
+    assert.equal(parsed.acceptedGeometryProduced, false);
+    assert.equal(parsed.coreInputProduced, false);
+    assert.equal(parsed.resultJsonProduced, false);
     assert.equal(parsed.artifactsPersisted, false);
     assert.equal(parsed.liveProviderExecution, true);
     assertNoForbiddenOutputValue(parsed);
@@ -508,7 +642,7 @@ test("PR117 non-JSON provider bodies are observed without persisting raw text", 
     globalThis.fetch = async () => ({
       ok: false,
       status: 502,
-      text: async () => "Bad Gateway from proxy",
+      arrayBuffer: async () => new TextEncoder().encode("Bad Gateway from proxy").buffer,
     });
 
     const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
@@ -1219,7 +1353,7 @@ test("PR118 thrown transport failures classify as redacted network diagnostics",
   }
 });
 
-test("PR117 fake transport provider response is reduced to provider-neutral redacted evidence only", async () => {
+test("PR129 provider-specific response fields terminate before persisted candidate evidence", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr117-"));
 
   try {
@@ -1231,34 +1365,29 @@ test("PR117 fake transport provider response is reduced to provider-neutral reda
       transport: async () => ({
         ok: true,
         statusCode: 200,
-        body: {
+        rawResponseText: providerCandidateResponseText([
+          { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: 1 },
+        ], {
           acceptedStructuredGeometry: { unsafe: true },
           coreInput: true,
           score: 1,
           valueMetadata: "unsafe",
-          output: "FAKE_PROVIDER_RAW_TEXT",
-        },
+          rawText: "FAKE_PROVIDER_RAW_TEXT",
+        }),
       }),
     });
-    const envelope = JSON.parse(await readFile(join(outputDir, "provider-evidence-envelope.json"), "utf8"));
+    const candidateText = await readFile(join(outputDir, "candidate-observation.json"), "utf8");
+    const candidate = JSON.parse(candidateText);
 
-    assert.equal(envelope.kind, "norma.controlled-live-provider-smoke.provider-evidence-envelope.v1");
-    assert.equal(envelope.liveProviderExecution, true);
-    assert.equal(envelope.providerEvidenceOnly, true);
-    assert.equal(envelope.requiresExplicitAcceptance, true);
-    assert.equal(envelope.providerOutputIsCoreTruth, false);
-    assert.equal(envelope.acceptedStructuredGeometryOnlyCoreInput, true);
-    assert.equal(envelope.acceptedStructuredGeometryProduced, false);
-    assert.equal(envelope.coreInputProduced, false);
-    assert.equal(envelope.resultJsonProduced, false);
-    assert.equal(envelope.providerSelfAcceptance, false);
-    assert.equal(envelope.confidenceScoreValueCanAuthorizeAcceptance, false);
-    assert.equal(envelope.promptArtifactOrMetricPolicyCanAuthorizeAcceptance, false);
-    assert.equal(envelope.rawProviderOutputPersisted, false);
-    assert.equal(envelope.redacted, true);
-    assert.equal(validateAcceptedGeometryV1(envelope).ok, false);
-    assert.equal(analyzeStructuredCompositionV1(envelope).status, "invalid");
-    assertNoForbiddenOutputValue(envelope);
+    assert.equal(candidate.contractId, "norma.local-visual-candidate-observation@1");
+    assert.equal(candidate.authority.providerEvidenceOnly, true);
+    assert.equal(candidate.authority.maySelfAccept, false);
+    assert.equal(candidate.outcomes.acceptedGeometryProduced, false);
+    assert.equal(candidate.outcomes.coreInputProduced, false);
+    assert.equal(candidate.outcomes.resultJsonProduced, false);
+    assert.equal(validateAcceptedGeometryV1(candidate).ok, false);
+    assert.equal(analyzeStructuredCompositionV1(candidate).status, "invalid");
+    assert.doesNotMatch(candidateText, /FAKE_PROVIDER_RAW_TEXT|acceptedStructuredGeometry|valueMetadata|output_text|gpt-fake/u);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -1408,6 +1537,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     [
+      controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
       explicitAcceptedObservationToCoreHandoffChangedFiles,
       localVisualObservationToCorePilotContractChangedFiles,
       controlledProviderObservationToCoreHandoffChangedFiles,
@@ -1561,7 +1691,11 @@ async function gitDiffNames() {
 }
 
 function pngBytes() {
-  return Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x00]);
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  bytes.set([0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52], 8);
+  bytes.set([0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x18, 0x08, 0x06], 16);
+  return bytes;
 }
 
 function asciiBytes(value) {
@@ -1598,6 +1732,57 @@ function assertDocMentions(doc, snippets) {
       snippet,
     );
   }
+}
+
+function createHumanSelection(candidate, selectedIndexes) {
+  return finalizeLocalVisualHumanCandidateSelectionIdentityV1({
+    contractId: "norma.local-visual-human-candidate-selection@1",
+    contractVersion: 1,
+    selectionId: "human-selection:cli:1",
+    candidateObservationId: candidate.observationId,
+    candidateObservationContentIdentity: candidate.observationContentIdentity,
+    providerExecutionReceiptContentIdentity:
+      candidate.provenance.providerExecutionReceiptContentIdentity,
+    acceptanceActor: { actorClass: "human", actorId: "local-human:cli" },
+    geometryAction: "accept_exact",
+    selections: selectedIndexes.map((candidateIndex, order) => ({
+      order,
+      candidateId: candidate.rectangleCandidates[candidateIndex].candidateId,
+      acceptedPrimitiveId: `accepted:rectangle:${String(order)}`,
+    })),
+    authority: {
+      explicitHumanSelection: true,
+      providerAuthority: false,
+      confidenceAuthority: false,
+      automaticAcceptance: false,
+      coordinateCorrectionAllowed: false,
+      coordinateRepairAllowed: false,
+    },
+  });
+}
+
+function providerCandidateResponseText(rectangles, extraFields = {}) {
+  return JSON.stringify({
+    id: "response:fake",
+    object: "response",
+    status: "completed",
+    error: null,
+    output: [{
+      id: "message:fake",
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [{
+        type: "output_text",
+        annotations: [],
+        text: JSON.stringify({
+          schemaVersion: "controlled-rectangle-candidates@1",
+          rectangles,
+        }),
+      }],
+    }],
+    ...extraFields,
+  });
 }
 
 function escapeRegExp(value) {

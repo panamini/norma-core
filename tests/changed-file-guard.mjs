@@ -801,6 +801,26 @@ export const localVisualObservationToCorePilotContractChangedFiles = Object.free
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const controlledLocalLiveVisualCandidateObservationDemoChangedFiles = Object.freeze([
+  "bin/norma-core-controlled-live-provider-smoke.mjs",
+  "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+  "src/local-report/controlled-local-live-visual-candidate-observation-contracts.ts",
+  "src/local-report/controlled-local-live-visual-candidate-observation-demo.ts",
+  "src/local-report/controlled-provider-observation-acceptance-proof.ts",
+  "src/local-report/controlled-provider-observation-contract.ts",
+  "src/local-report/controlled-provider-observation-to-core-handoff.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-local-live-visual-candidate-observation-demo.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const explicitAcceptedObservationToCoreHandoffChangedFiles = Object.freeze([
   "src/accepted-geometry-to-core-mapping.ts",
   "src/local-report/controlled-provider-observation-to-core-handoff.ts",
@@ -907,6 +927,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,

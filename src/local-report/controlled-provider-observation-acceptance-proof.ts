@@ -11,7 +11,18 @@ import {
   DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
   serializeCanonicalJson,
 } from "../serialization.js";
-import type { ControlledProviderObservationContractV1 } from "./controlled-provider-observation-contract.js";
+import {
+  validateControlledProviderObservationContractV2,
+  type ControlledProviderObservationContractV1,
+  type ControlledProviderObservationContractV2,
+} from "./controlled-provider-observation-contract.js";
+import {
+  validateExactLocalVisualCandidateAcceptanceV1,
+  validateLocalVisualCandidateObservationEnvelopeV1,
+  validateLocalVisualHumanCandidateSelectionV1,
+  type LocalVisualCandidateObservationEnvelopeV1,
+  type LocalVisualHumanCandidateSelectionV1,
+} from "./controlled-local-live-visual-candidate-observation-contracts.js";
 
 export type ControlledProviderObservationAcceptanceActorClassV1 =
   | "human"
@@ -78,8 +89,25 @@ export interface ControlledProviderObservationAcceptanceProofV1 {
   readonly nextAllowedStep: "accepted_geometry_to_core_mapping_or_structured_analyze";
 }
 
+export interface ControlledProviderObservationCandidateAcceptanceProofV1
+  extends ControlledProviderObservationAcceptanceProofV1 {
+  readonly providerExecutionReceiptContentIdentity: string;
+  readonly candidateObservationId: string;
+  readonly candidateObservationContentIdentity: string;
+  readonly humanSelectionId: string;
+  readonly humanSelectionContentIdentity: string;
+}
+
 const INPUT_FIELDS = Object.freeze([
   "providerObservationContract",
+  "acceptanceBoundary",
+  "acceptedStructuredGeometry",
+] as const);
+
+const CANDIDATE_INPUT_FIELDS = Object.freeze([
+  "providerObservationContract",
+  "candidateObservationEnvelope",
+  "humanCandidateSelection",
   "acceptanceBoundary",
   "acceptedStructuredGeometry",
 ] as const);
@@ -172,7 +200,7 @@ class ControlledProviderObservationAcceptanceProofError extends Error {
 }
 
 export function computeControlledProviderObservationContractContentIdentityV1(
-  providerObservationContract: ControlledProviderObservationContractV1,
+  providerObservationContract: ControlledProviderObservationContractV1 | ControlledProviderObservationContractV2,
 ): string {
   const canonicalJson = serializeCanonicalJson(
     providerObservationContract,
@@ -184,11 +212,17 @@ export function computeControlledProviderObservationContractContentIdentityV1(
 
 export function createControlledProviderObservationAcceptanceProofV1(
   input: unknown,
-): ControlledProviderObservationAcceptanceProofV1 {
+): ControlledProviderObservationAcceptanceProofV1 | ControlledProviderObservationCandidateAcceptanceProofV1 {
   const record = requirePlainRecord(input, "input");
   rejectUnsafeContent(record, "input");
-  rejectUnknownFields(record, INPUT_FIELDS, "input");
-  requireOwnFields(record, INPUT_FIELDS, "input");
+  const candidatePath = "candidateObservationEnvelope" in record || "humanCandidateSelection" in record;
+  const expectedInputFields = candidatePath ? CANDIDATE_INPUT_FIELDS : INPUT_FIELDS;
+  rejectUnknownFields(record, expectedInputFields, "input");
+  requireOwnFields(record, expectedInputFields, "input");
+
+  if (candidatePath) {
+    return createCandidateAcceptanceProof(record);
+  }
 
   const providerObservationContract = requirePlainOwnRecord(
     record,
@@ -245,6 +279,155 @@ export function createControlledProviderObservationAcceptanceProofV1(
       computeAcceptedGeometryRevisionContentIdentity(acceptedStructuredGeometry),
     nextAllowedStep: "accepted_geometry_to_core_mapping_or_structured_analyze",
   };
+}
+
+function createCandidateAcceptanceProof(
+  record: Record<string, unknown>,
+): ControlledProviderObservationCandidateAcceptanceProofV1 {
+  const providerObservationContract = validateControlledProviderObservationContractV2(
+    requirePlainOwnRecord(record, "providerObservationContract", "input.providerObservationContract"),
+  );
+  const candidateObservationEnvelope = validateLocalVisualCandidateObservationEnvelopeV1(
+    requirePlainOwnRecord(record, "candidateObservationEnvelope", "input.candidateObservationEnvelope"),
+  );
+  const humanCandidateSelection = requirePlainOwnRecord(
+    record,
+    "humanCandidateSelection",
+    "input.humanCandidateSelection",
+  ) as unknown as LocalVisualHumanCandidateSelectionV1;
+  validateLocalVisualHumanCandidateSelectionV1(
+    candidateObservationEnvelope,
+    humanCandidateSelection,
+  );
+  const acceptanceBoundary = requirePlainOwnRecord(
+    record,
+    "acceptanceBoundary",
+    "input.acceptanceBoundary",
+  ) as unknown as ControlledProviderObservationAcceptanceBoundaryV1;
+  const acceptedStructuredGeometry = requirePlainOwnRecord(
+    record,
+    "acceptedStructuredGeometry",
+    "input.acceptedStructuredGeometry",
+  ) as unknown as AcceptedGeometry;
+
+  validateAcceptanceBoundaryShape(acceptanceBoundary);
+  requireValue(
+    acceptanceBoundary.acceptanceActor.actorClass,
+    "acceptanceBoundary.acceptanceActor.actorClass",
+    "human",
+  );
+  const providerObservationContentIdentity =
+    computeControlledProviderObservationContractContentIdentityV1(providerObservationContract);
+  validateCandidateEvidenceChain(
+    providerObservationContract,
+    providerObservationContentIdentity,
+    candidateObservationEnvelope,
+  );
+  const accepted = validateExactLocalVisualCandidateAcceptanceV1(
+    candidateObservationEnvelope,
+    humanCandidateSelection,
+    acceptedStructuredGeometry,
+  );
+  validateCandidateAcceptanceBoundaryLinks(
+    acceptanceBoundary,
+    candidateObservationEnvelope,
+    humanCandidateSelection,
+    accepted,
+  );
+
+  return {
+    status: "ok",
+    boundarySourceTruth: "acceptedStructuredGeometry",
+    coreInputAuthority: "acceptedStructuredGeometry",
+    providerObservationAuthority: "candidateEvidenceOnly",
+    acceptedGeometryIsOnlyCoreInput: true,
+    providerEvidenceOnly: true,
+    providerSelfAcceptance: false,
+    providerGeometryCreated: false,
+    coreInputProduced: false,
+    structuredAnalyzeRun: false,
+    resultJsonProduced: false,
+    acceptedStructuredGeometryValidated: true,
+    acceptanceBoundaryExplicit: true,
+    providerObservationId: candidateObservationEnvelope.observationId,
+    providerObservationContentIdentity: candidateObservationEnvelope.observationContentIdentity,
+    acceptedGeometryId: accepted.acceptedGeometryId,
+    acceptedGeometryContentIdentity: accepted.contentIdentity,
+    acceptedGeometryRevisionContentIdentity:
+      computeAcceptedGeometryRevisionContentIdentity(accepted),
+    providerExecutionReceiptContentIdentity:
+      candidateObservationEnvelope.provenance.providerExecutionReceiptContentIdentity,
+    candidateObservationId: candidateObservationEnvelope.observationId,
+    candidateObservationContentIdentity: candidateObservationEnvelope.observationContentIdentity,
+    humanSelectionId: humanCandidateSelection.selectionId,
+    humanSelectionContentIdentity: humanCandidateSelection.selectionContentIdentity,
+    nextAllowedStep: "accepted_geometry_to_core_mapping_or_structured_analyze",
+  };
+}
+
+function validateCandidateEvidenceChain(
+  providerObservationContract: ControlledProviderObservationContractV2,
+  providerObservationContentIdentity: string,
+  candidate: LocalVisualCandidateObservationEnvelopeV1,
+): void {
+  requireValue(
+    candidate.provenance.sourceReceiptObservationId,
+    "candidateObservationEnvelope.provenance.sourceReceiptObservationId",
+    providerObservationContract.observationId,
+  );
+  requireValue(
+    candidate.provenance.sourceReceiptObservationContentIdentity,
+    "candidateObservationEnvelope.provenance.sourceReceiptObservationContentIdentity",
+    providerObservationContentIdentity,
+  );
+  requireValue(
+    candidate.provenance.providerExecutionReceiptContentIdentity,
+    "candidateObservationEnvelope.provenance.providerExecutionReceiptContentIdentity",
+    providerObservationContract.providerExecutionReceiptContentIdentity,
+  );
+  requireValue(
+    candidate.sourceImage.contentIdentity,
+    "candidateObservationEnvelope.sourceImage.contentIdentity",
+    providerObservationContract.imageContentIdentity,
+  );
+}
+
+function validateCandidateAcceptanceBoundaryLinks(
+  boundary: ControlledProviderObservationAcceptanceBoundaryV1,
+  candidate: LocalVisualCandidateObservationEnvelopeV1,
+  selection: LocalVisualHumanCandidateSelectionV1,
+  accepted: AcceptedGeometry,
+): void {
+  requireValue(
+    boundary.providerObservationId,
+    "acceptanceBoundary.providerObservationId",
+    candidate.observationId,
+  );
+  requireValue(
+    boundary.providerObservationContentIdentity,
+    "acceptanceBoundary.providerObservationContentIdentity",
+    candidate.observationContentIdentity,
+  );
+  requireValue(
+    boundary.acceptanceActor.actorId,
+    "acceptanceBoundary.acceptanceActor.actorId",
+    selection.acceptanceActor.actorId,
+  );
+  requireValue(
+    boundary.acceptedGeometryId,
+    "acceptanceBoundary.acceptedGeometryId",
+    accepted.acceptedGeometryId,
+  );
+  requireValue(
+    boundary.acceptedGeometryContentIdentity,
+    "acceptanceBoundary.acceptedGeometryContentIdentity",
+    computeAcceptedGeometryContentIdentity(accepted),
+  );
+  requireValue(
+    boundary.acceptedGeometryRevisionContentIdentity,
+    "acceptanceBoundary.acceptedGeometryRevisionContentIdentity",
+    computeAcceptedGeometryRevisionContentIdentity(accepted),
+  );
 }
 
 function validateProviderObservationContract(

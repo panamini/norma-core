@@ -24,6 +24,7 @@ import { serializeCanonicalJson, STABLE_SERIALIZATION_POLICY } from "../dist/src
 import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
 import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
@@ -629,6 +630,7 @@ test("PR128 helper stays package-private and avoids external integration imports
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   const isPr126Set = isExactChangedFileSet(
     changedFiles,
     controlledProviderObservationToCoreHandoffChangedFiles,
@@ -637,13 +639,15 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     changedFiles,
     localVisualObservationToCorePilotContractChangedFiles,
   );
-  const expectedChangedFiles = isPr128Set
+  const expectedChangedFiles = isPr129Set
+    ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
+    : isPr128Set
     ? explicitAcceptedObservationToCoreHandoffChangedFiles
     : isPr127Set
     ? localVisualObservationToCorePilotContractChangedFiles
     : controlledProviderObservationToCoreHandoffChangedFiles;
 
-  assert.equal(isPr126Set || isPr127Set || isPr128Set, true);
+  assert.equal(isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationToCoreHandoffChangedFiles),
     controlledProviderObservationToCoreHandoffChangedFiles,
@@ -658,6 +662,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     "reports/",
     ".github/",
   ]) {
+    if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
   if (isPr127Set) {

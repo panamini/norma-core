@@ -15,6 +15,7 @@ import {
   acceptedGeometryStructuredAnalyzeNormalizationChangedFiles,
   acceptedGeometryStructuredAnalyzeNormalizationMetricPolicyFixChangedFiles,
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -571,6 +572,56 @@ test("shared exact changed-file guard accepts the PR111 synthetic evidence accep
       ),
       null,
       missingFile,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the PR129 controlled local live visual candidate demo set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(controlledLocalLiveVisualCandidateObservationDemoChangedFiles),
+    controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
+  );
+  assert.deepEqual(controlledLocalLiveVisualCandidateObservationDemoChangedFiles, [
+    "bin/norma-core-controlled-live-provider-smoke.mjs",
+    "src/local-report/controlled-live-provider-smoke-artifact-proof.ts",
+    "src/local-report/controlled-local-live-visual-candidate-observation-contracts.ts",
+    "src/local-report/controlled-local-live-visual-candidate-observation-demo.ts",
+    "src/local-report/controlled-provider-observation-acceptance-proof.ts",
+    "src/local-report/controlled-provider-observation-contract.ts",
+    "src/local-report/controlled-provider-observation-to-core-handoff.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+    "tests/controlled-live-provider-smoke.test.mjs",
+    "tests/controlled-local-live-visual-candidate-observation-demo.test.mjs",
+    "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+    "tests/controlled-provider-observation-contract.test.mjs",
+    "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+    "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+    "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  ]);
+
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "src/index.ts",
+    "src/geometry-observation.ts",
+    "src/accepted-geometry-to-core-mapping.ts",
+    "src/structured-composition-analysis.ts",
+    "src/providers/openai.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/chatgpt/connector.ts",
+    "src/server/upload.ts",
+    "../norma-core-wiki/wiki/hot.md",
+    "src/**",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
     );
   }
 });
@@ -2156,6 +2207,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
   const isPr125Set = isExactChangedFileSet(
@@ -2171,10 +2223,12 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set, true);
+  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr128Set
+    isPr129Set
+      ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
+      : isPr128Set
       ? explicitAcceptedObservationToCoreHandoffChangedFiles
       : isPr127Set
       ? localVisualObservationToCorePilotContractChangedFiles

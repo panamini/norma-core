@@ -35,8 +35,16 @@ import {
   createControlledProviderObservationAcceptanceProofV1,
   type ControlledProviderObservationAcceptanceBoundaryV1,
   type ControlledProviderObservationAcceptanceProofV1,
+  type ControlledProviderObservationCandidateAcceptanceProofV1,
 } from "./controlled-provider-observation-acceptance-proof.js";
-import type { ControlledProviderObservationContractV1 } from "./controlled-provider-observation-contract.js";
+import type {
+  ControlledProviderObservationContractV1,
+  ControlledProviderObservationContractV2,
+} from "./controlled-provider-observation-contract.js";
+import type {
+  LocalVisualCandidateObservationEnvelopeV1,
+  LocalVisualHumanCandidateSelectionV1,
+} from "./controlled-local-live-visual-candidate-observation-contracts.js";
 
 export interface ControlledProviderObservationToCoreHandoffV1 {
   readonly kind: "norma.controlled-provider-observation-to-core-handoff.v1";
@@ -104,8 +112,32 @@ export interface ControlledProviderObservationToCoreHandoffV1 {
   readonly derivedArtifactsProduced: false;
 }
 
+export interface ControlledProviderObservationCandidateToCoreHandoffV1
+  extends ControlledProviderObservationToCoreHandoffV1 {
+  readonly providerExecutionReceiptContentIdentity: string;
+  readonly candidateObservationId: string;
+  readonly candidateObservationContentIdentity: string;
+  readonly humanSelectionId: string;
+  readonly humanSelectionContentIdentity: string;
+}
+
+export interface ControlledProviderObservationCandidateToCoreExecutionV1 {
+  readonly handoff: ControlledProviderObservationCandidateToCoreHandoffV1;
+  readonly structuredAnalyzeInput: Parameters<typeof analyzeStructuredCompositionV1>[0];
+  readonly resultJson: ReturnType<typeof analyzeStructuredCompositionV1>;
+  readonly canonicalResultJsonBytes: string;
+}
+
 const INPUT_FIELDS = Object.freeze([
   "providerObservationContract",
+  "acceptanceBoundary",
+  "acceptedStructuredGeometry",
+] as const);
+
+const CANDIDATE_INPUT_FIELDS = Object.freeze([
+  "providerObservationContract",
+  "candidateObservationEnvelope",
+  "humanCandidateSelection",
   "acceptanceBoundary",
   "acceptedStructuredGeometry",
 ] as const);
@@ -140,11 +172,37 @@ class ControlledProviderObservationToCoreHandoffError extends Error {
 
 export function createControlledProviderObservationToCoreHandoffV1(
   input: unknown,
-): ControlledProviderObservationToCoreHandoffV1 {
+): ControlledProviderObservationToCoreHandoffV1 | ControlledProviderObservationCandidateToCoreHandoffV1 {
+  return createHandoffExecution(input).handoff;
+}
+
+export function createControlledProviderObservationCandidateToCoreExecutionV1(
+  input: unknown,
+): ControlledProviderObservationCandidateToCoreExecutionV1 {
+  const execution = createHandoffExecution(input);
+  if (!isCandidateProof(execution.proof) || !("providerExecutionReceiptContentIdentity" in execution.handoff)) {
+    throw invalid("input", "requires strict candidate-capable handoff input");
+  }
+  return {
+    handoff: execution.handoff as ControlledProviderObservationCandidateToCoreHandoffV1,
+    structuredAnalyzeInput: execution.structuredAnalyzeInput,
+    resultJson: execution.analysis,
+    canonicalResultJsonBytes: `${serializeCanonicalJson(execution.analysis, STABLE_SERIALIZATION_POLICY)}\n`,
+  };
+}
+
+function createHandoffExecution(input: unknown): {
+  readonly proof: ControlledProviderObservationAcceptanceProofV1 | ControlledProviderObservationCandidateAcceptanceProofV1;
+  readonly handoff: ControlledProviderObservationToCoreHandoffV1 | ControlledProviderObservationCandidateToCoreHandoffV1;
+  readonly structuredAnalyzeInput: Parameters<typeof analyzeStructuredCompositionV1>[0];
+  readonly analysis: ReturnType<typeof analyzeStructuredCompositionV1>;
+} {
   const record = requirePlainRecord(input, "input");
-  rejectUnknownFields(record, INPUT_FIELDS, "input");
+  const candidatePath = "candidateObservationEnvelope" in record || "humanCandidateSelection" in record;
+  const expectedInputFields = candidatePath ? CANDIDATE_INPUT_FIELDS : INPUT_FIELDS;
+  rejectUnknownFields(record, expectedInputFields, "input");
   const seen = new WeakSet<object>();
-  for (const field of INPUT_FIELDS) {
+  for (const field of expectedInputFields) {
     const path = `input.${field}`;
     const fieldRecord = requirePlainOwnDataRecord(record, field, path);
     requirePlainData(fieldRecord, path, seen, 0);
@@ -155,7 +213,7 @@ export function createControlledProviderObservationToCoreHandoffV1(
     inputSnapshot,
     "providerObservationContract",
     "input.providerObservationContract",
-  ) as unknown as ControlledProviderObservationContractV1;
+  ) as unknown as ControlledProviderObservationContractV1 | ControlledProviderObservationContractV2;
   const acceptanceBoundary = requirePlainOwnRecord(
     inputSnapshot,
     "acceptanceBoundary",
@@ -167,20 +225,47 @@ export function createControlledProviderObservationToCoreHandoffV1(
     "input.acceptedStructuredGeometry",
   ) as unknown as AcceptedGeometry;
 
-  const acceptanceProof = createControlledProviderObservationAcceptanceProofV1({
-    providerObservationContract,
-    acceptanceBoundary,
-    acceptedStructuredGeometry,
-  });
+  const candidateObservationEnvelope = candidatePath
+    ? requirePlainOwnRecord(
+        inputSnapshot,
+        "candidateObservationEnvelope",
+        "input.candidateObservationEnvelope",
+      ) as unknown as LocalVisualCandidateObservationEnvelopeV1
+    : undefined;
+  const humanCandidateSelection = candidatePath
+    ? requirePlainOwnRecord(
+        inputSnapshot,
+        "humanCandidateSelection",
+        "input.humanCandidateSelection",
+      ) as unknown as LocalVisualHumanCandidateSelectionV1
+    : undefined;
+  const acceptanceProof = createControlledProviderObservationAcceptanceProofV1(candidatePath
+    ? {
+        providerObservationContract,
+        candidateObservationEnvelope,
+        humanCandidateSelection,
+        acceptanceBoundary,
+        acceptedStructuredGeometry,
+      }
+    : {
+        providerObservationContract,
+        acceptanceBoundary,
+        acceptedStructuredGeometry,
+      });
 
-  return createCompletedHandoffResult(acceptanceProof, acceptanceBoundary, acceptedStructuredGeometry);
+  return createCompletedHandoffExecution(acceptanceProof, acceptanceBoundary, acceptedStructuredGeometry);
 }
 
-function createCompletedHandoffResult(
-  proof: ControlledProviderObservationAcceptanceProofV1,
+function createCompletedHandoffExecution(
+  proof: ControlledProviderObservationAcceptanceProofV1 | ControlledProviderObservationCandidateAcceptanceProofV1,
   acceptanceBoundary: ControlledProviderObservationAcceptanceBoundaryV1,
   acceptedGeometry: AcceptedGeometry,
-): ControlledProviderObservationToCoreHandoffV1 {
+): {
+  readonly proof: ControlledProviderObservationAcceptanceProofV1 | ControlledProviderObservationCandidateAcceptanceProofV1;
+  readonly handoff: ControlledProviderObservationToCoreHandoffV1 | ControlledProviderObservationCandidateToCoreHandoffV1;
+  readonly structuredAnalyzeInput: Parameters<typeof analyzeStructuredCompositionV1>[0];
+  readonly analysis: ReturnType<typeof analyzeStructuredCompositionV1>;
+} {
   const acceptedGeometryToken = identityToken(proof.acceptedGeometryContentIdentity);
   const mappingRequestId = `request:pr128:map:${acceptedGeometryToken}`;
   const mapped = mapAcceptedGeometryToCoreV1({
@@ -291,7 +376,7 @@ function createCompletedHandoffResult(
   const normalizationResultToken = identityToken(normalization.resultContentIdentity);
   const analysisId = `analysis:pr128:${normalizationResultToken}`;
   const externalSourceRef = proof.providerObservationId;
-  const analysis = analyzeStructuredCompositionV1({
+  const structuredAnalyzeInput: Parameters<typeof analyzeStructuredCompositionV1>[0] = {
     contractVersion: STRUCTURED_COMPOSITION_ANALYSIS_INPUT_CONTRACT_VERSION,
     analysisId,
     compositionA: normalization.compositionA,
@@ -345,7 +430,8 @@ function createCompletedHandoffResult(
       acceptanceRecord: acceptance,
       operationContextRef: operationContextResult.output.ref,
     },
-  });
+  };
+  const analysis = analyzeStructuredCompositionV1(structuredAnalyzeInput);
   if (analysis.status !== "valid" || analysis.errors.length !== 0) {
     throw invalid("structuredAnalyze", `failed closed (${analysis.errors.map((error) => error.code).join(",")})`);
   }
@@ -370,7 +456,7 @@ function createCompletedHandoffResult(
     throw invalid("structuredAnalyze.evaluations.a.alignment", "missing alignment component");
   }
 
-  return {
+  const handoff: ControlledProviderObservationToCoreHandoffV1 | ControlledProviderObservationCandidateToCoreHandoffV1 = {
     kind: "norma.controlled-provider-observation-to-core-handoff.v1",
     version: 1,
     status: "completed",
@@ -438,7 +524,23 @@ function createCompletedHandoffResult(
     canonicalTruth: "result.json",
     derivedArtifactsAuthoritative: false,
     derivedArtifactsProduced: false,
+    ...(isCandidateProof(proof)
+      ? {
+          providerExecutionReceiptContentIdentity: proof.providerExecutionReceiptContentIdentity,
+          candidateObservationId: proof.candidateObservationId,
+          candidateObservationContentIdentity: proof.candidateObservationContentIdentity,
+          humanSelectionId: proof.humanSelectionId,
+          humanSelectionContentIdentity: proof.humanSelectionContentIdentity,
+        }
+      : {}),
   };
+  return { proof, handoff, structuredAnalyzeInput, analysis };
+}
+
+function isCandidateProof(
+  proof: ControlledProviderObservationAcceptanceProofV1 | ControlledProviderObservationCandidateAcceptanceProofV1,
+): proof is ControlledProviderObservationCandidateAcceptanceProofV1 {
+  return "providerExecutionReceiptContentIdentity" in proof;
 }
 
 export function computeCanonicalResultJsonContentIdentityV1(result: unknown): string {
