@@ -442,6 +442,39 @@ test("PR129 fake transport captures only exact redacted candidate evidence after
   }
 });
 
+test("PR129 candidate capture fails closed without exact provider response bytes", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr129-exact-bytes-"));
+
+  try {
+    const imagePath = join(tmp, "source.png");
+    const outputDir = join(tmp, "out");
+    await writeFile(imagePath, pngBytes());
+    const result = await runCli(["--live", "--input-image", imagePath, "--output", outputDir], {
+      env: completeEnv(),
+      transport: async () => ({
+        ok: true,
+        statusCode: 200,
+        rawResponseText: providerCandidateResponseText([
+          { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: null },
+        ]),
+      }),
+    });
+    const parsed = JSON.parse(result.stdout);
+
+    assert.equal(result.exitCode, 2);
+    assert.equal(parsed.status, "provider_schema_error");
+    assert.equal(parsed.errorCode, "MissingExactProviderResponseBytes");
+    assert.equal(parsed.artifactsPersisted, false);
+    assert.equal(parsed.acceptedGeometryProduced, false);
+    assert.equal(parsed.coreInputProduced, false);
+    assert.equal(parsed.resultJsonProduced, false);
+    await assert.rejects(() => readFile(join(outputDir, "provider-execution-receipt.json")));
+    await assert.rejects(() => readFile(join(outputDir, "candidate-observation.json")));
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("PR129 no-network resume requires an independent exact human selection and writes canonical result atomically", async () => {
   const tmp = await mkdtemp(join(tmpdir(), "norma-core-pr129-resume-"));
 
@@ -458,7 +491,7 @@ test("PR129 no-network resume requires an independent exact human selection and 
         transport: async () => ({
           ok: true,
           statusCode: 200,
-          rawResponseText: providerCandidateResponseText([
+          rawResponseBytes: providerCandidateResponseBytes([
             { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: 0.8 },
             { x: 0.55, y: 0.15, width: 0.2, height: 0.25, providerConfidence: null },
           ]),
@@ -528,7 +561,7 @@ test("PR129 resume write failures publish no partial authority Core or result ar
       transport: async () => ({
         ok: true,
         statusCode: 200,
-        rawResponseText: providerCandidateResponseText([
+        rawResponseBytes: providerCandidateResponseBytes([
           { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: null },
         ]),
       }),
@@ -578,7 +611,7 @@ test("PR117 artifact write failures after provider completion keep provider stat
         return {
           ok: true,
           statusCode: 200,
-          rawResponseText: providerCandidateResponseText([
+          rawResponseBytes: providerCandidateResponseBytes([
             { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: null },
           ]),
         };
@@ -1365,7 +1398,7 @@ test("PR129 provider-specific response fields terminate before persisted candida
       transport: async () => ({
         ok: true,
         statusCode: 200,
-        rawResponseText: providerCandidateResponseText([
+        rawResponseBytes: providerCandidateResponseBytes([
           { x: 0.1, y: 0.2, width: 0.3, height: 0.4, providerConfidence: 1 },
         ], {
           acceptedStructuredGeometry: { unsafe: true },
@@ -1783,6 +1816,10 @@ function providerCandidateResponseText(rectangles, extraFields = {}) {
     }],
     ...extraFields,
   });
+}
+
+function providerCandidateResponseBytes(rectangles, extraFields = {}) {
+  return new TextEncoder().encode(providerCandidateResponseText(rectangles, extraFields));
 }
 
 function escapeRegExp(value) {

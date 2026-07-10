@@ -184,10 +184,37 @@ test("PR129 decodes PNG JPEG and WebP dimensions from bytes rather than filename
     sourcePixelWidth: 77,
     sourcePixelHeight: 55,
   });
+  assert.deepEqual(decodeValidatedLocalVisualImageDimensionsV1(webpVp8Bytes(91, 67), "image/webp"), {
+    sourcePixelWidth: 91,
+    sourcePixelHeight: 67,
+  });
+  assert.deepEqual(decodeValidatedLocalVisualImageDimensionsV1(webpVp8lBytes(43, 29), "image/webp"), {
+    sourcePixelWidth: 43,
+    sourcePixelHeight: 29,
+  });
   assert.throws(
     () => decodeValidatedLocalVisualImageDimensionsV1(pngBytes(1, 1), "image/jpeg"),
     /JPEG SOI/u,
   );
+
+  for (const { bytes, minimumChunkSize } of [
+    { bytes: webpVp8xBytes(77, 55), minimumChunkSize: 10 },
+    { bytes: webpVp8Bytes(91, 67), minimumChunkSize: 10 },
+    { bytes: webpVp8lBytes(43, 29), minimumChunkSize: 5 },
+  ]) {
+    for (const declaredChunkSize of [0, minimumChunkSize - 1]) {
+      const malformed = bytes.slice();
+      setUint32Le(malformed, 16, declaredChunkSize);
+      assert.throws(
+        () => decodeValidatedLocalVisualImageDimensionsV1(malformed, "image/webp"),
+        /WebP/u,
+      );
+    }
+    assert.throws(
+      () => decodeValidatedLocalVisualImageDimensionsV1(bytes.slice(0, -1), "image/webp"),
+      /complete WebP RIFF/u,
+    );
+  }
 });
 
 test("PR129 separate exact human selection produces one- and multi-rectangle canonical results", () => {
@@ -275,6 +302,54 @@ test("PR129 provider confidence cannot influence accepted coordinates or computa
   );
   assert.equal(low.execution.handoff.evaluationProfileProviderInfluenced, false);
   assert.equal(high.execution.handoff.evaluationProfileProviderInfluenced, false);
+});
+
+test("PR129 resume validates the exact human selection before cloning", () => {
+  const capture = createCapture();
+  const resume = (humanCandidateSelection) => createControlledLocalLiveVisualCandidateResumeV1({
+    providerExecutionReceipt: capture.providerExecutionReceipt,
+    candidateObservationEnvelope: capture.candidateObservationEnvelope,
+    humanCandidateSelection,
+    acceptedAt: ACCEPTED_AT,
+  });
+
+  const accessorSelection = createSelection(capture, [0]);
+  let accessorReads = 0;
+  Object.defineProperty(accessorSelection, "selectionId", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      accessorReads += 1;
+      return "human-selection:local:1";
+    },
+  });
+  assert.throws(() => resume(accessorSelection), /InvalidHumanSelection/u);
+  assert.equal(accessorReads, 0);
+
+  const hiddenSelection = createSelection(capture, [0]);
+  Object.defineProperty(hiddenSelection, "hiddenSecret", {
+    enumerable: false,
+    value: "must-not-be-dropped",
+  });
+  assert.throws(() => resume(hiddenSelection), /InvalidHumanSelection/u);
+
+  const symbolSelection = createSelection(capture, [0]);
+  symbolSelection[Symbol("hidden")] = "must-not-be-dropped";
+  assert.throws(() => resume(symbolSelection), /InvalidHumanSelection/u);
+
+  const sparseSelection = createSelection(capture, [0]);
+  sparseSelection.selections = new Array(1);
+  assert.throws(() => resume(sparseSelection), /InvalidHumanSelection/u);
+
+  let proxyTraps = 0;
+  const proxiedSelection = new Proxy(createSelection(capture, [0]), {
+    getPrototypeOf(target) {
+      proxyTraps += 1;
+      return Reflect.getPrototypeOf(target);
+    },
+  });
+  assert.throws(() => resume(proxiedSelection), /InvalidHumanSelection/u);
+  assert.equal(proxyTraps, 0);
 });
 
 test("PR129 rejects cross-execution and human selection identity/order mismatches", () => {
@@ -547,6 +622,29 @@ function webpVp8xBytes(width, height) {
   return bytes;
 }
 
+function webpVp8Bytes(width, height) {
+  const bytes = new Uint8Array(30);
+  bytes.set([82, 73, 70, 70], 0);
+  setUint32Le(bytes, 4, 22);
+  bytes.set([87, 69, 66, 80, 86, 80, 56, 32], 8);
+  setUint32Le(bytes, 16, 10);
+  bytes.set([0x9d, 0x01, 0x2a], 23);
+  setUint16Le(bytes, 26, width);
+  setUint16Le(bytes, 28, height);
+  return bytes;
+}
+
+function webpVp8lBytes(width, height) {
+  const bytes = new Uint8Array(26);
+  bytes.set([82, 73, 70, 70], 0);
+  setUint32Le(bytes, 4, 18);
+  bytes.set([87, 69, 66, 80, 86, 80, 56, 76], 8);
+  setUint32Le(bytes, 16, 5);
+  bytes[20] = 0x2f;
+  setUint32Le(bytes, 21, (width - 1) | ((height - 1) << 14));
+  return bytes;
+}
+
 function setUint32Be(bytes, offset, value) {
   bytes[offset] = (value >>> 24) & 0xff;
   bytes[offset + 1] = (value >>> 16) & 0xff;
@@ -558,6 +656,10 @@ function setUint32Le(bytes, offset, value) {
   bytes[offset + 1] = (value >>> 8) & 0xff;
   bytes[offset + 2] = (value >>> 16) & 0xff;
   bytes[offset + 3] = (value >>> 24) & 0xff;
+}
+function setUint16Le(bytes, offset, value) {
+  bytes[offset] = value & 0xff;
+  bytes[offset + 1] = (value >>> 8) & 0xff;
 }
 function setUint24Le(bytes, offset, value) {
   bytes[offset] = value & 0xff;

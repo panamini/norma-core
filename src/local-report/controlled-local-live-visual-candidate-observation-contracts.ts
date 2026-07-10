@@ -15,6 +15,21 @@ import {
   serializeCanonicalJson,
 } from "../serialization.js";
 
+type NodeUtilModule = {
+  readonly types?: {
+    readonly isProxy?: (value: unknown) => boolean;
+  };
+};
+
+const nodeProcess = globalThis as typeof globalThis & {
+  readonly process?: {
+    readonly getBuiltinModule?: (id: string) => unknown;
+  };
+};
+const nodeUtilTypes = (
+  nodeProcess.process?.getBuiltinModule?.("node:util") as NodeUtilModule | undefined
+)?.types;
+
 const LOCAL_VISUAL_PROVIDER_EXECUTION_RECEIPT_CONTRACT_ID =
   "norma.local-visual-provider-execution-receipt@1" as const;
 const LOCAL_VISUAL_CANDIDATE_OBSERVATION_CONTRACT_ID =
@@ -848,23 +863,30 @@ function decodeJpegDimensions(bytes: Uint8Array): LocalVisualImageDimensionsV1 {
 }
 
 function decodeWebpDimensions(bytes: Uint8Array): LocalVisualImageDimensionsV1 {
-  if (bytes.length < 30 || ascii(bytes, 0, 4) !== "RIFF" || ascii(bytes, 8, 4) !== "WEBP") {
+  if (bytes.length < 20 || ascii(bytes, 0, 4) !== "RIFF" || ascii(bytes, 8, 4) !== "WEBP") {
     throw invalid("sourceImageBytes", "requires validated WebP RIFF");
   }
   const riffSize = readUint32Le(bytes, 4);
-  if (riffSize + 8 > bytes.length) throw invalid("sourceImageBytes", "requires complete WebP RIFF");
+  const riffEnd = riffSize + 8;
+  if (riffSize < 12 || riffEnd > bytes.length) throw invalid("sourceImageBytes", "requires complete WebP RIFF");
   const chunk = ascii(bytes, 12, 4);
+  const chunkSize = readUint32Le(bytes, 16);
+  const chunkEnd = 20 + chunkSize;
+  if (chunkEnd > riffEnd || chunkEnd > bytes.length) {
+    throw invalid("sourceImageBytes", "requires complete WebP dimension chunk");
+  }
   if (chunk === "VP8X") {
+    if (chunkSize !== 10) throw invalid("sourceImageBytes", "requires exact WebP VP8X chunk size");
     return dimensions(1 + readUint24Le(bytes, 24), 1 + readUint24Le(bytes, 27), "WebP");
   }
   if (chunk === "VP8 ") {
-    if (bytes.length < 30 || bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) {
+    if (chunkSize < 10 || bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) {
       throw invalid("sourceImageBytes", "requires WebP VP8 frame header");
     }
     return dimensions(readUint16Le(bytes, 26) & 0x3fff, readUint16Le(bytes, 28) & 0x3fff, "WebP");
   }
   if (chunk === "VP8L") {
-    if (bytes.length < 25 || bytes[20] !== 0x2f) throw invalid("sourceImageBytes", "requires WebP VP8L signature");
+    if (chunkSize < 5 || bytes[20] !== 0x2f) throw invalid("sourceImageBytes", "requires WebP VP8L signature");
     const bits = readUint32Le(bytes, 21);
     return dimensions((bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1, "WebP");
   }
@@ -918,6 +940,7 @@ function requirePlainData(value: unknown, path: string, seen: WeakSet<object>, d
     return;
   }
   if (typeof value !== "object") throw invalid(path, "requires JSON-compatible data");
+  if (isProxy(value)) throw invalid(path, "must not be a Proxy");
   if (seen.has(value)) throw invalid(path, "must not be cyclic");
   seen.add(value);
   if (Array.isArray(value)) {
@@ -944,10 +967,18 @@ function requirePlainData(value: unknown, path: string, seen: WeakSet<object>, d
 }
 
 function requireRecord(value: unknown, path: string): Record<string, unknown> {
+  if (isProxy(value)) throw invalid(path, "must not be a Proxy");
   if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
     throw invalid(path, "requires plain object");
   }
   return value as Record<string, unknown>;
+}
+
+function isProxy(value: unknown): boolean {
+  if (nodeUtilTypes?.isProxy === undefined) {
+    throw invalid("runtime", "requires Node proxy detection");
+  }
+  return nodeUtilTypes.isProxy(value);
 }
 
 function requireExactFields(record: object, expected: readonly string[], path: string): void {

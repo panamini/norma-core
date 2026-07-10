@@ -300,8 +300,8 @@ export function createControlledLocalLiveVisualCandidateResumeV1({
   try {
     const receipt = validateLocalVisualProviderExecutionReceiptV1(providerExecutionReceipt);
     const candidate = validateLocalVisualCandidateObservationEnvelopeV1(candidateObservationEnvelope);
+    validateLocalVisualHumanCandidateSelectionV1(candidate, humanCandidateSelection);
     const selection = structuredClone(humanCandidateSelection);
-    validateLocalVisualHumanCandidateSelectionV1(candidate, selection);
     const providerObservationContract =
       restoreControlledProviderObservationContractV2FromReceipt(receipt);
     const providerObservationContentIdentity =

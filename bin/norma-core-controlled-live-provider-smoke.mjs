@@ -178,9 +178,7 @@ async function runControlledLiveProviderSmokeCli({
     : undefined;
   const rawProviderResponseBytes = providerResponse.rawResponseBytes instanceof Uint8Array
     ? providerResponse.rawResponseBytes
-    : rawResponseText === undefined
-      ? undefined
-      : new TextEncoder().encode(rawResponseText);
+    : undefined;
   const providerOutputObserved = typeof providerResponse.providerOutputObserved === "boolean"
     ? providerResponse.providerOutputObserved
     : rawProviderResponseBytes === undefined
@@ -202,7 +200,7 @@ async function runControlledLiveProviderSmokeCli({
     }
   }
   const providerBody = rawProviderResponseBytes === undefined
-    ? providerResponse.body
+    ? providerResponse.body ?? (rawResponseText === undefined ? null : safeJson(rawResponseText))
     : safeJsonBytes(rawProviderResponseBytes);
   const incompleteResponseDiagnostic = providerResponse.ok
     ? helpers.createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1({
