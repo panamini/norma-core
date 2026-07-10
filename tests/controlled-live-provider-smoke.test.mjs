@@ -29,6 +29,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderIncompleteResponseGuardChangedFiles,
   controlledLiveProviderSmokeArtifactProofChangedFiles,
@@ -1405,6 +1406,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     [
+      controlledProviderObservationToCoreHandoffChangedFiles,
       controlledProviderObservationAcceptanceProofChangedFiles,
       controlledProviderObservationContractChangedFiles,
       controlledLiveProviderIncompleteResponseGuardChangedFiles,

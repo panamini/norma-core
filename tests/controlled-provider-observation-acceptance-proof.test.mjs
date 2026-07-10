@@ -19,6 +19,7 @@ import { analyzeStructuredCompositionV1 } from "../dist/src/structured-compositi
 import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -437,15 +438,26 @@ test("PR125 helper is package-private and avoids forbidden execution dependencie
 
 test("PR125 changed files stay exact and reject forbidden extras", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  const isPr125Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationAcceptanceProofChangedFiles,
+  );
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
+  const expectedChangedFiles = isPr126Set
+    ? controlledProviderObservationToCoreHandoffChangedFiles
+    : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isExactChangedFileSet(changedFiles, controlledProviderObservationAcceptanceProofChangedFiles), true);
+  assert.equal(isPr125Set || isPr126Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    controlledProviderObservationAcceptanceProofChangedFiles,
+    expectedChangedFiles,
   );
 
   for (const forbiddenFile of [

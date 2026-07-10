@@ -10,6 +10,7 @@ import {
   branchChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
+  controlledProviderObservationToCoreHandoffChangedFiles,
   controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   isExactChangedFileSet,
@@ -253,19 +254,25 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     changedFiles,
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
+  const isPr126Set = isExactChangedFileSet(
+    changedFiles,
+    controlledProviderObservationToCoreHandoffChangedFiles,
+  );
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set,
+    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set,
     true,
     changedFiles.join("\n"),
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr125Set
+    isPr126Set
+      ? controlledProviderObservationToCoreHandoffChangedFiles
+      : isPr125Set
       ? controlledProviderObservationAcceptanceProofChangedFiles
       : isPr124Set
       ? controlledProviderObservationContractChangedFiles
