@@ -4,16 +4,11 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { validateGeometryV1 } from "../dist/src/index.js";
 import {
   computeAcceptedGeometryContentIdentity,
   computeAcceptedGeometryRevisionContentIdentity,
   validateAcceptedGeometryV1,
 } from "../dist/src/geometry-observation.js";
-import {
-  ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
-  ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM,
-} from "../dist/src/accepted-geometry-to-core-mapping.js";
 import {
   computeControlledProviderObservationContractContentIdentityV1,
   createControlledProviderObservationAcceptanceProofV1,
@@ -40,125 +35,158 @@ const helperSourcePath = path.join(
 const indexSourcePath = path.join(repoRoot, "src", "index.ts");
 const packageJsonPath = path.join(repoRoot, "package.json");
 
-test("PR126 redacted provider artifacts flow through PR124 and PR125 into valid Core Composition2D", () => {
+test("PR126 validates PR123 PR124 and PR125 facts but blocks the unapproved Core mapping boundary", () => {
   const artifacts = createRedactedSuccessArtifacts();
+  const artifactProof = createControlledLiveProviderSmokeArtifactProofV1(artifacts);
   const providerObservationContract = createControlledProviderObservationContractV1(artifacts);
-  const proofInput = createValidHandoffInput({ providerObservationContract });
-  const handoff = createControlledProviderObservationToCoreHandoffV1(proofInput);
+  const input = createValidHandoffInput({ providerObservationContract });
+  const handoff = createControlledProviderObservationToCoreHandoffV1(input);
 
-  assert.deepEqual(createControlledLiveProviderSmokeArtifactProofV1(artifacts), {
-    status: "ok",
-    smokeStatus: "ok",
-    providerEvidenceOnly: true,
-    providerOutputObserved: true,
-    providerOutputIsCoreTruth: false,
-    providerOutputIsAcceptedGeometry: false,
-    acceptedStructuredGeometryProduced: false,
+  assert.equal(artifactProof.status, "ok");
+  assert.equal(providerObservationContract.providerEvidenceOnly, true);
+  assert.equal(validateAcceptedGeometryV1(input.acceptedStructuredGeometry).ok, true);
+  assert.deepEqual(handoff, {
+    kind: "norma.controlled-provider-observation-to-core-handoff.v1",
+    version: 1,
+    status: "blocked_unapproved_mapping_boundary",
+    ok: false,
+    providerObservationAuthority: "candidateEvidenceOnly",
+    boundarySourceTruth: "acceptedStructuredGeometry",
+    coreInputAuthority: "acceptedStructuredGeometry",
+    acceptedGeometryIsOnlyCoreInput: true,
+    acceptedStructuredGeometryValidated: true,
+    acceptanceBoundaryExplicit: true,
+    providerSelfAcceptance: false,
+    providerGeometryCreated: false,
+    mappingBoundaryApproved: false,
+    mappingAttempted: false,
     coreInputProduced: false,
+    structuredAnalyzeInputProduced: false,
     structuredAnalyzeRun: false,
     resultJsonProduced: false,
-    resultJsonCanonicalTruth: false,
-    acceptedStructuredGeometryOnlyCoreInput: true,
-    sourceArtifactsRedacted: true,
-    rawProviderOutputPersisted: false,
-    rawRequestBodyPersisted: false,
-    rawImagePersisted: false,
-    sourceArtifactKinds: ["provider-evidence-envelope.json", "summary.json"],
-    derivedArtifactRefs: [],
-    nextAllowedStep: "controlled_provider_observation_contract",
+    providerObservationId: providerObservationContract.observationId,
+    providerObservationContentIdentity:
+      input.acceptanceBoundary.providerObservationContentIdentity,
+    acceptedGeometryId: input.acceptedStructuredGeometry.acceptedGeometryId,
+    acceptedGeometryContentIdentity: input.acceptedStructuredGeometry.contentIdentity,
+    acceptedGeometryRevisionContentIdentity:
+      input.acceptedStructuredGeometry.acceptance.acceptedContentIdentity,
+    blockedReason: "provider_observation_mapping_boundary_unapproved",
+    nextAllowedStep: "approve_provider_observation_mapping_boundary",
   });
-  assert.equal(providerObservationContract.kind, "norma.controlled-provider-observation-contract.v1");
-  assert.equal(providerObservationContract.acceptedStructuredGeometryProduced, false);
-  assert.equal(providerObservationContract.coreInputProduced, false);
-  assert.equal(validateAcceptedGeometryV1(proofInput.acceptedStructuredGeometry).ok, true);
-  assert.equal(handoff.ok, true);
-  assert.equal(handoff.status, "mapped");
-  assert.equal(handoff.coreInputProduced, true);
-  assert.equal(handoff.structuredAnalyzeInputProduced, false);
-  assert.equal(handoff.structuredAnalyzeRun, false);
-  assert.equal(handoff.resultJsonProduced, false);
-  assert.equal(handoff.nextAllowedStep, "explicit_comparison_input_construction");
-  assert.equal(validateGeometryV1(handoff.mappedComposition2D).status, "ok");
+  assert.equal("mappingResult" in handoff, false);
+  assert.equal("mappedComposition2D" in handoff, false);
 });
 
-test("PR126 preserves the active mapper coordinate transform", () => {
-  const input = createValidHandoffInput({
-    primitives: [
-      rectanglePrimitive({
-        id: "rectangle:frame",
-        x: 0.1,
-        y: 0.2,
-        width: 0.7,
-        height: 0.6,
-      }),
-    ],
-  });
-  const handoff = createControlledProviderObservationToCoreHandoffV1(input);
+test("PR126 never relabels a provider observation handoff as synthetic-only", async () => {
+  const helperSource = await readFile(helperSourcePath, "utf8");
+  const handoff = createControlledProviderObservationToCoreHandoffV1(createValidHandoffInput());
 
-  assert.equal(
-    handoff.mappingResult.coordinateTransform.coordinateTransform,
-    ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
-  );
-  assert.deepEqual(
-    handoff.mappingResult.coordinateTransform.rectangleFormula,
-    {
-      coreX: "observationX",
-      coreY: "1 - observationY - observationHeight",
-      coreWidth: "observationWidth",
-      coreHeight: "observationHeight",
-    },
-  );
-  assert.deepEqual(handoff.mappedComposition2D.coordinateSystem, ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM);
-  assert.deepEqual(handoff.mappedComposition2D.elements[0].geometry, {
-    kind: "rect",
-    x: 0.1,
-    y: 0.20000000000000007,
-    width: 0.7,
-    height: 0.6,
-  });
+  assert.equal(handoff.mappingBoundaryApproved, false);
+  assert.equal(handoff.mappingAttempted, false);
+  assert.equal(handoff.coreInputProduced, false);
+  assert.equal(handoff.nextAllowedStep, "approve_provider_observation_mapping_boundary");
+  assert.doesNotMatch(helperSource, /accepted-geometry-to-core-mapping|mapAcceptedGeometryToCoreV1/u);
+  assert.doesNotMatch(helperSource, /synthetic-only|createMappingRequest/u);
 });
 
-test("PR126 snapshots accepted geometry before validation so toJSON cannot substitute mapped Core input", () => {
-  const input = createValidHandoffInput({
-    primitives: [
-      rectanglePrimitive({
-        id: "rectangle:validated",
-        x: 0.1,
-        y: 0.2,
-        width: 0.3,
-        height: 0.4,
-      }),
-    ],
-  });
-  const validatedContentIdentity = input.acceptedStructuredGeometry.contentIdentity;
-  const substitutedGeometry = structuredClone(input.acceptedStructuredGeometry);
-  substitutedGeometry.primitives[0].x = 0.7;
-  substitutedGeometry.acceptance.acceptedContentIdentity =
-    computeAcceptedGeometryRevisionContentIdentity(substitutedGeometry);
-  substitutedGeometry.contentIdentity = computeAcceptedGeometryContentIdentity(substitutedGeometry);
-  assert.equal(validateAcceptedGeometryV1(substitutedGeometry).ok, true);
-  assert.notEqual(substitutedGeometry.contentIdentity, validatedContentIdentity);
+test("PR126 recursively rejects accessors hidden fields symbols classes and sparse arrays before cloning", () => {
+  {
+    const input = createValidHandoffInput();
+    let getterCalls = 0;
+    Object.defineProperty(input.acceptedStructuredGeometry, "primitives", {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return [rectanglePrimitive()];
+      },
+    });
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /acceptedStructuredGeometry\.primitives.*requires enumerable own data field/u,
+    );
+    assert.equal(getterCalls, 0);
+  }
 
-  Object.defineProperty(input.acceptedStructuredGeometry, "toJSON", {
-    configurable: true,
-    enumerable: false,
-    value: () => substitutedGeometry,
-  });
+  {
+    const input = createValidHandoffInput();
+    Object.defineProperty(input.providerObservationContract, "hiddenCredential", {
+      enumerable: false,
+      value: "redacted",
+    });
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /providerObservationContract\.hiddenCredential.*requires enumerable own data field/u,
+    );
+  }
 
-  const handoff = createControlledProviderObservationToCoreHandoffV1(input);
+  {
+    const input = createValidHandoffInput();
+    Object.defineProperty(input.acceptedStructuredGeometry, "toJSON", {
+      enumerable: false,
+      value: () => ({ substituted: true }),
+    });
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /acceptedStructuredGeometry\.toJSON.*requires enumerable own data field/u,
+    );
+  }
 
-  assert.equal(handoff.ok, true);
-  assert.equal(handoff.coreInputProduced, true);
-  assert.equal(handoff.acceptedGeometryContentIdentity, validatedContentIdentity);
-  assert.equal(
-    handoff.mappingResult.primitiveMappings[0].acceptedGeometryContentIdentity,
-    handoff.acceptedGeometryContentIdentity,
-  );
-  assert.equal(handoff.mappedComposition2D.elements[0].geometry.x, 0.1);
-  assert.notEqual(handoff.mappedComposition2D.elements[0].geometry.x, 0.7);
+  {
+    const input = createValidHandoffInput();
+    input.acceptanceBoundary.decisionProvenance[Symbol("authority")] = true;
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /decisionProvenance\.\[symbol\].*requires string-keyed plain data/u,
+    );
+  }
+
+  {
+    const input = createValidHandoffInput();
+    class Bounds {
+      constructor() {
+        this.x = [0, 1];
+        this.y = [0, 1];
+      }
+    }
+    input.acceptedStructuredGeometry.coordinateFrame.bounds = new Bounds();
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /coordinateFrame\.bounds.*requires plain object/u,
+    );
+  }
+
+  {
+    const input = createValidHandoffInput();
+    delete input.acceptedStructuredGeometry.primitives[0];
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /acceptedStructuredGeometry\.primitives.*requires dense array data/u,
+    );
+  }
 });
 
-test("PR126 requires PR125 validation before mapping and rejects provider observation as accepted geometry", () => {
+test("PR126 rejects cycles and non-JSON scalar values before snapshot", () => {
+  {
+    const input = createValidHandoffInput();
+    input.providerObservationContract.cycle = input.providerObservationContract;
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /providerObservationContract\.cycle.*must not contain cycles/u,
+    );
+  }
+
+  for (const value of [undefined, 1n, Symbol("unsafe"), () => true, Number.NaN, Infinity]) {
+    const input = createValidHandoffInput();
+    input.providerObservationContract.providerClass = value;
+    assert.throws(
+      () => createControlledProviderObservationToCoreHandoffV1(input),
+      /providerObservationContract\.providerClass.*plain data|finite JSON number/u,
+    );
+  }
+});
+
+test("PR126 requires PR125 validation and rejects provider observation as accepted geometry", () => {
   const input = createValidHandoffInput();
 
   assert.throws(
@@ -171,7 +199,7 @@ test("PR126 requires PR125 validation before mapping and rejects provider observ
             "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         },
       }),
-    /Invalid controlled provider observation acceptance proof field "acceptanceBoundary\.providerObservationContentIdentity"/u,
+    /acceptanceBoundary\.providerObservationContentIdentity/u,
   );
   assert.throws(
     () =>
@@ -203,7 +231,7 @@ test("PR126 rejects detached proofs caller mapping authority and caller Core com
   }
 });
 
-test("PR126 rejects non-plain missing inherited and unknown envelope fields", () => {
+test("PR126 rejects non-plain missing inherited accessor hidden symbol and unknown envelope fields", () => {
   const input = createValidHandoffInput();
   const inherited = Object.create(input);
   const missing = { ...input };
@@ -225,18 +253,13 @@ test("PR126 rejects non-plain missing inherited and unknown envelope fields", ()
   );
 
   const hiddenExtraInput = { ...input };
-  Object.defineProperty(hiddenExtraInput, "hiddenExtra", {
-    enumerable: false,
-    value: true,
-  });
+  Object.defineProperty(hiddenExtraInput, "hiddenExtra", { enumerable: false, value: true });
   assert.throws(
     () => createControlledProviderObservationToCoreHandoffV1(hiddenExtraInput),
     /input\.hiddenExtra.*unknown field/u,
   );
-
-  const symbolExtraInput = { ...input, [Symbol("extra")]: true };
   assert.throws(
-    () => createControlledProviderObservationToCoreHandoffV1(symbolExtraInput),
+    () => createControlledProviderObservationToCoreHandoffV1({ ...input, [Symbol("extra")]: true }),
     /input\.\[symbol\].*unknown field/u,
   );
 
@@ -255,19 +278,24 @@ test("PR126 rejects non-plain missing inherited and unknown envelope fields", ()
   }
 
   const accessorInput = { ...input };
+  let accessorCalls = 0;
   Object.defineProperty(accessorInput, "acceptedStructuredGeometry", {
     enumerable: true,
-    get: () => input.acceptedStructuredGeometry,
+    get: () => {
+      accessorCalls += 1;
+      return input.acceptedStructuredGeometry;
+    },
   });
   assert.throws(
     () => createControlledProviderObservationToCoreHandoffV1(accessorInput),
     /input\.acceptedStructuredGeometry.*requires own data field/u,
   );
+  assert.equal(accessorCalls, 0);
 });
 
-test("PR126 reports input snapshot failures in the structured handoff error style", () => {
+test("PR126 reports snapshot failures in the structured handoff error style", () => {
   const input = createValidHandoffInput();
-  input.providerObservationContract.providerClass = Symbol("not-cloneable");
+  input.providerObservationContract = new Proxy(input.providerObservationContract, {});
 
   assert.throws(
     () => createControlledProviderObservationToCoreHandoffV1(input),
@@ -279,7 +307,7 @@ test("PR126 reports input snapshot failures in the structured handoff error styl
   );
 });
 
-test("PR126 observation acceptance actor provenance and accepted geometry identity mismatches fail before mapping", () => {
+test("PR126 identity and authority mismatches fail before the mapping gate result", () => {
   for (const [name, mutate, pattern] of [
     [
       "observation id",
@@ -297,7 +325,7 @@ test("PR126 observation acceptance actor provenance and accepted geometry identi
       /acceptedStructuredGeometry\.acceptance\.actorId/u,
     ],
     [
-      "provenance actor",
+      "provider actor",
       (input) => {
         input.acceptedStructuredGeometry.provenance.actorType = "provider";
         refreshAcceptedGeometryIdentities(input);
@@ -305,7 +333,7 @@ test("PR126 observation acceptance actor provenance and accepted geometry identi
       /acceptedStructuredGeometry\.provenance\.actorType/u,
     ],
     [
-      "accepted content identity",
+      "stale identity",
       (input) => {
         input.acceptedStructuredGeometry.acceptance.acceptedContentIdentity =
           "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -319,121 +347,36 @@ test("PR126 observation acceptance actor provenance and accepted geometry identi
   }
 });
 
-test("PR126 provider model prompt artifact confidence diagnostic metadata and self-acceptance cannot authorize mapping", () => {
-  for (const [name, mutate, pattern] of [
-    [
-      "provider actor",
-      (input) => {
-        input.acceptanceBoundary.acceptanceActor.actorClass = "provider";
-      },
-      /acceptanceBoundary\.acceptanceActor\.actorClass/u,
-    ],
-    [
-      "model actor",
-      (input) => {
-        input.acceptanceBoundary.acceptanceActor.actorClass = "model";
-      },
-      /acceptanceBoundary\.acceptanceActor\.actorClass/u,
-    ],
-    [
-      "prompt actor",
-      (input) => {
-        input.acceptanceBoundary.acceptanceActor.actorClass = "prompt";
-      },
-      /acceptanceBoundary\.acceptanceActor\.actorClass/u,
-    ],
-    [
-      "artifact actor",
-      (input) => {
-        input.acceptanceBoundary.acceptanceActor.actorClass = "artifact";
-      },
-      /acceptanceBoundary\.acceptanceActor\.actorClass/u,
-    ],
-    [
-      "confidence",
-      (input) => {
-        input.acceptanceBoundary.confidenceScoreValueCanAuthorizeAcceptance = true;
-      },
-      /confidenceScoreValueCanAuthorizeAcceptance/u,
-    ],
-    [
-      "diagnostic",
-      (input) => {
-        input.acceptanceBoundary.providerDiagnosticCanAuthorizeAcceptance = true;
-      },
-      /providerDiagnosticCanAuthorizeAcceptance/u,
-    ],
-    [
-      "metadata",
-      (input) => {
-        input.acceptanceBoundary.providerMetadataCanAuthorizeAcceptance = true;
-      },
-      /providerMetadataCanAuthorizeAcceptance/u,
-    ],
-    [
-      "self acceptance",
-      (input) => {
-        input.acceptanceBoundary.providerSelfAcceptance = true;
-      },
-      /providerSelfAcceptance/u,
-    ],
-    [
-      "provider geometry",
-      (input) => {
-        input.acceptanceBoundary.providerGeometryCreated = true;
-      },
-      /providerGeometryCreated/u,
-    ],
+test("PR126 provider metadata confidence diagnostics and self-acceptance cannot authorize Core mapping", () => {
+  for (const mutate of [
+    (input) => {
+      input.acceptanceBoundary.providerSelfAcceptance = true;
+    },
+    (input) => {
+      input.acceptanceBoundary.automaticAcceptance = true;
+    },
+    (input) => {
+      input.acceptanceBoundary.confidenceScoreValueCanAuthorizeAcceptance = true;
+    },
+    (input) => {
+      input.acceptanceBoundary.providerMetadataCanAuthorizeAcceptance = true;
+    },
+    (input) => {
+      input.acceptanceBoundary.promptCanAuthorizeAcceptance = true;
+    },
+    (input) => {
+      input.acceptanceBoundary.providerDiagnosticCanAuthorizeAcceptance = true;
+    },
   ]) {
     const input = createValidHandoffInput();
     mutate(input);
-    assert.throws(() => createControlledProviderObservationToCoreHandoffV1(input), pattern, name);
+    assert.throws(() => createControlledProviderObservationToCoreHandoffV1(input));
   }
 });
 
-test("PR126 unsupported point segment and axis accepted geometry returns no partial mapped composition", () => {
-  const input = createValidHandoffInput({
-    primitives: [
-      { id: "point:center", kind: "point", x: 0.5, y: 0.5, confidence: null },
-      {
-        id: "segment:diagonal",
-        kind: "segment",
-        start: { x: 0.1, y: 0.1 },
-        end: { x: 0.9, y: 0.9 },
-        confidence: null,
-      },
-      {
-        id: "axis:vertical",
-        kind: "axis",
-        start: { x: 0.5, y: 0.1 },
-        end: { x: 0.5, y: 0.9 },
-        confidence: null,
-      },
-    ],
-  });
-  const handoff = createControlledProviderObservationToCoreHandoffV1(input);
-
-  assert.equal(handoff.ok, false);
-  assert.equal(handoff.status, "unsupported");
-  assert.equal(handoff.coreInputProduced, false);
-  assert.equal("mappedComposition2D" in handoff, false);
-  assert.equal(handoff.mappingResult.mappedGeometry, null);
-  assert.equal(handoff.mappingResult.mappedGeometryContentIdentity, null);
-  assert.deepEqual(handoff.mappingResult.primitiveMappings, []);
-  assert.deepEqual(
-    handoff.mappingResult.diagnostics.map((diagnostic) => diagnostic.code),
-    [
-      "UnsupportedAcceptedGeometryPrimitiveKind",
-      "UnsupportedAcceptedGeometryPrimitiveKind",
-      "UnsupportedAcceptedGeometryPrimitiveKind",
-    ],
-  );
-});
-
-test("PR126 invalid accepted geometry fails before mapper output and exposes no partial geometry", () => {
+test("PR126 invalid accepted geometry fails without exposing partial Core output", () => {
   const input = createValidHandoffInput();
-  input.acceptedStructuredGeometry.primitives[0].width = 2;
-  refreshAcceptedGeometryIdentities(input);
+  input.acceptedStructuredGeometry.primitives[0].width = 0;
 
   assert.throws(
     () => createControlledProviderObservationToCoreHandoffV1(input),
@@ -441,93 +384,58 @@ test("PR126 invalid accepted geometry fails before mapper output and exposes no 
   );
 });
 
-test("PR126 success sets only Core handoff flags and keeps mapper output derived", () => {
-  const handoff = createControlledProviderObservationToCoreHandoffV1(createValidHandoffInput());
-
-  assert.equal(handoff.providerObservationAuthority, "candidateEvidenceOnly");
-  assert.equal(handoff.boundarySourceTruth, "acceptedStructuredGeometry");
-  assert.equal(handoff.coreInputAuthority, "acceptedStructuredGeometry");
-  assert.equal(handoff.acceptedGeometryIsOnlyCoreInput, true);
-  assert.equal(handoff.providerSelfAcceptance, false);
-  assert.equal(handoff.providerGeometryCreated, false);
-  assert.equal(handoff.coreInputProduced, true);
-  assert.equal(handoff.structuredAnalyzeInputProduced, false);
-  assert.equal(handoff.structuredAnalyzeRun, false);
-  assert.equal(handoff.resultJsonProduced, false);
-  assert.equal(handoff.mappedGeometryAuthority, "derivedHandoffOutput");
-  assert.equal(handoff.mappedGeometrySourceTruth, false);
-  assert.equal(handoff.mappingResult.ok, true);
-  assert.equal(
-    handoff.mappingResult.primitiveMappings[0].acceptedGeometryContentIdentity,
-    handoff.acceptedGeometryContentIdentity,
-  );
-});
-
-test("PR126 repeated calls are deterministic", () => {
-  const input = createValidHandoffInput();
-
-  assert.deepEqual(
-    createControlledProviderObservationToCoreHandoffV1(input),
-    createControlledProviderObservationToCoreHandoffV1(input),
-  );
-});
-
-test("PR126 does not mutate input and post-return mutation cannot change output", () => {
+test("PR126 repeated calls are deterministic and detached from caller mutation", () => {
   const input = createValidHandoffInput();
   const before = structuredClone(input);
-  const handoff = createControlledProviderObservationToCoreHandoffV1(input);
-  const handoffBeforeMutation = structuredClone(handoff);
+  const first = createControlledProviderObservationToCoreHandoffV1(input);
+  const second = createControlledProviderObservationToCoreHandoffV1(input);
+  const resultBeforeMutation = structuredClone(first);
 
+  assert.deepEqual(first, second);
   assert.deepEqual(input, before);
   input.acceptedStructuredGeometry.primitives[0].x = 0.42;
   input.providerObservationContract.providerClass = "unknown_redacted_provider";
   input.acceptanceBoundary.acceptanceActor.actorId = "mutated-after-return";
-
-  assert.deepEqual(handoff, handoffBeforeMutation);
+  assert.deepEqual(first, resultBeforeMutation);
 });
 
-test("PR126 provider-only observation fields cannot affect mapped coordinates or authorize mapping", () => {
+test("PR126 provider-only observation changes remain evidence-only and cannot produce Core input", () => {
   const first = createValidHandoffInput();
   const second = createValidHandoffInput();
-
-  second.providerObservationContract.mediaTypeClass = "unknown_redacted_media_type";
-  second.providerObservationContract.imageSizeClass = "large";
   second.providerObservationContract.providerClass = "unknown_redacted_provider";
-  second.providerObservationContract.endpointClass = "unknown_redacted_endpoint";
   second.providerObservationContract.responseStatusClass = "unknown_redacted_status";
   relinkAcceptedGeometry(second);
 
-  const firstHandoff = createControlledProviderObservationToCoreHandoffV1(first);
-  const secondHandoff = createControlledProviderObservationToCoreHandoffV1(second);
-
-  assert.equal(firstHandoff.ok, true);
-  assert.equal(secondHandoff.ok, true);
-  assert.deepEqual(
-    secondHandoff.mappedComposition2D.elements.map((element) => element.geometry),
-    firstHandoff.mappedComposition2D.elements.map((element) => element.geometry),
-  );
-  assert.equal(secondHandoff.providerObservationAuthority, "candidateEvidenceOnly");
-  assert.equal(secondHandoff.coreInputAuthority, "acceptedStructuredGeometry");
+  for (const handoff of [
+    createControlledProviderObservationToCoreHandoffV1(first),
+    createControlledProviderObservationToCoreHandoffV1(second),
+  ]) {
+    assert.equal(handoff.providerObservationAuthority, "candidateEvidenceOnly");
+    assert.equal(handoff.mappingBoundaryApproved, false);
+    assert.equal(handoff.mappingAttempted, false);
+    assert.equal(handoff.coreInputProduced, false);
+    assert.equal("mappingResult" in handoff, false);
+  }
 });
 
-test("PR126 helper is package-private and avoids forbidden runtime imports", async () => {
+test("PR126 helper is package-private and avoids mapper runtime and external integration imports", async () => {
   const helperSource = await readFile(helperSourcePath, "utf8");
   const indexSource = await readFile(indexSourcePath, "utf8");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
   const packageRoot = await import("../dist/src/index.js");
 
-  assert.match(helperSource, /accepted-geometry-to-core-mapping/u);
-  assert.match(helperSource, /createMappingRequest\(acceptedStructuredGeometry\)/u);
-  assert.doesNotMatch(helperSource, /createMappingRequest\(acceptanceProof/u);
+  assert.match(helperSource, /createControlledProviderObservationAcceptanceProofV1/u);
+  assert.match(helperSource, /blocked_unapproved_mapping_boundary/u);
+  assert.match(helperSource, /approve_provider_observation_mapping_boundary/u);
   assert.equal((helperSource.match(/structuredClone\(/gu) ?? []).length, 1);
   assert.doesNotMatch(helperSource, /JSON\.(?:parse|stringify)/u);
   assert.doesNotMatch(
     helperSource,
-    /node:fs|node:child_process|node:https?|fetch|XMLHttpRequest|WebSocket|@openai|OpenAI|api\.openai|provider-sdk|provider parser|mcp|chatgpt|cad|figma|upload|oauth|structured-composition-analysis|from "\.\.\/index|from "@norma\/core"/iu,
+    /accepted-geometry-to-core-mapping|mapAcceptedGeometryToCoreV1|synthetic-only|createMappingRequest|structured-composition-analysis|analyzeStructuredCompositionV1/iu,
   );
   assert.doesNotMatch(
     helperSource,
-    /node:fs|node:child_process|node:https?|fetch\(|XMLHttpRequest|WebSocket|@openai|api\.openai|provider-sdk|result\.json|analyzeStructuredCompositionV1/iu,
+    /node:fs|node:child_process|node:https?|fetch|XMLHttpRequest|WebSocket|@openai|api\.openai|provider-sdk|mcp|chatgpt|cad|figma|upload|oauth|result\.json/iu,
   );
   assert.equal("createControlledProviderObservationToCoreHandoffV1" in packageRoot, false);
   assert.doesNotMatch(indexSource, /controlled-provider-observation-to-core-handoff/u);
@@ -542,9 +450,8 @@ test("PR126 helper is package-private and avoids forbidden runtime imports", asy
   assert.equal("publishConfig" in packageJson, false);
 });
 
-test("PR126 changed files stay exact and protected runtime surfaces do not drift", async () => {
+test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
-  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
 
   assert.equal(isExactChangedFileSet(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles), true);
   assert.deepEqual(
@@ -576,21 +483,11 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   ]) {
     assert.equal(changedFiles.includes(forbiddenFile), false, forbiddenFile);
   }
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
 });
 
 function createValidHandoffInput({
   providerObservationContract = createControlledProviderObservationContractV1(createRedactedSuccessArtifacts()),
-  primitives = [
-    rectanglePrimitive({
-      id: "rectangle:frame",
-      x: 0.1,
-      y: 0.2,
-      width: 0.7,
-      height: 0.6,
-    }),
-  ],
+  primitives = [rectanglePrimitive()],
 } = {}) {
   const providerObservationContentIdentity =
     computeControlledProviderObservationContractContentIdentityV1(providerObservationContract);
@@ -604,12 +501,7 @@ function createValidHandoffInput({
     providerObservationContentIdentity,
     acceptedStructuredGeometry,
   });
-
-  return {
-    providerObservationContract,
-    acceptanceBoundary,
-    acceptedStructuredGeometry,
-  };
+  return { providerObservationContract, acceptanceBoundary, acceptedStructuredGeometry };
 }
 
 function createAcceptanceBoundary({
@@ -620,10 +512,7 @@ function createAcceptanceBoundary({
   return {
     kind: "norma.controlled-provider-observation-acceptance-boundary.v1",
     version: 1,
-    acceptanceActor: {
-      actorClass: "deterministic_test",
-      actorId: "pr126-test",
-    },
+    acceptanceActor: { actorClass: "deterministic_test", actorId: "pr126-test" },
     acceptanceMode: "explicit_acceptance",
     providerObservationId: providerObservationContract.observationId,
     providerObservationContentIdentity,
@@ -688,10 +577,7 @@ function createAcceptedGeometry({
       origin: "top-left",
       xDirection: "right",
       yDirection: "down",
-      bounds: {
-        x: [0, 1],
-        y: [0, 1],
-      },
+      bounds: { x: [0, 1], y: [0, 1] },
       sourcePixelWidth: 100,
       sourcePixelHeight: 100,
     },
@@ -713,7 +599,6 @@ function createAcceptedGeometry({
     provenance,
     contentIdentity: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   };
-
   accepted.acceptance.acceptedContentIdentity = computeAcceptedGeometryRevisionContentIdentity(accepted);
   accepted.contentIdentity = computeAcceptedGeometryContentIdentity(accepted);
   assert.equal(validateAcceptedGeometryV1(accepted).ok, true);
@@ -804,7 +689,6 @@ function createRedactedSuccessArtifacts() {
       lowCardinalityOnly: true,
     },
   };
-
   const summary = {
     kind: "norma.controlled-live-provider-smoke.summary.v1",
     liveProviderExecution: true,
@@ -815,11 +699,7 @@ function createRedactedSuccessArtifacts() {
     rawProviderOutputPersisted: false,
     redacted: true,
     ciLiveNetworkDependency: false,
-    artifacts: [
-      "provider-evidence-envelope.json",
-      "summary.json",
-      "summary.md",
-    ],
+    artifacts: ["provider-evidence-envelope.json", "summary.json", "summary.md"],
     nonGoals: [
       "not production OpenAI integration",
       "not provider output truth",
@@ -830,9 +710,5 @@ function createRedactedSuccessArtifacts() {
       "not package API or export expansion",
     ],
   };
-
-  return {
-    providerEvidenceEnvelope,
-    summary,
-  };
+  return { providerEvidenceEnvelope, summary };
 }

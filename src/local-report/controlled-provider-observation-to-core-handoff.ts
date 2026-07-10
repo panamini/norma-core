@@ -1,18 +1,3 @@
-import {
-  ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPER_OPERATION_ID,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPER_OPERATION_VERSION,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_ID,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_VERSION,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPING_PROFILE_ID,
-  ACCEPTED_GEOMETRY_TO_CORE_MAPPING_PROFILE_VERSION,
-  ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM,
-  ACCEPTED_GEOMETRY_TO_CORE_TARGET_GEOMETRY_KIND,
-  ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
-  mapAcceptedGeometryToCoreV1,
-  type AcceptedGeometryToCoreMappingRequestV1,
-  type AcceptedGeometryToCoreMappingResultV1,
-} from "../accepted-geometry-to-core-mapping.js";
 import type { AcceptedGeometry } from "../geometry-observation.js";
 import {
   createControlledProviderObservationAcceptanceProofV1,
@@ -21,13 +6,11 @@ import {
 } from "./controlled-provider-observation-acceptance-proof.js";
 import type { ControlledProviderObservationContractV1 } from "./controlled-provider-observation-contract.js";
 
-type MappedComposition2D = NonNullable<AcceptedGeometryToCoreMappingResultV1["mappedGeometry"]>;
-
 export interface ControlledProviderObservationToCoreHandoffV1 {
   readonly kind: "norma.controlled-provider-observation-to-core-handoff.v1";
   readonly version: 1;
-  readonly status: AcceptedGeometryToCoreMappingResultV1["status"];
-  readonly ok: boolean;
+  readonly status: "blocked_unapproved_mapping_boundary";
+  readonly ok: false;
   readonly providerObservationAuthority: "candidateEvidenceOnly";
   readonly boundarySourceTruth: "acceptedStructuredGeometry";
   readonly coreInputAuthority: "acceptedStructuredGeometry";
@@ -36,20 +19,19 @@ export interface ControlledProviderObservationToCoreHandoffV1 {
   readonly acceptanceBoundaryExplicit: true;
   readonly providerSelfAcceptance: false;
   readonly providerGeometryCreated: false;
-  readonly coreInputProduced: boolean;
+  readonly mappingBoundaryApproved: false;
+  readonly mappingAttempted: false;
+  readonly coreInputProduced: false;
   readonly structuredAnalyzeInputProduced: false;
   readonly structuredAnalyzeRun: false;
   readonly resultJsonProduced: false;
-  readonly mappedGeometryAuthority: "derivedHandoffOutput";
-  readonly mappedGeometrySourceTruth: false;
   readonly providerObservationId: string;
   readonly providerObservationContentIdentity: string;
   readonly acceptedGeometryId: string;
   readonly acceptedGeometryContentIdentity: string;
   readonly acceptedGeometryRevisionContentIdentity: string;
-  readonly mappingResult: AcceptedGeometryToCoreMappingResultV1;
-  readonly mappedComposition2D?: MappedComposition2D;
-  readonly nextAllowedStep: "explicit_comparison_input_construction" | null;
+  readonly blockedReason: "provider_observation_mapping_boundary_unapproved";
+  readonly nextAllowedStep: "approve_provider_observation_mapping_boundary";
 }
 
 const INPUT_FIELDS = Object.freeze([
@@ -70,8 +52,11 @@ export function createControlledProviderObservationToCoreHandoffV1(
 ): ControlledProviderObservationToCoreHandoffV1 {
   const record = requirePlainRecord(input, "input");
   rejectUnknownFields(record, INPUT_FIELDS, "input");
+  const seen = new WeakSet<object>();
   for (const field of INPUT_FIELDS) {
-    requirePlainOwnDataRecord(record, field, `input.${field}`);
+    const path = `input.${field}`;
+    const fieldRecord = requirePlainOwnDataRecord(record, field, path);
+    requirePlainData(fieldRecord, path, seen, 0);
   }
   const inputSnapshot = snapshotInput(record);
 
@@ -96,52 +81,18 @@ export function createControlledProviderObservationToCoreHandoffV1(
     acceptanceBoundary,
     acceptedStructuredGeometry,
   });
-  const mappingResult = mapAcceptedGeometryToCoreV1(
-    createMappingRequest(acceptedStructuredGeometry),
-  );
 
-  return createHandoffResult(acceptanceProof, mappingResult);
+  return createBlockedHandoffResult(acceptanceProof);
 }
 
-function createMappingRequest(
-  acceptedStructuredGeometry: AcceptedGeometry,
-): AcceptedGeometryToCoreMappingRequestV1 {
-  return {
-    contractId: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_ID,
-    contractVersion: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_VERSION,
-    requestId: `controlled-provider-observation-to-core-handoff:v1:${acceptedStructuredGeometry.acceptedGeometryId}`,
-    mapperOperationId: ACCEPTED_GEOMETRY_TO_CORE_MAPPER_OPERATION_ID,
-    mapperOperationVersion: ACCEPTED_GEOMETRY_TO_CORE_MAPPER_OPERATION_VERSION,
-    mappingProfileId: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_PROFILE_ID,
-    mappingProfileVersion: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_PROFILE_VERSION,
-    targetCoreProfileId: ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
-    targetCoreGeometryKind: ACCEPTED_GEOMETRY_TO_CORE_TARGET_GEOMETRY_KIND,
-    targetCoordinateSystem: ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM,
-    acceptedGeometry: acceptedStructuredGeometry,
-    acceptedGeometryContentIdentity: acceptedStructuredGeometry.contentIdentity,
-    sourceObservationId: acceptedStructuredGeometry.sourceObservationId,
-    sourceObservationContentIdentity: acceptedStructuredGeometry.sourceObservationContentIdentity,
-    mappingContext: {
-      boundary: "synthetic-only",
-      primitiveLossPolicy: "reject",
-      coordinateTransform: ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
-    },
-  };
-}
-
-function createHandoffResult(
+function createBlockedHandoffResult(
   proof: ControlledProviderObservationAcceptanceProofV1,
-  mappingResult: AcceptedGeometryToCoreMappingResultV1,
 ): ControlledProviderObservationToCoreHandoffV1 {
-  const mappedComposition2D = mappingResult.ok && mappingResult.mappedGeometry !== null
-    ? mappingResult.mappedGeometry
-    : undefined;
-
   return {
     kind: "norma.controlled-provider-observation-to-core-handoff.v1",
     version: 1,
-    status: mappingResult.status,
-    ok: mappingResult.ok,
+    status: "blocked_unapproved_mapping_boundary",
+    ok: false,
     providerObservationAuthority: "candidateEvidenceOnly",
     boundarySourceTruth: "acceptedStructuredGeometry",
     coreInputAuthority: "acceptedStructuredGeometry",
@@ -150,20 +101,19 @@ function createHandoffResult(
     acceptanceBoundaryExplicit: true,
     providerSelfAcceptance: false,
     providerGeometryCreated: false,
-    coreInputProduced: mappingResult.ok,
+    mappingBoundaryApproved: false,
+    mappingAttempted: false,
+    coreInputProduced: false,
     structuredAnalyzeInputProduced: false,
     structuredAnalyzeRun: false,
     resultJsonProduced: false,
-    mappedGeometryAuthority: "derivedHandoffOutput",
-    mappedGeometrySourceTruth: false,
     providerObservationId: proof.providerObservationId,
     providerObservationContentIdentity: proof.providerObservationContentIdentity,
     acceptedGeometryId: proof.acceptedGeometryId,
     acceptedGeometryContentIdentity: proof.acceptedGeometryContentIdentity,
     acceptedGeometryRevisionContentIdentity: proof.acceptedGeometryRevisionContentIdentity,
-    mappingResult,
-    ...(mappedComposition2D === undefined ? {} : { mappedComposition2D }),
-    nextAllowedStep: mappingResult.ok ? "explicit_comparison_input_construction" : null,
+    blockedReason: "provider_observation_mapping_boundary_unapproved",
+    nextAllowedStep: "approve_provider_observation_mapping_boundary",
   };
 }
 
@@ -201,6 +151,103 @@ function requirePlainOwnDataRecord(
   }
 
   return requirePlainRecord(descriptor.value, path);
+}
+
+function requirePlainData(
+  value: unknown,
+  path: string,
+  seen: WeakSet<object>,
+  depth: number,
+): void {
+  if (depth > 64) {
+    throw invalid(path, "exceeds maximum plain-data depth");
+  }
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
+    return;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw invalid(path, "requires finite JSON number");
+    }
+    return;
+  }
+  if (typeof value !== "object") {
+    throw invalid(path, "requires JSON-compatible plain data");
+  }
+  if (seen.has(value)) {
+    throw invalid(path, "must not contain cycles");
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    requirePlainArrayData(value, path, seen, depth);
+    seen.delete(value);
+    return;
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    throw invalid(path, "requires plain object");
+  }
+  requireEnumerableDataProperties(value as Record<string, unknown>, path, seen, depth);
+  seen.delete(value);
+}
+
+function requirePlainArrayData(
+  value: unknown[],
+  path: string,
+  seen: WeakSet<object>,
+  depth: number,
+): void {
+  if (Object.getPrototypeOf(value) !== Array.prototype) {
+    throw invalid(path, "requires plain array");
+  }
+
+  let indexCount = 0;
+  for (const key of Reflect.ownKeys(value)) {
+    if (key === "length") {
+      continue;
+    }
+    if (typeof key !== "string" || !isCanonicalArrayIndex(key, value.length)) {
+      throw invalid(`${path}.[field]`, "requires array index data only");
+    }
+    indexCount += 1;
+    requireEnumerableDataDescriptor(value, key, `${path}[${key}]`, seen, depth);
+  }
+  if (indexCount !== value.length) {
+    throw invalid(path, "requires dense array data");
+  }
+}
+
+function requireEnumerableDataProperties(
+  value: Record<string, unknown>,
+  path: string,
+  seen: WeakSet<object>,
+  depth: number,
+): void {
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string") {
+      throw invalid(`${path}.[symbol]`, "requires string-keyed plain data");
+    }
+    requireEnumerableDataDescriptor(value, key, `${path}.${key}`, seen, depth);
+  }
+}
+
+function requireEnumerableDataDescriptor(
+  value: object,
+  key: PropertyKey,
+  path: string,
+  seen: WeakSet<object>,
+  depth: number,
+): void {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
+    throw invalid(path, "requires enumerable own data field");
+  }
+  requirePlainData(descriptor.value, path, seen, depth + 1);
+}
+
+function isCanonicalArrayIndex(key: string, length: number): boolean {
+  const index = Number(key);
+  return Number.isInteger(index) && index >= 0 && index < length && String(index) === key;
 }
 
 function requirePlainRecord(value: unknown, path: string): Record<string, unknown> {
