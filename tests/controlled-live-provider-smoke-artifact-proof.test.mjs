@@ -5,9 +5,16 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
+import {
+  createControlledLiveProviderCandidateArtifactProofV1,
+  createControlledLiveProviderSmokeArtifactProofV1,
+} from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
+import {
+  createLocalVisualProviderExecutionReceiptV1,
+} from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-contracts.js";
 import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
@@ -217,13 +224,46 @@ test("PR123 helper is structural and does not mutate parsed artifact input", () 
   assert.deepEqual(artifacts, before);
 });
 
-test("PR123 helper stays package-private and avoids filesystem network provider SDK and Core imports", async () => {
+test("PR129 candidate-capable PR123 proof rehashes exact response bytes while v1 remains receipt-only", () => {
+  const artifactProof = createControlledLiveProviderSmokeArtifactProofV1(
+    createRedactedSuccessArtifacts(),
+  );
+  const rawProviderResponseBytes = new TextEncoder().encode('{"status":"completed","padding":"a"}');
+  const providerExecutionReceipt = createLocalVisualProviderExecutionReceiptV1({
+    sourceImageBytes: Uint8Array.from([1, 2, 3]),
+    rawProviderResponseBytes,
+  });
+  const candidateProof = createControlledLiveProviderCandidateArtifactProofV1({
+    artifactProof,
+    providerExecutionReceipt,
+    rawProviderResponseBytes,
+  });
+
+  assert.equal("providerExecutionReceiptContentIdentity" in artifactProof, false);
+  assert.equal(
+    candidateProof.providerExecutionReceiptContentIdentity,
+    providerExecutionReceipt.executionReceiptContentIdentity,
+  );
+  assert.throws(
+    () => createControlledLiveProviderCandidateArtifactProofV1({
+      artifactProof,
+      providerExecutionReceipt,
+      rawProviderResponseBytes: new TextEncoder().encode('{"status":"completed","padding":"b"}'),
+    }),
+    /providerResponseContentIdentity/u,
+  );
+});
+
+test("PR129 candidate-capable PR123 helper stays package-private and imports only the closed receipt contract", async () => {
   const helperSource = await readFile(helperSourcePath, "utf8");
   const indexSource = await readFile(indexSourcePath, "utf8");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
   const packageRoot = await import("../dist/src/index.js");
 
-  assert.doesNotMatch(helperSource, /^import\s/uim);
+  assert.deepEqual(
+    [...helperSource.matchAll(/from\s+"([^"]+)"/gu)].map((match) => match[1]),
+    ["./controlled-local-live-visual-candidate-observation-contracts.js"],
+  );
   assert.doesNotMatch(
     helperSource,
     /node:fs|node:child_process|node:https?|fetch|XMLHttpRequest|WebSocket|@openai|OpenAI|openai-sdk|api\.openai|provider SDK|provider runtime|provider parser|from "\.\.\/index|from "@norma\/core"|accepted-geometry|structured-composition-analysis|mcp|chatgpt|cad|figma|upload|oauth/u,
@@ -265,19 +305,25 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     localVisualObservationToCorePilotContractChangedFiles,
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
+  const isPr129Set = isExactChangedFileSet(
+    changedFiles,
+    controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
+  );
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledLiveProviderSmokeArtifactProofChangedFiles),
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set,
+    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set,
     true,
     changedFiles.join("\n"),
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr128Set
+    isPr129Set
+      ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
+      : isPr128Set
       ? explicitAcceptedObservationToCoreHandoffChangedFiles
       : isPr127Set
       ? localVisualObservationToCorePilotContractChangedFiles
@@ -300,6 +346,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     "reports/",
     ".github/",
   ]) {
+    if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
   if (isPr127Set) {

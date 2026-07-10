@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export { runControlledLiveProviderSmokeCli };
@@ -11,6 +11,7 @@ const CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS = 30_000;
 const CONTROLLED_LIVE_PROVIDER_SMOKE_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 let builtHelpersPromise;
+let builtCandidateHelpersPromise;
 
 async function runControlledLiveProviderSmokeCli({
   args = process.argv.slice(2),
@@ -25,6 +26,14 @@ async function runControlledLiveProviderSmokeCli({
     return 1;
   }
 
+  if (parsedArgs.resume) {
+    return runControlledLocalLiveVisualCandidateResumeCli({
+      parsedArgs,
+      stdout,
+      options,
+    });
+  }
+
   if (!parsedArgs.live) {
     stdout.write(`${JSON.stringify(createLocalControlledLiveProviderSmokeDefaultState())}\n`);
     return 0;
@@ -34,8 +43,10 @@ async function runControlledLiveProviderSmokeCli({
   const timeoutMs = parsedArgs.timeoutMs ?? CONTROLLED_LIVE_PROVIDER_SMOKE_DEFAULT_TIMEOUT_MS;
   const ciEnvironmentPresent = isCiEnvironmentPresent(env);
   let helpers;
+  let candidateHelpers;
   try {
     helpers = await loadBuiltHelpers(options);
+    candidateHelpers = await loadBuiltCandidateHelpers(options);
   } catch {
     stdout.write(`${JSON.stringify(errorGate("BuildRequired"))}\n`);
     return 1;
@@ -127,7 +138,7 @@ async function runControlledLiveProviderSmokeCli({
 
   const model = env.NORMA_LIVE_PROVIDER_MODEL.trim();
   const apiKey = env.NORMA_LIVE_PROVIDER_API_KEY.trim();
-  const requestBody = helpers.createOpenAIResponsesVisionSmokeRequestBodyV1({
+  const requestBody = candidateHelpers.createControlledLiveProviderCandidateRequestBodyV1({
     model,
     imageDataUrl: `data:${image.mediaType};base64,${Buffer.from(imageBytes).toString("base64")}`,
   });
@@ -162,23 +173,122 @@ async function runControlledLiveProviderSmokeCli({
     return 2;
   }
 
+  const rawResponseText = typeof providerResponse.rawResponseText === "string"
+    ? providerResponse.rawResponseText
+    : undefined;
+  const rawProviderResponseBytes = providerResponse.rawResponseBytes instanceof Uint8Array
+    ? providerResponse.rawResponseBytes
+    : undefined;
   const providerOutputObserved = typeof providerResponse.providerOutputObserved === "boolean"
     ? providerResponse.providerOutputObserved
-    : providerResponse.body !== null;
+    : rawProviderResponseBytes === undefined
+      ? providerResponse.body !== null
+      : rawProviderResponseBytes.byteLength > 0;
+  let capture;
+  let candidateError;
+  if (providerResponse.ok && rawProviderResponseBytes !== undefined) {
+    try {
+      capture = candidateHelpers.createControlledLocalLiveVisualCandidateCaptureV1({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: image.mediaType,
+        rawProviderResponseBytes,
+        responseStatusCode: providerResponse.statusCode,
+        timeoutMs,
+      });
+    } catch (error) {
+      candidateError = error;
+    }
+  }
+  const providerBody = rawProviderResponseBytes === undefined
+    ? providerResponse.body ?? (rawResponseText === undefined ? null : safeJson(rawResponseText))
+    : safeJsonBytes(rawProviderResponseBytes);
   const incompleteResponseDiagnostic = providerResponse.ok
     ? helpers.createControlledLiveProviderSmokeIncompleteResponseDiagnosticV1({
       responseStatusCode: providerResponse.statusCode,
       providerOutputObserved,
-      providerBody: providerResponse.body,
+      providerBody,
     })
     : undefined;
   const providerSucceeded = providerResponse.ok && incompleteResponseDiagnostic === undefined;
+
+  if (capture === undefined && providerSucceeded) {
+      stdout.write(`${JSON.stringify({
+        status: "provider_schema_error",
+        liveProviderExecution: true,
+        providerResponseStatusCode: providerResponse.statusCode,
+        providerOutputObserved,
+        errorCode: safeCandidateErrorCode(
+          candidateError ?? new Error("MissingExactProviderResponseBytes"),
+        ),
+        providerEvidenceOnly: true,
+        requiresExplicitHumanSelection: true,
+        acceptedGeometryProduced: false,
+        coreInputProduced: false,
+        structuredAnalyzeRun: false,
+        resultJsonProduced: false,
+        rawProviderResponsePersisted: false,
+        rawImagePersisted: false,
+        redacted: true,
+        ciLiveNetworkDependency: false,
+        artifactsPersisted: false,
+      })}\n`);
+      return 2;
+  }
+
+  if (capture !== undefined) {
+    try {
+      await writeCandidateCaptureArtifacts(outputDir, capture, options);
+    } catch {
+      stdout.write(`${JSON.stringify({
+        status: "artifact_write_error",
+        phase: "candidate_capture",
+        liveProviderExecution: true,
+        providerResponseStatusCode: providerResponse.statusCode,
+        providerOutputObserved,
+        providerEvidenceOnly: true,
+        requiresExplicitHumanSelection: true,
+        acceptedGeometryProduced: false,
+        coreInputProduced: false,
+        structuredAnalyzeRun: false,
+        resultJsonProduced: false,
+        rawProviderResponsePersisted: false,
+        rawImagePersisted: false,
+        redacted: true,
+        ciLiveNetworkDependency: false,
+        artifactsPersisted: false,
+      })}\n`);
+      return 2;
+    }
+
+    stdout.write(`${JSON.stringify({
+      status: "selection_required",
+      liveProviderExecution: true,
+      providerEvidenceOnly: true,
+      requiresExplicitHumanSelection: true,
+      acceptedGeometryProduced: false,
+      coreInputProduced: false,
+      structuredAnalyzeRun: false,
+      resultJsonProduced: false,
+      rawProviderResponsePersisted: false,
+      rawImagePersisted: false,
+      redacted: true,
+      ciLiveNetworkDependency: false,
+      providerExecutionReceiptContentIdentity:
+        capture.providerExecutionReceipt.executionReceiptContentIdentity,
+      candidateObservationId: capture.candidateObservationEnvelope.observationId,
+      candidateObservationContentIdentity:
+        capture.candidateObservationEnvelope.observationContentIdentity,
+      artifacts: capture.persistedArtifactNames,
+    })}\n`);
+    return 0;
+  }
+
   const providerDiagnostic = providerSucceeded
     ? undefined
     : incompleteResponseDiagnostic ?? helpers.createControlledLiveProviderSmokeProviderErrorDiagnosticV1({
       responseStatusCode: providerResponse.statusCode,
       providerOutputObserved,
-      providerBody: providerResponse.body,
+      providerBody,
     });
   const envelope = helpers.createControlledLiveProviderEvidenceEnvelopeV1({
     image,
@@ -242,7 +352,11 @@ function parseArgs(args) {
   const parsed = {
     ok: true,
     live: false,
+    resume: false,
     inputImage: undefined,
+    capture: undefined,
+    selection: undefined,
+    acceptedAt: undefined,
     output: undefined,
     timeoutMs: undefined,
   };
@@ -252,6 +366,11 @@ function parseArgs(args) {
 
     if (arg === "--live") {
       parsed.live = true;
+      continue;
+    }
+
+    if (arg === "--resume") {
+      parsed.resume = true;
       continue;
     }
 
@@ -267,6 +386,24 @@ function parseArgs(args) {
       continue;
     }
 
+    if (arg === "--capture" && typeof args[index + 1] === "string" && args[index + 1] !== "") {
+      parsed.capture = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--selection" && typeof args[index + 1] === "string" && args[index + 1] !== "") {
+      parsed.selection = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--accepted-at" && typeof args[index + 1] === "string" && args[index + 1] !== "") {
+      parsed.acceptedAt = args[index + 1];
+      index += 1;
+      continue;
+    }
+
     if (arg === "--timeout-ms" && typeof args[index + 1] === "string" && args[index + 1] !== "") {
       parsed.timeoutMs = Number(args[index + 1]);
       index += 1;
@@ -276,6 +413,22 @@ function parseArgs(args) {
     return { ok: false };
   }
 
+  if (parsed.live && parsed.resume) {
+    return { ok: false };
+  }
+  if (parsed.resume) {
+    return typeof parsed.capture === "string"
+      && typeof parsed.selection === "string"
+      && typeof parsed.acceptedAt === "string"
+      && typeof parsed.output === "string"
+      && parsed.inputImage === undefined
+      && parsed.timeoutMs === undefined
+      ? parsed
+      : { ok: false };
+  }
+  if (parsed.capture !== undefined || parsed.selection !== undefined || parsed.acceptedAt !== undefined) {
+    return { ok: false };
+  }
   return parsed;
 }
 
@@ -306,6 +459,90 @@ function createCliGateState({
     outputDirectoryWritable,
     timeoutMs,
   });
+}
+
+async function runControlledLocalLiveVisualCandidateResumeCli({
+  parsedArgs,
+  stdout,
+  options,
+}) {
+  let candidateHelpers;
+  try {
+    candidateHelpers = await loadBuiltCandidateHelpers(options);
+  } catch {
+    stdout.write(`${JSON.stringify(errorGate("BuildRequired"))}\n`);
+    return 1;
+  }
+
+  let resume;
+  try {
+    const captureDir = resolve(parsedArgs.capture);
+    const [providerExecutionReceipt, candidateObservationEnvelope, humanCandidateSelection] =
+      await Promise.all([
+        readJsonFile(join(captureDir, "provider-execution-receipt.json"), options),
+        readJsonFile(join(captureDir, "candidate-observation.json"), options),
+        readJsonFile(resolve(parsedArgs.selection), options),
+      ]);
+    resume = candidateHelpers.createControlledLocalLiveVisualCandidateResumeV1({
+      providerExecutionReceipt,
+      candidateObservationEnvelope,
+      humanCandidateSelection,
+      acceptedAt: parsedArgs.acceptedAt,
+    });
+  } catch (error) {
+    stdout.write(`${JSON.stringify({
+      status: "selection_validation_error",
+      liveProviderExecution: false,
+      networkTransportUsed: false,
+      errorCode: safeCandidateErrorCode(error),
+      acceptedGeometryProduced: false,
+      coreInputProduced: false,
+      structuredAnalyzeRun: false,
+      resultJsonProduced: false,
+      redacted: true,
+      artifactsPersisted: false,
+    })}\n`);
+    return 2;
+  }
+
+  try {
+    await writeResumeArtifactsAtomically(resolve(parsedArgs.output), resume.artifacts, options);
+  } catch {
+    stdout.write(`${JSON.stringify({
+      status: "artifact_write_error",
+      phase: "candidate_resume",
+      liveProviderExecution: false,
+      networkTransportUsed: false,
+      acceptedGeometryProduced: false,
+      coreInputProduced: false,
+      structuredAnalyzeRun: false,
+      resultJsonProduced: false,
+      redacted: true,
+      artifactsPersisted: false,
+    })}\n`);
+    return 2;
+  }
+
+  stdout.write(`${JSON.stringify({
+    status: "completed",
+    liveProviderExecution: false,
+    networkTransportUsed: false,
+    explicitHumanSelectionValidated: true,
+    acceptedGeometryProduced: true,
+    coreInputProduced: true,
+    structuredAnalyzeRun: true,
+    resultJsonProduced: true,
+    providerMetadataInfluencedComputation: false,
+    trace: resume.trace,
+    canonicalResultJsonContentIdentity:
+      resume.execution.handoff.canonicalResultJsonContentIdentity,
+    artifacts: Object.keys(resume.artifacts).sort(),
+  })}\n`);
+  return 0;
+}
+
+async function readJsonFile(path, options) {
+  return JSON.parse(await (options.readFile ?? readFile)(path, "utf8"));
 }
 
 async function readBoundedImageBytes(inputImage, options) {
@@ -349,6 +586,46 @@ async function prepareOutputDirectory(outputDir, options) {
   await remove(probePath, { force: true });
 }
 
+async function writeCandidateCaptureArtifacts(outputDir, capture, options) {
+  const write = options.writeFile ?? writeFile;
+  await write(
+    join(outputDir, "provider-execution-receipt.json"),
+    `${JSON.stringify(capture.providerExecutionReceipt)}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
+  await write(
+    join(outputDir, "candidate-observation.json"),
+    `${JSON.stringify(capture.candidateObservationEnvelope)}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
+}
+
+async function writeResumeArtifactsAtomically(outputDir, artifacts, options) {
+  const makeDirectory = options.mkdir ?? mkdir;
+  const write = options.writeFile ?? writeFile;
+  const move = options.rename ?? rename;
+  const remove = options.rm ?? rm;
+  const stagingDir = `${outputDir}.staging-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await makeDirectory(dirname(outputDir), { recursive: true });
+  await makeDirectory(stagingDir, { recursive: false });
+  try {
+    const orderedArtifacts = Object.entries(artifacts)
+      .filter(([name]) => name !== "result.json")
+      .sort(([left], [right]) => left.localeCompare(right));
+    for (const [name, contents] of orderedArtifacts) {
+      await write(join(stagingDir, name), contents, { encoding: "utf8", flag: "wx" });
+    }
+    await write(join(stagingDir, "result.json"), artifacts["result.json"], {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    await move(stagingDir, outputDir);
+  } catch (error) {
+    await remove(stagingDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 async function writeSafeArtifacts(outputDir, envelope, summary, options, helpers) {
   const write = options.writeFile ?? writeFile;
   await (options.mkdir ?? mkdir)(outputDir, { recursive: true });
@@ -372,13 +649,14 @@ async function builtInTransport({ url, timeoutMs, headers, body }) {
       body,
       signal: controller.signal,
     });
-    const text = await response.text();
+    const rawResponseBytes = new Uint8Array(await response.arrayBuffer());
 
     return {
       ok: response.ok,
       statusCode: response.status,
-      body: safeJson(text),
-      providerOutputObserved: text.length > 0,
+      rawResponseBytes,
+      body: null,
+      providerOutputObserved: rawResponseBytes.byteLength > 0,
     };
   } finally {
     clearTimeout(timeout);
@@ -388,6 +666,14 @@ async function builtInTransport({ url, timeoutMs, headers, body }) {
 function safeJson(text) {
   try {
     return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function safeJsonBytes(bytes) {
+  try {
+    return safeJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch {
     return null;
   }
@@ -453,6 +739,39 @@ async function loadBuiltHelpers(options) {
 
   builtHelpersPromise ??= import("../dist/src/local-report/controlled-live-provider-smoke.js");
   return builtHelpersPromise;
+}
+
+async function loadBuiltCandidateHelpers(options) {
+  if (options.candidateHelpers) {
+    return options.candidateHelpers;
+  }
+
+  builtCandidateHelpersPromise ??= import(
+    "../dist/src/local-report/controlled-local-live-visual-candidate-observation-demo.js"
+  );
+  return builtCandidateHelpersPromise;
+}
+
+function safeCandidateErrorCode(error) {
+  const code = typeof error === "object" && error !== null && typeof error.code === "string"
+    ? error.code
+    : error instanceof Error
+      ? error.message
+      : "CandidateValidationFailed";
+  return [
+    "InvalidSourceImage",
+    "InvalidProviderResponseStatus",
+    "InvalidProviderResponseEncoding",
+    "MalformedProviderResponse",
+    "MalformedProviderStatus",
+    "MalformedProviderSchema",
+    "CandidateEvidenceMismatch",
+    "InvalidHumanSelection",
+    "ResultIdentityMismatch",
+    "MissingExactProviderResponseBytes",
+  ].includes(code)
+    ? code
+    : "CandidateValidationFailed";
 }
 
 function isCiEnvironmentPresent(env) {

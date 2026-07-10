@@ -1,7 +1,12 @@
 import {
   createControlledLiveProviderSmokeArtifactProofV1,
+  type ControlledLiveProviderCandidateArtifactProofV1,
   type ControlledLiveProviderSmokeArtifactProofV1,
 } from "./controlled-live-provider-smoke-artifact-proof.js";
+import {
+  validateLocalVisualProviderExecutionReceiptV1,
+  type LocalVisualProviderExecutionReceiptV1,
+} from "./controlled-local-live-visual-candidate-observation-contracts.js";
 
 export type ControlledProviderObservationMediaTypeClassV1 =
   | "raster_png"
@@ -68,6 +73,13 @@ export interface ControlledProviderObservationContractV1 {
   readonly nextAllowedStep: "explicit_acceptance_contract_required";
 }
 
+export interface ControlledProviderObservationContractV2
+  extends Omit<ControlledProviderObservationContractV1, "kind" | "version"> {
+  readonly kind: "norma.controlled-provider-observation-contract.v2";
+  readonly version: 2;
+  readonly providerExecutionReceiptContentIdentity: string;
+}
+
 type ControlledProviderObservationInputV1 =
   | ControlledLiveProviderSmokeArtifactProofV1
   | {
@@ -106,6 +118,53 @@ const ARTIFACT_PROOF_FIELDS = Object.freeze([
   "rawImagePersisted",
   "sourceArtifactKinds",
   "derivedArtifactRefs",
+  "nextAllowedStep",
+] as const);
+
+const CANDIDATE_ARTIFACT_PROOF_FIELDS = Object.freeze([
+  ...ARTIFACT_PROOF_FIELDS,
+  "providerExecutionReceiptContentIdentity",
+] as const);
+
+const PROVIDER_OBSERVATION_V2_FIELDS = Object.freeze([
+  "kind",
+  "version",
+  "observationId",
+  "providerExecutionReceiptContentIdentity",
+  "providerEvidenceOnly",
+  "untrusted",
+  "nonAuthoritative",
+  "sourceArtifactsRedacted",
+  "sourceArtifactKinds",
+  "providerOutputObserved",
+  "redactedDiagnosticClass",
+  "redactedDiagnosticNextAction",
+  "imageContentIdentity",
+  "mediaTypeClass",
+  "imageSizeClass",
+  "providerClass",
+  "endpointClass",
+  "responseStatusClass",
+  "acceptedGeometry",
+  "acceptedStructuredGeometryProduced",
+  "coreInputProduced",
+  "structuredAnalyzeInputProduced",
+  "structuredAnalyzeRun",
+  "resultJsonProduced",
+  "resultJsonCanonicalTruth",
+  "sourceTruth",
+  "packageApiTruth",
+  "connectorTruth",
+  "hostedTruth",
+  "metricPolicyAuthority",
+  "providerSelfAcceptance",
+  "confidenceScoreValueCanAuthorizeAcceptance",
+  "providerStatusCanAuthorizeAcceptance",
+  "providerDiagnosticCanAuthorizeAcceptance",
+  "providerMetadataCanAuthorizeAcceptance",
+  "artifactCanAuthorizeAcceptance",
+  "cannotSelfAccept",
+  "requiresExplicitFutureAcceptance",
   "nextAllowedStep",
 ] as const);
 
@@ -165,6 +224,185 @@ export function createControlledProviderObservationContractV1(
     requiresExplicitFutureAcceptance: true,
     nextAllowedStep: "explicit_acceptance_contract_required",
   };
+}
+
+export function createControlledProviderObservationContractV2(input: {
+  readonly artifactProof: ControlledLiveProviderCandidateArtifactProofV1;
+  readonly providerExecutionReceipt: LocalVisualProviderExecutionReceiptV1;
+}): ControlledProviderObservationContractV2 {
+  rejectUnsafeContent(input, "input");
+  const record = requirePlainRecord(input, "input");
+  rejectUnknownFields(record, ["artifactProof", "providerExecutionReceipt"], "input");
+  const proof = requirePlainRecord(
+    record.artifactProof,
+    "input.artifactProof",
+  ) as unknown as ControlledLiveProviderCandidateArtifactProofV1;
+  validateCandidateArtifactProof(proof);
+  const receipt = validateLocalVisualProviderExecutionReceiptV1(record.providerExecutionReceipt);
+  if (proof.providerExecutionReceiptContentIdentity !== receipt.executionReceiptContentIdentity) {
+    throw invalid(
+      "input.artifactProof.providerExecutionReceiptContentIdentity",
+      "must match execution receipt",
+    );
+  }
+  return createCandidateObservationFromReceipt(receipt, proof.sourceArtifactKinds);
+}
+
+export function restoreControlledProviderObservationContractV2FromReceipt(
+  providerExecutionReceipt: LocalVisualProviderExecutionReceiptV1,
+): ControlledProviderObservationContractV2 {
+  const receipt = validateLocalVisualProviderExecutionReceiptV1(providerExecutionReceipt);
+  return createCandidateObservationFromReceipt(receipt, [
+    "provider-evidence-envelope.json",
+    "summary.json",
+  ]);
+}
+
+export function validateControlledProviderObservationContractV2(
+  value: unknown,
+): ControlledProviderObservationContractV2 {
+  rejectUnsafeContent(value, "providerObservationContract");
+  const record = requirePlainRecord(
+    value,
+    "providerObservationContract",
+  ) as unknown as ControlledProviderObservationContractV2;
+  rejectUnknownFields(
+    record as unknown as Record<string, unknown>,
+    PROVIDER_OBSERVATION_V2_FIELDS,
+    "providerObservationContract",
+  );
+  const expectedValues = [
+    ["kind", "norma.controlled-provider-observation-contract.v2"],
+    ["version", 2],
+    ["providerEvidenceOnly", true],
+    ["untrusted", true],
+    ["nonAuthoritative", true],
+    ["sourceArtifactsRedacted", true],
+    ["providerOutputObserved", true],
+    ["redactedDiagnosticClass", null],
+    ["redactedDiagnosticNextAction", null],
+    ["acceptedGeometry", false],
+    ["acceptedStructuredGeometryProduced", false],
+    ["coreInputProduced", false],
+    ["structuredAnalyzeInputProduced", false],
+    ["structuredAnalyzeRun", false],
+    ["resultJsonProduced", false],
+    ["resultJsonCanonicalTruth", false],
+    ["sourceTruth", false],
+    ["packageApiTruth", false],
+    ["connectorTruth", false],
+    ["hostedTruth", false],
+    ["metricPolicyAuthority", false],
+    ["providerSelfAcceptance", false],
+    ["confidenceScoreValueCanAuthorizeAcceptance", false],
+    ["providerStatusCanAuthorizeAcceptance", false],
+    ["providerDiagnosticCanAuthorizeAcceptance", false],
+    ["providerMetadataCanAuthorizeAcceptance", false],
+    ["artifactCanAuthorizeAcceptance", false],
+    ["cannotSelfAccept", true],
+    ["requiresExplicitFutureAcceptance", true],
+    ["nextAllowedStep", "explicit_acceptance_contract_required"],
+  ] as const;
+  for (const [field, expected] of expectedValues) {
+    if ((record as unknown as Record<string, unknown>)[field] !== expected) {
+      throw invalid(`providerObservationContract.${field}`, `requires ${String(expected)}`);
+    }
+  }
+  if (!/^sha256:[0-9a-f]{64}$/u.test(record.providerExecutionReceiptContentIdentity)) {
+    throw invalid(
+      "providerObservationContract.providerExecutionReceiptContentIdentity",
+      "requires SHA-256 content identity",
+    );
+  }
+  const expectedId = `controlled-provider-observation:v2:${record.providerExecutionReceiptContentIdentity.slice("sha256:".length)}`;
+  if (record.observationId !== expectedId) {
+    throw invalid("providerObservationContract.observationId", "must derive from execution receipt identity");
+  }
+  if (record.imageContentIdentity === null || !/^sha256:[0-9a-f]{64}$/u.test(record.imageContentIdentity)) {
+    throw invalid("providerObservationContract.imageContentIdentity", "requires non-null SHA-256 identity");
+  }
+  requireExactStringArray(record.sourceArtifactKinds, "providerObservationContract.sourceArtifactKinds", [
+    "provider-evidence-envelope.json",
+    "summary.json",
+  ]);
+  if (!["raster_png", "raster_jpeg", "raster_webp", "unknown_redacted_media_type"].includes(record.mediaTypeClass)) {
+    throw invalid("providerObservationContract.mediaTypeClass", "requires redacted media type class");
+  }
+  if (!["small", "medium", "large", "unknown_redacted_size"].includes(record.imageSizeClass)) {
+    throw invalid("providerObservationContract.imageSizeClass", "requires redacted image size class");
+  }
+  if (record.providerClass !== "controlled_live_provider"
+    || record.endpointClass !== "responses_api"
+    || record.responseStatusClass !== "2xx_success") {
+    throw invalid("providerObservationContract", "requires candidate-capable redacted provider classes");
+  }
+  return structuredClone(record);
+}
+
+function createCandidateObservationFromReceipt(
+  receipt: LocalVisualProviderExecutionReceiptV1,
+  sourceArtifactKinds: ControlledProviderObservationContractV2["sourceArtifactKinds"],
+): ControlledProviderObservationContractV2 {
+  const receiptHex = receipt.executionReceiptContentIdentity.slice("sha256:".length);
+  return {
+    kind: "norma.controlled-provider-observation-contract.v2",
+    version: 2,
+    observationId: `controlled-provider-observation:v2:${receiptHex}`,
+    providerExecutionReceiptContentIdentity: receipt.executionReceiptContentIdentity,
+    providerEvidenceOnly: true,
+    untrusted: true,
+    nonAuthoritative: true,
+    sourceArtifactsRedacted: true,
+    sourceArtifactKinds: [...sourceArtifactKinds],
+    providerOutputObserved: true,
+    redactedDiagnosticClass: null,
+    redactedDiagnosticNextAction: null,
+    imageContentIdentity: receipt.sourceImageContentIdentity,
+    mediaTypeClass: "unknown_redacted_media_type",
+    imageSizeClass: "unknown_redacted_size",
+    providerClass: receipt.providerClass,
+    endpointClass: receipt.endpointClass,
+    responseStatusClass: receipt.responseStatusClass,
+    acceptedGeometry: false,
+    acceptedStructuredGeometryProduced: false,
+    coreInputProduced: false,
+    structuredAnalyzeInputProduced: false,
+    structuredAnalyzeRun: false,
+    resultJsonProduced: false,
+    resultJsonCanonicalTruth: false,
+    sourceTruth: false,
+    packageApiTruth: false,
+    connectorTruth: false,
+    hostedTruth: false,
+    metricPolicyAuthority: false,
+    providerSelfAcceptance: false,
+    confidenceScoreValueCanAuthorizeAcceptance: false,
+    providerStatusCanAuthorizeAcceptance: false,
+    providerDiagnosticCanAuthorizeAcceptance: false,
+    providerMetadataCanAuthorizeAcceptance: false,
+    artifactCanAuthorizeAcceptance: false,
+    cannotSelfAccept: true,
+    requiresExplicitFutureAcceptance: true,
+    nextAllowedStep: "explicit_acceptance_contract_required",
+  };
+}
+
+function validateCandidateArtifactProof(
+  proof: ControlledLiveProviderCandidateArtifactProofV1,
+): void {
+  rejectUnknownFields(
+    proof as unknown as Record<string, unknown>,
+    CANDIDATE_ARTIFACT_PROOF_FIELDS,
+    "input.artifactProof",
+  );
+  const { providerExecutionReceiptContentIdentity: _identity, ...v1Projection } = proof;
+  validateArtifactProof(v1Projection as ControlledLiveProviderSmokeArtifactProofV1);
+  if (!/^sha256:[0-9a-f]{64}$/u.test(proof.providerExecutionReceiptContentIdentity)) {
+    throw invalid(
+      "input.artifactProof.providerExecutionReceiptContentIdentity",
+      "requires SHA-256 content identity",
+    );
+  }
 }
 
 function resolveArtifactProof(record: Record<string, unknown>): ControlledLiveProviderSmokeArtifactProofV1 {

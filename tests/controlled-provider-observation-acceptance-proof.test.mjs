@@ -18,6 +18,7 @@ import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/lo
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
@@ -453,7 +454,10 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
     localVisualObservationToCorePilotContractChangedFiles,
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
-  const expectedChangedFiles = isPr128Set
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
+  const expectedChangedFiles = isPr129Set
+    ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
+    : isPr128Set
     ? explicitAcceptedObservationToCoreHandoffChangedFiles
     : isPr127Set
     ? localVisualObservationToCorePilotContractChangedFiles
@@ -461,7 +465,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isPr125Set || isPr126Set || isPr127Set || isPr128Set, true);
+  assert.equal(isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,

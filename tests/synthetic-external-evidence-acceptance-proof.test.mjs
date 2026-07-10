@@ -8,6 +8,7 @@ import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js"
 import { createSyntheticExternalEvidenceAcceptanceProofV1 } from "../dist/src/local-report/synthetic-external-evidence-acceptance-proof.js";
 import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
@@ -373,6 +374,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     localVisualObservationToCorePilotContractChangedFiles,
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
 
   assert.equal(
     isPr111Set ||
@@ -393,7 +395,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr125Set ||
       isPr126Set ||
       isPr127Set ||
-      isPr128Set,
+      isPr128Set ||
+      isPr129Set,
     true,
     changedFiles.join("\n"),
   );
@@ -429,6 +432,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledProviderObservationAcceptanceProofChangedFiles);
   } else if (isPr126Set) {
     assert.deepEqual(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles);
+  } else if (isPr129Set) {
+    assert.deepEqual(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   } else if (isPr128Set) {
     assert.deepEqual(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   } else if (isPr127Set) {
@@ -459,7 +464,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     isPr126Set
   ) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
-  } else if (isPr128Set) {
+  } else if (isPr128Set || isPr129Set) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), []);
   } else if (isPr127Set) {
     assert.deepEqual(

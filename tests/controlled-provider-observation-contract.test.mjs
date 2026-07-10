@@ -5,11 +5,22 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
-import { createControlledProviderObservationContractV1 } from "../dist/src/local-report/controlled-provider-observation-contract.js";
-import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
+import {
+  createControlledProviderObservationContractV1,
+  createControlledProviderObservationContractV2,
+  validateControlledProviderObservationContractV2,
+} from "../dist/src/local-report/controlled-provider-observation-contract.js";
+import {
+  createControlledLiveProviderCandidateArtifactProofV1,
+  createControlledLiveProviderSmokeArtifactProofV1,
+} from "../dist/src/local-report/controlled-live-provider-smoke-artifact-proof.js";
+import {
+  createLocalVisualProviderExecutionReceiptV1,
+} from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-contracts.js";
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
   branchChangedFiles,
+  controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
@@ -131,6 +142,42 @@ test("PR124 existing PR123 proof alone remains provider-evidence-only and cannot
   assert.equal(observation.nextAllowedStep, "explicit_acceptance_contract_required");
   assert.equal(validateAcceptedGeometryV1(observation).ok, false);
   assert.equal(analyzeStructuredCompositionV1(observation).status, "invalid");
+});
+
+test("PR129 PR124 v2 requires the strict candidate proof and remains distinct from compatible v1", () => {
+  const artifacts = createRedactedSuccessArtifacts();
+  const artifactProof = createControlledLiveProviderSmokeArtifactProofV1(artifacts);
+  const rawProviderResponseBytes = new TextEncoder().encode('{"status":"completed"}');
+  const providerExecutionReceipt = createLocalVisualProviderExecutionReceiptV1({
+    sourceImageBytes: Uint8Array.from([1, 2, 3]),
+    rawProviderResponseBytes,
+  });
+  const candidateProof = createControlledLiveProviderCandidateArtifactProofV1({
+    artifactProof,
+    providerExecutionReceipt,
+    rawProviderResponseBytes,
+  });
+  const v1 = createControlledProviderObservationContractV1(artifactProof);
+  const v2 = createControlledProviderObservationContractV2({
+    artifactProof: candidateProof,
+    providerExecutionReceipt,
+  });
+
+  assert.equal(v1.version, 1);
+  assert.equal("providerExecutionReceiptContentIdentity" in v1, false);
+  assert.equal(v2.version, 2);
+  assert.equal(
+    v2.observationId,
+    `controlled-provider-observation:v2:${providerExecutionReceipt.executionReceiptContentIdentity.slice(7)}`,
+  );
+  assert.equal(validateControlledProviderObservationContractV2(v2).observationId, v2.observationId);
+  assert.throws(
+    () => createControlledProviderObservationContractV2({
+      artifactProof,
+      providerExecutionReceipt,
+    }),
+    /providerExecutionReceiptContentIdentity/u,
+  );
 });
 
 test("PR124 artifactProof wrapper ignores unproved envelope metadata instead of corrupting observation facts", () => {
@@ -346,7 +393,10 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
     localVisualObservationToCorePilotContractChangedFiles,
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
-  const expectedChangedFiles = isPr128Set
+  const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
+  const expectedChangedFiles = isPr129Set
+    ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
+    : isPr128Set
     ? explicitAcceptedObservationToCoreHandoffChangedFiles
     : isPr127Set
     ? localVisualObservationToCorePilotContractChangedFiles
@@ -356,7 +406,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
         ? controlledProviderObservationAcceptanceProofChangedFiles
         : controlledProviderObservationContractChangedFiles;
 
-  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set, true);
+  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
     controlledProviderObservationContractChangedFiles,
@@ -370,6 +420,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
     "reports/",
     ".github/",
   ]) {
+    if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
   for (const forbiddenFile of [

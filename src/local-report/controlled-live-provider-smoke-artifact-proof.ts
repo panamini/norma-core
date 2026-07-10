@@ -1,3 +1,8 @@
+import {
+  validateLocalVisualProviderExecutionReceiptV1,
+  type LocalVisualProviderExecutionReceiptV1,
+} from "./controlled-local-live-visual-candidate-observation-contracts.js";
+
 export type ControlledLiveProviderSmokeSourceArtifactKindV1 =
   | "provider-evidence-envelope.json"
   | "summary.json";
@@ -31,6 +36,11 @@ export interface ControlledLiveProviderSmokeArtifactProofV1 {
   readonly sourceArtifactKinds: readonly ControlledLiveProviderSmokeSourceArtifactKindV1[];
   readonly derivedArtifactRefs: readonly ControlledLiveProviderSmokeDerivedArtifactRefV1[];
   readonly nextAllowedStep: "controlled_provider_observation_contract";
+}
+
+export interface ControlledLiveProviderCandidateArtifactProofV1
+  extends ControlledLiveProviderSmokeArtifactProofV1 {
+  readonly providerExecutionReceiptContentIdentity: string;
 }
 
 const INPUT_FIELDS = Object.freeze([
@@ -127,6 +137,28 @@ const EXPECTED_SUMMARY_NON_GOALS = Object.freeze([
   "not package API or export expansion",
 ] as const);
 
+const ARTIFACT_PROOF_FIELDS = Object.freeze([
+  "status",
+  "smokeStatus",
+  "providerEvidenceOnly",
+  "providerOutputObserved",
+  "providerOutputIsCoreTruth",
+  "providerOutputIsAcceptedGeometry",
+  "acceptedStructuredGeometryProduced",
+  "coreInputProduced",
+  "structuredAnalyzeRun",
+  "resultJsonProduced",
+  "resultJsonCanonicalTruth",
+  "acceptedStructuredGeometryOnlyCoreInput",
+  "sourceArtifactsRedacted",
+  "rawProviderOutputPersisted",
+  "rawRequestBodyPersisted",
+  "rawImagePersisted",
+  "sourceArtifactKinds",
+  "derivedArtifactRefs",
+  "nextAllowedStep",
+] as const);
+
 class ControlledLiveProviderSmokeArtifactProofError extends Error {
   constructor(message: string) {
     super(message);
@@ -172,6 +204,79 @@ export function createControlledLiveProviderSmokeArtifactProofV1(
     derivedArtifactRefs: [],
     nextAllowedStep: "controlled_provider_observation_contract",
   };
+}
+
+export function createControlledLiveProviderCandidateArtifactProofV1(input: {
+  readonly artifactProof: ControlledLiveProviderSmokeArtifactProofV1;
+  readonly providerExecutionReceipt: LocalVisualProviderExecutionReceiptV1;
+  readonly rawProviderResponseBytes: Uint8Array;
+}): ControlledLiveProviderCandidateArtifactProofV1 {
+  const record = requirePlainRecord(input, "input");
+  rejectUnknownFields(
+    record,
+    ["artifactProof", "providerExecutionReceipt", "rawProviderResponseBytes"],
+    "input",
+  );
+  requireOwnFields(
+    record,
+    ["artifactProof", "providerExecutionReceipt", "rawProviderResponseBytes"],
+    "input",
+  );
+  const artifactProof = requirePlainRecord(
+    record.artifactProof,
+    "input.artifactProof",
+  ) as unknown as ControlledLiveProviderSmokeArtifactProofV1;
+  validateExistingArtifactProof(artifactProof);
+  if (!(record.rawProviderResponseBytes instanceof Uint8Array)) {
+    throw invalid("input.rawProviderResponseBytes", "requires exact response bytes");
+  }
+  const receipt = validateLocalVisualProviderExecutionReceiptV1(
+    record.providerExecutionReceipt,
+    record.rawProviderResponseBytes,
+  );
+  return {
+    ...structuredClone(artifactProof),
+    providerExecutionReceiptContentIdentity: receipt.executionReceiptContentIdentity,
+  };
+}
+
+function validateExistingArtifactProof(proof: ControlledLiveProviderSmokeArtifactProofV1): void {
+  rejectUnknownFields(proof as unknown as Record<string, unknown>, ARTIFACT_PROOF_FIELDS, "input.artifactProof");
+  requireOwnFields(proof as unknown as Record<string, unknown>, ARTIFACT_PROOF_FIELDS, "input.artifactProof");
+  const expectedValues = [
+    ["status", "ok"],
+    ["smokeStatus", "ok"],
+    ["providerEvidenceOnly", true],
+    ["providerOutputObserved", true],
+    ["providerOutputIsCoreTruth", false],
+    ["providerOutputIsAcceptedGeometry", false],
+    ["acceptedStructuredGeometryProduced", false],
+    ["coreInputProduced", false],
+    ["structuredAnalyzeRun", false],
+    ["resultJsonProduced", false],
+    ["resultJsonCanonicalTruth", false],
+    ["acceptedStructuredGeometryOnlyCoreInput", true],
+    ["sourceArtifactsRedacted", true],
+    ["rawProviderOutputPersisted", false],
+    ["rawRequestBodyPersisted", false],
+    ["rawImagePersisted", false],
+    ["nextAllowedStep", "controlled_provider_observation_contract"],
+  ] as const;
+  for (const [field, expected] of expectedValues) {
+    requireValue(
+      (proof as unknown as Record<string, unknown>)[field],
+      `input.artifactProof.${field}`,
+      expected,
+    );
+  }
+  requireExactStringArray(
+    proof.sourceArtifactKinds,
+    "input.artifactProof.sourceArtifactKinds",
+    EXPECTED_SOURCE_ARTIFACT_KINDS,
+  );
+  if (!Array.isArray(proof.derivedArtifactRefs) || proof.derivedArtifactRefs.length !== 0) {
+    throw invalid("input.artifactProof.derivedArtifactRefs", "requires no derived artifact refs");
+  }
 }
 
 function validateProviderEvidenceEnvelope(record: Record<string, unknown>): void {
