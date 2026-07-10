@@ -40,6 +40,21 @@ const INPUT_FIELDS = Object.freeze([
   "acceptedStructuredGeometry",
 ] as const);
 
+type NodeUtilModule = {
+  readonly types?: {
+    readonly isProxy?: (value: unknown) => boolean;
+  };
+};
+
+const nodeProcess = globalThis as typeof globalThis & {
+  readonly process?: {
+    readonly getBuiltinModule?: (id: string) => unknown;
+  };
+};
+const nodeUtilTypes = (
+  nodeProcess.process?.getBuiltinModule?.("node:util") as NodeUtilModule | undefined
+)?.types;
+
 class ControlledProviderObservationToCoreHandoffError extends Error {
   constructor(message: string) {
     super(message);
@@ -159,6 +174,9 @@ function requirePlainData(
   seen: WeakSet<object>,
   depth: number,
 ): void {
+  if (isProxy(value)) {
+    throw invalid(path, "must not be a Proxy");
+  }
   if (depth > 64) {
     throw invalid(path, "exceeds maximum plain-data depth");
   }
@@ -251,6 +269,9 @@ function isCanonicalArrayIndex(key: string, length: number): boolean {
 }
 
 function requirePlainRecord(value: unknown, path: string): Record<string, unknown> {
+  if (isProxy(value)) {
+    throw invalid(path, "must not be a Proxy");
+  }
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw invalid(path, "requires plain object");
   }
@@ -260,6 +281,14 @@ function requirePlainRecord(value: unknown, path: string): Record<string, unknow
   }
 
   return value as Record<string, unknown>;
+}
+
+function isProxy(value: unknown): boolean {
+  if (nodeUtilTypes?.isProxy === undefined) {
+    throw invalid("runtime", "requires Node proxy detection");
+  }
+
+  return nodeUtilTypes.isProxy(value);
 }
 
 function rejectUnknownFields(

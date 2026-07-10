@@ -166,6 +166,34 @@ test("PR126 recursively rejects accessors hidden fields symbols classes and spar
   }
 });
 
+test("PR126 rejects nested proxies before any reflective validation trap can run", () => {
+  const input = createValidHandoffInput();
+  let trapCalls = 0;
+  input.acceptedStructuredGeometry.coordinateFrame = new Proxy(
+    input.acceptedStructuredGeometry.coordinateFrame,
+    {
+      getPrototypeOf: () => {
+        trapCalls += 1;
+        return Object.prototype;
+      },
+      ownKeys: () => {
+        trapCalls += 1;
+        return [];
+      },
+      getOwnPropertyDescriptor: () => {
+        trapCalls += 1;
+        return undefined;
+      },
+    },
+  );
+
+  assert.throws(
+    () => createControlledProviderObservationToCoreHandoffV1(input),
+    /acceptedStructuredGeometry\.coordinateFrame.*must not be a Proxy/u,
+  );
+  assert.equal(trapCalls, 0);
+});
+
 test("PR126 rejects cycles and non-JSON scalar values before snapshot", () => {
   {
     const input = createValidHandoffInput();
@@ -293,18 +321,25 @@ test("PR126 rejects non-plain missing inherited accessor hidden symbol and unkno
   assert.equal(accessorCalls, 0);
 });
 
-test("PR126 reports snapshot failures in the structured handoff error style", () => {
+test("PR126 rejects a proxied envelope before snapshot traversal", () => {
   const input = createValidHandoffInput();
-  input.providerObservationContract = new Proxy(input.providerObservationContract, {});
+  let trapCalls = 0;
+  const proxiedInput = new Proxy(input, {
+    getPrototypeOf: () => {
+      trapCalls += 1;
+      return Object.prototype;
+    },
+    ownKeys: () => {
+      trapCalls += 1;
+      return [];
+    },
+  });
 
   assert.throws(
-    () => createControlledProviderObservationToCoreHandoffV1(input),
-    {
-      name: "ControlledProviderObservationToCoreHandoffError",
-      message:
-        'Invalid controlled provider observation to Core handoff field "input": requires snapshot-compatible data.',
-    },
+    () => createControlledProviderObservationToCoreHandoffV1(proxiedInput),
+    /field "input": must not be a Proxy/u,
   );
+  assert.equal(trapCalls, 0);
 });
 
 test("PR126 identity and authority mismatches fail before the mapping gate result", () => {
