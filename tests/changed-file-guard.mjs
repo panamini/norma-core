@@ -40,6 +40,21 @@ export const guardExactSetConsolidationChangedFiles = Object.freeze([
   "tests/verification-replay-result-viewer.test.mjs",
 ].sort());
 
+export const cleanMainValidationAndPr129OperatorProofChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/pr129-operator-proof-checkpoint.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 const semgrepCiGuardMaintenanceFiles = new Set([
   ".github/workflows/ci.yml",
   "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
@@ -927,6 +942,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
@@ -1059,6 +1075,18 @@ export function branchChangedFilesExcludingSemgrepMaintenance(repoRoot = default
   return branchChangedFiles(repoRoot).filter((file) => !semgrepCiGuardMaintenanceFiles.has(file));
 }
 
+export function isCleanBaseValidationContext(repoRoot = defaultRepoRoot, baseRefs = defaultBaseRefs()) {
+  const baseHead = firstSuccessfulGitOutput(
+    repoRoot,
+    baseRefs.map((ref) => ["rev-parse", "--verify", ref]),
+  );
+  if (baseHead === null) return false;
+
+  const head = gitOutput(repoRoot, ["rev-parse", "--verify", "HEAD"]);
+  const status = gitOutput(repoRoot, ["status", "--porcelain=v1", "-uall"]);
+  return head === baseHead && status === "" && branchChangedFiles(repoRoot, baseRefs).length === 0;
+}
+
 export function isExactChangedFileSet(changedFiles, approvedFiles) {
   const changed = normalizeChangedFiles(changedFiles);
   const approved = normalizeChangedFiles(approvedFiles);
@@ -1108,6 +1136,17 @@ function firstSuccessfulGitFiles(repoRoot, argSets) {
   return null;
 }
 
+function firstSuccessfulGitOutput(repoRoot, argSets) {
+  for (const args of argSets) {
+    try {
+      return gitOutput(repoRoot, args);
+    } catch (error) {
+      if (!isMissingBaseRefGitError(error)) throw error;
+    }
+  }
+  return null;
+}
+
 function defaultBaseRefs() {
   return [
     process.env.GITHUB_BASE_REF && `origin/${process.env.GITHUB_BASE_REF}`,
@@ -1125,9 +1164,13 @@ function gitFiles(repoRoot, args) {
     .filter(Boolean);
 }
 
+function gitOutput(repoRoot, args) {
+  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
 function isMissingBaseRefGitError(error) {
   const stderr = Buffer.isBuffer(error.stderr) ? error.stderr.toString("utf8") : String(error.stderr ?? "");
   const message = `${error.message}\n${stderr}`;
 
-  return /ambiguous argument .*HEAD|unknown revision|bad revision|no merge base/i.test(message);
+  return /ambiguous argument .*HEAD|unknown revision|bad revision|no merge base|needed a single revision/i.test(message);
 }

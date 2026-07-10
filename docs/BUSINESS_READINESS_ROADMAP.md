@@ -1186,6 +1186,20 @@ candidate, selection, and AcceptedGeometry identities, and reuse PR128 plus
 existing guided/report surfaces. It remains manual, local, disabled by default,
 and CI-network-free.
 
+PR129 is now proven by a real controlled operator run. Capture stopped at
+explicit selection, and a user-authorized operator selection record accepted
+the three candidates without correction. The runtime recorded
+`explicitHumanSelectionValidated`, but no independent UI proof exists for each
+candidate. The no-network resume then produced explicit accepted geometry,
+completed Core / Structured Analyze, generated canonical `result.json`, and
+derived a local report. Provider output remained candidate evidence only;
+explicit accepted geometry remained the authority boundary.
+
+The next phase is `productization decision`. PR131 must choose exactly one first
+visual pilot product surface. PR129 does not approve production provider
+integration, autonomous acceptance, package publication, public product
+readiness, or any particular product track.
+
 Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
 OAuth/auth, package publication, any new public exports, autonomous acceptance,
 production data, real-user data, and public launch remain unapproved.

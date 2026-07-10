@@ -20,6 +20,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
@@ -48,6 +49,7 @@ import {
   guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles,
   integrationUnlockContractsChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   localInspectionSurfaceOnboardingChangedFiles,
@@ -2207,6 +2209,8 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
+  const isCleanBase = isCleanBaseValidationContext();
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
@@ -2223,10 +2227,17 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
+  if (isCleanBase) {
+    assert.deepEqual(changedFiles, []);
+    assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
+    return;
+  }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr129Set
+    isPr130Set
+      ? cleanMainValidationAndPr129OperatorProofChangedFiles
+      : isPr129Set
       ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
       : isPr128Set
       ? explicitAcceptedObservationToCoreHandoffChangedFiles
@@ -2238,6 +2249,18 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? controlledProviderObservationAcceptanceProofChangedFiles
       : controlledProviderObservationContractChangedFiles,
   );
+});
+
+test("PR130 clean-main context is test-private while its feature set remains exact and fail-closed", () => {
+  assert.equal(sharedExactApprovedChangedFiles([]), null);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(cleanMainValidationAndPr129OperatorProofChangedFiles),
+    cleanMainValidationAndPr129OperatorProofChangedFiles,
+  );
+  assert.equal(sharedExactApprovedChangedFiles(cleanMainValidationAndPr129OperatorProofChangedFiles.slice(1)), null);
+  for (const extra of ["src/index.ts", "bin/provider.mjs", "package.json", "package-lock.json", ".github/workflows/ci.yml", "tests/**"]) {
+    assert.equal(sharedExactApprovedChangedFiles([...cleanMainValidationAndPr129OperatorProofChangedFiles, extra]), null, extra);
+  }
 });
 
 test("shared exact changed-file guard rejects forbidden extras in the PR123 smoke artifact proof set", () => {

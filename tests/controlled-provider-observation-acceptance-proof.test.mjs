@@ -18,11 +18,13 @@ import { createControlledLiveProviderSmokeArtifactProofV1 } from "../dist/src/lo
 import { analyzeStructuredCompositionV1 } from "../dist/src/structured-composition-analysis.js";
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -441,6 +443,8 @@ test("PR125 helper is package-private and avoids forbidden execution dependencie
 
 test("PR125 changed files stay exact and reject forbidden extras", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr125Set = isExactChangedFileSet(
     changedFiles,
     controlledProviderObservationAcceptanceProofChangedFiles,
@@ -455,7 +459,9 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
-  const expectedChangedFiles = isPr129Set
+  const expectedChangedFiles = isPr130Set
+    ? cleanMainValidationAndPr129OperatorProofChangedFiles
+    : isPr129Set
     ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
     : isPr128Set
     ? explicitAcceptedObservationToCoreHandoffChangedFiles
@@ -465,14 +471,14 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set, true);
+  assert.equal(isCleanBase || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    expectedChangedFiles,
+    isCleanBase ? null : expectedChangedFiles,
   );
 
   for (const forbiddenFile of [

@@ -14,6 +14,7 @@ import {
 } from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-contracts.js";
 import {
   branchChangedFiles,
+  cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -22,6 +23,7 @@ import {
   controlledLiveProviderSmokeArtifactProofChangedFiles,
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   isExactChangedFileSet,
+  isCleanBaseValidationContext,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -283,6 +285,8 @@ test("PR129 candidate-capable PR123 helper stays package-private and imports onl
 
 test("PR123 changed files stay exact and do not add live provider fixtures or package drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isArtifactProofSet = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeArtifactProofChangedFiles);
   const isResponseStatusSet = isExactChangedFileSet(
     changedFiles,
@@ -315,13 +319,17 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set,
+    isCleanBase || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set,
     true,
     changedFiles.join("\n"),
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr129Set
+    isCleanBase
+      ? null
+      : isPr130Set
+      ? cleanMainValidationAndPr129OperatorProofChangedFiles
+      : isPr129Set
       ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
       : isPr128Set
       ? explicitAcceptedObservationToCoreHandoffChangedFiles
@@ -349,7 +357,12 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
-  if (isPr127Set) {
+  if (isPr130Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+    ]);
+  } else if (isPr127Set) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
       "docs/BUSINESS_READINESS_ROADMAP.md",
       "docs/decisions/2026-07-10-local-visual-observation-to-core-pilot-contract.md",
