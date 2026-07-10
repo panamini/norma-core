@@ -432,6 +432,7 @@ function attachCandidateTraceToDerivedArtifacts(
     throw new ControlledLocalLiveVisualCandidateDemoError("ResultIdentityMismatch");
   }
   const traceJson = JSON.stringify(trace);
+  const traceHex = encodeUtf8Hex(traceJson);
   const visual = artifacts["visual.svg"];
   const report = artifacts["report.html"];
   if (typeof visual !== "string" || !visual.includes("</svg>")
@@ -444,13 +445,20 @@ function attachCandidateTraceToDerivedArtifacts(
     "summary.md": `${artifacts["summary.md"]?.trimEnd() ?? ""}\n\n## Candidate trace\n\n\`\`\`json\n${traceJson}\n\`\`\`\n`,
     "visual.svg": visual.replace(
       "</svg>",
-      `<metadata id="norma-candidate-trace">${traceJson}</metadata></svg>`,
+      `<metadata id="norma-candidate-trace" data-encoding="utf8-hex">${traceHex}</metadata></svg>`,
     ),
     "report.html": report.replace(
       "</body>",
-      `<script type="application/json" id="norma-candidate-trace">${traceJson}</script></body>`,
+      `<template id="norma-candidate-trace" data-encoding="utf8-hex">${traceHex}</template></body>`,
     ),
   };
+}
+
+function encodeUtf8Hex(value: string): string {
+  return Array.from(
+    new TextEncoder().encode(value),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 export function finalizeLocalVisualHumanCandidateSelectionIdentityV1(

@@ -228,11 +228,21 @@ test("PR129 separate exact human selection produces one- and multi-rectangle can
         assert.equal(value[field], expected, `${artifact}:${field}`);
       }
     }
-    for (const artifact of ["summary.json", "summary.md", "visual.svg", "report.html"]) {
+    for (const artifact of ["summary.json", "summary.md"]) {
       for (const expected of Object.values(resume.trace)) {
         assert.match(resume.artifacts[artifact], new RegExp(escapeRegExp(expected), "u"), artifact);
       }
     }
+    const encodedTrace = encodeUtf8Hex(JSON.stringify(resume.trace));
+    assert.match(
+      resume.artifacts["visual.svg"],
+      new RegExp(`<metadata id="norma-candidate-trace" data-encoding="utf8-hex">${encodedTrace}</metadata>`, "u"),
+    );
+    assert.match(
+      resume.artifacts["report.html"],
+      new RegExp(`<template id="norma-candidate-trace" data-encoding="utf8-hex">${encodedTrace}</template>`, "u"),
+    );
+    assert.doesNotMatch(resume.artifacts["report.html"], /<script[^>]*norma-candidate-trace/iu);
   }
   assert.equal(one.acceptedGeometry.primitives.length, 1);
   assert.equal(one.execution.handoff.evaluationProfileOverlapPenaltyIncluded, false);
@@ -493,6 +503,13 @@ function providerResponseBytes(rectangles, { responseId = "response:test", model
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function encodeUtf8Hex(value) {
+  return Array.from(
+    new TextEncoder().encode(value),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 function pngBytes(width, height) {
