@@ -122,6 +122,25 @@ test("PR81 maps accepted rectangles to Core Composition2D with the approved coor
   assert.match(result.resultContentIdentity, /^sha256:[0-9a-f]{64}$/);
 });
 
+test("PR128 maps the approved explicit boundary byte-compatibly without granting acceptance authority", () => {
+  const acceptedGeometry = acceptedRectangleGeometry();
+  const synthetic = mapAcceptedGeometryToCoreV1(validRequest({ acceptedGeometry }));
+  const explicit = mapAcceptedGeometryToCoreV1(validRequest({
+    acceptedGeometry,
+    mappingContext: {
+      boundary: "explicit-external-evidence-acceptance@1",
+      primitiveLossPolicy: "reject",
+      coordinateTransform: ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM,
+    },
+  }));
+
+  assert.equal(explicit.ok, true);
+  assert.equal(explicit.status, "mapped");
+  assert.deepEqual(explicit, synthetic);
+  assert.equal("acceptanceAuthority" in explicit, false);
+  assert.equal("acceptanceProof" in explicit, false);
+});
+
 test("PR81 preserves multiple rectangle primitive order", () => {
   const acceptedGeometry = acceptedRectangleGeometry([
     rectanglePrimitive({ id: "rectangle:first", x: 0, y: 0, width: 0.25, height: 0.25 }),

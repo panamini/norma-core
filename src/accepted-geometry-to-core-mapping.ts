@@ -54,7 +54,7 @@ export interface AcceptedGeometryToCoreTargetCoordinateSystem extends Coordinate
 }
 
 export interface AcceptedGeometryToCoreMappingContextV1 {
-  readonly boundary: "synthetic-only";
+  readonly boundary: "synthetic-only" | "explicit-external-evidence-acceptance@1";
   readonly primitiveLossPolicy: "reject";
   readonly coordinateTransform: typeof ACCEPTED_GEOMETRY_TO_CORE_COORDINATE_TRANSFORM;
 }
@@ -490,7 +490,18 @@ function validateMappingContext(
   }
 
   validateExactKeys(value, MAPPING_CONTEXT_KEYS, "mappingContext", diagnostics);
-  validateLiteral(value.boundary, "synthetic-only", "mappingContext.boundary", diagnostics, "invalid");
+  if (
+    value.boundary !== "synthetic-only"
+    && value.boundary !== "explicit-external-evidence-acceptance@1"
+  ) {
+    diagnostics.push(diagnostic(
+      "InvalidAcceptedGeometryMappingRequest",
+      "AcceptedGeometryToCoreMappingRequest",
+      "mappingContext.boundary",
+      null,
+      "mappingContext.boundary must declare an approved mapping boundary.",
+    ));
+  }
   validateLiteral(value.primitiveLossPolicy, "reject", "mappingContext.primitiveLossPolicy", diagnostics, "invalid");
   validateLiteral(
     value.coordinateTransform,

@@ -11,6 +11,7 @@ import {
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
   controlledProviderObservationToCoreHandoffChangedFiles,
+  explicitAcceptedObservationToCoreHandoffChangedFiles,
   controlledLiveProviderDiagnosticNextActionsChangedFiles,
   controlledLiveProviderInputCompatibilityDiagnosticsChangedFiles,
   controlledLiveProviderExperimentGateChangedFiles,
@@ -371,6 +372,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     changedFiles,
     localVisualObservationToCorePilotContractChangedFiles,
   );
+  const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
 
   assert.equal(
     isPr111Set ||
@@ -390,7 +392,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
       isPr124Set ||
       isPr125Set ||
       isPr126Set ||
-      isPr127Set,
+      isPr127Set ||
+      isPr128Set,
     true,
     changedFiles.join("\n"),
   );
@@ -426,6 +429,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     assert.deepEqual(changedFiles, controlledProviderObservationAcceptanceProofChangedFiles);
   } else if (isPr126Set) {
     assert.deepEqual(changedFiles, controlledProviderObservationToCoreHandoffChangedFiles);
+  } else if (isPr128Set) {
+    assert.deepEqual(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   } else if (isPr127Set) {
     assert.deepEqual(changedFiles, localVisualObservationToCorePilotContractChangedFiles);
   } else {
@@ -454,6 +459,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
     isPr126Set
   ) {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
+  } else if (isPr128Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), []);
   } else if (isPr127Set) {
     assert.deepEqual(
       changedFiles.filter((file) => file.startsWith("docs/")).sort(),
