@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  branchChangedFiles,
   branchChangedFilesExcludingSemgrepMaintenance,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
@@ -13,6 +14,7 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
+  localVisualCandidateReviewChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -476,6 +478,7 @@ test("PR64 keeps runtime package API MCP UI and deployment surfaces blocked", ()
 });
 
 test("PR64 changed-file scope remains approval-only when branch changes exist", () => {
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedFiles = approvedChangedFilesFor(changed);
   const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];

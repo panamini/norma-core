@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  branchChangedFiles,
   branchChangedFilesExcludingSemgrepMaintenance,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
@@ -13,6 +14,7 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
+  localVisualCandidateReviewChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -486,6 +488,7 @@ test("PR65 keeps runtime package API MCP UI docs examples and deployment surface
 });
 
 test("PR65 guard permits only approval-doc/test changes and blocks protected surfaces", () => {
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedFiles = approvedChangedFilesFor(changed);
   const protectedFileAllowlist = exactApprovedChangedFiles(changed) ?? [];

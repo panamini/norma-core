@@ -6,11 +6,13 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  branchChangedFiles,
   branchChangedFilesExcludingSemgrepMaintenance,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
   isExactR6CStructuredAnalyzeMcpChangeSet,
   sharedExactApprovedChangedFiles,
+  localVisualCandidateReviewChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -686,6 +688,7 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
 });
 
 test('PR78 PR79 and PR80 branch changes stay limited to their approved contract surfaces', () => {
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
   const changedFiles = branchChangedFilesExcludingSemgrepMaintenance();
   if (sharedExactApprovedChangedFiles(changedFiles) === null) {
     assertApprovedContractSurfaceChanges(changedFiles);

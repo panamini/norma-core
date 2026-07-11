@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createReadOnlyViewerModel } from "../dist/src/local-viewer/read-only-viewer-model.js";
 import { modelToStaticViewTree } from "../viewer/read-only-result-viewer.js";
 import {
+  branchChangedFiles,
   branchChangedFilesExcludingSemgrepMaintenance,
   isExactChangedFileSet,
   isExactR1GeometrySourceIdentityChangeSet,
@@ -15,6 +16,7 @@ import {
   r1GeometrySourceIdentityChangedFiles,
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
+  localVisualCandidateReviewChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -435,6 +437,7 @@ test("PR69 fixtures contain synthetic local-only data", () => {
 });
 
 test("PR69 keeps protected surfaces unchanged", () => {
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const expectedFiles = approvedChangedFilesFor(changed);
   const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];

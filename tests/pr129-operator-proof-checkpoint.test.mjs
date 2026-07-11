@@ -44,14 +44,15 @@ test("PR129 checkpoint and roadmap contain no sensitive operator artifact data o
   ]) assert.doesNotMatch(text, forbidden);
 });
 
-test("PR129 checkpoint and roadmap record the completed PR131 decision and advance only to PR132", async () => {
+test("PR129 checkpoint and roadmap record PR132 implementation and operator validation next", async () => {
   const [checkpoint, roadmap] = await Promise.all([
     readFile(checkpointPath, "utf8"),
     readFile(roadmapPath, "utf8"),
   ]);
   assert.match(checkpoint, /PR131 completed the `productization decision`/u);
   assert.match(checkpoint, /selected the separate local\s+static visual candidate review and explicit-selection surface/u);
-  assert.match(checkpoint, /The next implementation step is PR132/u);
+  assert.match(checkpoint, /PR132 implements the selected local review slice/u);
+  assert.match(checkpoint, /After merge, the next action is a no-PR operator validation/u);
   assert.match(checkpoint, /existing PR129\s+no-network `--resume` path as the only route/u);
   assert.doesNotMatch(checkpoint, /PR131 must choose exactly one first\s+visual pilot product surface/u);
   assert.match(roadmap, /PR129 is now proven by a real controlled operator run/u);

@@ -201,10 +201,11 @@ test("roadmap advances directly to PR132 while deferred tracks remain blocked", 
   assert.match(roadmap, /Hosted MCP, ChatGPT connector runtime, CAD\/Figma[\s\S]*remain unapproved/u);
 });
 
-test("PR129 checkpoint no longer routes back to the completed PR131 decision", async () => {
+test("PR129 checkpoint records PR132 implementation and routes to operator validation", async () => {
   const checkpoint = await readFile(pr129CheckpointPath, "utf8");
   assert.match(checkpoint, /PR131 completed the `productization decision`/u);
-  assert.match(checkpoint, /The next implementation step is PR132/u);
+  assert.match(checkpoint, /PR132 implements the selected local review slice/u);
+  assert.match(checkpoint, /After merge, the next action is a no-PR operator validation/u);
   assert.doesNotMatch(checkpoint, /PR131 must choose exactly one first\s+visual pilot product surface/u);
 });
 

@@ -26,6 +26,7 @@ import {
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
@@ -328,6 +329,7 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);

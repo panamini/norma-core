@@ -17,6 +17,7 @@ import {
   branchChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
+  localVisualCandidateReviewChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -2211,6 +2212,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPr132Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
@@ -2229,7 +2231,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2237,7 +2239,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr131Set
+    isPr132Set
+      ? localVisualCandidateReviewChangedFiles
+      : isPr131Set
       ? localVisualCandidateReviewProductSurfaceChangedFiles
       : isPr130Set
       ? cleanMainValidationAndPr129OperatorProofChangedFiles
@@ -2253,6 +2257,26 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? controlledProviderObservationAcceptanceProofChangedFiles
       : controlledProviderObservationContractChangedFiles,
   );
+});
+
+test("PR132 local visual candidate review set remains exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(localVisualCandidateReviewChangedFiles),
+    localVisualCandidateReviewChangedFiles,
+  );
+  assert.equal(sharedExactApprovedChangedFiles(localVisualCandidateReviewChangedFiles.slice(1)), null);
+  for (const extra of [
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    ".github/workflows/ci.yml",
+    "src/provider/live-adapter.ts",
+    "src/mcp/hosted-server.ts",
+    "wiki/hot.md",
+    "tests/**",
+  ]) {
+    assert.equal(sharedExactApprovedChangedFiles([...localVisualCandidateReviewChangedFiles, extra]), null, extra);
+  }
 });
 
 test("PR131 local visual candidate review product surface set remains exact and fail-closed", () => {

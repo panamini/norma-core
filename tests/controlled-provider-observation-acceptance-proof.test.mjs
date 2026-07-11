@@ -25,6 +25,7 @@ import {
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -444,6 +445,7 @@ test("PR125 helper is package-private and avoids forbidden execution dependencie
 
 test("PR125 changed files stay exact and reject forbidden extras", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
