@@ -12,6 +12,7 @@ import {
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -1109,12 +1110,19 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
 
   const changedFiles = branchChangedFiles(repoRoot);
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
-  assert.equal(isCleanBase || isPr129Set || isPr130Set, true);
+  assert.equal(isCleanBase || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isCleanBase ? null : isPr130Set ? cleanMainValidationAndPr129OperatorProofChangedFiles : controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
+    isCleanBase
+      ? null
+      : isPr131Set
+      ? localVisualCandidateReviewProductSurfaceChangedFiles
+      : isPr130Set
+      ? cleanMainValidationAndPr129OperatorProofChangedFiles
+      : controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   );
 });
 

@@ -30,6 +30,7 @@ import {
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -632,6 +633,7 @@ test("PR128 helper stays package-private and avoids external integration imports
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
@@ -643,7 +645,9 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     changedFiles,
     localVisualObservationToCorePilotContractChangedFiles,
   );
-  const expectedChangedFiles = isPr130Set
+  const expectedChangedFiles = isPr131Set
+    ? localVisualCandidateReviewProductSurfaceChangedFiles
+    : isPr130Set
     ? cleanMainValidationAndPr129OperatorProofChangedFiles
     : isPr129Set
     ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
@@ -653,7 +657,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     ? localVisualObservationToCorePilotContractChangedFiles
     : controlledProviderObservationToCoreHandoffChangedFiles;
 
-  assert.equal(isCleanBase || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
+  assert.equal(isCleanBase || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationToCoreHandoffChangedFiles),
     controlledProviderObservationToCoreHandoffChangedFiles,
@@ -671,7 +675,13 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
-  if (isPr130Set) {
+  if (isPr131Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+      "docs/decisions/2026-07-11-local-visual-candidate-review-product-surface.md",
+    ]);
+  } else if (isPr130Set) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
       "docs/BUSINESS_READINESS_ROADMAP.md",
       "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",

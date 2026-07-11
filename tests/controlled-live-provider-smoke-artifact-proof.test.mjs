@@ -24,6 +24,7 @@ import {
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -286,6 +287,7 @@ test("PR129 candidate-capable PR123 helper stays package-private and imports onl
 test("PR123 changed files stay exact and do not add live provider fixtures or package drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isArtifactProofSet = isExactChangedFileSet(changedFiles, controlledLiveProviderSmokeArtifactProofChangedFiles);
   const isResponseStatusSet = isExactChangedFileSet(
@@ -319,7 +321,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isCleanBase || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set,
+    isCleanBase || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set,
     true,
     changedFiles.join("\n"),
   );
@@ -327,6 +329,8 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     sharedExactApprovedChangedFiles(changedFiles),
     isCleanBase
       ? null
+      : isPr131Set
+      ? localVisualCandidateReviewProductSurfaceChangedFiles
       : isPr130Set
       ? cleanMainValidationAndPr129OperatorProofChangedFiles
       : isPr129Set
@@ -357,7 +361,13 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     if (isPr129Set && forbiddenPrefix === "bin/") continue;
     assert.equal(changedFiles.some((file) => file.startsWith(forbiddenPrefix)), false, forbiddenPrefix);
   }
-  if (isPr130Set) {
+  if (isPr131Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+      "docs/decisions/2026-07-11-local-visual-candidate-review-product-surface.md",
+    ]);
+  } else if (isPr130Set) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
       "docs/BUSINESS_READINESS_ROADMAP.md",
       "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",

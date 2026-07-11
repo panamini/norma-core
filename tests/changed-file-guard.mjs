@@ -55,6 +55,23 @@ export const cleanMainValidationAndPr129OperatorProofChangedFiles = Object.freez
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const localVisualCandidateReviewProductSurfaceChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+  "docs/decisions/2026-07-11-local-visual-candidate-review-product-surface.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-candidate-review-product-surface.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/pr129-operator-proof-checkpoint.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 const semgrepCiGuardMaintenanceFiles = new Set([
   ".github/workflows/ci.yml",
   "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
@@ -942,6 +959,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   explicitAcceptedObservationToCoreHandoffChangedFiles,

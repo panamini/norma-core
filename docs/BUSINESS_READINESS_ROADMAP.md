@@ -1195,10 +1195,27 @@ completed Core / Structured Analyze, generated canonical `result.json`, and
 derived a local report. Provider output remained candidate evidence only;
 explicit accepted geometry remained the authority boundary.
 
-The next phase is `productization decision`. PR131 must choose exactly one first
-visual pilot product surface. PR129 does not approve production provider
-integration, autonomous acceptance, package publication, public product
-readiness, or any particular product track.
+PR131 selects exactly one first visual pilot product surface: a separate local
+static visual candidate review and explicit-selection surface. The selected
+surface adds the missing explicit candidate-review interaction before the same
+acceptance workflow moves behind a connector, hosted service, or external
+adapter, without claiming authenticated human-review proof. It remains separate
+from the existing read-only result viewer.
+
+PR131 is docs/tests-only and implements no UI or runtime. It freezes PR132 as
+the next implementation PR: a local browser review surface that verifies the
+exact source-image content identity in memory, overlays validated PR129
+rectangle candidates, emits a closed selection intent, and delegates final
+human-selection identity construction to a package-private Node path that
+revalidates the receipt, candidate envelope, and bounded PNG bytes under an
+explicit operator-confirmation flag. Existing PR129 `--resume` remains the only
+path to AcceptedGeometry, Core / Structured Analyze, and canonical
+`result.json`.
+
+After PR132, one no-PR operator validation must confirm the visual review flow
+before the next external product-track decision. PR131 does not approve
+production provider integration, autonomous acceptance, package publication,
+public product readiness, or any deferred product track.
 
 Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
 OAuth/auth, package publication, any new public exports, autonomous acceptance,

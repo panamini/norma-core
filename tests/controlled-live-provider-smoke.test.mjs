@@ -42,6 +42,7 @@ import {
   controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
   controlledLiveProviderSmokeChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   isCleanBaseValidationContext,
   providerEvidenceReplayAdapterChangedFiles,
@@ -1573,6 +1574,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
 
   assert.equal(
     isCleanBase || [
+      localVisualCandidateReviewProductSurfaceChangedFiles,
       cleanMainValidationAndPr129OperatorProofChangedFiles,
       controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
       explicitAcceptedObservationToCoreHandoffChangedFiles,
