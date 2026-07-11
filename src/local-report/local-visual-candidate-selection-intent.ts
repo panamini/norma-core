@@ -13,6 +13,12 @@ import {
   type LocalVisualProviderExecutionReceiptV1,
 } from "./controlled-local-live-visual-candidate-observation-contracts.js";
 import { finalizeLocalVisualHumanCandidateSelectionIdentityV1 } from "./controlled-local-live-visual-candidate-observation-demo.js";
+import {
+  computeControlledProviderObservationContractContentIdentityV1,
+} from "./controlled-provider-observation-acceptance-proof.js";
+import {
+  restoreControlledProviderObservationContractV2FromReceipt,
+} from "./controlled-provider-observation-contract.js";
 
 type NodeUtilModule = {
   readonly types?: {
@@ -172,10 +178,15 @@ function validateLinkage(
 ): void {
   const imageIdentity = sha256ContentIdentityV1(sourcePngBytes);
   const dimensions = decodeValidatedLocalVisualImageDimensionsV1(sourcePngBytes, "image/png");
+  const receiptObservation = restoreControlledProviderObservationContractV2FromReceipt(receipt);
+  const receiptObservationContentIdentity =
+    computeControlledProviderObservationContractContentIdentityV1(receiptObservation);
   requireValue(receipt.sourceImageContentIdentity, imageIdentity, "providerExecutionReceipt.sourceImageContentIdentity");
   requireValue(candidate.sourceImage.contentIdentity, imageIdentity, "candidateObservationEnvelope.sourceImage.contentIdentity");
   requireValue(intent.reviewedSourceImageContentIdentity, imageIdentity, "selectionIntent.reviewedSourceImageContentIdentity");
   requireValue(candidate.provenance.providerExecutionReceiptContentIdentity, receipt.executionReceiptContentIdentity, "candidateObservationEnvelope.provenance.providerExecutionReceiptContentIdentity");
+  requireValue(candidate.provenance.sourceReceiptObservationId, receiptObservation.observationId, "candidateObservationEnvelope.provenance.sourceReceiptObservationId");
+  requireValue(candidate.provenance.sourceReceiptObservationContentIdentity, receiptObservationContentIdentity, "candidateObservationEnvelope.provenance.sourceReceiptObservationContentIdentity");
   requireValue(intent.providerExecutionReceiptContentIdentity, receipt.executionReceiptContentIdentity, "selectionIntent.providerExecutionReceiptContentIdentity");
   requireValue(intent.candidateObservationId, candidate.observationId, "selectionIntent.candidateObservationId");
   requireValue(intent.candidateObservationContentIdentity, candidate.observationContentIdentity, "selectionIntent.candidateObservationContentIdentity");

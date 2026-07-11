@@ -1226,12 +1226,15 @@ before the next external product-track decision. PR131 does not approve
 production provider integration, autonomous acceptance, package publication,
 public product readiness, or any deferred product track.
 
-That no-network operator validation is now complete. PR133 selects the
-private/developer-only ChatGPT + MCP visual pilot as the single next external
-product track. The selected journey must reuse the PR132 review and explicit
-selection boundary plus the existing PR129 no-network resume path; ChatGPT,
-MCP arguments, prompts, attachments, candidate observations, overlays, and
-selection intent remain untrusted and non-authoritative.
+That no-network operator validation is now complete and is recorded in
+`docs/decisions/2026-07-11-pr132-operator-validation-checkpoint.md` with the
+exact commands, deterministic receipt/observation/selection identities, and
+canonical `result.json` SHA-256. PR133 selects the private/developer-only
+ChatGPT + MCP visual pilot as the single next external product track. The
+selected journey must reuse the PR132 review and explicit selection boundary
+plus the existing PR129 no-network resume path; ChatGPT, MCP arguments,
+prompts, attachments, candidate observations, overlays, and selection intent
+remain untrusted and non-authoritative.
 
 PR133 is docs/tests-only. It does not implement or approve a ChatGPT connector,
 ChatGPT App, MCP runtime, hosted/remote MCP, auth/OAuth, deployment, provider

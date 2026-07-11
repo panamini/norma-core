@@ -11,6 +11,8 @@ test("PR133 selects exactly the private/dev ChatGPT + MCP visual pilot", async (
   assert.match(roadmap, /single next external\s+product track/u);
   assert.match(decision, /PR132 local candidate review/u);
   assert.match(decision, /existing PR129 no-network resume/u);
+  assert.match(decision, /2026-07-11-pr132-operator-validation-checkpoint\.md/u);
+  assert.match(decision, /exact commands and receipt, observation, selection, and canonical\s+`result\.json` identities/u);
 });
 
 test("PR133 preserves accepted geometry and result.json authority", async () => {

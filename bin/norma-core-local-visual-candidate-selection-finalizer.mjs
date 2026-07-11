@@ -3,7 +3,7 @@ import { link, open, unlink } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export { runLocalVisualCandidateSelectionFinalizerCli, writeAtomicExclusive };
+export { readBoundedSnapshot, runLocalVisualCandidateSelectionFinalizerCli, writeAtomicExclusive };
 
 const LIMITS = Object.freeze({
   receipt: 64 * 1024,
@@ -121,7 +121,13 @@ async function readBoundedSnapshot(path, maxBytes, options) {
   try {
     const before = await handle.stat();
     if (!before.isFile() || before.size < 1 || before.size > maxBytes) throw new Error("InputSizeRejected");
-    const bytes = new Uint8Array(await handle.readFile());
+    const bytes = new Uint8Array(before.size);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.byteLength - offset, offset);
+      if (bytesRead === 0) throw new Error("InputChangedDuringRead");
+      offset += bytesRead;
+    }
     const after = await handle.stat();
     if (bytes.byteLength !== before.size
       || after.size !== before.size

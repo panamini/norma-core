@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import {
+  computeLocalVisualCandidateObservationContentIdentityV1,
+} from "../dist/src/local-report/controlled-local-live-visual-candidate-observation-contracts.js";
 import {
   createControlledLocalLiveVisualCandidateCaptureV1,
   createControlledLocalLiveVisualCandidateResumeV1,
@@ -12,7 +16,7 @@ import {
   finalizeLocalVisualCandidateSelectionIntentV1,
   validateLocalVisualCandidateSelectionIntentV1,
 } from "../dist/src/local-report/local-visual-candidate-selection-intent.js";
-import { runLocalVisualCandidateSelectionFinalizerCli, writeAtomicExclusive } from "../bin/norma-core-local-visual-candidate-selection-finalizer.mjs";
+import { readBoundedSnapshot, runLocalVisualCandidateSelectionFinalizerCli, writeAtomicExclusive } from "../bin/norma-core-local-visual-candidate-selection-finalizer.mjs";
 
 test("PR132 finalizes closed browser intent through the existing PR129 selection and resume gates", () => {
   const fixture = createFixture();
@@ -39,6 +43,22 @@ test("PR132 finalizes closed browser intent through the existing PR129 selection
   assert.equal(resume.status, "completed");
   assert.equal(resume.execution.handoff.status, "completed");
   assert.equal(typeof resume.artifacts["result.json"], "string");
+  assert.equal(
+    fixture.capture.providerExecutionReceipt.executionReceiptContentIdentity,
+    "sha256:8d2ede33b515905e45504f5b895eac82176553e87ce61627e36647bc5b138060",
+  );
+  assert.equal(
+    fixture.capture.candidateObservationEnvelope.observationContentIdentity,
+    "sha256:577b4b50e99da2c2ffbd916bc461ede308798bd94a97251d1062ccadecfa8d68",
+  );
+  assert.equal(
+    selection.selectionContentIdentity,
+    "sha256:bcc9b7e16d1ce02004c9bed2bc2db00d1905d7537c327b313fc3dbeae4e1318e",
+  );
+  assert.equal(
+    `sha256:${createHash("sha256").update(resume.artifacts["result.json"], "utf8").digest("hex")}`,
+    "sha256:f2022dbacdb304b975ca572951295f12fe62317a20191f9821fbbddf0549ec6c",
+  );
 });
 
 test("PR132 finalizer is deterministic and does not mutate inputs", () => {
@@ -56,6 +76,29 @@ test("PR132 rejects missing confirmation, identity drift, unknown IDs, and reord
   assert.throws(() => finalize(fixture, { imageBytes: wrongImage }), /sourceImageContentIdentity/u);
   assert.throws(() => finalize(fixture, { selectedCandidateIds: ["candidate:missing"] }), /unknown candidate/u);
   assert.throws(() => finalize(fixture, { selectedCandidateIds: ["candidate:1", "candidate:0"] }), /preserve candidate envelope order/u);
+});
+
+test("PR132 rejects candidate provenance that does not restore from the supplied receipt", () => {
+  const fixture = createFixture();
+  for (const field of ["sourceReceiptObservationId", "sourceReceiptObservationContentIdentity"]) {
+    const candidateObservationEnvelope = structuredClone(fixture.capture.candidateObservationEnvelope);
+    candidateObservationEnvelope.provenance[field] = field.endsWith("Id")
+      ? "provider-observation:forged"
+      : `sha256:${"f".repeat(64)}`;
+    candidateObservationEnvelope.observationContentIdentity =
+      computeLocalVisualCandidateObservationContentIdentityV1(candidateObservationEnvelope);
+    const selectionIntent = {
+      ...fixture.intent,
+      candidateObservationContentIdentity: candidateObservationEnvelope.observationContentIdentity,
+    };
+    assert.throws(() => finalizeLocalVisualCandidateSelectionIntentV1({
+      providerExecutionReceipt: fixture.capture.providerExecutionReceipt,
+      candidateObservationEnvelope,
+      sourcePngBytes: fixture.imageBytes,
+      selectionIntent,
+      confirmExactSelection: true,
+    }), new RegExp(field, "u"), field);
+  }
 });
 
 test("PR132 finalizer rejects otherwise valid observations above the 64-candidate ceiling", () => {
@@ -126,6 +169,34 @@ test("PR132 CLI remains package-private and contains no provider or network exec
   assert.doesNotMatch(source, /api\.openai|Authorization|process\.env|\bfetch\b|XMLHttpRequest|WebSocket|node:https?|analyzeStructuredCompositionV1/u);
   assert.match(source, /flag:\s*"wx"/u);
   assert.match(source, /InputChangedDuringRead/u);
+});
+
+test("PR132 bounded snapshot never reads more than the initial accepted size", async () => {
+  const requestedLengths = [];
+  let statCount = 0;
+  const handle = {
+    async stat() {
+      statCount += 1;
+      return {
+        isFile: () => true,
+        size: statCount === 1 ? 4 : 4 * 1024 * 1024,
+        mtimeMs: statCount,
+        ino: 7,
+      };
+    },
+    async read(buffer, offset, length, position) {
+      requestedLengths.push(length);
+      assert.equal(position < 4, true);
+      buffer.fill(1, offset, offset + length);
+      return { bytesRead: length, buffer };
+    },
+    async close() {},
+  };
+  await assert.rejects(
+    () => readBoundedSnapshot("/growing-input.png", 2 * 1024 * 1024, { open: async () => handle }),
+    /InputChangedDuringRead/u,
+  );
+  assert.deepEqual(requestedLengths, [4]);
 });
 
 test("PR132 atomic output never replaces an existing file and removes partial temporaries", async () => {
