@@ -512,7 +512,7 @@ test("PR68 branch keeps protected package docs runtime and API surfaces unchange
   );
   assert.deepEqual(changed.filter((file) => file.startsWith("src/api/")), []);
   assert.deepEqual(
-    changed.filter((file) => isUnapprovedMcpChange(
+    changed.filter((file) => !isSharedApprovedFile(file) && isUnapprovedMcpChange(
       file,
       isPr72ApprovedChangeSet,
       isPr101ReplayChangeSet,

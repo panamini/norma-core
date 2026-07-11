@@ -8,9 +8,12 @@ in `2026-07-11-pr132-operator-validation-checkpoint.md`. That checkpoint
 records the exact commands and receipt, observation, selection, and canonical
 `result.json` identities; it does not claim authenticated human-review proof.
 
-This decision selects a private/developer-only ChatGPT + MCP visual pilot. It
-does not approve implementation, hosting, authentication, deployment, public
-access, or production data.
+This decision selected a private/developer-only ChatGPT + MCP visual pilot. At
+PR133 it did not approve implementation, hosting, authentication, deployment,
+public access, or production data. The separately approved PR134 contract now
+implements only the disabled local STDIO orchestration slice described below.
+It does not connect ChatGPT or approve any hosted, authenticated, remote, or
+production surface.
 
 ## Selected Journey
 
@@ -46,10 +49,11 @@ engine, geometry schema, Core path, report truth, or canonical result.
   derived only.
 - Metric policy and Structured Analyze semantics remain unchanged.
 
-## PR134 Approval Preconditions
+## PR134 Approval Preconditions Satisfied
 
-PR134 is HIGH risk and remains blocked until its exact implementation contract
-is separately approved. That contract must freeze:
+PR134 was HIGH risk and remained blocked until its exact implementation
+contract, `CC-PR134-PRIVATE-DEV-LOCAL-VISUAL-MCP-ORCHESTRATION-V2`, was
+separately approved. That contract froze:
 
 1. private/dev-only client and MCP transport boundary;
 2. exact tool inventory and closed request/response schemas;
@@ -64,12 +68,13 @@ is separately approved. That contract must freeze:
    to AcceptedGeometry and Core;
 10. an exact changed-file set and rollback path.
 
-## Allowed First Implementation Slice
+## Implemented PR134 Slice
 
-After separate approval, the smallest PR134 slice may add a private/dev,
-loopback/local-only MCP orchestration prototype that exposes only the minimum
-closed tools needed to inspect a candidate review job and continue an already
-explicitly finalized selection through the existing no-network path.
+After that separate approval, PR134 adds a private/dev, local-only STDIO MCP
+orchestration prototype with exactly two closed tools. One inspects a single
+operator-configured candidate review job. The other continues an already
+explicitly finalized selection through the existing PR129 no-network path.
+The general six-tool MCP inventory remains unchanged.
 
 It may use synthetic or explicitly non-sensitive local artifacts only. It must
 remain package-private, disabled by default, CI-network-free, and must not make
@@ -91,9 +96,11 @@ This gate does not approve:
 - Core schemas, AcceptedGeometry semantics, metric policy, or Structured Analyze
   behavior changes.
 
-## Validation Gate
+## Current Validation Gate
 
-PR133 is docs/tests-only. It must prove that private/dev ChatGPT + MCP is the
-single selected next track, that PR134 remains separately approval-gated, and
-that every runtime, hosted, auth, provider, publication, adapter, and truth
-surface above remains unapproved.
+PR133 remains the historical docs/tests-only selection gate. PR134 may prove
+only local STDIO orchestration with a real local MCP-compatible client and
+synthetic or explicitly non-sensitive artifacts. It must not claim a ChatGPT
+connection. Secure MCP Tunnel and ChatGPT developer-mode validation remain a
+separately approved HIGH-risk PR135, and every hosted, auth, provider,
+publication, adapter, and truth surface above remains unapproved.

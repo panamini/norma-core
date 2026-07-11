@@ -193,7 +193,10 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
   const packageLock = parseJson(packageLockPath);
   const runtimeSource = [readDoc(protocolSourcePath), readDoc(wrapperPath)].join("\n");
 
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of [

@@ -105,6 +105,7 @@ test("PR63 creates exactly the approved onboarding and examples docs", () => {
     "docs/examples/local-synthetic-evidence-acceptance-demo.md",
     "docs/examples/local-visual-candidate-review.md",
     "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+    "docs/examples/private-dev-local-visual-mcp.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
     "docs/examples/real-usecase-structured-layout-demo.md",

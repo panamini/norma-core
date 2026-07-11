@@ -32,6 +32,7 @@ import {
   isCleanBaseValidationContext,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
@@ -635,6 +636,7 @@ test("PR128 helper stays package-private and avoids external integration imports
 
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;

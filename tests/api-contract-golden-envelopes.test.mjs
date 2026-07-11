@@ -100,7 +100,10 @@ test("PR54 golden envelopes preserve version capabilities and replay structure",
 
 test("PR54 keeps runtime package deployment UI and MCP boundaries unchanged", async () => {
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(join(repoRoot, "bin", "norma-core-mcp-stdio.mjs")), true);
 
   const packageJson = parseJson(join(repoRoot, "package.json"));

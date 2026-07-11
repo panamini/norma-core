@@ -209,7 +209,10 @@ test("PR43 keeps current package metadata dependencies lockfile and MCP SDK unch
 });
 
 test("PR43 keeps runtime files local STDIO only and remote surfaces absent", () => {
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of [

@@ -277,7 +277,10 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
   assertNoMcpDependency(packageJson);
   assertNoMcpDependency(packageLock.packages[""]);
 
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of blockedDeploymentPaths) {

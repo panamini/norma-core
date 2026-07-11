@@ -317,7 +317,10 @@ test("PR56 leaves package metadata and dependencies unchanged", () => {
 
 test("PR56 leaves runtime deployment UI and root MCP remote docs unchanged", () => {
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
   assertPathsAbsent(blockedRuntimePackageUiDeploymentPaths);
 

@@ -1236,13 +1236,22 @@ plus the existing PR129 no-network resume path; ChatGPT, MCP arguments,
 prompts, attachments, candidate observations, overlays, and selection intent
 remain untrusted and non-authoritative.
 
-PR133 is docs/tests-only. It does not implement or approve a ChatGPT connector,
-ChatGPT App, MCP runtime, hosted/remote MCP, auth/OAuth, deployment, provider
-calls, uploads, package changes, CAD/Figma adapters, autonomous acceptance, or
-public launch. PR134 is HIGH risk and remains blocked until a separate exact
-implementation contract approves its tool schemas, local/loopback boundary,
-artifact ownership, redaction, retention, timeout, cancellation, concurrency,
-fail-closed behavior, no-network tests, exact changed files, and rollback path.
+PR133 was docs/tests-only and did not itself implement a connector or runtime.
+The separately approved PR134 contract now implements one disabled-by-default,
+package-private local STDIO MCP server for a single operator-configured visual
+review job. Its exact two-tool inventory can inspect the three fixed PR132
+artifacts and resume an already-finalized human selection through the existing
+PR129 no-network path. It does not add tools to the general MCP server, accept
+paths in tool calls, call a provider, select geometry, or connect ChatGPT.
+
+PR134 is local orchestration proof only. Its real-process tests cover MCP
+initialization, the initialized notification, exact tool listing, redacted
+inspection, stale-identity rejection, atomic no-overwrite resume, cancellation,
+timeouts, concurrency, and byte parity with the existing PR129 canonical
+`result.json`. The durable contract is
+`docs/decisions/2026-07-11-pr134-private-dev-local-visual-mcp-orchestration.md`.
+PR135 remains a separately approved HIGH-risk step for Secure MCP Tunnel and
+ChatGPT developer-mode validation; PR134 makes no ChatGPT connection claim.
 
 Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
 OAuth/auth, package publication, any new public exports, autonomous acceptance,

@@ -13,6 +13,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   sharedExactApprovedChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -689,6 +690,7 @@ test('PR76 keeps privacy, security, provider family, and PR77 authorization narr
 
 test('PR78 PR79 and PR80 branch changes stay limited to their approved contract surfaces', () => {
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changedFiles = branchChangedFilesExcludingSemgrepMaintenance();
   if (sharedExactApprovedChangedFiles(changedFiles) === null) {
     assertApprovedContractSurfaceChanges(changedFiles);

@@ -89,7 +89,10 @@ test("PR40 keeps package metadata dependencies and runtime boundary unchanged", 
   const packageLock = parseJson(packageLockPath);
   const runtimeSource = [readDoc(protocolSourcePath), readDoc(wrapperPath)].join("\n");
 
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(join(repoRoot, "bin", "norma-core-mcp-stdio.mjs")), true);
 
   for (const path of [

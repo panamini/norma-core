@@ -297,7 +297,10 @@ test("PR49 keeps package metadata dependencies lockfile API UI runtime and deplo
   assertNoMcpDependency(packageLock.packages[""]);
 
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of blockedRuntimeDeploymentApiUiPaths) {
