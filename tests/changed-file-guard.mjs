@@ -26,7 +26,6 @@ export const guardExactSetConsolidationChangedFiles = Object.freeze([
   "tests/beta-pilot-readiness-approval.test.mjs",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
-  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
   "tests/mcp-structured-composition-analysis-contract.test.mjs",
   "tests/onboarding-examples-approval.test.mjs",
   "tests/post-mvp-product-vision-approval.test.mjs",
@@ -70,6 +69,39 @@ export const localVisualCandidateReviewProductSurfaceChangedFiles = Object.freez
   "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
   "tests/pr129-operator-proof-checkpoint.test.mjs",
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
+export const localVisualCandidateReviewChangedFiles = Object.freeze([
+  "bin/norma-core-local-visual-candidate-selection-finalizer.mjs",
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+  "docs/examples/local-visual-candidate-review.md",
+  "src/local-report/local-visual-candidate-selection-intent.ts",
+  "tests/accepted-geometry-to-core-mapping-contract-approval.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/geometry-observation-perception-provider-contract-approval.test.mjs",
+  "tests/local-visual-candidate-review-product-surface.test.mjs",
+  "tests/local-visual-candidate-review.test.mjs",
+  "tests/local-visual-candidate-selection-intent.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+  "tests/post-mvp-product-vision-approval.test.mjs",
+  "tests/pr129-operator-proof-checkpoint.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/read-only-viewer-fixtures.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+  "viewer/local-visual-candidate-review.css",
+  "viewer/local-visual-candidate-review.html",
+  "viewer/local-visual-candidate-review.js",
 ].sort());
 
 const semgrepCiGuardMaintenanceFiles = new Set([
@@ -959,6 +991,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  localVisualCandidateReviewChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   cleanMainValidationAndPr129OperatorProofChangedFiles,
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,

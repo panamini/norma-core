@@ -1212,6 +1212,15 @@ explicit operator-confirmation flag. Existing PR129 `--resume` remains the only
 path to AcceptedGeometry, Core / Structured Analyze, and canonical
 `result.json`.
 
+PR132 implements that selected local-only review slice: the static browser
+surface verifies the exact bounded PNG before rendering candidate rectangles,
+starts with no selection, emits only a closed non-authoritative intent after
+explicit confirmation, and delegates final selection identity construction to
+a package-private Node finalizer. The finalizer revalidates the receipt,
+candidate envelope, PNG bytes, dimensions, identities, and candidate order;
+the existing PR129 `--resume` path remains unchanged and exclusive for
+AcceptedGeometry, Core / Structured Analyze, and canonical `result.json`.
+
 After PR132, one no-PR operator validation must confirm the visual review flow
 before the next external product-track decision. PR131 does not approve
 production provider integration, autonomous acceptance, package publication,
