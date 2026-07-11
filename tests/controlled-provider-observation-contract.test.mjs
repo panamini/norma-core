@@ -28,6 +28,7 @@ import {
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -381,6 +382,7 @@ test("PR124 helper is structural package-private and avoids forbidden dependenci
 test("PR124 no live provider call fixtures package metadata lockfiles or package root drift", async () => {
   const changedFiles = await gitDiffNames();
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
   const isPr124Set = isExactChangedFileSet(changedFiles, controlledProviderObservationContractChangedFiles);
@@ -398,7 +400,9 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
-  const expectedChangedFiles = isPr130Set
+  const expectedChangedFiles = isPr131Set
+    ? localVisualCandidateReviewProductSurfaceChangedFiles
+    : isPr130Set
     ? cleanMainValidationAndPr129OperatorProofChangedFiles
     : isPr129Set
     ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
@@ -412,7 +416,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
         ? controlledProviderObservationAcceptanceProofChangedFiles
         : controlledProviderObservationContractChangedFiles;
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
     controlledProviderObservationContractChangedFiles,

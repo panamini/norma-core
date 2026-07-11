@@ -26,6 +26,7 @@ import {
   disabledLiveProviderExperimentHarnessChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   realExternalEvidencePilotReadinessGateChangedFiles,
@@ -328,6 +329,7 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
   const isPr112Set = isExactChangedFileSet(changedFiles, syntheticEvidenceAcceptanceDemoChangedFiles);
@@ -382,6 +384,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
 
   assert.equal(
     isCleanBase ||
+      isPr131Set ||
       isPr130Set ||
       isPr111Set ||
       isPr112Set ||
@@ -408,6 +411,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   );
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
+  } else if (isPr131Set) {
+    assert.deepEqual(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   } else if (isPr130Set) {
     assert.deepEqual(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   } else if (isPr111Set) {
@@ -466,6 +471,12 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
 
   if (isCleanBase) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), []);
+  } else if (isPr131Set) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")).sort(), [
+      "docs/BUSINESS_READINESS_ROADMAP.md",
+      "docs/decisions/2026-07-10-pr129-operator-proof-checkpoint.md",
+      "docs/decisions/2026-07-11-local-visual-candidate-review-product-surface.md",
+    ]);
   } else if (isPr130Set) {
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")).sort(), [
       "docs/BUSINESS_READINESS_ROADMAP.md",

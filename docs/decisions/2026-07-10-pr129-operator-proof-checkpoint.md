@@ -29,6 +29,12 @@ public product readiness.
 
 ## Next Decision
 
-The next phase is `productization decision`. PR131 must choose exactly one first
-visual pilot product surface without treating this proof as approval for any
-candidate track.
+PR131 completed the `productization decision`: it selected the separate local
+static visual candidate review and explicit-selection surface. That selection
+does not approve any deferred candidate track.
+
+The next implementation step is PR132, as bounded by
+`2026-07-11-local-visual-candidate-review-product-surface.md`. It may implement
+only the selected local review slice and must retain the existing PR129
+no-network `--resume` path as the only route from explicit selection to
+AcceptedGeometry, Core / Structured Analyze, and canonical `result.json`.

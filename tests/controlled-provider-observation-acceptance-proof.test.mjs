@@ -25,6 +25,7 @@ import {
   explicitAcceptedObservationToCoreHandoffChangedFiles,
   isExactChangedFileSet,
   isCleanBaseValidationContext,
+  localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
@@ -444,6 +445,7 @@ test("PR125 helper is package-private and avoids forbidden execution dependencie
 test("PR125 changed files stay exact and reject forbidden extras", () => {
   const changedFiles = branchChangedFiles(repoRoot);
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr125Set = isExactChangedFileSet(
     changedFiles,
@@ -459,7 +461,9 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   );
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
-  const expectedChangedFiles = isPr130Set
+  const expectedChangedFiles = isPr131Set
+    ? localVisualCandidateReviewProductSurfaceChangedFiles
+    : isPr130Set
     ? cleanMainValidationAndPr129OperatorProofChangedFiles
     : isPr129Set
     ? controlledLocalLiveVisualCandidateObservationDemoChangedFiles
@@ -471,7 +475,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isCleanBase || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set, true);
+  assert.equal(isCleanBase || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,
