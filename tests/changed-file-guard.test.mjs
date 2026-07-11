@@ -18,6 +18,7 @@ import {
   controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevChatGptMcpVisualPilotGateChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
   controlledProviderObservationContractChangedFiles,
@@ -122,6 +123,18 @@ import {
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
   assert.deepEqual(sharedExactApprovedChangedFiles(r7StructuredAnalyzeHardeningChangedFiles), r7StructuredAnalyzeHardeningChangedFiles);
+});
+
+test("shared exact changed-file guard accepts only the PR133 private/dev ChatGPT MCP gate set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(privateDevChatGptMcpVisualPilotGateChangedFiles),
+    privateDevChatGptMcpVisualPilotGateChangedFiles,
+  );
+  assert.equal(sharedExactApprovedChangedFiles(privateDevChatGptMcpVisualPilotGateChangedFiles.slice(1)), null);
+  for (const extra of [
+    "src/mcp/http-server.ts", "src/chatgpt/connector.ts", "src/auth/oauth.ts", "src/providers/openai.ts",
+    "src/index.ts", "package.json", "package-lock.json", ".github/workflows/ci.yml", "wiki/hot.md",
+  ]) assert.equal(sharedExactApprovedChangedFiles([...privateDevChatGptMcpVisualPilotGateChangedFiles, extra]), null, extra);
 });
 
 test("shared exact changed-file guard accepts the PR81 AcceptedGeometry-to-Core mapper set exactly", () => {
@@ -2212,6 +2225,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPr133Set = isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles);
   const isPr132Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
@@ -2231,7 +2245,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2239,7 +2253,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr132Set
+    isPr133Set
+      ? privateDevChatGptMcpVisualPilotGateChangedFiles
+      : isPr132Set
       ? localVisualCandidateReviewChangedFiles
       : isPr131Set
       ? localVisualCandidateReviewProductSurfaceChangedFiles

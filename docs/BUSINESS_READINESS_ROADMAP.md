@@ -1226,6 +1226,21 @@ before the next external product-track decision. PR131 does not approve
 production provider integration, autonomous acceptance, package publication,
 public product readiness, or any deferred product track.
 
+That no-network operator validation is now complete. PR133 selects the
+private/developer-only ChatGPT + MCP visual pilot as the single next external
+product track. The selected journey must reuse the PR132 review and explicit
+selection boundary plus the existing PR129 no-network resume path; ChatGPT,
+MCP arguments, prompts, attachments, candidate observations, overlays, and
+selection intent remain untrusted and non-authoritative.
+
+PR133 is docs/tests-only. It does not implement or approve a ChatGPT connector,
+ChatGPT App, MCP runtime, hosted/remote MCP, auth/OAuth, deployment, provider
+calls, uploads, package changes, CAD/Figma adapters, autonomous acceptance, or
+public launch. PR134 is HIGH risk and remains blocked until a separate exact
+implementation contract approves its tool schemas, local/loopback boundary,
+artifact ownership, redaction, retention, timeout, cancellation, concurrency,
+fail-closed behavior, no-network tests, exact changed files, and rollback path.
+
 Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
 OAuth/auth, package publication, any new public exports, autonomous acceptance,
 production data, real-user data, and public launch remain unapproved.

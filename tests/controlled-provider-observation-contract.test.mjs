@@ -29,6 +29,7 @@ import {
   isExactChangedFileSet,
   isCleanBaseValidationContext,
   localVisualCandidateReviewChangedFiles,
+  privateDevChatGptMcpVisualPilotGateChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -382,6 +383,7 @@ test("PR124 helper is structural package-private and avoids forbidden dependenci
 
 test("PR124 no live provider call fixtures package metadata lockfiles or package root drift", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
