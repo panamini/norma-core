@@ -94,4 +94,3 @@ PR133 is docs/tests-only. It must prove that private/dev ChatGPT + MCP is the
 single selected next track, that PR134 remains separately approval-gated, and
 that every runtime, hosted, auth, provider, publication, adapter, and truth
 surface above remains unapproved.
-
