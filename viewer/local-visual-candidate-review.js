@@ -21,7 +21,8 @@ export function validateCandidateObservationForReview(value) {
   const sourceImage = requireRecord(candidate.sourceImage, "source image");
   requireFields(sourceImage, ["contentIdentity", "rawImagePersisted", "base64Persisted", "localPathPersisted", "urlPersisted"], "source image");
   if (!SHA256_PATTERN.test(sourceImage.contentIdentity)
-    || [sourceImage.rawImagePersisted, sourceImage.base64Persisted, sourceImage.localPathPersisted, sourceImage.urlPersisted].some(Boolean)) {
+    || [sourceImage.rawImagePersisted, sourceImage.base64Persisted, sourceImage.localPathPersisted, sourceImage.urlPersisted]
+      .some((persisted) => persisted !== false)) {
     throw new Error("Invalid source image boundary.");
   }
   const provenance = requireRecord(candidate.provenance, "provenance");

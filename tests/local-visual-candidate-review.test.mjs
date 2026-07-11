@@ -123,6 +123,16 @@ test("PR132 browser validation rejects drift in every fixed evidence boundary", 
   }
 });
 
+test("PR132 browser requires source-image persistence flags to be exactly false", () => {
+  for (const field of ["rawImagePersisted", "base64Persisted", "localPathPersisted", "urlPersisted"]) {
+    for (const invalidValue of [0, null, ""]) {
+      const value = candidateObservation();
+      value.sourceImage[field] = invalidValue;
+      assert.throws(() => validateCandidateObservationForReview(value), /source image boundary/u, `${field}: ${String(invalidValue)}`);
+    }
+  }
+});
+
 function candidateObservation() {
   return {
     contractId: "norma.local-visual-candidate-observation@1",

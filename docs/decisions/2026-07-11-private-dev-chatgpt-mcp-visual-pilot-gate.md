@@ -3,7 +3,10 @@
 ## Status
 
 Approved as the next gated product track after the merged PR132 local visual
-candidate review surface and its clean no-network operator validation.
+candidate review surface and the deterministic no-network validation recorded
+in `2026-07-11-pr132-operator-validation-checkpoint.md`. That checkpoint
+records the exact commands and receipt, observation, selection, and canonical
+`result.json` identities; it does not claim authenticated human-review proof.
 
 This decision selects a private/developer-only ChatGPT + MCP visual pilot. It
 does not approve implementation, hosting, authentication, deployment, public
