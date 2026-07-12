@@ -36,5 +36,5 @@ test("PR133 and the roadmap cite the durable PR132 evidence without overstating 
     assert.match(text, /not\s+authenticated human-review proof|does not claim authenticated human-review proof/u);
   }
   assert.match(checkpoint, /Existing PR129 `--resume` remains the only\s+route to AcceptedGeometry/u);
-  assert.match(decision, /PR134 is HIGH risk and remains blocked/u);
+  assert.match(decision, /PR134 was HIGH risk and remained blocked until its exact implementation\s+contract/u);
 });

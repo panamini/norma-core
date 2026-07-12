@@ -15,6 +15,7 @@ import {
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -369,6 +370,7 @@ test("PR62-approved onboarding and example documentation paths are exact", () =>
     "docs/examples/local-synthetic-evidence-acceptance-demo.md",
     "docs/examples/local-visual-candidate-review.md",
     "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+    "docs/examples/private-dev-local-visual-mcp.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
     "docs/examples/real-usecase-structured-layout-demo.md",
@@ -478,6 +480,10 @@ test("PR62 keeps runtime API MCP UI package and deployment surfaces blocked", ()
 
 test("approval changed-file scope remains protected after PR62", () => {
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(
+    branchChangedFiles(repoRoot),
+    privateDevLocalVisualMcpOrchestrationChangedFiles,
+  )) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedFiles = approvedChangedFilesFor(changed);
   const protectedAllowlist = exactApprovedChangedFiles(changed) ?? [];

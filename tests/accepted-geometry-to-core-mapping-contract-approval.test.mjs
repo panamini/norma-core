@@ -15,6 +15,7 @@ import {
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const modulePath = modulePathFromUrl(import.meta.url);
@@ -366,6 +367,7 @@ test("PR80 keeps synthetic-only boundary and PR81 scope narrow", () => {
 
 test("PR80 branch changes stay limited to the approved doc test and exact guards", () => {
   if (isExactChangedFileSet(branchChangedFiles(repositoryRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repositoryRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   if (changed.length === 0) {
     return;
@@ -419,6 +421,7 @@ function exactProtectedAllowlist(changed) {
 
 test("PR80 keeps protected runtime package fixture README and CI surfaces unchanged", () => {
   if (isExactChangedFileSet(branchChangedFiles(repositoryRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repositoryRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const sharedApproved = sharedExactApprovedChangedFiles(changed);
   const protectedAllowlist = sharedApproved ?? exactProtectedAllowlist(changed);

@@ -28,6 +28,7 @@ import {
   isCleanBaseValidationContext,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
@@ -331,6 +332,7 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;

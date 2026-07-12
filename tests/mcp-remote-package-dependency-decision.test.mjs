@@ -210,7 +210,10 @@ test("PR42 keeps package metadata lockfile dependencies and MCP SDK unchanged", 
 });
 
 test("PR42 keeps runtime files local STDIO only with no remote package-driven behavior", () => {
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of [

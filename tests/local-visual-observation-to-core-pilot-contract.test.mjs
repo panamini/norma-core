@@ -14,6 +14,7 @@ import {
   isCleanBaseValidationContext,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
@@ -1094,6 +1095,7 @@ test("roadmap records PR121 through PR126 and the compressed PR127 to PR129 fini
 
 test("PR127 changed-file guard accepts only the triggered docs tests and legacy exact-set maintenance set", () => {
   const activeChangedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(activeChangedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, localVisualCandidateReviewChangedFiles)) return;

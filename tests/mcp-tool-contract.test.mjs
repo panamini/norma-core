@@ -194,7 +194,10 @@ test("PR33 MCP contract keeps package metadata unchanged", () => {
 });
 
 test("PR34 MCP contract permits only the approved local STDIO skeleton files", () => {
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
 
   for (const path of [
     "src/mcp/stdio-protocol.ts",
@@ -398,7 +401,10 @@ test("PR39 MCP contract references the remote threat model and keeps remote MCP 
   ]);
 
   assert.deepEqual(toolsListResponse.result.tools.map((tool) => tool.name), currentRuntimeTools);
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(Object.hasOwn(packageJson, "bin"), false);
   assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
   assertNoMcpDependency(packageJson);

@@ -477,7 +477,10 @@ test("PR51 keeps package runtime deployment API and UI surfaces absent or unchan
 
   assertPackageBoundary(packageJson, packageLock);
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
   assertPathsAbsent(blockedRuntimeDeploymentApiUiPaths);
   assertMcpBoundaryHasNoRemoteRuntimeSurface();

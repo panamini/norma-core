@@ -48,6 +48,7 @@ import {
   isExactChangedFileSet,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -1574,6 +1575,7 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;

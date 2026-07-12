@@ -312,7 +312,10 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must remain absent`);
   }
 
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
 
   const mcp = await loadMcpModule();
   const toolsList = parseMcpResponse(

@@ -15,6 +15,7 @@ import {
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
@@ -436,6 +437,7 @@ test("PR60 preserves mandatory future result visibility", () => {
 
 test("PR60 permits only approval files or approved future prototype files after merge", () => {
   if (isExactChangedFileSet(branchChangedFiles(root), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(root), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const approvedChangedPaths = approvedChangedPathsFor(changed);
   const forbiddenAllowlist = exactApprovedChangedFiles(changed) ?? [];

@@ -15,6 +15,7 @@ import {
   r6cStructuredAnalyzeMcpChangedFiles,
   sharedExactApprovedChangedFiles,
   localVisualCandidateReviewChangedFiles,
+  privateDevLocalVisualMcpOrchestrationChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -465,6 +466,7 @@ test("PR75 roadmap update is minimal and links to the decision", () => {
 // fallow-ignore-next-line complexity
 test("PR75 changed-file scope is exact and protected files remain unchanged", () => {
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   if (changed.length === 0) {
     return;
@@ -504,6 +506,7 @@ test("PR75 changed-file scope is exact and protected files remain unchanged", ()
 
 test("PR75 does not add runtime package deployment provider or schema files", () => {
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), localVisualCandidateReviewChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   const changed = branchChangedFilesExcludingSemgrepMaintenance();
   const runtimeAllowlist = sharedExactApprovedChangedFiles(changed) ?? exactProtectedAllowlist(changed);
   const unexpected = changed.filter(

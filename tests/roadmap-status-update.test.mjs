@@ -765,7 +765,10 @@ test("PR48 keeps package metadata dependencies lockfile and MCP SDK unchanged", 
 });
 
 test("PR48 keeps runtime and deployment surfaces absent in the MCP boundary", () => {
-  assert.deepEqual(filesUnder("src/mcp"), ["src/mcp/stdio-protocol.ts"]);
+  assert.deepEqual(filesUnder("src/mcp"), [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+  ]);
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of blockedRuntimeAndDeploymentPaths) {
