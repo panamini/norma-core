@@ -329,6 +329,68 @@ test("PR134 protocol enforces lifecycle, busy state, cancellation, and deadlines
   assert.equal(oversizedString.error.code, -32600);
 });
 
+test("PR134 accepts initialized metadata and omitted arguments for the empty inspect tool", async () => {
+  let inspectCalls = 0;
+  const protocol = new PrivateDevLocalVisualMcpProtocolV1({
+    inspect: async () => {
+      inspectCalls += 1;
+      return { status: "ready_to_resume" };
+    },
+    resume: async () => assert.fail("resume must not run without its required arguments"),
+  });
+
+  await protocol.handleLine(JSON.stringify(initializeRequest(1)));
+  assert.equal(await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    method: "notifications/initialized",
+    params: { _meta: { "test/client": "pr134" } },
+  })), null);
+
+  const inspected = JSON.parse(await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 2,
+    method: "tools/call",
+    params: { name: PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL },
+  })));
+  assert.equal(inspected.result.isError, false);
+  assert.equal(inspected.result.structuredContent.status, "ready_to_resume");
+  assert.equal(inspectCalls, 1);
+
+  const invalidResume = JSON.parse(await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 3,
+    method: "tools/call",
+    params: { name: PRIVATE_DEV_LOCAL_VISUAL_MCP_RESUME_TOOL },
+  })));
+  assert.equal(invalidResume.error.code, -32602);
+});
+
+test("PR134 final publish fails closed if the output directory appears at commit time", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "norma-pr134-publish-race-")));
+  let committed = false;
+  try {
+    await assert.rejects(
+      () => writePrivateDevLocalVisualMcpArtifactsAtomically(
+        root,
+        { "summary.json": "{}\n", "result.json": "{}\n" },
+        new AbortController().signal,
+        () => { committed = true; },
+        {
+          rename: async (source, destination) => {
+            await mkdir(destination);
+            return rename(source, destination);
+          },
+        },
+      ),
+      (error) => error?.code === "output_exists",
+    );
+    assert.equal(committed, false);
+    await assert.rejects(readFile(join(root, "norma-output", "result.json"), "utf8"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("PR134 cancellation and write failures remove staging without publishing output", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "norma-pr134-write-")));
   try {

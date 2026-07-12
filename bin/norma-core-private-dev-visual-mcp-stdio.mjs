@@ -4,9 +4,11 @@ import {
   lstat,
   mkdir,
   open,
+  readdir,
   realpath,
   rename,
   rm,
+  rmdir,
 } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -237,6 +239,8 @@ async function writePrivateDevLocalVisualMcpArtifactsAtomically(
   const lockDirectory = join(jobRoot, OUTPUT_LOCK_NAME);
   const stagingDirectory = join(jobRoot, `.norma-output.staging-${randomUUID()}`);
   let lockHeld = false;
+  let outputReservationIdentity;
+  let published = false;
   try {
     throwIfAborted(signal);
     await requireCurrentJobRoot(jobRoot, options.expectedJobRootIdentity, options);
@@ -274,7 +278,21 @@ async function writePrivateDevLocalVisualMcpArtifactsAtomically(
     throwIfAborted(signal);
     await requireCurrentJobRoot(jobRoot, options.expectedJobRootIdentity, options);
     await requireOutputAbsent(outputDirectory, options);
+    if ((options.platform ?? process.platform) !== "win32") {
+      await makeDirectory(outputDirectory, { recursive: false, mode: 0o700 });
+      const reservation = await (options.lstat ?? lstat)(outputDirectory);
+      if (reservation.isSymbolicLink() || !reservation.isDirectory()) {
+        throw toolError("output_exists");
+      }
+      outputReservationIdentity = { dev: reservation.dev, ino: reservation.ino };
+      await requireOwnedEmptyDirectory(
+        outputDirectory,
+        outputReservationIdentity,
+        options,
+      );
+    }
     await move(stagingDirectory, outputDirectory);
+    published = true;
     markCommitted();
   } catch (error) {
     if (error?.code === "EEXIST" || error?.code === "ENOTEMPTY") {
@@ -290,10 +308,39 @@ async function writePrivateDevLocalVisualMcpArtifactsAtomically(
     ).then(() => true, () => false);
     if (cleanupAllowed) {
       await remove(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+      if (!published && outputReservationIdentity !== undefined) {
+        await removeOwnedEmptyDirectory(
+          outputDirectory,
+          outputReservationIdentity,
+          options,
+        );
+      }
       if (lockHeld) {
         await remove(lockDirectory, { recursive: true, force: true }).catch(() => undefined);
       }
     }
+  }
+}
+
+async function requireOwnedEmptyDirectory(path, expectedIdentity, options) {
+  const info = await (options.lstat ?? lstat)(path);
+  if (info.isSymbolicLink() || !info.isDirectory()
+    || info.dev !== expectedIdentity.dev || info.ino !== expectedIdentity.ino
+    || (await (options.readdir ?? readdir)(path)).length !== 0) {
+    throw toolError("output_exists");
+  }
+}
+
+async function removeOwnedEmptyDirectory(path, expectedIdentity, options) {
+  try {
+    const info = await (options.lstat ?? lstat)(path);
+    if (info.isSymbolicLink() || !info.isDirectory()
+      || info.dev !== expectedIdentity.dev || info.ino !== expectedIdentity.ino) {
+      return;
+    }
+    await (options.rmdir ?? rmdir)(path);
+  } catch {
+    // Preserve a substituted or non-empty directory rather than deleting unowned data.
   }
 }
 

@@ -321,7 +321,7 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
   private handleNotification(message: Record<string, unknown>): void {
     if (message.method === "notifications/initialized"
       && this.lifecycle === "await_initialized"
-      && isEmptyOptionalParams(message.params, Object.hasOwn(message, "params"))) {
+      && isInitializedNotificationParams(message.params, Object.hasOwn(message, "params"))) {
       this.lifecycle = "ready";
       return;
     }
@@ -485,11 +485,18 @@ function parseResumeInput(value: Record<string, unknown>): PrivateDevLocalVisual
 }
 
 function parseToolCall(value: unknown): ParsedToolCall | null {
-  if (!isRecord(value) || !hasExactFields(value, ["name", "arguments"])
-    || typeof value.name !== "string" || !isRecord(value.arguments)) {
+  if (!isRecord(value) || typeof value.name !== "string") {
     return null;
   }
-  return { name: value.name, arguments: value.arguments };
+  const hasArguments = Object.hasOwn(value, "arguments");
+  if ((!hasArguments && !hasExactFields(value, ["name"]))
+    || (hasArguments && (!hasExactFields(value, ["name", "arguments"])
+      || !isRecord(value.arguments)))) {
+    return null;
+  }
+  const argumentsValue = hasArguments ? value.arguments : {};
+  if (!isRecord(argumentsValue)) return null;
+  return { name: value.name, arguments: argumentsValue };
 }
 
 function isKnownTool(name: string): boolean {
@@ -514,8 +521,11 @@ function isValidToolsListParams(value: unknown, hasParams: boolean): boolean {
     || (hasExactFields(value, ["cursor"]) && typeof value.cursor === "string");
 }
 
-function isEmptyOptionalParams(value: unknown, hasParams: boolean): boolean {
-  return !hasParams || (isRecord(value) && Object.keys(value).length === 0);
+function isInitializedNotificationParams(value: unknown, hasParams: boolean): boolean {
+  if (!hasParams) return true;
+  if (!isRecord(value)) return false;
+  if (Object.keys(value).length === 0) return true;
+  return hasExactFields(value, ["_meta"]) && isRecord(value._meta);
 }
 
 function hasExactFields(value: Record<string, unknown>, fields: readonly string[]): boolean {
