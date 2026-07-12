@@ -253,7 +253,7 @@ async function writePrivateDevLocalVisualMcpArtifactsAtomically(
     lockHeld = true;
     await requireCurrentJobRoot(jobRoot, options.expectedJobRootIdentity, options);
     await requireOutputAbsent(outputDirectory, options);
-    await makeDirectory(stagingDirectory, { recursive: false });
+    await makeDirectory(stagingDirectory, { recursive: false, mode: 0o700 });
 
     const entries = Object.entries(artifacts);
     if (entries.length === 0 || typeof artifacts["result.json"] !== "string") {

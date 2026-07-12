@@ -3,6 +3,7 @@ import { once } from "node:events";
 import {
   mkdtemp,
   mkdir,
+  lstat,
   readFile,
   readdir,
   realpath,
@@ -129,6 +130,9 @@ test("PR134 real STDIO lifecycle inspects then resumes with exact PR129 result p
 
     const outputFiles = (await readdir(join(job.root, "norma-output"))).sort();
     assert.deepEqual(outputFiles, result.artifacts);
+    if (process.platform !== "win32") {
+      assert.equal((await lstat(join(job.root, "norma-output"))).mode & 0o777, 0o700);
+    }
     assert.equal(
       await readFile(join(job.root, "norma-output", "result.json"), "utf8"),
       direct.artifacts["result.json"],
@@ -350,7 +354,10 @@ test("PR134 accepts initialized metadata and omitted arguments for the empty ins
     jsonrpc: "2.0",
     id: 2,
     method: "tools/call",
-    params: { name: PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL },
+    params: {
+      name: PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+      _meta: { progressToken: "pr134-inspect-progress" },
+    },
   })));
   assert.equal(inspected.result.isError, false);
   assert.equal(inspected.result.structuredContent.status, "ready_to_resume");
@@ -363,6 +370,109 @@ test("PR134 accepts initialized metadata and omitted arguments for the empty ins
     params: { name: PRIVATE_DEV_LOCAL_VISUAL_MCP_RESUME_TOOL },
   })));
   assert.equal(invalidResume.error.code, -32602);
+});
+
+test("PR134 deadline responds while non-cooperative runtime work remains busy", async () => {
+  let releaseStalledInspect;
+  let inspectCalls = 0;
+  const stalledInspect = new Promise((resolve) => { releaseStalledInspect = resolve; });
+  const protocol = new PrivateDevLocalVisualMcpProtocolV1({
+    inspect: async () => {
+      inspectCalls += 1;
+      if (inspectCalls === 1) return stalledInspect;
+      return { status: "ready_to_resume" };
+    },
+    resume: async () => assert.fail("resume must not run"),
+  }, { toolTimeoutMs: 10 });
+  await protocol.handleLine(JSON.stringify(initializeRequest(1)));
+  await protocol.handleLine(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }));
+
+  let responseGuard;
+  const deadlineResponse = await Promise.race([
+    protocol.handleLine(JSON.stringify(toolCall(
+      2,
+      PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+      {},
+    ))),
+    new Promise((_, reject) => {
+      responseGuard = setTimeout(
+        () => reject(new Error("non-cooperative runtime exceeded protocol deadline")),
+        500,
+      );
+    }),
+  ]).finally(() => clearTimeout(responseGuard));
+  const deadline = JSON.parse(deadlineResponse);
+  assert.equal(deadline.result.isError, true);
+  assert.equal(deadline.result.structuredContent.code, "deadline_exceeded");
+
+  const busy = JSON.parse(await protocol.handleLine(JSON.stringify(toolCall(
+    3,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    {},
+  ))));
+  assert.equal(busy.result.structuredContent.code, "job_busy");
+
+  releaseStalledInspect({ status: "late_result_must_be_discarded" });
+  await new Promise((resolve) => setImmediate(resolve));
+  const recovered = JSON.parse(await protocol.handleLine(JSON.stringify(toolCall(
+    4,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    {},
+  ))));
+  assert.equal(recovered.result.isError, false);
+  assert.equal(recovered.result.structuredContent.status, "ready_to_resume");
+
+  const synchronousProtocol = new PrivateDevLocalVisualMcpProtocolV1({
+    inspect: () => {
+      const stopAt = Date.now() + 20;
+      while (Date.now() < stopAt) {
+        // Exercise elapsed-time classification after a bounded synchronous section.
+      }
+      return Promise.resolve({ status: "must_not_be_reported_as_success" });
+    },
+    resume: async () => assert.fail("resume must not run"),
+  }, { toolTimeoutMs: 5 });
+  await synchronousProtocol.handleLine(JSON.stringify(initializeRequest(1)));
+  await synchronousProtocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0", method: "notifications/initialized",
+  }));
+  const synchronousDeadline = JSON.parse(await synchronousProtocol.handleLine(JSON.stringify(toolCall(
+    2,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    {},
+  ))));
+  assert.equal(synchronousDeadline.result.isError, true);
+  assert.equal(synchronousDeadline.result.structuredContent.code, "deadline_exceeded");
+});
+
+test("PR134 converts synchronous runtime failures and releases the active call", async () => {
+  let inspectCalls = 0;
+  const protocol = new PrivateDevLocalVisualMcpProtocolV1({
+    inspect: () => {
+      inspectCalls += 1;
+      if (inspectCalls === 1) throw new Error("unsafe runtime detail");
+      return Promise.resolve({ status: "ready_to_resume" });
+    },
+    resume: async () => assert.fail("resume must not run"),
+  });
+  await protocol.handleLine(JSON.stringify(initializeRequest(1)));
+  await protocol.handleLine(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }));
+
+  const failed = JSON.parse(await protocol.handleLine(JSON.stringify(toolCall(
+    2,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    {},
+  ))));
+  assert.equal(failed.result.isError, true);
+  assert.equal(failed.result.structuredContent.code, "internal_error");
+  assert.doesNotMatch(JSON.stringify(failed), /unsafe runtime detail/u);
+
+  const recovered = JSON.parse(await protocol.handleLine(JSON.stringify(toolCall(
+    3,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    {},
+  ))));
+  assert.equal(recovered.result.isError, false);
 });
 
 test("PR134 final publish fails closed if the output directory appears at commit time", async () => {

@@ -358,33 +358,61 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
       committed: false,
     };
     this.activeCall = active;
+    const deadlineAt = Date.now() + this.toolTimeoutMs;
     const timeout = setTimeout(() => {
       active.timedOut = true;
       controller.abort("deadline_exceeded");
     }, this.toolTimeoutMs);
 
-    try {
-      const result = call.name === PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL
-        ? await this.runtime.inspect(controller.signal)
-        : await this.runtime.resume(
+    const runtimeWork = (async (): Promise<
+      PrivateDevLocalVisualMcpInspectionV1 | PrivateDevLocalVisualMcpResumeResultV1
+    > => (
+      call.name === PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL
+        ? this.runtime.inspect(controller.signal)
+        : this.runtime.resume(
             parsedInput as PrivateDevLocalVisualMcpResumeRequestV1,
             controller.signal,
             () => { active.committed = true; },
-          );
+          )
+    ))();
+    const workOutcome = runtimeWork.then(
+      (result) => ({ kind: "fulfilled" as const, result }),
+      (error: unknown) => ({ kind: "rejected" as const, error }),
+    );
+    let onAbort: (() => void) | undefined;
+    const abortOutcome = new Promise<{ readonly kind: "aborted" }>((resolve) => {
+      onAbort = () => resolve({ kind: "aborted" });
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+    const outcome = await Promise.race([workOutcome, abortOutcome]);
+    if (outcome.kind !== "aborted" && Date.now() >= deadlineAt && !active.committed) {
+      active.timedOut = true;
+      controller.abort("deadline_exceeded");
+    }
+    clearTimeout(timeout);
+    if (onAbort !== undefined) controller.signal.removeEventListener("abort", onAbort);
+
+    if (outcome.kind === "aborted") {
+      void workOutcome.then(() => {
+        if (this.activeCall === active) this.activeCall = undefined;
+      });
+      return active.timedOut
+        ? createToolResponse(id, call.name, createToolError(call.name, "deadline_exceeded"), true)
+        : null;
+    }
+
+    if (this.activeCall === active) this.activeCall = undefined;
+    if (outcome.kind === "fulfilled") {
       if (controller.signal.aborted && !active.committed) {
         return active.timedOut
           ? createToolResponse(id, call.name, createToolError(call.name, "deadline_exceeded"), true)
           : null;
       }
-      return createToolResponse(id, call.name, result, false);
-    } catch (error) {
-      if (controller.signal.aborted && !active.timedOut && !active.committed) return null;
-      const code = active.timedOut ? "deadline_exceeded" : safeToolErrorCode(error);
-      return createToolResponse(id, call.name, createToolError(call.name, code), true);
-    } finally {
-      clearTimeout(timeout);
-      if (this.activeCall === active) this.activeCall = undefined;
+      return createToolResponse(id, call.name, outcome.result, false);
     }
+    if (controller.signal.aborted && !active.timedOut && !active.committed) return null;
+    const code = active.timedOut ? "deadline_exceeded" : safeToolErrorCode(outcome.error);
+    return createToolResponse(id, call.name, createToolError(call.name, code), true);
   }
 }
 
@@ -488,10 +516,12 @@ function parseToolCall(value: unknown): ParsedToolCall | null {
   if (!isRecord(value) || typeof value.name !== "string") {
     return null;
   }
+  if (Object.keys(value).some((key) => !["name", "arguments", "_meta"].includes(key))
+    || (Object.hasOwn(value, "_meta") && !isRecord(value._meta))) {
+    return null;
+  }
   const hasArguments = Object.hasOwn(value, "arguments");
-  if ((!hasArguments && !hasExactFields(value, ["name"]))
-    || (hasArguments && (!hasExactFields(value, ["name", "arguments"])
-      || !isRecord(value.arguments)))) {
+  if (hasArguments && !isRecord(value.arguments)) {
     return null;
   }
   const argumentsValue = hasArguments ? value.arguments : {};
