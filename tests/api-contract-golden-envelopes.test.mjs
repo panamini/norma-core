@@ -137,7 +137,6 @@ test("PR54 keeps runtime package deployment UI and MCP boundaries unchanged", as
     "netlify.toml",
     "wrangler.toml",
     "fly.toml",
-    "render.yaml",
     "Procfile",
     "nginx.conf",
     "Caddyfile",

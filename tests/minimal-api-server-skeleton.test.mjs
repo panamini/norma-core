@@ -305,7 +305,6 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
     "netlify.toml",
     "wrangler.toml",
     "fly.toml",
-    "render.yaml",
     "Procfile",
     "nginx.conf",
     "Caddyfile",

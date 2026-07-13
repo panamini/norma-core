@@ -48,7 +48,6 @@ const blockedDeploymentPaths = [
   ".env.example",
   "fly.toml",
   "railway.json",
-  "render.yaml",
   "netlify.toml",
   "vercel.json",
   "wrangler.toml",

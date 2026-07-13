@@ -1281,6 +1281,15 @@ It supersedes historical future-work sequencing and blocked defaults in PR39
 through PR51 where they conflict, while preserving those documents as
 historical records.
 
+`CC-PR138-RENDER-PRIVATE-BETA-DEPLOYMENT-PACKAGE-V1 v1` is the
+repository-only deployment package for the next serialized leaf. It adds one
+reviewable Render Blueprint with `autoDeployTrigger: off` and the operator
+runbook at `docs/REMOTE_MCP_PRIVATE_BETA_RUNBOOK.md`. This repository slice
+creates no Auth0 tenant, Render service, ChatGPT connector, or spend. The exact
+external gate is `CC-PR138-RENDER-AUTH0-PRIVATE-BETA-LIVE-V1 v1`; until that
+separate confirmation is received and the seven-day thresholds are met,
+PR138 is not live-complete and PR139 remains blocked.
+
 PR136 is docs/contract-tests only. It approves the exact PR137 boundary but
 adds no runtime, dependency, deployment configuration, secret, external
 resource, connector, or public submission.

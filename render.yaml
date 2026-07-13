@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: norma-core-remote-mcp-beta
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: main
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: "npm ci --ignore-scripts --include=dev && npm run build && npm prune --omit=dev --ignore-scripts"
+    startCommand: "node bin/norma-core-remote-mcp-http.mjs"
+    healthCheckPath: /readyz
+    maxShutdownDelaySeconds: 15
+    maintenanceMode:
+      enabled: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.1
+      - key: NODE_ENV
+        value: production
+      - key: NORMA_MCP_PUBLIC_URL
+        sync: false
+      - key: NORMA_MCP_AUTH0_ISSUER
+        sync: false
+      - key: NORMA_MCP_AUTH0_AUDIENCE
+        sync: false
+      - key: NORMA_MCP_AUDIT_HASH_KEY
+        generateValue: true

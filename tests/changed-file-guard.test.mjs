@@ -24,6 +24,7 @@ import {
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
+  remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
@@ -279,6 +280,36 @@ test("shared exact changed-file guard accepts only the PR137A quota isolation ho
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the PR138 Render private-beta package set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(remoteMcpRenderPrivateBetaDeploymentChangedFiles),
+    remoteMcpRenderPrivateBetaDeploymentChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(remoteMcpRenderPrivateBetaDeploymentChangedFiles.slice(1)),
+    null,
+  );
+  for (const extra of [
+    "src/mcp/remote-http-server.ts",
+    "package.json",
+    "package-lock.json",
+    ".env",
+    ".github/workflows/deploy.yml",
+    "src/providers/openai.ts",
+    "src/chatgpt/connector.ts",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...remoteMcpRenderPrivateBetaDeploymentChangedFiles,
         extra,
       ]),
       null,
@@ -2387,6 +2418,10 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPr138Set = isExactChangedFileSet(
+    changedFiles,
+    remoteMcpRenderPrivateBetaDeploymentChangedFiles,
+  );
   const isPr137aSet = isExactChangedFileSet(
     changedFiles,
     permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -2419,7 +2454,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2427,7 +2462,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr137aSet
+    isPr138Set
+      ? remoteMcpRenderPrivateBetaDeploymentChangedFiles
+      : isPr137aSet
       ? permanentRemoteMcpQuotaIsolationHotfixChangedFiles
       : isPr137Set
       ? permanentRemoteMcpRuntimeChangedFiles

@@ -30,6 +30,7 @@ import {
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
+  remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
@@ -294,6 +295,7 @@ test("PR129 candidate-capable PR123 helper stays package-private and imports onl
 test("PR123 changed files stay exact and do not add live provider fixtures or package drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
