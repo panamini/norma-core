@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -162,6 +167,7 @@ test("PR42 documents future reconsideration install and test gates before packag
 test("PR42 keeps package metadata lockfile dependencies and MCP SDK unchanged", () => {
   const packageJson = parseJson(packageJsonPath);
   const packageLock = parseJson(packageLockPath);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.version, "0.1.0");
@@ -173,47 +179,12 @@ test("PR42 keeps package metadata lockfile dependencies and MCP SDK unchanged", 
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(
-      Object.hasOwn(packageLock.packages[""], fieldName),
-      false,
-      `${fieldName} should stay absent in lock root`,
-    );
-  }
-
   assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
   assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
-
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
-
-  for (const packageName of blockedPackageCandidates) {
-    assert.equal(
-      JSON.stringify(packageJson).includes(packageName),
-      false,
-      `${packageName} must not appear in package.json`,
-    );
-    assert.equal(
-      JSON.stringify(packageLock).includes(packageName),
-      false,
-      `${packageName} must not appear in package-lock.json`,
-    );
-  }
 });
 
 test("PR42 keeps runtime files local STDIO only with no remote package-driven behavior", () => {
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of [
@@ -231,6 +202,9 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
 
   const remoteBoundaryPaths = [...filesUnder("src"), ...filesUnder("bin")].filter(
     (path) =>
+      !path.startsWith("src/mcp/remote-http-") &&
+      path !== "bin/norma-core-remote-mcp-http.mjs" &&
+      path !== "src/node-http.d.ts" &&
       path !== "src/api/minimal-api-server.ts" &&
       path !== "src/local-report/controlled-provider-observation-contract.ts" &&
       path !== "src/local-report/controlled-provider-observation-acceptance-proof.ts",
@@ -240,7 +214,11 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
     assertNoRemoteServerSurface(readDoc(join(repoRoot, path)), path);
   }
 
-  for (const path of [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"]) {
+  for (const path of [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+    "bin/norma-core-mcp-stdio.mjs",
+  ]) {
     assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
   }
 });

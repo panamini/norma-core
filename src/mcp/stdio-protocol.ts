@@ -756,6 +756,15 @@ const STRUCTURED_ANALYSIS_TOOL_ANNOTATIONS = {
   idempotentHint: true,
 } as const;
 
+export const STRUCTURED_ANALYSIS_MCP_TOOL = {
+  name: "norma.analyzeStructuredCompositionV1",
+  title: "Analyze structured composition",
+  description: "Analyze explicitly accepted user-supplied structured composition data with deterministic Norma Core analysis. Requires explicit ratio pack, rule set, tolerances, and operation context; does not accept prompts, images, files, URLs, inferred configuration, recommendations, or optimization, and reports whether composition A or B is closer to the declared proportional system.",
+  inputSchema: STRUCTURED_ANALYSIS_TOOL_INPUT_SCHEMA,
+  outputSchema: STRUCTURED_ANALYSIS_TOOL_OUTPUT_SCHEMA,
+  annotations: STRUCTURED_ANALYSIS_TOOL_ANNOTATIONS,
+} as const satisfies McpToolDefinition;
+
 const PR38_MCP_TOOLS = [
   {
     name: "norma.getVersion",
@@ -824,14 +833,7 @@ const PR38_MCP_TOOLS = [
     },
     outputSchema: REPLAY_MVP_DEMO_OUTPUT_SCHEMA,
   },
-  {
-    name: "norma.analyzeStructuredCompositionV1",
-    title: "Analyze structured composition",
-    description: "Analyze explicitly accepted user-supplied structured composition data with deterministic Norma Core analysis. Requires explicit ratio pack, rule set, tolerances, and operation context; does not accept prompts, images, files, URLs, inferred configuration, recommendations, or optimization, and reports whether composition A or B is closer to the declared proportional system.",
-    inputSchema: STRUCTURED_ANALYSIS_TOOL_INPUT_SCHEMA,
-    outputSchema: STRUCTURED_ANALYSIS_TOOL_OUTPUT_SCHEMA,
-    annotations: STRUCTURED_ANALYSIS_TOOL_ANNOTATIONS,
-  },
+  STRUCTURED_ANALYSIS_MCP_TOOL,
 ] as const satisfies readonly McpToolDefinition[];
 
 type McpStructuredContent = Readonly<Record<string, unknown>>;

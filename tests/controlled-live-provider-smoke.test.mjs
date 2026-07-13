@@ -50,11 +50,13 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  permanentRemoteMcpRuntimeChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -1462,9 +1464,7 @@ test("PR117 command and helper sources avoid forbidden SDK public API env-file a
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR117 docs state manual live smoke boundary without approving provider truth or production integration", async () => {
@@ -1577,6 +1577,7 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;

@@ -4,6 +4,11 @@ import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -477,13 +482,9 @@ test("PR51 keeps package runtime deployment API and UI surfaces absent or unchan
 
   assertPackageBoundary(packageJson, packageLock);
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
   assertPathsAbsent(blockedRuntimeDeploymentApiUiPaths);
-  assertMcpBoundaryHasNoRemoteRuntimeSurface();
 });
 
 test("PR51 keeps current MCP tools exactly and replayRun blocked", async () => {
@@ -528,6 +529,7 @@ test("PR51 keeps current MCP tools exactly and replayRun blocked", async () => {
 });
 
 function assertPackageBoundary(packageJson, packageLock) {
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.private, true);
@@ -544,23 +546,6 @@ function assertPackageBoundary(packageJson, packageLock) {
     "package-lock root should mirror package.json typescript range",
   );
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(
-      Object.hasOwn(packageLock.packages[""], fieldName),
-      false,
-      `${fieldName} should stay absent in lock root`,
-    );
-  }
-
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 }
 
 function assertPathsAbsent(paths) {

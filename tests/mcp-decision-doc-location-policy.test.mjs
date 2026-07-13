@@ -4,6 +4,8 @@ import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -121,6 +123,7 @@ test("PR45 does not authorize migrating existing MCP remote docs inside PR45", (
 test("PR45 keeps package metadata lockfile and MCP dependency boundary unchanged", () => {
   const packageJson = parseJson(packageJsonPath);
   const packageLock = parseJson(packageLockPath);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.type, "module");
@@ -130,19 +133,6 @@ test("PR45 keeps package metadata lockfile and MCP dependency boundary unchanged
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(Object.hasOwn(packageLock.packages[""], fieldName), false, `${fieldName} should stay absent in lock root`);
-  }
-
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 });
 
 test("PR45 keeps local STDIO tools unchanged and replay exposure blocked", async () => {

@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import * as core from "@norma/core";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -82,11 +83,7 @@ test("PR25 preserves private package metadata and root export targets", () => {
   assert.equal(packageJson.private, true);
   assert.equal(packageJson.version, "0.1.0");
 
-  assert.equal("bin" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("optionalDependencies" in packageJson, false);
-  assert.equal("peerDependencies" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assert.deepEqual(packageJson.exports?.["."], {
     types: "./dist/src/index.d.ts",

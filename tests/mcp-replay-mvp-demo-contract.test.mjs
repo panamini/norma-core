@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import * as core from "../dist/src/index.js";
 import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -265,10 +266,7 @@ test("PR38 replay MCP runtime stays local dependency-free and side-effect-free",
   assert.equal(packageJson.version, "0.1.0");
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.private, true);
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "optionalDependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "peerDependencies"), false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   for (const dependencyName of Object.keys(packageJson.devDependencies ?? {})) {
     assert.doesNotMatch(dependencyName, /modelcontextprotocol|@modelcontextprotocol|mcp/i);

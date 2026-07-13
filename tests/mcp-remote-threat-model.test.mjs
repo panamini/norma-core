@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const threatModelPath = join(repoRoot, "docs", "MCP_REMOTE_THREAT_MODEL.md");
@@ -100,10 +102,7 @@ test("PR39 does not add remote runtime files or package drift", () => {
   );
 
   assert.equal(packageJson.private, true);
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "optionalDependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "peerDependencies"), false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 function assertDocMentions(doc, snippets) {

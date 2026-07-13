@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -272,11 +277,8 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
     types: "./dist/src/index.d.ts",
     default: "./dist/src/index.js",
   });
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
   assert.equal(packageLock.packages[""].devDependencies?.typescript, packageJson.devDependencies?.typescript);
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 
   for (const path of [
     "src/server",
@@ -312,10 +314,7 @@ test("PR53 keeps package deployment UI and MCP boundaries unchanged except the a
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must remain absent`);
   }
 
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
 
   const mcp = await loadMcpModule();
   const toolsList = parseMcpResponse(

@@ -10,6 +10,7 @@ import * as core from "@norma/core";
 import {
   LOCAL_STRUCTURED_ANALYZE_REPORT_KIT_OUTPUT_FILES,
 } from "../dist/src/local-report/structured-analyze-report.js";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -480,9 +481,5 @@ test("PR27 CLI keeps package metadata unchanged", () => {
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.private, true);
   assert.equal(packageJson.version, "0.1.0");
-  assert.equal("bin" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("optionalDependencies" in packageJson, false);
-  assert.equal("peerDependencies" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });

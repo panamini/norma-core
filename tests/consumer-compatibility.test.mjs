@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const examplePath = join(repoRoot, "examples", "consumer", "v1-5-trust-layer.ts");
@@ -158,15 +160,7 @@ test("PR31 keeps package metadata unchanged", () => {
     },
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 function escapeRegExp(value) {

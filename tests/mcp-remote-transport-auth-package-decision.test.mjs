@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 let handleMcpJsonRpcMessagePromise;
@@ -193,10 +198,7 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
   const packageLock = parseJson(packageLockPath);
   const runtimeSource = [readDoc(protocolSourcePath), readDoc(wrapperPath)].join("\n");
 
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of [
@@ -234,26 +236,9 @@ test("PR41 keeps runtime files package metadata dependencies and MCP SDK unchang
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(
-      Object.hasOwn(packageLock.packages[""], fieldName),
-      false,
-      `${fieldName} should stay absent in lock root`,
-    );
-  }
-
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
   assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
   assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 });
 
 function readDoc(path) {

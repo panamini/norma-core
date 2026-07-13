@@ -8,6 +8,8 @@ import { promisify } from "node:util";
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -73,15 +75,7 @@ test("PR99 package metadata stays private and local-only with a minimal files al
   assert.equal(packageJson.exports["."].types, "./dist/src/index.d.ts");
   assert.equal(packageJson.exports["."].default, "./dist/src/index.js");
 
-  for (const fieldName of [
-    "bin",
-    "publishConfig",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
 });

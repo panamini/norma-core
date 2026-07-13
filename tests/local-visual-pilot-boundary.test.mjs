@@ -23,6 +23,7 @@ import {
   normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1,
 } from "../dist/src/accepted-geometry-to-structured-analyze-normalization.js";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 import {
   localVisualPilotBoundaryChangedFiles,
@@ -252,8 +253,7 @@ test("PR108 keeps package root exports unchanged", () => {
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR108 changed-file guard accepts only the PR108 file set", () => {

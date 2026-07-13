@@ -23,6 +23,7 @@ import {
   normalizeAcceptedGeometryMappedPairToSharedUnitSurfaceV1,
 } from "../dist/src/accepted-geometry-to-structured-analyze-normalization.js";
 import { validateAcceptedGeometryV1 } from "../dist/src/geometry-observation.js";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 import {
   sharedExactApprovedChangedFiles,
@@ -214,8 +215,7 @@ test("PR110 keeps package exports and changed-file guard scope unchanged outside
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assert.deepEqual(
     sharedExactApprovedChangedFiles(syntheticExternalEvidenceAcceptanceBoundaryChangedFiles),

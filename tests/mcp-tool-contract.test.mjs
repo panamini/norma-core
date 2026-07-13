@@ -5,6 +5,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -180,24 +184,11 @@ test("PR33 MCP contract keeps package metadata unchanged", () => {
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
-
-  assertNoMcpDependency(packageJson);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR34 MCP contract permits only the approved local STDIO skeleton files", () => {
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
 
   for (const path of [
     "src/mcp/stdio-protocol.ts",
@@ -241,7 +232,7 @@ test("PR34 MCP contract permits only the approved local STDIO skeleton files", (
     /\b(?:readFile|writeFile|deleteFile|networkFetch|shell|exec|spawn|createMcpServer)\b/,
   );
 
-  assertNoMcpDependency(parsePackageJson());
+  assertCurrentRemoteMcpPackageBoundary(parsePackageJson());
 });
 
 test("PR35 MCP contract exposes only discovery metadata for two PR36 candidate tools", () => {
@@ -401,13 +392,8 @@ test("PR39 MCP contract references the remote threat model and keeps remote MCP 
   ]);
 
   assert.deepEqual(toolsListResponse.result.tools.map((tool) => tool.name), currentRuntimeTools);
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assertNoMcpDependency(packageJson);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("R6C MCP contract exposes Structured Analyze as one read-only runtime tool", () => {

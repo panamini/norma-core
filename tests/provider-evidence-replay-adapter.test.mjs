@@ -18,6 +18,7 @@ import {
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(testDir);
@@ -454,8 +455,7 @@ test("PR114 adapter stays package-private and avoids provider network runtime an
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR114 exact changed-file guard accepts only the local provider evidence replay adapter set", () => {

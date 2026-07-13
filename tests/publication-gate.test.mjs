@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const SUBPROCESS_TIMEOUT_MS = 30_000;
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -88,15 +90,7 @@ test("PR32 publication gate keeps package metadata unchanged", () => {
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assertPackageScriptsAvoidCommands(packageJson);
 });

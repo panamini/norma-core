@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 import {
   acceptedGeometryToCoreMapperChangedFiles,
@@ -21,6 +22,7 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
@@ -227,6 +229,29 @@ test("shared exact changed-file guard accepts only the PR136 stateless remote MC
         ...statelessRemoteMcpCommercialBetaContractChangedFiles,
         extra,
       ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the PR137 permanent remote MCP runtime set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(permanentRemoteMcpRuntimeChangedFiles),
+    permanentRemoteMcpRuntimeChangedFiles,
+  );
+  assert.equal(sharedExactApprovedChangedFiles(permanentRemoteMcpRuntimeChangedFiles.slice(1)), null);
+  for (const extra of [
+    "src/index.ts",
+    "src/providers/openai.ts",
+    "src/chatgpt/connector.ts",
+    "render.yaml",
+    ".env",
+    ".github/workflows/ci.yml",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...permanentRemoteMcpRuntimeChangedFiles, extra]),
       null,
       extra,
     );
@@ -2333,6 +2358,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPr137Set = isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles);
   const isPr136Set = isExactChangedFileSet(
     changedFiles,
     statelessRemoteMcpCommercialBetaContractChangedFiles,
@@ -2360,7 +2386,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2368,7 +2394,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr136Set
+    isPr137Set
+      ? permanentRemoteMcpRuntimeChangedFiles
+      : isPr136Set
       ? statelessRemoteMcpCommercialBetaContractChangedFiles
       : isPr135Set
       ? privateDevChatGptMcpCompleteLiveProofChangedFiles
@@ -5056,9 +5084,7 @@ test("shared exact changed-file guard rejects runtime, package, docs, and exampl
 test("R36 package metadata remains private without bin, export, or dependency expansion", async () => {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-  assert.equal("bin" in packageJson, false);
-  assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
-  assert.equal("dependencies" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
   assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
 });
 

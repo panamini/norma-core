@@ -5,6 +5,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { handleMcpJsonRpcMessage } from "../dist/src/mcp/stdio-protocol.js";
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
@@ -89,10 +93,7 @@ test("PR40 keeps package metadata dependencies and runtime boundary unchanged", 
   const packageLock = parseJson(packageLockPath);
   const runtimeSource = [readDoc(protocolSourcePath), readDoc(wrapperPath)].join("\n");
 
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(join(repoRoot, "bin", "norma-core-mcp-stdio.mjs")), true);
 
   for (const path of [
@@ -125,22 +126,9 @@ test("PR40 keeps package metadata dependencies and runtime boundary unchanged", 
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(Object.hasOwn(packageLock.packages[""], fieldName), false, `${fieldName} should stay absent in lock root`);
-  }
-
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
   assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
   assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 });
 
 test("PR40 keeps local STDIO tools unchanged and arbitrary replay blocked", () => {
