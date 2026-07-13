@@ -203,7 +203,10 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
   const remoteBoundaryPaths = [...filesUnder("src"), ...filesUnder("bin")].filter(
     (path) =>
       !path.startsWith("src/mcp/remote-http-") &&
+      !path.startsWith("src/mcp/personal-visual-harmony-") &&
       path !== "bin/norma-core-remote-mcp-http.mjs" &&
+      path !== "bin/norma-core-personal-visual-harmony-mcp-http.mjs" &&
+      path !== "bin/norma-core-personal-visual-harmony-mcp-stdio.mjs" &&
       path !== "src/node-http.d.ts" &&
       path !== "src/api/minimal-api-server.ts" &&
       path !== "src/local-report/controlled-provider-observation-contract.ts" &&
@@ -221,6 +224,27 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
   ]) {
     assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
   }
+});
+
+test("PR42 remote scanner permits only the inert W3C SVG namespace exception", () => {
+  assert.doesNotThrow(() =>
+    assertNoRemoteServerSurface(
+      '<svg xmlns="http://www.w3.org/2000/svg" role="img"></svg>',
+      "svg-fixture",
+    ),
+  );
+  assert.throws(
+    () => assertNoRemoteServerSurface('fetch("https://example.com")', "network-fixture"),
+    /must not contain remote MCP server, package, auth, token, or network behavior/,
+  );
+  assert.throws(
+    () =>
+      assertNoRemoteServerSurface(
+        'client.request("http://www.w3.org/2000/svg")',
+        "w3c-network-fixture",
+      ),
+    /must not contain remote MCP server, package, auth, token, or network behavior/,
+  );
 });
 
 test("PR42 keeps current local STDIO tools unchanged and arbitrary replay blocked", async () => {
@@ -360,8 +384,12 @@ function assertDocMentions(doc, snippets) {
 }
 
 function assertNoRemoteServerSurface(source, path) {
+  const sourceWithoutInertSvgNamespace = source.replace(
+    /(<svg\b[^>]*\sxmlns\s*=\s*)(\\?)(["'])http:\/\/www\.w3\.org\/2000\/svg\2\3/giu,
+    "$1$2$3$2$3",
+  );
   assert.doesNotMatch(
-    source,
+    sourceWithoutInertSvgNamespace,
     /@modelcontextprotocol|\b(?:modelcontextprotocol|FastMCP|McpServer|StdioServerTransport|createServer|listen|app\.get|app\.post|router|route|server_url|MCP endpoint|Mcp-Session-Id|WWW-Authenticate|https?[A-Za-z0-9_]*|sse|streamable|websocket|express|fastify|cors|oauth|auth|authorization|authentication|token|accessToken|idToken|bearerToken|fetch|XMLHttpRequest|WebSocket|networkFetch)\b/i,
     `${path} must not contain remote MCP server, package, auth, token, or network behavior`,
   );

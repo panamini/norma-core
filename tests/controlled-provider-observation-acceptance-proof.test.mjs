@@ -27,6 +27,7 @@ import {
   isCleanBaseValidationContext,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
+  personalChatGptVisualHarmonyDemoChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -457,6 +458,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;

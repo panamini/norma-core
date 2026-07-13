@@ -182,6 +182,34 @@ export const privateDevChatGptMcpCompleteLiveProofChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
+  "bin/norma-core-personal-visual-harmony-mcp-http.mjs",
+  "bin/norma-core-personal-visual-harmony-mcp-stdio.mjs",
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "examples/personal-visual-harmony/golden-split-poster.png",
+  "examples/personal-visual-harmony/golden-split-poster.svg",
+  "src/harmonic-relationship-analysis.ts",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/mcp/personal-visual-harmony-http-server.ts",
+  "src/personal-visual-harmony.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/current-remote-mcp-boundary.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/mcp-remote-package-dependency-decision.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/onboarding-examples-docs.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const statelessRemoteMcpCommercialBetaContractChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_REMOTE_APPROVAL_DECISION.md",
@@ -344,6 +372,13 @@ const semgrepCiGuardMaintenanceFiles = new Set([
   "tests/read-only-viewer-fixtures.test.mjs",
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ]);
+
+export const personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles =
+  Object.freeze(
+    personalChatGptVisualHarmonyDemoChangedFiles
+      .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+      .sort(),
+  );
 
 export const statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles =
   Object.freeze(
@@ -1227,6 +1262,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  personalChatGptVisualHarmonyDemoChangedFiles,
+  personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,

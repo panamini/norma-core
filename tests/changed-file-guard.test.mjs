@@ -22,6 +22,8 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  personalChatGptVisualHarmonyDemoChangedFiles,
+  personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
@@ -132,6 +134,40 @@ import {
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
   assert.deepEqual(sharedExactApprovedChangedFiles(r7StructuredAnalyzeHardeningChangedFiles), r7StructuredAnalyzeHardeningChangedFiles);
+});
+
+test("shared exact changed-file guard accepts only the personal ChatGPT visual harmony demo set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoChangedFiles),
+    personalChatGptVisualHarmonyDemoChangedFiles,
+  );
+  assert.equal(sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoChangedFiles.slice(1)), null);
+  for (const extra of [
+    "package.json",
+    "render.yaml",
+    "src/mcp/remote-http-auth.ts",
+    "wiki/hot.md",
+  ]) {
+    assert.equal(sharedExactApprovedChangedFiles([...personalChatGptVisualHarmonyDemoChangedFiles, extra]), null);
+  }
+});
+
+test("shared exact changed-file guard accepts the semgrep-filtered personal ChatGPT visual harmony demo set exactly", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles),
+    personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles.slice(1)),
+    null,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles([
+      ...personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
+      "tests/unrelated.test.mjs",
+    ]),
+    null,
+  );
 });
 
 test("shared exact changed-file guard accepts only the PR133 private/dev ChatGPT MCP gate set", () => {
@@ -2418,6 +2454,10 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPersonalVisualHarmonySet = isExactChangedFileSet(
+    changedFiles,
+    personalChatGptVisualHarmonyDemoChangedFiles,
+  );
   const isPr138Set = isExactChangedFileSet(
     changedFiles,
     remoteMcpRenderPrivateBetaDeploymentChangedFiles,
@@ -2454,7 +2494,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2462,7 +2502,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr138Set
+    isPersonalVisualHarmonySet
+      ? personalChatGptVisualHarmonyDemoChangedFiles
+      : isPr138Set
       ? remoteMcpRenderPrivateBetaDeploymentChangedFiles
       : isPr137aSet
       ? permanentRemoteMcpQuotaIsolationHotfixChangedFiles

@@ -7,6 +7,8 @@ export const permanentRemoteMcpDependencies = Object.freeze({
 });
 
 export const currentMcpRuntimeSourceFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/mcp/personal-visual-harmony-http-server.ts",
   "src/mcp/private-dev-local-visual-mcp-protocol.ts",
   "src/mcp/remote-http-auth.ts",
   "src/mcp/remote-http-config.ts",

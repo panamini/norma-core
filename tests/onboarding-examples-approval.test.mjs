@@ -370,6 +370,7 @@ test("PR62-approved onboarding and example documentation paths are exact", () =>
     "docs/examples/local-synthetic-evidence-acceptance-demo.md",
     "docs/examples/local-visual-candidate-review.md",
     "docs/examples/local-visual-fixture-guided-inspection-demo.md",
+    "docs/examples/personal-chatgpt-visual-harmony-demo.md",
     "docs/examples/private-dev-local-visual-mcp.md",
     "docs/examples/ratio-pack-family-workflow.md",
     "docs/examples/read-only-result-viewer-workflow.md",
