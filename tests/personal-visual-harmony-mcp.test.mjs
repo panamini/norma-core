@@ -98,6 +98,13 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "mime_type",
     ]);
     assert.equal(prepareTool.inputSchema.properties.image.additionalProperties, false);
+    assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
+    assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
+    const candidateProperties = prepareTool.inputSchema.properties.candidates.items.properties;
+    assert.match(candidateProperties.x.description, /Left visible edge divided by the full image pixel width/u);
+    assert.match(candidateProperties.x.description, /never snap or round it toward phi, halves, or thirds/u);
+    assert.match(candidateProperties.height.description, /exclude captions or annotations outside the region/u);
+    assert.match(candidateProperties.reason.description, /never cite an expected harmonic ratio as the coordinate basis/u);
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
@@ -111,7 +118,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /window\.openai\?\.setWidgetState/u);
     assert.match(resource.contents[0].text, /completedVisualHarmony/u);
     assert.match(resource.contents[0].text, /completedWidgetStateFor\(payload\)/u);
-    assert.match(resource.contents[0].text, /candidateSetIdentity:state\.payload\.prepared\.candidateSetIdentity/u);
+    assert.match(resource.contents[0].text, /candidateSetIdentity:payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /selectedCandidateIds:\[\.\.\.state\.selected\]/u);
     assert.match(resource.contents[0].text, /sourcePixelWidth:state\.dimensions\.width/u);
     assert.match(resource.contents[0].text, /confirmedSelectionIdentity/u);
@@ -124,7 +131,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /ui\/notifications\/tool-result/u);
     assert.match(resource.contents[0].text, /rpcRequest\("ui\/initialize"/u);
     assert.match(resource.contents[0].text, /rpcNotify\("ui\/notifications\/initialized"/u);
-    assert.match(resource.contents[0].text, /rpcRequest\("tools\/call",\{name:CONFIRM_TOOL,arguments:args\}\)/u);
+    assert.match(resource.contents[0].text, /rpcRequest\("tools\/call",\{name,arguments:args\}\)/u);
     assert.match(resource.contents[0].text, /pendingRequests\.get\(message\.id\)/u);
     assert.match(resource.contents[0].text, /data-norma-bridge","ready"/u);
     assert.match(resource.contents[0].text, /data-norma-last-error","tools-call"/u);
@@ -144,6 +151,29 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
     assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,overlaySvg:""\}/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
+    assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
+    assert.match(resource.contents[0].text, /overlay\.addEventListener\("pointerdown"/u);
+    assert.match(resource.contents[0].text, /overlay\.addEventListener\("keydown"/u);
+    assert.match(resource.contents[0].text, /event\.shiftKey/u);
+    assert.match(resource.contents[0].text, /group\.focus\(\)/u);
+    assert.match(resource.contents[0].text, /data-resize-handle/u);
+    assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
+    assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
+    assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);
+    assert.match(resource.contents[0].text, /download_url:state\.downloadUrl/u);
+    assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
+    assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.payload/u);
+    assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
+    assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
+    assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
+    assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
+    assert.match(resource.contents[0].text, /group\.setPointerCapture\?\.\(pointerId\)/u);
+    assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",disabled\?"-1":"0"\)/u);
+    assert.match(resource.contents[0].text, /\.overlay \[data-candidate-id\]\{touch-action:none/u);
+    assert.doesNotMatch(resource.contents[0].text, /\.overlay\{[^}]*touch-action:none/u);
   } finally {
     await connected.close();
   }

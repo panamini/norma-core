@@ -322,11 +322,15 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ? `${String(index + 1)} · ${candidateValue.label}`
       : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
     const badgeWidth = Math.min(360, Math.max(120, 22 + (badge.length * 8)));
+    const resizeHandle = input.result === undefined
+      ? `<rect data-resize-handle x="${numberAttr(x + width - 16)}" y="${numberAttr(y + height - 16)}" width="32" height="32" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`
+      : "";
     return [
-      `<g data-candidate-id="${escapeXml(candidateValue.id)}">`,
-      `<rect x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(width)}" height="${numberAttr(height)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${selected ? "7" : "4"}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`,
-      `<rect x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
-      `<text x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
+      `<g data-candidate-id="${escapeXml(candidateValue.id)}"${input.result === undefined ? ` tabindex="0" role="group" aria-label="Ajuster ${escapeXml(candidateValue.label)}"` : ""}>`,
+      `<rect data-candidate-box x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(width)}" height="${numberAttr(height)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${selected ? "7" : "4"}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`,
+      `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
+      `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
+      resizeHandle,
       "</g>",
     ].join("");
   }).join("");
@@ -337,19 +341,17 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     const line = guide.axis === "x"
       ? `<line x1="${numberAttr(position)}" y1="0" x2="${numberAttr(position)}" y2="1000"/>`
       : `<line x1="0" y1="${numberAttr(1000 - position)}" x2="1000" y2="${numberAttr(1000 - position)}"/>`;
-    return `<g stroke="#f8fafc" stroke-width="4" stroke-dasharray="18 12" stroke-opacity="0.92">${line}</g>`;
+    return `<g pointer-events="none" stroke="#f8fafc" stroke-width="4" stroke-dasharray="18 12" stroke-opacity="0.92">${line}</g>`;
   }).join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RELATION${input.result.explanations.length === 1 ? "" : "S"} DÉTECTÉE${input.result.explanations.length === 1 ? "" : "S"}`;
   return [
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1000 1000\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"Norma visual harmony overlay\">",
-    "<g pointer-events=\"none\">",
     guideMarkup,
     candidateMarkup,
-    "<rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
-    `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text>`,
-    "</g>",
+    "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
+    `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
   ].join("");
 }
