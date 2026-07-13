@@ -43,23 +43,24 @@ export class RemoteMcpAdmissionController {
   enterAuthenticatedAttempt(subjectId: string): RemoteMcpAdmissionResult {
     const now = this.#now();
     this.#pruneSubjectAccounts(now);
-    prune(this.#authenticatedAttempts, now - ONE_MINUTE_MS);
-    if (this.#authenticatedAttempts.length >= REMOTE_MCP_MAX_AUTHENTICATED_ATTEMPTS_PER_MINUTE) {
-      return { allowed: false, code: "authenticated_capacity" };
-    }
-    this.#authenticatedAttempts.push(now);
-
     const subject = this.#subjects.get(subjectId) ?? { attempts: [], concurrency: 0 };
-    this.#subjects.set(subjectId, subject);
     prune(subject.attempts, now - ONE_HOUR_MS);
     if (subject.attempts.length >= REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR) {
       return { allowed: false, code: "subject_rate" };
     }
-    subject.attempts.push(now);
     if (subject.concurrency >= REMOTE_MCP_MAX_SUBJECT_CONCURRENCY) {
+      subject.attempts.push(now);
       return { allowed: false, code: "subject_concurrency" };
     }
 
+    prune(this.#authenticatedAttempts, now - ONE_MINUTE_MS);
+    if (this.#authenticatedAttempts.length >= REMOTE_MCP_MAX_AUTHENTICATED_ATTEMPTS_PER_MINUTE) {
+      return { allowed: false, code: "authenticated_capacity" };
+    }
+
+    this.#authenticatedAttempts.push(now);
+    this.#subjects.set(subjectId, subject);
+    subject.attempts.push(now);
     subject.concurrency += 1;
     let released = false;
     return {
