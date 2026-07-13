@@ -61,6 +61,10 @@ interface ParsedToolCall {
 }
 
 const requestEncoder = new TextEncoder();
+const compatibleMcpProtocolVersions = new Set([
+  PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION,
+  "2025-11-25",
+]);
 const TOOL_ERROR_CODE_VALUES = Object.freeze([
   "artifact_contract_invalid", "artifact_linkage_mismatch", "invalid_resume_confirmation",
   "invalid_accepted_at", "stale_provider_execution_receipt", "stale_candidate_observation",
@@ -265,7 +269,7 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
     const id = message.id;
 
     if (message.method === "initialize") {
-      if (this.lifecycle !== "pre_initialize" || !isValidInitializeParams(message.params)) {
+      if (this.activeCall !== undefined || !isValidInitializeParams(message.params)) {
         return createJsonRpcError(id, -32602, "Invalid params");
       }
       this.lifecycle = "await_initialized";
@@ -273,7 +277,7 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
         jsonrpc: "2.0",
         id,
         result: {
-          protocolVersion: PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION,
+          protocolVersion: selectInitializeProtocolVersion(message.params),
           capabilities: { tools: { listChanged: false } },
           serverInfo: {
             name: PRIVATE_DEV_LOCAL_VISUAL_MCP_SERVER_NAME,
@@ -542,6 +546,16 @@ function isValidInitializeParams(value: unknown): boolean {
     && isRecord(value.clientInfo)
     && typeof value.clientInfo.name === "string"
     && typeof value.clientInfo.version === "string";
+}
+
+function selectInitializeProtocolVersion(params: unknown): string {
+  if (!isRecord(params) || typeof params.protocolVersion !== "string") {
+    return PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
+  }
+
+  return compatibleMcpProtocolVersions.has(params.protocolVersion)
+    ? params.protocolVersion
+    : PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
 }
 
 function isValidToolsListParams(value: unknown, hasParams: boolean): boolean {

@@ -82,6 +82,87 @@ test("PR134 dedicated tool inventory is exact, closed, and does not widen the ge
   ]);
 });
 
+test("PR135 private MCP negotiates repeated ChatGPT initialize metadata only while idle", async () => {
+  let releaseInspection;
+  const inspection = new Promise((resolve) => { releaseInspection = resolve; });
+  const protocol = new PrivateDevLocalVisualMcpProtocolV1({
+    inspect: async () => inspection,
+    resume: async () => ({ status: "not-used" }),
+  });
+  const request = initializeRequest(1);
+  request.params.protocolVersion = "2025-11-25";
+  request.params._meta = { "openai/locale": "fr-FR" };
+
+  const initialized = JSON.parse(await protocol.handleLine(JSON.stringify(request)));
+  assert.equal(initialized.result.protocolVersion, "2025-11-25");
+  assert.deepEqual(initialized.result.capabilities, { tools: { listChanged: false } });
+  assert.deepEqual(initialized.result.serverInfo, {
+    name: "norma-core-private-dev-local-visual-mcp",
+    version: "0.1.0-pr134",
+  });
+
+  request.id = 2;
+  const repeatedBeforeReady = JSON.parse(await protocol.handleLine(JSON.stringify(request)));
+  assert.equal(repeatedBeforeReady.result.protocolVersion, "2025-11-25");
+
+  await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    method: "notifications/initialized",
+    params: { _meta: { "openai/locale": "fr-FR" } },
+  }));
+
+  const activeInspection = protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 3,
+    method: "tools/call",
+    params: {
+      name: PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+      arguments: {},
+    },
+  }));
+  request.id = 4;
+  assert.deepEqual(JSON.parse(await protocol.handleLine(JSON.stringify(request))), {
+    jsonrpc: "2.0",
+    id: 4,
+    error: { code: -32602, message: "Invalid params" },
+  });
+  releaseInspection({ status: "not-used" });
+  await activeInspection;
+
+  request.id = 5;
+  const repeatedAfterReady = JSON.parse(await protocol.handleLine(JSON.stringify(request)));
+  assert.equal(repeatedAfterReady.result.protocolVersion, "2025-11-25");
+  await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    method: "notifications/initialized",
+    params: { _meta: { "openai/locale": "fr-FR" } },
+  }));
+  const listed = JSON.parse(await protocol.handleLine(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 6,
+    method: "tools/list",
+  })));
+  assert.deepEqual(listed.result.tools.map(({ name }) => name), [
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
+    PRIVATE_DEV_LOCAL_VISUAL_MCP_RESUME_TOOL,
+  ]);
+
+  for (const [id, unsupportedVersion] of [
+    [7, "2025-03-26"],
+    [8, "2026-01-01"],
+  ]) {
+    request.id = id;
+    request.params.protocolVersion = unsupportedVersion;
+    const fallback = JSON.parse(await protocol.handleLine(JSON.stringify(request)));
+    assert.equal(fallback.result.protocolVersion, "2025-06-18");
+    await protocol.handleLine(JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+      params: { _meta: { "openai/locale": "fr-FR" } },
+    }));
+  }
+});
+
 test("PR134 real STDIO lifecycle inspects then resumes with exact PR129 result parity", async () => {
   const job = await createJob();
   const direct = createControlledLocalLiveVisualCandidateResumeV1({
@@ -95,6 +176,9 @@ test("PR134 real STDIO lifecycle inspects then resumes with exact PR129 result p
     const initialize = await server.request(initializeRequest(1));
     assert.equal(initialize.result.protocolVersion, "2025-06-18");
     assert.deepEqual(initialize.result.capabilities, { tools: { listChanged: false } });
+    const repeatedInitialize = await server.request(initializeRequest("reinitialize"));
+    assert.equal(repeatedInitialize.result.protocolVersion, "2025-06-18");
+    assert.deepEqual(repeatedInitialize.result.capabilities, { tools: { listChanged: false } });
     server.notify({ jsonrpc: "2.0", method: "notifications/initialized" });
 
     const list = await server.request({ jsonrpc: "2.0", id: 2, method: "tools/list" });
