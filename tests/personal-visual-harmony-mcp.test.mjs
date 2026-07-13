@@ -111,6 +111,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
     assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed\)/u);
+    assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
+    assert.match(resource.contents[0].text, /payload\.stage==="confirmation_required"&&!state\.payload/u);
+    assert.match(resource.contents[0].text, /BOOTSTRAP_RETRY_LIMIT=50/u);
+    assert.match(resource.contents[0].text, /ChatGPT n’a pas transmis l’image au widget/u);
+    assert.doesNotMatch(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",\(\)=>\{const payload=currentPayload\(\);if\(payload&&payload\.stage==="completed"/u);
     assert.match(resource.contents[0].text, /CORE REVALIDÉ/u);
     assert.match(resource.contents[0].text, /RAPPORT MÉMORISÉ · NON REVALIDÉ/u);
     assert.doesNotMatch(resource.contents[0].text, /CORE VÉRIFIÉ · MÉMORISÉ/u);
