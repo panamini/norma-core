@@ -44,11 +44,18 @@ function candidates() {
   ];
 }
 
-async function createConnectedClient() {
-  const service = new PersonalVisualHarmonySessionServiceV1({
+function recoveryInput(fileId = "file-private-opaque-id") {
+  return {
+    fileId,
+    sourceImageMediaType: "image/png",
+    candidates: candidates(),
+  };
+}
+
+async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
     createSessionId: () => "session:test-personal-visual-harmony",
-  });
+  })) {
   const server = createPersonalVisualHarmonyMcpServerV1({ service });
   const client = new Client(
     { name: "norma-personal-visual-harmony-test", version: "1.0.0" },
@@ -112,6 +119,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
     assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
+    assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
+    assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
+    assert.match(resource.contents[0].text, /ui\/notifications\/tool-result/u);
+    assert.match(resource.contents[0].text, /rpcRequest\("ui\/initialize"/u);
+    assert.match(resource.contents[0].text, /rpcNotify\("ui\/notifications\/initialized"/u);
+    assert.match(resource.contents[0].text, /rpcRequest\("tools\/call",\{name:CONFIRM_TOOL,arguments:args\}\)/u);
+    assert.match(resource.contents[0].text, /pendingRequests\.get\(message\.id\)/u);
+    assert.match(resource.contents[0].text, /data-norma-bridge","ready"/u);
+    assert.match(resource.contents[0].text, /data-norma-last-error","tools-call"/u);
     assert.match(resource.contents[0].text, /payload\.stage==="confirmation_required"&&!state\.payload/u);
     assert.match(resource.contents[0].text, /BOOTSTRAP_RETRY_LIMIT=50/u);
     assert.match(resource.contents[0].text, /ChatGPT n’a pas transmis l’image au widget/u);
@@ -122,8 +138,12 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /status:"CORE_VERIFIED"/u);
     assert.match(resource.contents[0].text, /scrollToBottom:true/u);
     assert.match(resource.contents[0].text, /confirmClientReviewedSelection:true/u);
-    assert.match(resource.contents[0].text, /la session de démo a expiré/u);
-    assert.doesNotMatch(resource.contents[0].text, /download_url/u);
+    assert.match(resource.contents[0].text, /recovery:\{fileId:payload\.fileId/u);
+    assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
+    assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
+    assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /syncOverlaySelection/u);
   } finally {
     await connected.close();
   }
@@ -155,6 +175,7 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
     assert.equal(widgetMeta.stage, "confirmation_required");
     assert.equal(widgetMeta.fileId, "file-private-opaque-id");
+    assert.equal(widgetMeta.sourceImageMediaType, "image/png");
     assert.equal(widgetMeta.sessionId, "session:test-personal-visual-harmony");
     assert.match(widgetMeta.overlaySvg, /^<svg/u);
 
@@ -180,6 +201,7 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
+        recovery: recoveryInput(),
       },
     });
     assert.equal(confirmed.isError, undefined);
@@ -206,6 +228,7 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
+        recovery: recoveryInput(),
       },
     });
     assert.equal(replay.structuredContent.canonicalResultIdentity, confirmed.structuredContent.canonicalResultIdentity);
@@ -219,9 +242,56 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
+        recovery: recoveryInput(),
       },
     });
     assert.equal(conflicting.isError, true);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("expired confirmation sessions are reconstructed from the exact hidden candidate set", async () => {
+  let nowMs = Date.parse("2026-07-13T15:00:00.000Z");
+  let sequence = 0;
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => nowMs,
+    createSessionId: () => `session:recovery-${String(++sequence)}`,
+  }));
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates: candidates(),
+      },
+    });
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    nowMs += (30 * 60 * 1_000) + 1;
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput(),
+          sourceImageMediaType: null,
+        },
+      },
+    });
+    assert.equal(confirmed.isError, undefined);
+    assert.equal(confirmed.structuredContent.status, "completed");
+    assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionRecovered, true);
+    assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionId, "session:recovery-2");
+    assert.equal(confirmed.structuredContent.canonicalResultIdentity.length, 71);
   } finally {
     await connected.close();
   }

@@ -121,6 +121,11 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
       sourcePixelWidth: 1_000,
       sourcePixelHeight: 618,
       confirmClientReviewedSelection: true,
+      recovery: {
+        fileId: widgetPayload.fileId,
+        sourceImageMediaType: "image/png",
+        candidates: goldenCandidates(),
+      },
     },
   });
   assert.equal(confirmed.structuredContent.status, "completed");

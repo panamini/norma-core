@@ -323,9 +323,11 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
     const badgeWidth = Math.min(360, Math.max(120, 22 + (badge.length * 8)));
     return [
-      `<rect data-candidate-id="${escapeXml(candidateValue.id)}" x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(width)}" height="${numberAttr(height)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${selected ? "7" : "4"}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`,
+      `<g data-candidate-id="${escapeXml(candidateValue.id)}">`,
+      `<rect x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(width)}" height="${numberAttr(height)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${selected ? "7" : "4"}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`,
       `<rect x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
       `<text x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
+      "</g>",
     ].join("");
   }).join("");
   const guideMarkup = guides.map((relationship) => {

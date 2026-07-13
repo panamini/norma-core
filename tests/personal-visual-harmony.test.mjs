@@ -147,11 +147,11 @@ test("result overlay marks only the client-selected candidates as selected", () 
 
   assert.match(
     confirmation.overlaySvg,
-    /data-candidate-id="major"[^>]+stroke-dasharray="none"/u,
+    /<g data-candidate-id="major"><rect[^>]+stroke-dasharray="none"/u,
   );
   assert.match(
     confirmation.overlaySvg,
-    /data-candidate-id="minor"[^>]+stroke-dasharray="14 10"/u,
+    /<g data-candidate-id="minor"><rect[^>]+stroke-dasharray="14 10"/u,
   );
 });
 
@@ -229,6 +229,7 @@ test("overlay is transparent, image-aligned, and escapes model-provided labels",
 
   assert.match(svg, /^<svg/u);
   assert.match(svg, /viewBox="0 0 1000 1000"/u);
+  assert.match(svg, /<g data-candidate-id="safe">/u);
   assert.match(svg, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
   assert.doesNotMatch(svg, /<script>/u);
   assert.doesNotMatch(svg, /file-private-demo-123/u);
