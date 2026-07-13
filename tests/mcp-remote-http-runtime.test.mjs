@@ -182,10 +182,15 @@ test("PR137 keeps anonymous and authenticated admission buckets independent", ()
   assert.equal(first.allowed, true);
   assert.equal(second.allowed, true);
   assert.deepEqual(third, { allowed: false, code: "subject_concurrency" });
+  assert.deepEqual(controller.snapshot(), {
+    authenticatedAttempts: 2,
+    unauthorizedAttempts: 600,
+    subjectEntries: 1,
+  });
   first.release();
   second.release();
 
-  for (let index = 0; index < 117; index += 1) {
+  for (let index = 0; index < 118; index += 1) {
     const admission = controller.enterAuthenticatedAttempt(`subject-${index + 10}`);
     assert.equal(admission.allowed, true);
     admission.release();
@@ -220,6 +225,44 @@ test("PR137 keeps anonymous and authenticated admission buckets independent", ()
   assert.equal(currentSubject.allowed, true);
   currentSubject.release();
   assert.equal(cleanupController.snapshot().subjectEntries, 1);
+});
+
+test("PR137A subject denials cannot consume global authenticated capacity", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000_000);
+  const first = controller.enterAuthenticatedAttempt("noisy-subject");
+  const second = controller.enterAuthenticatedAttempt("noisy-subject");
+  assert.equal(first.allowed, true);
+  assert.equal(second.allowed, true);
+
+  for (let index = 0; index < 28; index += 1) {
+    assert.deepEqual(controller.enterAuthenticatedAttempt("noisy-subject"), {
+      allowed: false,
+      code: "subject_concurrency",
+    });
+  }
+  for (let index = 0; index < 150; index += 1) {
+    assert.deepEqual(controller.enterAuthenticatedAttempt("noisy-subject"), {
+      allowed: false,
+      code: "subject_rate",
+    });
+  }
+
+  assert.deepEqual(controller.snapshot(), {
+    authenticatedAttempts: 2,
+    unauthorizedAttempts: 0,
+    subjectEntries: 1,
+  });
+  const unrelated = controller.enterAuthenticatedAttempt("unrelated-subject");
+  assert.equal(unrelated.allowed, true);
+  assert.deepEqual(controller.snapshot(), {
+    authenticatedAttempts: 3,
+    unauthorizedAttempts: 0,
+    subjectEntries: 2,
+  });
+
+  unrelated.release();
+  first.release();
+  second.release();
 });
 
 test("PR137 enforces depth string aggregate-array and timeout limits", async () => {
