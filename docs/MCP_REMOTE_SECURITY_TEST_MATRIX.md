@@ -1,5 +1,11 @@
 # MCP Remote Security Test Matrix
 
+> Current authority, 2026-07-13: this file preserves the historical PR43
+> matrix. Current implementation authority and mandatory pre-runtime gates are
+> in docs/decisions/2026-07-13-stateless-remote-mcp-commercial-beta-contract.md.
+> Where the documents conflict, that canonical PR136 contract supersedes
+> future-work sequencing and blocked defaults, not the historical PR43 facts.
+
 ## Status
 
 PR43 is docs/contract-tests only.

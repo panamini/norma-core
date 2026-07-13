@@ -1,5 +1,11 @@
 # MCP Remote Deployment Policy Decision
 
+> Current authority, 2026-07-13: this file preserves the historical PR44
+> decision. Current implementation authority is
+> docs/decisions/2026-07-13-stateless-remote-mcp-commercial-beta-contract.md.
+> Where the documents conflict, that canonical PR136 contract supersedes
+> future-work sequencing and blocked defaults, not the historical PR44 facts.
+
 ## Status
 
 PR44 is docs/contract-tests only.

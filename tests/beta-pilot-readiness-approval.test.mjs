@@ -500,7 +500,12 @@ test("PR64 changed-file scope remains approval-only when branch changes exist", 
     changed.filter((file) => isUnexpectedProtectedChange(file, protectedAllowlist)),
     [],
   );
-  assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file) && !protectedAllowlist.includes(file),
+    ),
+    [],
+  );
 });
 
 test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {

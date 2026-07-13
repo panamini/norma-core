@@ -21,6 +21,8 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
+  statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   controlledProviderObservationAcceptanceProofChangedFiles,
@@ -186,6 +188,45 @@ test("shared exact changed-file guard accepts only the PR135 private/dev ChatGPT
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([...privateDevChatGptMcpCompleteLiveProofChangedFiles, extra]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the PR136 stateless remote MCP commercial beta contract set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(statelessRemoteMcpCommercialBetaContractChangedFiles),
+    statelessRemoteMcpCommercialBetaContractChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(statelessRemoteMcpCommercialBetaContractChangedFiles.slice(1)),
+    null,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(
+      statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
+    ),
+    statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
+  );
+  for (const extra of [
+    "src/mcp/http-server.ts",
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "src/providers/openai.ts",
+    "src/chatgpt/connector.ts",
+    "src/auth/oauth.ts",
+    "render.yaml",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...statelessRemoteMcpCommercialBetaContractChangedFiles,
+        extra,
+      ]),
       null,
       extra,
     );
@@ -2292,6 +2333,10 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPr136Set = isExactChangedFileSet(
+    changedFiles,
+    statelessRemoteMcpCommercialBetaContractChangedFiles,
+  );
   const isPr135Set = isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles);
   const isPr134Set = isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles);
   const isPr132HardeningSet = isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles);
@@ -2315,7 +2360,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set, true);
+  assert.equal(isCleanBase || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2323,7 +2368,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPr135Set
+    isPr136Set
+      ? statelessRemoteMcpCommercialBetaContractChangedFiles
+      : isPr135Set
       ? privateDevChatGptMcpCompleteLiveProofChangedFiles
       : isPr134Set
       ? privateDevLocalVisualMcpOrchestrationChangedFiles

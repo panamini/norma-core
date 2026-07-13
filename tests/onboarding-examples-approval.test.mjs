@@ -496,7 +496,12 @@ test("approval changed-file scope remains protected after PR62", () => {
 
   assert.equal(unexpectedNonApprovalFiles.length, 0, unexpectedNonApprovalFiles.join("\n"));
   assert.deepEqual(protectedFilesWithoutApprovedScope, []);
-  assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file) && !protectedAllowlist.includes(file),
+    ),
+    [],
+  );
 });
 
 test("PR62 updates the PR60 changed-file guard without weakening forbidden protections", () => {

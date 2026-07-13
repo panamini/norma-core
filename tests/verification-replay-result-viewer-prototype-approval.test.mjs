@@ -511,7 +511,10 @@ test("PR60 keeps package root export and MCP remote docs unchanged", () => {
     [],
   );
   assert.equal(indexSource.includes("verification-replay-result-viewer"), false);
-  assert.deepEqual(mcpRemoteChanges, []);
+  assert.deepEqual(
+    mcpRemoteChanges.filter((relativePath) => !isSharedApprovedFile(relativePath)),
+    [],
+  );
 });
 
 function section(start, end) {

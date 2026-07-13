@@ -37,6 +37,7 @@ import {
   realExternalEvidencePilotReadinessGateChangedFiles,
   syntheticEvidenceAcceptanceDemoChangedFiles,
   syntheticExternalEvidenceAcceptanceProofChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -333,6 +334,7 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
