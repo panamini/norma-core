@@ -138,7 +138,6 @@ const blockedRuntimeAndDeploymentPaths = [
   "netlify.toml",
   "wrangler.toml",
   "fly.toml",
-  "render.yaml",
   "Procfile",
   "nginx.conf",
   "Caddyfile",

@@ -52,6 +52,7 @@ import {
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
+  remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
@@ -1579,6 +1580,7 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;

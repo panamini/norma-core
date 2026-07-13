@@ -284,6 +284,33 @@ export const permanentRemoteMcpQuotaIsolationHotfixChangedFiles = Object.freeze(
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/REMOTE_MCP_PRIVATE_BETA_RUNBOOK.md",
+  "render.yaml",
+  "tests/api-contract-decision.test.mjs",
+  "tests/api-contract-golden-envelopes.test.mjs",
+  "tests/api-remote-mcp-auth-audit-rate-limit-policy.test.mjs",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/mcp-remote-api-readiness-checkpoint.test.mjs",
+  "tests/mcp-remote-deployment-policy-decision.test.mjs",
+  "tests/mcp-remote-render-private-beta-deployment.test.mjs",
+  "tests/mcp-remote-tool-exposure-policy.test.mjs",
+  "tests/minimal-api-server-approval-decision.test.mjs",
+  "tests/minimal-api-server-skeleton.test.mjs",
+  "tests/read-only-result-viewer-plan.test.mjs",
+  "tests/read-only-result-viewer-product-requirements.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const pr132ValidationHardeningCheckpointChangedFiles = Object.freeze([
   "bin/norma-core-local-visual-candidate-selection-finalizer.mjs",
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -1200,6 +1227,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
