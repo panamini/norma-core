@@ -53,6 +53,7 @@ import {
   pr132ValidationHardeningCheckpointChangedFiles,
   providerEvidenceReplayAdapterChangedFiles,
   sharedExactApprovedChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -1576,6 +1577,7 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;

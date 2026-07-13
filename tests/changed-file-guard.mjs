@@ -182,6 +182,31 @@ export const privateDevChatGptMcpCompleteLiveProofChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const statelessRemoteMcpCommercialBetaContractChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/MCP_REMOTE_APPROVAL_DECISION.md",
+  "docs/MCP_REMOTE_DEPLOYMENT_POLICY_DECISION.md",
+  "docs/MCP_REMOTE_PACKAGE_DEPENDENCY_DECISION.md",
+  "docs/MCP_REMOTE_SECURITY_TEST_MATRIX.md",
+  "docs/MCP_REMOTE_THREAT_MODEL.md",
+  "docs/MCP_REMOTE_TRANSPORT_AUTH_PACKAGE_DECISION.md",
+  "docs/decisions/2026-07-13-stateless-remote-mcp-commercial-beta-contract.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/beta-pilot-readiness-approval.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/mcp-remote-commercial-beta-contract.test.mjs",
+  "tests/onboarding-examples-approval.test.mjs",
+  "tests/privacy-security-support-approval.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
+].sort());
+
 export const pr132ValidationHardeningCheckpointChangedFiles = Object.freeze([
   "bin/norma-core-local-visual-candidate-selection-finalizer.mjs",
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -215,6 +240,13 @@ const semgrepCiGuardMaintenanceFiles = new Set([
   "tests/read-only-viewer-fixtures.test.mjs",
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ]);
+
+export const statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles =
+  Object.freeze(
+    statelessRemoteMcpCommercialBetaContractChangedFiles
+      .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+      .sort(),
+  );
 
 export const guardExactSetConsolidationNonSemgrepMaintenanceChangedFiles = Object.freeze(
   guardExactSetConsolidationChangedFiles
@@ -1091,6 +1123,8 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
+  statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,

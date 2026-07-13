@@ -20,6 +20,7 @@ import {
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -1096,6 +1097,7 @@ test("roadmap records PR121 through PR126 and the compressed PR127 to PR129 fini
 
 test("PR127 changed-file guard accepts only the triggered docs tests and legacy exact-set maintenance set", () => {
   const activeChangedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(activeChangedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;

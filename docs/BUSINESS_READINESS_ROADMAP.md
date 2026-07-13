@@ -1250,12 +1250,48 @@ inspection, stale-identity rejection, atomic no-overwrite resume, cancellation,
 timeouts, concurrency, and byte parity with the existing PR129 canonical
 `result.json`. The durable contract is
 `docs/decisions/2026-07-11-pr134-private-dev-local-visual-mcp-orchestration.md`.
-PR135 remains a separately approved HIGH-risk step for Secure MCP Tunnel and
-ChatGPT developer-mode validation; PR134 makes no ChatGPT connection claim.
+Historical PR134 boundary wording remains true for that checkpoint: Hosted MCP, ChatGPT connector runtime, CAD/Figma,
+uploads, servers, deployment, OAuth/auth, package publication, any new public
+exports, autonomous acceptance, production data, real-user data, and public
+launch remain unapproved.
 
-Hosted MCP, ChatGPT connector runtime, CAD/Figma, uploads, servers, deployment,
-OAuth/auth, package publication, any new public exports, autonomous acceptance,
-production data, real-user data, and public launch remain unapproved.
+PR135 is complete. The bounded private ChatGPT developer-mode validation proved
+the exact two-tool inventory, authenticated user-mediated calls, valid resume,
+no-overwrite behavior, parameter/path-injection rejection, and byte parity with
+the existing PR129/PR134 canonical result. PR135 remained a private,
+developer-only tunnel proof; it did not create a permanent service or approve
+the local visual job server for multi-user hosting.
+
+The approved CP-NORMA-PERMANENT-MCP-COMMERCIAL-V1 v1 program now replaces the
+older open-ended hosted-MCP candidate sequence with four serialized roadmap
+leaves:
+
+1. PR136 - approve one stateless authenticated commercial-beta contract and
+   every pre-runtime security gate;
+2. PR137 - implement one permanent-capable Streamable HTTP runtime exposing
+   exactly norma.analyzeStructuredCompositionV1;
+3. PR138 - add deployment configuration and, after separate external
+   confirmation, prove a permanent invited-user beta on Render plus Auth0;
+4. PR139 - after the beta threshold, prepare and separately confirm public
+   ChatGPT submission.
+
+The canonical authority is
+docs/decisions/2026-07-13-stateless-remote-mcp-commercial-beta-contract.md.
+It supersedes historical future-work sequencing and blocked defaults in PR39
+through PR51 where they conflict, while preserving those documents as
+historical records.
+
+PR136 is docs/contract-tests only. It approves the exact PR137 boundary but
+adds no runtime, dependency, deployment configuration, secret, external
+resource, connector, or public submission.
+
+The first commercial remote slice is deliberately tool-only and stateless. It
+accepts explicit structured JSON and exposes exactly
+norma.analyzeStructuredCompositionV1. Local STDIO tools are not inherited.
+PR134/PR135 visual inspect/resume, images, uploads, provider/model calls,
+storage, arbitrary replay, package publication, autonomous acceptance, and
+public launch remain blocked unless their later named program gate approves
+them.
 
 ## Definitions of Ready
 

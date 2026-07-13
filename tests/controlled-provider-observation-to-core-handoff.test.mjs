@@ -38,6 +38,7 @@ import {
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -637,6 +638,7 @@ test("PR128 helper stays package-private and avoids external integration imports
 
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;

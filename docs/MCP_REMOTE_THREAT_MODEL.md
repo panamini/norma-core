@@ -1,5 +1,12 @@
 # MCP Remote Threat Model
 
+> Current authority, 2026-07-13: this file preserves the historical PR39
+> threat model. Current implementation authority and the narrowed commercial
+> beta threat boundary are in
+> docs/decisions/2026-07-13-stateless-remote-mcp-commercial-beta-contract.md.
+> Where the documents conflict, that canonical PR136 contract supersedes
+> future-work sequencing and blocked defaults, not the historical PR39 facts.
+
 ## Status
 
 Remote MCP implementation is not approved.

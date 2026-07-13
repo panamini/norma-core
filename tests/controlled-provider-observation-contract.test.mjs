@@ -36,6 +36,7 @@ import {
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
+  statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -386,6 +387,7 @@ test("PR124 helper is structural package-private and avoids forbidden dependenci
 
 test("PR124 no live provider call fixtures package metadata lockfiles or package root drift", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;

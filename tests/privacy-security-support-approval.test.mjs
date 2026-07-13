@@ -505,7 +505,12 @@ test("PR65 guard permits only approval-doc/test changes and blocks protected sur
 
   assert.deepEqual(unexpectedNonApprovalFiles, []);
   assert.deepEqual(unexpectedProtectedFiles, []);
-  assert.deepEqual(changed.filter((file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file)), []);
+  assert.deepEqual(
+    changed.filter(
+      (file) => /^docs\/MCP_REMOTE_.*\.md$/.test(file) && !protectedFileAllowlist.includes(file),
+    ),
+    [],
+  );
 });
 
 test("PR101 replay exact-set guard rejects unrelated MCP package and CI changes", () => {
