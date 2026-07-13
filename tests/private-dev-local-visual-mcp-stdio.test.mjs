@@ -146,6 +146,21 @@ test("PR135 private MCP negotiates repeated ChatGPT initialize metadata only whi
     PRIVATE_DEV_LOCAL_VISUAL_MCP_INSPECT_TOOL,
     PRIVATE_DEV_LOCAL_VISUAL_MCP_RESUME_TOOL,
   ]);
+
+  for (const [id, unsupportedVersion] of [
+    [7, "2025-03-26"],
+    [8, "2026-01-01"],
+  ]) {
+    request.id = id;
+    request.params.protocolVersion = unsupportedVersion;
+    const fallback = JSON.parse(await protocol.handleLine(JSON.stringify(request)));
+    assert.equal(fallback.result.protocolVersion, "2025-06-18");
+    await protocol.handleLine(JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+      params: { _meta: { "openai/locale": "fr-FR" } },
+    }));
+  }
 });
 
 test("PR134 real STDIO lifecycle inspects then resumes with exact PR129 result parity", async () => {

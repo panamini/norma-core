@@ -61,8 +61,10 @@ interface ParsedToolCall {
 }
 
 const requestEncoder = new TextEncoder();
-const mcpProtocolDateStringPattern = /^\d{4}-\d{2}-\d{2}$/u;
-const minimumCompatibleMcpProtocolDate = "2025-03-26";
+const compatibleMcpProtocolVersions = new Set([
+  PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION,
+  "2025-11-25",
+]);
 const TOOL_ERROR_CODE_VALUES = Object.freeze([
   "artifact_contract_invalid", "artifact_linkage_mismatch", "invalid_resume_confirmation",
   "invalid_accepted_at", "stale_provider_execution_receipt", "stale_candidate_observation",
@@ -551,30 +553,9 @@ function selectInitializeProtocolVersion(params: unknown): string {
     return PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
   }
 
-  return isCompatibleMcpProtocolDateString(params.protocolVersion)
+  return compatibleMcpProtocolVersions.has(params.protocolVersion)
     ? params.protocolVersion
     : PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
-}
-
-function isCompatibleMcpProtocolDateString(protocolVersion: string): boolean {
-  if (!mcpProtocolDateStringPattern.test(protocolVersion)) return false;
-  const year = Number(protocolVersion.slice(0, 4));
-  const month = Number(protocolVersion.slice(5, 7));
-  const day = Number(protocolVersion.slice(8, 10));
-  return month >= 1
-    && month <= 12
-    && day >= 1
-    && day <= daysInMonth(year, month)
-    && protocolVersion >= minimumCompatibleMcpProtocolDate;
-}
-
-function daysInMonth(year: number, month: number): number {
-  if (month === 2) return isLeapYear(year) ? 29 : 28;
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
-
-function isLeapYear(year: number): boolean {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 function isValidToolsListParams(value: unknown, hasParams: boolean): boolean {
