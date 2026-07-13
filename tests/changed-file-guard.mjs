@@ -168,6 +168,20 @@ export const privateDevLocalVisualMcpOrchestrationChangedFiles = Object.freeze([
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ].sort());
 
+export const privateDevChatGptMcpCompleteLiveProofChangedFiles = Object.freeze([
+  "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/private-dev-local-visual-mcp-stdio.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const pr132ValidationHardeningCheckpointChangedFiles = Object.freeze([
   "bin/norma-core-local-visual-candidate-selection-finalizer.mjs",
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -1077,6 +1091,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,

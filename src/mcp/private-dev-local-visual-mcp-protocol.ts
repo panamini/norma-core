@@ -61,6 +61,8 @@ interface ParsedToolCall {
 }
 
 const requestEncoder = new TextEncoder();
+const mcpProtocolDateStringPattern = /^\d{4}-\d{2}-\d{2}$/u;
+const minimumCompatibleMcpProtocolDate = "2025-03-26";
 const TOOL_ERROR_CODE_VALUES = Object.freeze([
   "artifact_contract_invalid", "artifact_linkage_mismatch", "invalid_resume_confirmation",
   "invalid_accepted_at", "stale_provider_execution_receipt", "stale_candidate_observation",
@@ -265,7 +267,7 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
     const id = message.id;
 
     if (message.method === "initialize") {
-      if (this.lifecycle !== "pre_initialize" || !isValidInitializeParams(message.params)) {
+      if (this.activeCall !== undefined || !isValidInitializeParams(message.params)) {
         return createJsonRpcError(id, -32602, "Invalid params");
       }
       this.lifecycle = "await_initialized";
@@ -273,7 +275,7 @@ export class PrivateDevLocalVisualMcpProtocolV1 {
         jsonrpc: "2.0",
         id,
         result: {
-          protocolVersion: PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION,
+          protocolVersion: selectInitializeProtocolVersion(message.params),
           capabilities: { tools: { listChanged: false } },
           serverInfo: {
             name: PRIVATE_DEV_LOCAL_VISUAL_MCP_SERVER_NAME,
@@ -542,6 +544,37 @@ function isValidInitializeParams(value: unknown): boolean {
     && isRecord(value.clientInfo)
     && typeof value.clientInfo.name === "string"
     && typeof value.clientInfo.version === "string";
+}
+
+function selectInitializeProtocolVersion(params: unknown): string {
+  if (!isRecord(params) || typeof params.protocolVersion !== "string") {
+    return PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
+  }
+
+  return isCompatibleMcpProtocolDateString(params.protocolVersion)
+    ? params.protocolVersion
+    : PRIVATE_DEV_LOCAL_VISUAL_MCP_PROTOCOL_VERSION;
+}
+
+function isCompatibleMcpProtocolDateString(protocolVersion: string): boolean {
+  if (!mcpProtocolDateStringPattern.test(protocolVersion)) return false;
+  const year = Number(protocolVersion.slice(0, 4));
+  const month = Number(protocolVersion.slice(5, 7));
+  const day = Number(protocolVersion.slice(8, 10));
+  return month >= 1
+    && month <= 12
+    && day >= 1
+    && day <= daysInMonth(year, month)
+    && protocolVersion >= minimumCompatibleMcpProtocolDate;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 function isValidToolsListParams(value: unknown, hasParams: boolean): boolean {
