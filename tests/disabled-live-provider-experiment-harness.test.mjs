@@ -12,8 +12,11 @@ import { createDisabledLiveProviderExperimentHarnessStateV1 } from "../dist/src/
 import {
   branchChangedFiles,
   disabledLiveProviderExperimentHarnessChangedFiles,
+  isExactChangedFileSet,
+  permanentRemoteMcpRuntimeChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -216,9 +219,8 @@ test("PR116 source uses no forbidden provider network env image package or publi
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
+  if (isExactChangedFileSet(await gitDiffNames(), permanentRemoteMcpRuntimeChangedFiles)) return;
   assert.deepEqual(
     (await gitDiffNames()).filter((file) => [
       "package.json",

@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -69,15 +71,7 @@ test("PR98 keeps current package private without metadata export bin dependency 
   assert.equal(packageJson.private, true);
   assert.deepEqual(Object.keys(packageJson.exports).sort(), ["."]);
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
 });

@@ -4,6 +4,11 @@ import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const docsDir = join(repoRoot, "docs");
@@ -285,19 +290,12 @@ test("PR55 leaves package metadata and dependencies unchanged", () => {
   assert.equal(packageJson.sideEffects, false);
   assert.equal(packageJson.devDependencies?.typescript, "^5.8.0");
   assert.equal(packageLock.packages[""].devDependencies?.typescript, "^5.8.0");
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.deepEqual(Object.keys(packageJson.exports ?? {}).sort(), ["."]);
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 });
 
 test("PR55 leaves runtime deployment UI and root MCP remote docs unchanged", () => {
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
   assertPathsAbsent(blockedRuntimePackageUiDeploymentPaths);
 

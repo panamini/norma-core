@@ -32,12 +32,14 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  permanentRemoteMcpRuntimeChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -380,13 +382,12 @@ test("PR124 helper is structural package-private and avoids forbidden dependenci
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR124 no live provider call fixtures package metadata lockfiles or package root drift", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -453,8 +454,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   ]) {
     assert.equal(changedFiles.includes(forbiddenFile), false, forbiddenFile);
   }
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 function createRedactedSuccessArtifacts() {

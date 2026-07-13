@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 import {
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_NAME,
@@ -707,6 +709,7 @@ test("PR72 spawned STDIO wrapper survives over-limit string input and processes 
 
 test("PR34 package metadata stays dependency-free and private", () => {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.version, "0.1.0");
@@ -717,26 +720,6 @@ test("PR34 package metadata stays dependency-free and private", () => {
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-  }
-
-  for (const dependencyGroup of [
-    packageJson.dependencies,
-    packageJson.devDependencies,
-    packageJson.optionalDependencies,
-    packageJson.peerDependencies,
-  ]) {
-    for (const dependencyName of Object.keys(dependencyGroup ?? {})) {
-      assert.doesNotMatch(dependencyName, /modelcontextprotocol|@modelcontextprotocol|mcp/i);
-    }
-  }
 });
 
 function parseRequiredResponse(message) {

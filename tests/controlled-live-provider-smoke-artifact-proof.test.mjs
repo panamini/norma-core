@@ -28,12 +28,14 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
+  permanentRemoteMcpRuntimeChangedFiles,
   pr132ValidationHardeningCheckpointChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   localVisualCandidateReviewProductSurfaceChangedFiles,
   localVisualObservationToCorePilotContractChangedFiles,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -285,13 +287,12 @@ test("PR129 candidate-capable PR123 helper stays package-private and imports onl
       default: "./dist/src/index.js",
     },
   });
-  assert.equal("bin" in packageJson, false);
-  assert.equal("dependencies" in packageJson, false);
-  assert.equal("publishConfig" in packageJson, false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
 });
 
 test("PR123 changed files stay exact and do not add live provider fixtures or package drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;

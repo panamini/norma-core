@@ -12,6 +12,7 @@ import {
   isExactR6CStructuredAnalyzeMcpChangeSet,
   sharedExactApprovedChangedFiles,
 } from "./changed-file-guard.mjs";
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
 
 const root = path.resolve(path.dirname(pathFromFileUrl(import.meta.url)), "..");
 const docPath = path.join(
@@ -242,9 +243,7 @@ test("PR57 keeps package metadata scripts dependencies and exports unchanged", (
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const indexSource = fs.readFileSync(path.join(root, "src", "index.ts"), "utf8");
 
-  assert.equal(Object.hasOwn(pkg, "dependencies"), false);
-  assert.equal(Object.hasOwn(pkg, "bin"), false);
-  assert.deepEqual(Object.keys(pkg.exports ?? {}).sort(), ["."]);
+  assertCurrentRemoteMcpPackageBoundary(pkg);
   assert.deepEqual(Object.keys(pkg.scripts ?? {}).sort(), ["build", "check", "norma:analyze", "norma:report", "pretest", "test"]);
   assert.equal(indexSource.includes("structured-json-input-viewer"), false);
   assert.equal(indexSource.includes("parseStructuredJsonInput"), false);

@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 const goldenDir = join(repoRoot, "tests", "goldens", "api");
@@ -100,19 +105,12 @@ test("PR54 golden envelopes preserve version capabilities and replay structure",
 
 test("PR54 keeps runtime package deployment UI and MCP boundaries unchanged", async () => {
   assert.deepEqual(filesUnder("src/api"), ["src/api/minimal-api-server.ts"]);
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(join(repoRoot, "bin", "norma-core-mcp-stdio.mjs")), true);
 
   const packageJson = parseJson(join(repoRoot, "package.json"));
   const packageLock = parseJson(join(repoRoot, "package-lock.json"));
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "bin"), false);
-  assert.deepEqual(Object.keys(packageJson.exports ?? {}).sort(), ["."]);
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 
   for (const path of [
     "src/server",

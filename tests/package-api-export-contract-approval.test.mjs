@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -176,9 +178,7 @@ test("PR95 does not approve dependency expansion", () => {
   const packageJson = JSON.parse(readDoc(packageJsonPath));
   const decisionDoc = readDoc(decisionDocPath);
 
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "peerDependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "optionalDependencies"), false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson);
   assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
   assertDocMentions(decisionDoc, [
     "No dependency, devDependency, peerDependency, or optionalDependency expansion is approved",

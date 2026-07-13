@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { assertCurrentRemoteMcpPackageBoundary } from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -51,9 +53,7 @@ test("PR100 keeps package publication blocked while adding only safe candidate m
     "test",
   ]);
   assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
-  assert.equal(Object.hasOwn(packageJson, "dependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "peerDependencies"), false);
-  assert.equal(Object.hasOwn(packageJson, "optionalDependencies"), false);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 });
 
 test("PR100 keeps lockfile changes limited to root package metadata consistency", () => {
@@ -63,8 +63,7 @@ test("PR100 keeps lockfile changes limited to root package metadata consistency"
   assert.equal(packageLock.packages[""].version, "0.1.0");
   assert.deepEqual(packageLock.packages[""].engines, { node: ">=22" });
   assert.deepEqual(Object.keys(packageLock.packages[""].devDependencies).sort(), ["typescript"]);
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
-  assert.equal(Object.hasOwn(packageLock.packages[""], "dependencies"), false);
+  assert.deepEqual(packageLock.packages[""].dependencies, packageJson.dependencies);
   assert.equal(Object.hasOwn(packageLock.packages[""], "peerDependencies"), false);
   assert.equal(Object.hasOwn(packageLock.packages[""], "optionalDependencies"), false);
 });

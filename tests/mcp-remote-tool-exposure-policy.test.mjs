@@ -4,6 +4,11 @@ import { basename, dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -338,6 +343,7 @@ test("PR46 keeps resources prompts sampling elicitation and logging methods bloc
 test("PR46 keeps package metadata dependencies lockfile and MCP SDK unchanged", () => {
   const packageJson = parseJson(packageJsonPath);
   const packageLock = parseJson(packageLockPath);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.type, "module");
@@ -348,40 +354,23 @@ test("PR46 keeps package metadata dependencies lockfile and MCP SDK unchanged", 
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(
-      Object.hasOwn(packageLock.packages[""], fieldName),
-      false,
-      `${fieldName} should stay absent in lock root`,
-    );
-  }
-
   assert.equal(packageJson.devDependencies?.typescript, "^5.8.0");
   assert.equal(packageLock.packages[""].devDependencies?.typescript, "^5.8.0");
-
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
 });
 
 test("PR46 keeps runtime and deployment surfaces absent in the MCP boundary", () => {
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of blockedRuntimeAndDeploymentPaths) {
     assert.equal(existsSync(join(repoRoot, path)), false, `${path} must not exist`);
   }
 
-  for (const path of [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"]) {
+  for (const path of [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+    "bin/norma-core-mcp-stdio.mjs",
+  ]) {
     const source = readDoc(join(repoRoot, path));
     assertNoRemoteMcpRuntimeSurface(source, path);
     assertNoMcpRuntimeSideEffects(source, path);

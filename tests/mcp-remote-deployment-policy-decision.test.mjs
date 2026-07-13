@@ -4,6 +4,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertCurrentMcpRuntimeSourceBoundary,
+  assertCurrentRemoteMcpPackageBoundary,
+} from "./current-remote-mcp-boundary.mjs";
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(testDir);
 
@@ -244,6 +249,7 @@ test("PR44 requires future deployment evidence and contract test categories befo
 test("PR44 keeps package metadata lockfile dependencies runtime and deployment files unchanged", () => {
   const packageJson = parseJson(packageJsonPath);
   const packageLock = parseJson(packageLockPath);
+  assertCurrentRemoteMcpPackageBoundary(packageJson, packageLock);
 
   assert.equal(packageJson.name, "@norma/core");
   assert.equal(packageJson.version, "0.1.0");
@@ -255,32 +261,9 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
     default: "./dist/src/index.js",
   });
 
-  for (const fieldName of [
-    "publishConfig",
-    "bin",
-    "dependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    assert.equal(Object.hasOwn(packageJson, fieldName), false, `${fieldName} should stay absent`);
-    assert.equal(
-      Object.hasOwn(packageLock.packages[""], fieldName),
-      false,
-      `${fieldName} should stay absent in lock root`,
-    );
-  }
-
   assert.deepEqual(packageJson.devDependencies, { typescript: "^5.8.0" });
   assert.deepEqual(packageLock.packages[""].devDependencies, { typescript: "^5.8.0" });
-  assert.deepEqual(Object.keys(packageLock.packages).sort(), ["", "node_modules/typescript"]);
-
-  assertNoMcpDependency(packageJson);
-  assertNoMcpDependency(packageLock.packages[""]);
-
-  assert.deepEqual(filesUnder("src/mcp"), [
-    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
-    "src/mcp/stdio-protocol.ts",
-  ]);
+  assertCurrentMcpRuntimeSourceBoundary(filesUnder("src/mcp"));
   assert.equal(existsSync(wrapperPath), true);
 
   for (const path of blockedDeploymentPaths) {
@@ -289,7 +272,11 @@ test("PR44 keeps package metadata lockfile dependencies runtime and deployment f
 
   assertNoDeploymentWorkflowFiles();
 
-  const mcpBoundaryPaths = [...filesUnder("src/mcp"), "bin/norma-core-mcp-stdio.mjs"];
+  const mcpBoundaryPaths = [
+    "src/mcp/private-dev-local-visual-mcp-protocol.ts",
+    "src/mcp/stdio-protocol.ts",
+    "bin/norma-core-mcp-stdio.mjs",
+  ];
   for (const path of mcpBoundaryPaths) {
     const source = readDoc(join(repoRoot, path));
     assertNoRemoteMcpRuntimeSurface(source, path);
