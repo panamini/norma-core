@@ -2496,13 +2496,14 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 });
 
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
-  const currentBranch = execFileSync("git", ["branch", "--show-current"], { encoding: "utf8" }).trim();
-  const changedFiles = currentBranch === "codex/personal-visual-harmony-pixel-refinement-shadow"
-    ? branchChangedFiles(undefined, [
-      "origin/codex/personal-chatgpt-visual-harmony-demo",
-      "codex/personal-chatgpt-visual-harmony-demo",
-    ])
-    : branchChangedFiles();
+  const stackedChangedFiles = branchChangedFiles(undefined, [
+    "origin/codex/personal-chatgpt-visual-harmony-demo",
+    "codex/personal-chatgpt-visual-harmony-demo",
+  ]);
+  const changedFiles = isExactChangedFileSet(
+    stackedChangedFiles,
+    personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  ) ? stackedChangedFiles : branchChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
   const isPersonalVisualHarmonyImageHydrationSet = isExactChangedFileSet(
     changedFiles,

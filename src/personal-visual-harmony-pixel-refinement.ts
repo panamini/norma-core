@@ -172,7 +172,11 @@ function refineLinePrimitive(
   displacementBound: number,
 ): RefinementDecision<LinePrimitive> {
   const candidates = lineCandidates(raster, primitive, displacementBound);
-  return decideFromCandidates(candidates, primitive);
+  return decideFromCandidates(
+    candidates,
+    primitive,
+    lineEdgeSupport(raster, primitive.start, primitive.end),
+  );
 }
 
 function lineCandidates(
@@ -328,18 +332,17 @@ function refineEllipse(
     }
   }
   scored.sort(compareScoredGeometry);
-  return decideFromCandidates(scored, primitive);
+  return decideFromCandidates(scored, primitive, ellipseEdgeSupport(raster, primitive));
 }
 
 function decideFromCandidates<TGeometry extends PersonalVisualHarmonyPixelRefinementPrimitiveV1>(
   candidates: readonly ScoredGeometry<TGeometry>[],
   original: TGeometry,
+  originalSupport: number,
 ): RefinementDecision<TGeometry> {
-  const originalKey = geometryKey(original);
-  const originalCandidate = candidates.find((candidate) => candidate.key === originalKey);
   const best = candidates[0];
-  if (best === undefined || originalCandidate === undefined) {
-    return abstainedDecision(0, "invalid_refined_geometry");
+  if (best === undefined) {
+    return abstainedDecision(originalSupport, "invalid_refined_geometry");
   }
   const competing = candidates.find((candidate) => (
     geometrySeparation(best.geometry, candidate.geometry) >= MATERIAL_AMBIGUITY_SEPARATION_PIXELS
@@ -348,7 +351,7 @@ function decideFromCandidates<TGeometry extends PersonalVisualHarmonyPixelRefine
   return decideSingleProposal(
     original,
     best.geometry,
-    originalCandidate.support,
+    originalSupport,
     best.support,
     ambiguityMargin,
     {
@@ -717,6 +720,7 @@ function validatePrimitive(
   raster: PersonalVisualHarmonyLuminanceRasterV1,
 ): void {
   if (primitive.kind === "segment" || primitive.kind === "axis") {
+    requireExactFields(primitive, ["end", "kind", "start"], "Line-like primitives");
     validatePoint(primitive.start, raster);
     validatePoint(primitive.end, raster);
     if (Math.hypot(primitive.end.x - primitive.start.x, primitive.end.y - primitive.start.y) < 4) {
@@ -725,12 +729,17 @@ function validatePrimitive(
     return;
   }
   if (primitive.kind === "quadrilateral") {
+    requireExactFields(primitive, ["kind", "vertices"], "Quadrilateral primitives");
+    if (!Array.isArray(primitive.vertices) || primitive.vertices.length !== 4) {
+      throw new Error("Quadrilateral primitives must use exactly four vertices.");
+    }
     for (const point of primitive.vertices) validatePoint(point, raster);
     if (Math.abs(signedArea(primitive.vertices)) < 4) {
       throw new Error("Quadrilateral primitives must have a non-degenerate area.");
     }
     return;
   }
+  requireExactFields(primitive, ["center", "kind", "radiusX", "radiusY"], "Ellipse primitives");
   validatePoint(primitive.center, raster);
   if (!Number.isFinite(primitive.radiusX) || !Number.isFinite(primitive.radiusY)
     || primitive.radiusX <= 1 || primitive.radiusY <= 1) {
@@ -745,8 +754,22 @@ function validatePoint(
   point: PersonalVisualHarmonyPointV1,
   raster: PersonalVisualHarmonyLuminanceRasterV1,
 ): void {
+  requireExactFields(point, ["x", "y"], "Primitive points");
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !pointInsideRaster(point, raster)) {
     throw new Error("Primitive coordinates must be finite image-pixel positions inside the raster.");
+  }
+}
+
+function requireExactFields(
+  value: object,
+  expectedFields: readonly string[],
+  label: string,
+): void {
+  const actualFields = Object.keys(value).sort(compareStrings);
+  const expected = [...expectedFields].sort(compareStrings);
+  if (actualFields.length !== expected.length
+    || actualFields.some((field, index) => field !== expected[index])) {
+    throw new Error(`${label} must use exact fields.`);
   }
 }
 

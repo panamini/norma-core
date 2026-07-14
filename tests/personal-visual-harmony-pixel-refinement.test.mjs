@@ -95,6 +95,68 @@ test("segment and axis refinement follow the trapezoid's annotated oblique edge"
   }
 });
 
+test("fractional line coordinates retain directly measured original edge support", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "frame-edge-alignment");
+  assert.ok(fixture);
+  const primitive = {
+    kind: "segment",
+    start: { x: 8.1, y: 10.1 },
+    end: { x: 8.1, y: 44.1 },
+  };
+  const result = refinePersonalVisualHarmonyPrimitivePixelsV1({
+    raster: renderRaster(fixture),
+    primitive,
+    maxDisplacementPixels: 4,
+  });
+
+  assert.notEqual(result.reason, "invalid_refined_geometry");
+  assert.ok(result.evidence.originalEdgeSupport > 0);
+  assert.deepEqual(result.originalGeometry, primitive);
+});
+
+test("malformed quadrilaterals and primitive authority extras fail closed", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "frame-edge-alignment");
+  const ellipseFixture = corpus.cases.find((entry) => entry.id === "ellipse-with-nearby-line");
+  assert.ok(fixture);
+  assert.ok(ellipseFixture);
+  const raster = renderRaster(fixture);
+  for (const vertices of [
+    fixture.primitive.vertices.slice(0, 3),
+    [...fixture.primitive.vertices, { x: 20, y: 20 }],
+  ]) {
+    assert.throws(
+      () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+        raster,
+        primitive: { kind: "quadrilateral", vertices },
+      }),
+      /exactly four vertices/u,
+    );
+  }
+
+  for (const primitive of [
+    { kind: "segment", start: { x: 8, y: 10 }, end: { x: 8, y: 44 }, sourceTruth: true },
+    { kind: "axis", start: { x: 8, y: 10 }, end: { x: 8, y: 44 }, sourceTruth: true },
+    { ...fixture.primitive, sourceTruth: true },
+    { ...ellipseFixture.primitive, sourceTruth: true },
+  ]) {
+    assert.throws(
+      () => refinePersonalVisualHarmonyPrimitivePixelsV1({ raster, primitive }),
+      /must use exact fields/u,
+    );
+  }
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+      raster,
+      primitive: {
+        kind: "segment",
+        start: { x: 8, y: 10, automaticAcceptance: true },
+        end: { x: 8, y: 44 },
+      },
+    }),
+    /must use exact fields/u,
+  );
+});
+
 test("weak contour evidence abstains and never emits proposed geometry", () => {
   const fixture = corpus.cases.find((entry) => entry.id === "weak-ambiguous-negative");
   assert.ok(fixture);
