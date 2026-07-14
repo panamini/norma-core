@@ -15,10 +15,55 @@ import {
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
   PERSONAL_VISUAL_HARMONY_WIDGET_URI,
   PersonalVisualHarmonySessionServiceV1,
+  runPersonalVisualHarmonyImageHydrationV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
 const GOLDEN_MAJOR = 0.6180339887498949;
+
+function widgetScriptFunction(name, nextLinePrefix, bindings) {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const functionStart = script.indexOf(`function ${name}(`);
+  const asyncFunctionStart = script.indexOf(`async function ${name}(`);
+  const start = asyncFunctionStart !== -1 && asyncFunctionStart <= functionStart
+    ? asyncFunctionStart
+    : functionStart;
+  assert.notEqual(start, -1, `Missing widget function ${name}`);
+  const end = script.indexOf(`\n${nextLinePrefix}`, start);
+  assert.notEqual(end, -1, `Missing widget function boundary after ${name}`);
+  const source = script.slice(start, end);
+  const bindingNames = Object.keys(bindings);
+  return new Function(...bindingNames, `"use strict";${source};return ${name};`)(
+    ...bindingNames.map((bindingName) => bindings[bindingName]),
+  );
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((settle) => { resolve = settle; });
+  return { promise, resolve };
+}
+
+function widgetHydrationState(overrides = {}) {
+  return {
+    payload: null,
+    activePayload: null,
+    activePayloadIdentity: null,
+    pendingStructuredContent: null,
+    imageReady: false,
+    imageLoadGeneration: 0,
+    imageLoadTask: null,
+    imageLoadFileId: null,
+    imageLoadPayloadIdentity: null,
+    dimensions: null,
+    downloadUrl: null,
+    confirming: false,
+    completed: false,
+    ...overrides,
+  };
+}
 
 test("presentation promotes the complementary phi split and collapses duplicate support", () => {
   const makeMatch = (overrides) => ({
@@ -237,6 +282,8 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
   };
 }
 
+// This exact resource contract intentionally keeps its symmetric prepare/confirm assertions together.
+// fallow-ignore-next-line complexity code-duplication
 test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation, and widget resource", async () => {
   const connected = await createConnectedClient();
   try {
@@ -384,8 +431,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /confirmedSelectionIdentity/u);
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
-    assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed\)/u);
-    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(payload,completed\)/u);
+    assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed,expectedPayloadIdentity\)/u);
+    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(payload,completed,identity\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
     assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
@@ -444,10 +491,24 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /shallow_intersection:"COUPE RASANTE"/u);
     assert.match(resource.contents[0].text, /contactCharacter:item\.contactCharacter/u);
     assert.match(resource.contents[0].text, /imageLoadGeneration:0/u);
-    assert.match(resource.contents[0].text, /function imageLoadIsCurrent\(generation,fileId\)/u);
-    assert.match(resource.contents[0].text, /if\(!imageLoadIsCurrent\(generation,fileId\)\)return/u);
-    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId\);if\(!imageLoaded\)return/u);
-    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId\)\)return/u);
+    assert.match(resource.contents[0].text, /IMAGE_HYDRATION_MAX_ATTEMPTS=2/u);
+    assert.match(resource.contents[0].text, /const runImageHydration=async function runPersonalVisualHarmonyImageHydrationV1/u);
+    assert.match(resource.contents[0].text, /activePayload:null,activePayloadIdentity:null/u);
+    assert.match(resource.contents[0].text, /imageLoadTask:null,imageLoadFileId:null,imageLoadPayloadIdentity:null/u);
+    assert.match(resource.contents[0].text, /function payloadIdentity\(payload\)/u);
+    assert.match(resource.contents[0].text, /function imageLoadIsCurrent\(generation,fileId,payloadIdentity\)/u);
+    assert.match(resource.contents[0].text, /if\(!imageLoadIsCurrent\(generation,fileId,payloadIdentity\)\)return/u);
+    assert.match(resource.contents[0].text, /function loadDisplayedImage\(downloadUrl,generation,fileId,payloadIdentity\)/u);
+    assert.doesNotMatch(resource.contents[0].text, /const probe=new Image\(\)/u);
+    assert.doesNotMatch(resource.contents[0].text, /source\.src=result\.downloadUrl/u);
+    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(!imageLoaded\|\|state\.activePayloadIdentity!==identity\)return/u);
+    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\)\)return/u);
+    assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
+    assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
+    assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
+    assert.match(resource.contents[0].text, /if\(!force&&state\.imageReady&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return true/u);
+    assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
+    assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
@@ -461,6 +522,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
+    assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
+    assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
     assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
@@ -473,6 +537,296 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   } finally {
     await connected.close();
   }
+});
+
+test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
+  const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
+  const state = widgetHydrationState();
+  const imageLoads = [];
+  const performImageLoad = (fileId, generation, payloadIdentity) => {
+    const pending = deferred();
+    imageLoads.push({ fileId, generation, payloadIdentity, pending });
+    return pending.promise;
+  };
+  const loadImage = widgetScriptFunction("loadImage", "function renderCandidates", {
+    state,
+    source: { removeAttribute() {} },
+    showImageLoading() {},
+    performImageLoad,
+  });
+  const revalidatedIdentities = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity,
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage,
+    completedWidgetStateFor: (payload) => ({ candidateSetIdentity: payload.prepared.candidateSetIdentity }),
+    revalidateCompleted: async (payload) => { revalidatedIdentities.push(payload.prepared.candidateSetIdentity); },
+    renderResult() { throw new Error("confirmation payload must not render a completed result"); },
+  });
+  const firstPayload = {
+    stage: "confirmation_required",
+    fileId: "file-shared",
+    prepared: { candidateSetIdentity: "sha256:first", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+  const secondPayload = {
+    stage: "confirmation_required",
+    fileId: "file-shared",
+    prepared: { candidateSetIdentity: "sha256:second", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+
+  const firstHydration = hydrate(firstPayload);
+  const secondHydration = hydrate(secondPayload);
+  assert.equal(imageLoads.length, 2);
+  assert.notEqual(imageLoads[0].payloadIdentity, imageLoads[1].payloadIdentity);
+
+  imageLoads[1].pending.resolve(true);
+  await secondHydration;
+  imageLoads[0].pending.resolve(true);
+  await firstHydration;
+
+  assert.deepEqual(revalidatedIdentities, ["sha256:second"]);
+  assert.equal(state.activePayload, secondPayload);
+});
+
+test("completed payload for a new file hydrates and renders over existing widget state", async () => {
+  const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
+  const oldPayload = {
+    stage: "confirmation_required",
+    fileId: "file-old",
+    prepared: { candidateSetIdentity: "sha256:old", candidates: [] },
+  };
+  const state = widgetHydrationState({
+    payload: oldPayload,
+    activePayload: oldPayload,
+    activePayloadIdentity: payloadIdentity(oldPayload),
+  });
+  const imageLoadIsCurrent = widgetScriptFunction(
+    "imageLoadIsCurrent",
+    "function setImageHydrationStatus",
+    { state },
+  );
+  const loadImage = widgetScriptFunction("loadImage", "function renderCandidates", {
+    state,
+    source: { removeAttribute() {} },
+    showImageLoading() {},
+    performImageLoad: async (fileId, generation, payloadIdentity) => (
+      imageLoadIsCurrent(generation, fileId, payloadIdentity)
+    ),
+  });
+  const rendered = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity,
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage,
+    completedWidgetStateFor() { throw new Error("completed payload must not revalidate cached confirmation state"); },
+    revalidateCompleted() { throw new Error("completed payload must not revalidate cached confirmation state"); },
+    renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
+  });
+  const completedPayload = {
+    stage: "completed",
+    fileId: "file-new",
+    result: { contentIdentity: `sha256:${"a".repeat(64)}` },
+    overlaySvg: "<svg></svg>",
+  };
+  const structured = { status: "completed" };
+
+  await hydrate(completedPayload, structured);
+
+  assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
+  assert.equal(state.activePayload, completedPayload);
+  assert.equal(state.imageLoadFileId, "file-new");
+});
+
+test("displayed image load is the hydration proof for single-use temporary URLs", async () => {
+  const identity = JSON.stringify(["confirmation_required", "file-once", "sha256:once"]);
+  const state = widgetHydrationState({
+    activePayloadIdentity: identity,
+    imageLoadGeneration: 1,
+    imageLoadFileId: "file-once",
+  });
+  const imageLoadIsCurrent = widgetScriptFunction(
+    "imageLoadIsCurrent",
+    "function setImageHydrationStatus",
+    { state },
+  );
+  const assignedUrls = [];
+  let currentSrc = "";
+  const source = {
+    naturalWidth: 900,
+    naturalHeight: 600,
+    onload: null,
+    onerror: null,
+    referrerPolicy: "",
+    get src() { return currentSrc; },
+    set src(value) {
+      currentSrc = value;
+      assignedUrls.push(value);
+      queueMicrotask(() => this.onload?.());
+    },
+  };
+  const loadDisplayedImage = widgetScriptFunction(
+    "loadDisplayedImage",
+    "async function performImageLoad",
+    { state, source, imageLoadIsCurrent, IMAGE_HYDRATION_TIMEOUT_MS: 1_000 },
+  );
+
+  const result = await loadDisplayedImage(
+    "https://files.example/single-use",
+    1,
+    "file-once",
+    identity,
+  );
+
+  assert.deepEqual(result, { width: 900, height: 600 });
+  assert.deepEqual(assignedUrls, ["https://files.example/single-use"]);
+  assert.equal(source.referrerPolicy, "no-referrer");
+});
+
+test("ready image cache refreshes when the same file receives a new payload identity", async () => {
+  const state = widgetHydrationState({
+    imageReady: true,
+    imageLoadGeneration: 3,
+    imageLoadFileId: "file-shared",
+    imageLoadPayloadIdentity: "identity-old",
+    downloadUrl: "https://files.example/expired",
+  });
+  const loads = [];
+  const loadImage = widgetScriptFunction("loadImage", "function renderCandidates", {
+    state,
+    source: { removeAttribute() {} },
+    showImageLoading() {},
+    performImageLoad: async (fileId, generation, payloadIdentity) => {
+      loads.push({ fileId, generation, payloadIdentity });
+      return true;
+    },
+  });
+
+  assert.equal(await loadImage("file-shared", "identity-new"), true);
+  assert.deepEqual(loads, [{ fileId: "file-shared", generation: 4, payloadIdentity: "identity-new" }]);
+  assert.equal(state.imageLoadPayloadIdentity, "identity-new");
+});
+
+test("replacement confirmation queued during an older confirmation is hydrated after it settles", () => {
+  const replacement = {
+    stage: "confirmation_required",
+    fileId: "file-shared",
+    prepared: { candidateSetIdentity: "sha256:replacement", candidates: [] },
+  };
+  const state = widgetHydrationState({
+    activePayload: replacement,
+    activePayloadIdentity: "identity-replacement",
+    pendingStructuredContent: { status: "confirmation_required" },
+    confirming: true,
+  });
+  const locked = [];
+  const hydrated = [];
+  const finishConfirmingPayload = widgetScriptFunction(
+    "finishConfirmingPayload",
+    "async function revalidateCompleted",
+    {
+      state,
+      setReviewLocked: (value) => { locked.push(value); },
+      hydrate: (payload, structured) => { hydrated.push({ payload, structured }); },
+    },
+  );
+
+  finishConfirmingPayload("identity-old");
+
+  assert.equal(state.confirming, false);
+  assert.deepEqual(locked, [false]);
+  assert.deepEqual(hydrated, [{ payload: replacement, structured: state.pendingStructuredContent }]);
+});
+
+test("image hydration refreshes an expired URL once without repeating Norma preparation", async () => {
+  const downloadUrls = ["https://files.example/expired", "https://files.example/fresh"];
+  const requestedFileIds = [];
+  const loadedUrls = [];
+  const waits = [];
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-123",
+    maxAttempts: 2,
+    retryDelayMs: 250,
+    getDownloadUrl: async (fileId) => {
+      requestedFileIds.push(fileId);
+      return { downloadUrl: downloadUrls.shift() };
+    },
+    loadDownloadUrl: async (downloadUrl) => {
+      loadedUrls.push(downloadUrl);
+      if (downloadUrl.endsWith("/expired")) throw new Error("expired");
+      return { width: 720, height: 480 };
+    },
+    isCurrent: () => true,
+    waitBeforeRetry: async (delayMs) => { waits.push(delayMs); },
+  });
+
+  assert.deepEqual(result, {
+    status: "ready",
+    attemptCount: 2,
+    downloadUrl: "https://files.example/fresh",
+    width: 720,
+    height: 480,
+  });
+  assert.deepEqual(requestedFileIds, ["file-123", "file-123"]);
+  assert.deepEqual(loadedUrls, ["https://files.example/expired", "https://files.example/fresh"]);
+  assert.deepEqual(waits, [250]);
+});
+
+test("image hydration fails closed after its bounded URL attempts", async () => {
+  let requestCount = 0;
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-123",
+    maxAttempts: 2,
+    retryDelayMs: 0,
+    getDownloadUrl: async () => {
+      requestCount += 1;
+      throw new Error("temporary file API failure");
+    },
+    loadDownloadUrl: async () => { throw new Error("must not load"); },
+    isCurrent: () => true,
+    waitBeforeRetry: async () => {},
+  });
+
+  assert.deepEqual(result, {
+    status: "failed",
+    attemptCount: 2,
+    failure: "download_url_unavailable",
+  });
+  assert.equal(requestCount, 2);
+});
+
+test("image hydration discards a stale response before loading it", async () => {
+  let current = true;
+  let loadCount = 0;
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-old",
+    maxAttempts: 2,
+    retryDelayMs: 0,
+    getDownloadUrl: async () => {
+      current = false;
+      return { downloadUrl: "https://files.example/stale" };
+    },
+    loadDownloadUrl: async () => {
+      loadCount += 1;
+      return { width: 1, height: 1 };
+    },
+    isCurrent: () => current,
+    waitBeforeRetry: async () => {},
+  });
+
+  assert.deepEqual(result, { status: "stale", attemptCount: 1 });
+  assert.equal(loadCount, 0);
 });
 
 test("prepare keeps Core stopped and confirm runs deterministic Core only after the literal widget gate", async () => {
