@@ -27,6 +27,7 @@ import {
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
+  personalVisualHarmonyImageHydrationChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -301,6 +302,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyImageHydrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;

@@ -210,6 +210,20 @@ export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyImageHydrationChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const statelessRemoteMcpCommercialBetaContractChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_REMOTE_APPROVAL_DECISION.md",
@@ -1262,6 +1276,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  personalVisualHarmonyImageHydrationChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
