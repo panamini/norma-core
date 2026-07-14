@@ -48,6 +48,9 @@ import {
   isExactChangedFileSet,
   localVisualCandidateReviewChangedFiles,
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
+  personalChatGptVisualHarmonyDemoChangedFiles,
+  personalVisualHarmonyImageHydrationChangedFiles,
+  personalVisualHarmonyPixelRefinementShadowChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -1584,6 +1587,9 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalChatGptVisualHarmonyDemoChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), pr132ValidationHardeningCheckpointChangedFiles)) return;
