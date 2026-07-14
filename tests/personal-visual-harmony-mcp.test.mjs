@@ -46,6 +46,25 @@ function deferred() {
   return { promise, resolve };
 }
 
+function widgetHydrationState(overrides = {}) {
+  return {
+    payload: null,
+    activePayload: null,
+    activePayloadIdentity: null,
+    pendingStructuredContent: null,
+    imageReady: false,
+    imageLoadGeneration: 0,
+    imageLoadTask: null,
+    imageLoadFileId: null,
+    imageLoadPayloadIdentity: null,
+    dimensions: null,
+    downloadUrl: null,
+    confirming: false,
+    completed: false,
+    ...overrides,
+  };
+}
+
 test("presentation promotes the complementary phi split and collapses duplicate support", () => {
   const makeMatch = (overrides) => ({
     subjectCandidateId: "square",
@@ -479,11 +498,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /function payloadIdentity\(payload\)/u);
     assert.match(resource.contents[0].text, /function imageLoadIsCurrent\(generation,fileId,payloadIdentity\)/u);
     assert.match(resource.contents[0].text, /if\(!imageLoadIsCurrent\(generation,fileId,payloadIdentity\)\)return/u);
+    assert.match(resource.contents[0].text, /function loadDisplayedImage\(downloadUrl,generation,fileId,payloadIdentity\)/u);
+    assert.doesNotMatch(resource.contents[0].text, /const probe=new Image\(\)/u);
+    assert.doesNotMatch(resource.contents[0].text, /source\.src=result\.downloadUrl/u);
     assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(!imageLoaded\|\|state\.activePayloadIdentity!==identity\)return/u);
     assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\)\)return/u);
     assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
     assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
     assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
+    assert.match(resource.contents[0].text, /if\(!force&&state\.imageReady&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return true/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
     assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
@@ -499,6 +522,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
+    assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
+    assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
     assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
@@ -515,21 +541,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
 test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
-  const state = {
-    payload: null,
-    activePayload: null,
-    activePayloadIdentity: null,
-    pendingStructuredContent: null,
-    imageReady: false,
-    imageLoadGeneration: 0,
-    imageLoadTask: null,
-    imageLoadFileId: null,
-    imageLoadPayloadIdentity: null,
-    dimensions: null,
-    downloadUrl: null,
-    confirming: false,
-    completed: false,
-  };
+  const state = widgetHydrationState();
   const imageLoads = [];
   const performImageLoad = (fileId, generation, payloadIdentity) => {
     const pending = deferred();
@@ -590,21 +602,11 @@ test("completed payload for a new file hydrates and renders over existing widget
     fileId: "file-old",
     prepared: { candidateSetIdentity: "sha256:old", candidates: [] },
   };
-  const state = {
+  const state = widgetHydrationState({
     payload: oldPayload,
     activePayload: oldPayload,
     activePayloadIdentity: payloadIdentity(oldPayload),
-    pendingStructuredContent: null,
-    imageReady: false,
-    imageLoadGeneration: 0,
-    imageLoadTask: null,
-    imageLoadFileId: null,
-    imageLoadPayloadIdentity: null,
-    dimensions: null,
-    downloadUrl: null,
-    confirming: false,
-    completed: false,
-  };
+  });
   const imageLoadIsCurrent = widgetScriptFunction(
     "imageLoadIsCurrent",
     "function setImageHydrationStatus",
@@ -645,6 +647,106 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
   assert.equal(state.activePayload, completedPayload);
   assert.equal(state.imageLoadFileId, "file-new");
+});
+
+test("displayed image load is the hydration proof for single-use temporary URLs", async () => {
+  const identity = JSON.stringify(["confirmation_required", "file-once", "sha256:once"]);
+  const state = widgetHydrationState({
+    activePayloadIdentity: identity,
+    imageLoadGeneration: 1,
+    imageLoadFileId: "file-once",
+  });
+  const imageLoadIsCurrent = widgetScriptFunction(
+    "imageLoadIsCurrent",
+    "function setImageHydrationStatus",
+    { state },
+  );
+  const assignedUrls = [];
+  let currentSrc = "";
+  const source = {
+    naturalWidth: 900,
+    naturalHeight: 600,
+    onload: null,
+    onerror: null,
+    referrerPolicy: "",
+    get src() { return currentSrc; },
+    set src(value) {
+      currentSrc = value;
+      assignedUrls.push(value);
+      queueMicrotask(() => this.onload?.());
+    },
+  };
+  const loadDisplayedImage = widgetScriptFunction(
+    "loadDisplayedImage",
+    "async function performImageLoad",
+    { state, source, imageLoadIsCurrent, IMAGE_HYDRATION_TIMEOUT_MS: 1_000 },
+  );
+
+  const result = await loadDisplayedImage(
+    "https://files.example/single-use",
+    1,
+    "file-once",
+    identity,
+  );
+
+  assert.deepEqual(result, { width: 900, height: 600 });
+  assert.deepEqual(assignedUrls, ["https://files.example/single-use"]);
+  assert.equal(source.referrerPolicy, "no-referrer");
+});
+
+test("ready image cache refreshes when the same file receives a new payload identity", async () => {
+  const state = widgetHydrationState({
+    imageReady: true,
+    imageLoadGeneration: 3,
+    imageLoadFileId: "file-shared",
+    imageLoadPayloadIdentity: "identity-old",
+    downloadUrl: "https://files.example/expired",
+  });
+  const loads = [];
+  const loadImage = widgetScriptFunction("loadImage", "function renderCandidates", {
+    state,
+    source: { removeAttribute() {} },
+    showImageLoading() {},
+    performImageLoad: async (fileId, generation, payloadIdentity) => {
+      loads.push({ fileId, generation, payloadIdentity });
+      return true;
+    },
+  });
+
+  assert.equal(await loadImage("file-shared", "identity-new"), true);
+  assert.deepEqual(loads, [{ fileId: "file-shared", generation: 4, payloadIdentity: "identity-new" }]);
+  assert.equal(state.imageLoadPayloadIdentity, "identity-new");
+});
+
+test("replacement confirmation queued during an older confirmation is hydrated after it settles", () => {
+  const replacement = {
+    stage: "confirmation_required",
+    fileId: "file-shared",
+    prepared: { candidateSetIdentity: "sha256:replacement", candidates: [] },
+  };
+  const state = widgetHydrationState({
+    activePayload: replacement,
+    activePayloadIdentity: "identity-replacement",
+    pendingStructuredContent: { status: "confirmation_required" },
+    confirming: true,
+  });
+  const locked = [];
+  const hydrated = [];
+  const finishConfirmingPayload = widgetScriptFunction(
+    "finishConfirmingPayload",
+    "async function revalidateCompleted",
+    {
+      state,
+      setReviewLocked: (value) => { locked.push(value); },
+      hydrate: (payload, structured) => { hydrated.push({ payload, structured }); },
+    },
+  );
+
+  finishConfirmingPayload("identity-old");
+
+  assert.equal(state.confirming, false);
+  assert.deepEqual(locked, [false]);
+  assert.deepEqual(hydrated, [{ payload: replacement, structured: state.pendingStructuredContent }]);
 });
 
 test("image hydration refreshes an expired URL once without repeating Norma preparation", async () => {
