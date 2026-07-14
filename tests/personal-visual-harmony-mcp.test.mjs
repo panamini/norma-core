@@ -7,6 +7,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 import {
+  createPersonalVisualHarmonyPresentationV1,
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
@@ -18,6 +19,67 @@ import {
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
 const GOLDEN_MAJOR = 0.6180339887498949;
+
+test("presentation promotes the complementary phi split and collapses duplicate support", () => {
+  const makeMatch = (overrides) => ({
+    subjectCandidateId: "square",
+    subjectLabel: "Carré rouge",
+    metric: "vertical-split-share",
+    quality: "near",
+    ratioLabel: "φ major",
+    ratioFamily: "golden-ratio",
+    observedPercent: 62.38,
+    targetPercent: 61.803,
+    deltaPercentagePoints: 0.577,
+    explanation: "Mesure déterministe de fixture",
+    ...overrides,
+  });
+  const presentation = createPersonalVisualHarmonyPresentationV1([
+    makeMatch({}),
+    makeMatch({
+      subjectCandidateId: "upper",
+      subjectLabel: "Rectangle supérieur",
+      ratioLabel: "φ minor",
+      observedPercent: 37.62,
+      targetPercent: 38.197,
+    }),
+    makeMatch({
+      metric: "height-share",
+      ratioLabel: "1/3",
+      observedPercent: 32.5,
+      targetPercent: 33.333,
+      deltaPercentagePoints: 0.833,
+    }),
+    makeMatch({
+      subjectCandidateId: "full",
+      subjectLabel: "Rectangle complet",
+      metric: "right-edge-position",
+      observedPercent: 60.3,
+      targetPercent: 61.803,
+      deltaPercentagePoints: 1.503,
+    }),
+    makeMatch({
+      metric: "right-edge-position",
+      observedPercent: 60.3,
+      targetPercent: 61.803,
+      deltaPercentagePoints: 1.503,
+    }),
+  ]);
+
+  assert.equal(presentation.primaryPattern.kind, "complementary_pair");
+  assert.equal(presentation.primaryPattern.metricLabel, "part du découpage vertical");
+  assert.deepEqual(
+    presentation.primaryPattern.subjects.map(({ label, observedPercent, ratioLabel }) => ({ label, observedPercent, ratioLabel })),
+    [
+      { label: "Carré rouge", observedPercent: 62.38, ratioLabel: "φ major" },
+      { label: "Rectangle supérieur", observedPercent: 37.62, ratioLabel: "φ minor" },
+    ],
+  );
+  assert.equal(presentation.primaryPattern.maxDeltaPercentagePoints, 0.577);
+  const groupedRightEdge = presentation.supportingObservations.filter(({ metric }) => metric === "right-edge-position");
+  assert.equal(groupedRightEdge.length, 1);
+  assert.deepEqual(groupedRightEdge[0].subjectLabels, ["Rectangle complet", "Carré rouge"]);
+});
 
 function candidates() {
   return [
@@ -44,11 +106,63 @@ function candidates() {
   ];
 }
 
-function recoveryInput(fileId = "file-private-opaque-id") {
+function mixedPrimitiveCandidates() {
+  return [
+    ...candidates(),
+    {
+      id: "diagonal",
+      label: "Diagonale structurelle",
+      role: "structural-region",
+      reason: "Segment visible entre deux angles de construction",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.2, y: 0.8 },
+        end: { x: 0.8, y: 0.2 },
+      },
+    },
+    {
+      id: "central-axis",
+      label: "Axe vertical central",
+      role: "structural-region",
+      reason: "Axe visible dans les alignements de la composition",
+      x: 0.5,
+      y: 0.1,
+      width: 0,
+      height: 0.8,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.5, y: 0.1 },
+        end: { x: 0.5, y: 0.9 },
+      },
+    },
+    {
+      id: "main-ellipse",
+      label: "Contour elliptique",
+      role: "structural-region",
+      reason: "Contour elliptique visible dans la construction",
+      x: 0.25,
+      y: 0.15,
+      width: 0.5,
+      height: 0.7,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.25,
+        radiusY: 0.35,
+      },
+    },
+  ];
+}
+
+function recoveryInput(fileId = "file-private-opaque-id", candidateValues = candidates()) {
   return {
     fileId,
     sourceImageMediaType: "image/png",
-    candidates: candidates(),
+    candidates: candidateValues,
   };
 }
 
@@ -100,11 +214,18 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(prepareTool.inputSchema.properties.image.additionalProperties, false);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
+    assert.match(prepareTool.description, /major diagonals/u);
+    assert.match(prepareTool.description, /circular or elliptical contours/u);
+    assert.match(prepareTool.description, /deterministic Core receives confirmed rectangles only/u);
     const candidateProperties = prepareTool.inputSchema.properties.candidates.items.properties;
     assert.match(candidateProperties.x.description, /Left visible edge divided by the full image pixel width/u);
     assert.match(candidateProperties.x.description, /never snap or round it toward phi, halves, or thirds/u);
-    assert.match(candidateProperties.height.description, /exclude captions or annotations outside the region/u);
+    assert.match(candidateProperties.height.description, /zero only for a perfectly horizontal segment or axis/u);
     assert.match(candidateProperties.reason.description, /never cite an expected harmonic ratio as the coordinate basis/u);
+    const primitiveSchema = JSON.stringify(candidateProperties.primitive);
+    for (const kind of ["rectangle", "segment", "axis", "ellipse"]) {
+      assert.match(primitiveSchema, new RegExp(`"${kind}"`, "u"));
+    }
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
@@ -117,6 +238,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
     assert.match(resource.contents[0].text, /window\.openai\?\.setWidgetState/u);
     assert.match(resource.contents[0].text, /completedVisualHarmony/u);
+    assert.match(resource.contents[0].text, /presentation:\s*structured\?\.presentation/u);
+    assert.match(resource.contents[0].text, /La séparation principale suit presque φ/u);
+    assert.match(resource.contents[0].text, /primaryPattern\.kind vaut complementary_pair/u);
+    assert.match(resource.contents[0].text, /ne duplique aucune observation/u);
     assert.match(resource.contents[0].text, /completedWidgetStateFor\(payload\)/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity:payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /selectedCandidateIds:\[\.\.\.state\.selected\]/u);
@@ -125,6 +250,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
     assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed\)/u);
+    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(payload,completed\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
     assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
@@ -157,6 +283,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /event\.shiftKey/u);
     assert.match(resource.contents[0].text, /group\.focus\(\)/u);
     assert.match(resource.contents[0].text, /data-resize-handle/u);
+    assert.match(resource.contents[0].text, /id="familyFilters"/u);
+    assert.match(resource.contents[0].text, /visibleKinds:new Set\(\["rectangle","segment","axis","ellipse"\]\)/u);
+    assert.match(resource.contents[0].text, /function syncFamilyVisibility\(\)/u);
+    assert.match(resource.contents[0].text, /primitiveKind\(item\)==="rectangle"/u);
+    assert.match(resource.contents[0].text, /visualGuideCandidateIds/u);
+    assert.match(resource.contents[0].text, /N’attribue aucun rapport aux visualGuideCandidateIds/u);
+    assert.match(resource.contents[0].text, /peuvent rester affichées ou masquées dans l’overlay/u);
+    assert.match(resource.contents[0].text, /présent"\+\(visualGuideCount===1\?"":"s"\)\+" comme repère/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
@@ -171,8 +305,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
     assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
     assert.match(resource.contents[0].text, /group\.setPointerCapture\?\.\(pointerId\)/u);
-    assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",disabled\?"-1":"0"\)/u);
-    assert.match(resource.contents[0].text, /\.overlay \[data-candidate-id\]\{touch-action:none/u);
+    assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",editable\?"0":"-1"\)/u);
+    assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\]\{touch-action:none/u);
     assert.doesNotMatch(resource.contents[0].text, /\.overlay\{[^}]*touch-action:none/u);
   } finally {
     await connected.close();
@@ -242,9 +376,20 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     assert.equal("explicitHumanConfirmation" in confirmed.structuredContent, false);
     assert.equal(confirmed.structuredContent.coreInputAuthority, "confirmed_structured_geometry");
     assert.equal(confirmed.structuredContent.coreRun, true);
+    assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
+    assert.deepEqual(confirmed.structuredContent.visualGuideCandidateIds, []);
     assert.ok(confirmed.structuredContent.relationshipCount >= 2);
     assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ major"));
     assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ minor"));
+    assert.equal(confirmed.structuredContent.presentation.contractId, "personal-visual-harmony-presentation");
+    assert.equal(confirmed.structuredContent.presentation.contractVersion, 1);
+    assert.equal(confirmed.structuredContent.presentation.primaryPattern.kind, "complementary_pair");
+    assert.equal(confirmed.structuredContent.presentation.primaryPattern.subjects.length, 2);
+    assert.equal(
+      confirmed.structuredContent.presentation.primaryPattern.subjects
+        .reduce((sum, subject) => sum + subject.observedPercent, 0),
+      100,
+    );
     assert.match(confirmed.structuredContent.canonicalResultIdentity, /^sha256:[0-9a-f]{64}$/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /^<svg/u);
     assert.equal(confirmed._meta.normaPersonalVisualHarmony.stage, "completed");
@@ -276,6 +421,70 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
       },
     });
     assert.equal(conflicting.isError, true);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("mixed structural primitives stay visible while only rectangles cross the Core boundary", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const candidateValues = mixedPrimitiveCandidates();
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    assert.equal(prepared.isError, undefined);
+    assert.deepEqual(
+      prepared.structuredContent.candidates.map(({ primitive }) => primitive?.kind ?? "rectangle"),
+      ["rectangle", "rectangle", "segment", "axis", "ellipse"],
+    );
+    assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="segment"/u);
+    assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="ellipse"/u);
+
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const guideRejected = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "diagonal"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(guideRejected.isError, true);
+    assert.match(guideRejected.content[0].text, /Visual guides cannot enter Norma Core/u);
+
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(confirmed.isError, undefined);
+    assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
+    assert.deepEqual(confirmed.structuredContent.visualGuideCandidateIds, [
+      "diagonal",
+      "central-axis",
+      "main-ellipse",
+    ]);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="axis"/u);
   } finally {
     await connected.close();
   }
@@ -345,7 +554,7 @@ test("prepare rejects rectangles that pass scalar schema bounds but cross the im
       },
     });
     assert.equal(response.isError, true);
-    assert.match(response.content[0].text, /positive normalized rectangle/u);
+    assert.match(response.content[0].text, /normalized primitive bounds/u);
   } finally {
     await connected.close();
   }

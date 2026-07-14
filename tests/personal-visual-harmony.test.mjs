@@ -40,6 +40,58 @@ function goldenCandidates() {
   ];
 }
 
+function mixedPrimitiveCandidates() {
+  return [
+    ...goldenCandidates(),
+    {
+      id: "diagonal",
+      label: "Diagonale structurelle",
+      role: "structural-region",
+      reason: "Long segment visible entre deux angles de construction",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.2, y: 0.8 },
+        end: { x: 0.8, y: 0.2 },
+      },
+    },
+    {
+      id: "central-axis",
+      label: "Axe vertical central",
+      role: "structural-region",
+      reason: "Axe vertical matérialisé par les alignements visibles",
+      x: 0.5,
+      y: 0.1,
+      width: 0,
+      height: 0.8,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.5, y: 0.1 },
+        end: { x: 0.5, y: 0.9 },
+      },
+    },
+    {
+      id: "main-ellipse",
+      label: "Contour elliptique",
+      role: "structural-region",
+      reason: "Contour elliptique visible dans la construction",
+      x: 0.25,
+      y: 0.15,
+      width: 0.5,
+      height: 0.7,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.25,
+        radiusY: 0.35,
+      },
+    },
+  ];
+}
+
 function prepare(candidates = goldenCandidates()) {
   return preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-private-demo-123",
@@ -71,6 +123,11 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.equal(first.imageBytesObservedByNorma, false);
   assert.equal(first.sourceImageIdentityBasis, "chatgpt_file_reference_not_image_bytes");
   assert.equal(first.candidateSetIdentity, second.candidateSetIdentity);
+  assert.deepEqual(
+    Object.keys(first.candidates[0]).sort(),
+    Object.keys(goldenCandidates()[0]).sort(),
+  );
+  assert.equal(Object.hasOwn(first.candidates[0], "primitive"), false);
   assert.match(first.candidateSetIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
 });
@@ -78,7 +135,7 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
 test("candidate validation is closed and rejects out-of-bounds, duplicate, or injected shapes", () => {
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], width: 1.1 }]),
-    /positive normalized rectangle/u,
+    /normalized primitive bounds/u,
   );
   assert.throws(
     () => prepare([goldenCandidates()[0], goldenCandidates()[0]]),
@@ -87,6 +144,60 @@ test("candidate validation is closed and rejects out-of-bounds, duplicate, or in
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], unexpected: true }]),
     /exact fields/u,
+  );
+  assert.throws(
+    () => prepare([{ ...goldenCandidates()[0], primitive: { kind: "polygon" } }]),
+    /unsupported primitive/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...mixedPrimitiveCandidates().find(({ id }) => id === "diagonal"),
+      width: 0.5,
+    }]),
+    /line bounds must match its endpoints/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...mixedPrimitiveCandidates().find(({ id }) => id === "central-axis"),
+      primitive: {
+        kind: "axis",
+        start: { x: 0.5, y: 0.1 },
+        end: { x: 0.5, y: 0.1 },
+      },
+    }]),
+    /requires distinct endpoints/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...mixedPrimitiveCandidates().find(({ id }) => id === "main-ellipse"),
+      width: 0.4,
+    }]),
+    /ellipse bounds must match its visible contour/u,
+  );
+});
+
+test("structural primitive guides render by kind but never enter rectangle-only Core", () => {
+  const prepared = prepare(mixedPrimitiveCandidates());
+  const svg = createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared });
+
+  assert.match(svg, /data-candidate-id="diagonal" data-primitive-kind="segment"[^>]*>[\s\S]*?<line data-candidate-shape/u);
+  assert.match(svg, /data-candidate-id="central-axis" data-primitive-kind="axis"[^>]*>[\s\S]*?<line data-candidate-shape/u);
+  assert.match(svg, /data-candidate-id="main-ellipse" data-primitive-kind="ellipse"[^>]*>[\s\S]*?<ellipse data-candidate-shape/u);
+  const diagonalGroup = svg.match(/<g data-candidate-id="diagonal"[\s\S]*?<\/g>/u)?.[0];
+  assert.ok(diagonalGroup);
+  assert.doesNotMatch(diagonalGroup, /data-resize-handle/u);
+  assert.equal([...svg.matchAll(/data-resize-handle/gu)].length, 2);
+
+  const confirmation = confirm(prepared);
+  assert.deepEqual(confirmation.result.selectedCandidateIds, ["major", "minor"]);
+  assert.ok(confirmation.result.explanations.every(({ subjectCandidateId }) => (
+    subjectCandidateId === "major" || subjectCandidateId === "minor"
+  )));
+  assert.match(confirmation.overlaySvg, /data-primitive-kind="segment"/u);
+  assert.match(confirmation.overlaySvg, /data-primitive-kind="ellipse"/u);
+  assert.throws(
+    () => confirm(prepared, { selectedCandidateIds: ["major", "diagonal"] }),
+    /Visual guides cannot enter Norma Core/u,
   );
 });
 
@@ -147,11 +258,11 @@ test("result overlay marks only the client-selected candidates as selected", () 
 
   assert.match(
     confirmation.overlaySvg,
-    /<g data-candidate-id="major"><rect[^>]+stroke-dasharray="none"/u,
+    /<g data-candidate-id="major" data-primitive-kind="rectangle"[^>]*>[\s\S]*?<rect data-candidate-box[^>]+stroke-dasharray="none"/u,
   );
   assert.match(
     confirmation.overlaySvg,
-    /<g data-candidate-id="minor"><rect[^>]+stroke-dasharray="14 10"/u,
+    /<g data-candidate-id="minor" data-primitive-kind="rectangle"[^>]*>[\s\S]*?<rect data-candidate-box[^>]+stroke-dasharray="14 10"/u,
   );
   assert.doesNotMatch(confirmation.overlaySvg, /data-resize-handle/u);
 });
@@ -230,7 +341,7 @@ test("overlay is transparent, image-aligned, and escapes model-provided labels",
 
   assert.match(svg, /^<svg/u);
   assert.match(svg, /viewBox="0 0 1000 1000"/u);
-  assert.match(svg, /<g data-candidate-id="safe" tabindex="0" role="group" aria-label="Ajuster &lt;script&gt;alert\(1\)&lt;\/script&gt;">/u);
+  assert.match(svg, /<g data-candidate-id="safe" data-primitive-kind="rectangle" tabindex="0" role="group" aria-label="Ajuster &lt;script&gt;alert\(1\)&lt;\/script&gt;"\s*>/u);
   assert.match(svg, /data-candidate-box/u);
   assert.match(svg, /data-resize-handle/u);
   assert.match(svg, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);

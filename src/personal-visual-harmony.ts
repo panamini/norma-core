@@ -48,6 +48,40 @@ export type PersonalVisualHarmonyCandidateRoleV1 =
   | "structural-region"
   | "frame";
 
+export const PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS = [
+  "rectangle",
+  "segment",
+  "axis",
+  "ellipse",
+] as const;
+
+export type PersonalVisualHarmonyPrimitiveKindV1 =
+  typeof PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS[number];
+
+export interface PersonalVisualHarmonyPointV1 {
+  readonly x: number;
+  readonly y: number;
+}
+
+export type PersonalVisualHarmonyPrimitiveV1 =
+  | { readonly kind: "rectangle" }
+  | {
+    readonly kind: "segment";
+    readonly start: PersonalVisualHarmonyPointV1;
+    readonly end: PersonalVisualHarmonyPointV1;
+  }
+  | {
+    readonly kind: "axis";
+    readonly start: PersonalVisualHarmonyPointV1;
+    readonly end: PersonalVisualHarmonyPointV1;
+  }
+  | {
+    readonly kind: "ellipse";
+    readonly center: PersonalVisualHarmonyPointV1;
+    readonly radiusX: number;
+    readonly radiusY: number;
+  };
+
 export interface PersonalVisualHarmonyCandidateInputV1 {
   readonly id: string;
   readonly label: string;
@@ -57,6 +91,7 @@ export interface PersonalVisualHarmonyCandidateInputV1 {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  readonly primitive?: PersonalVisualHarmonyPrimitiveV1;
 }
 
 export interface PersonalVisualHarmonyPreparedCandidateSetV1 {
@@ -311,7 +346,8 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     }
   }
   const candidateMarkup = prepared.candidates.map((candidateValue, index) => {
-    const color = palette[index % palette.length] ?? palette[0];
+    const color = palette[index % palette.length] ?? "#f97316";
+    const primitiveKind = primitiveKindFor(candidateValue);
     const x = candidateValue.x * 1000;
     const y = candidateValue.y * 1000;
     const width = candidateValue.width * 1000;
@@ -322,12 +358,13 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ? `${String(index + 1)} · ${candidateValue.label}`
       : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
     const badgeWidth = Math.min(360, Math.max(120, 22 + (badge.length * 8)));
-    const resizeHandle = input.result === undefined
+    const editable = input.result === undefined && primitiveKind === "rectangle";
+    const resizeHandle = editable
       ? `<rect data-resize-handle x="${numberAttr(x + width - 16)}" y="${numberAttr(y + height - 16)}" width="32" height="32" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`
       : "";
     return [
-      `<g data-candidate-id="${escapeXml(candidateValue.id)}"${input.result === undefined ? ` tabindex="0" role="group" aria-label="Ajuster ${escapeXml(candidateValue.label)}"` : ""}>`,
-      `<rect data-candidate-box x="${numberAttr(x)}" y="${numberAttr(y)}" width="${numberAttr(width)}" height="${numberAttr(height)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${selected ? "7" : "4"}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`,
+      `<g data-candidate-id="${escapeXml(candidateValue.id)}" data-primitive-kind="${primitiveKind}"${editable ? ` tabindex="0" role="group" aria-label="Ajuster ${escapeXml(candidateValue.label)}"` : ` role="img" aria-label="${escapeXml(candidateValue.label)} · guide ${primitiveKind}"`} >`,
+      visualPrimitiveMarkup(candidateValue, color, selected),
       `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
       `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
       resizeHandle,
@@ -556,7 +593,10 @@ function validateCandidates(
     }
     const candidateRecord = candidateValue as unknown as Record<string, unknown>;
     const expectedKeys = ["height", "id", "label", "reason", "role", "width", "x", "y"];
-    if (Object.keys(candidateRecord).sort().join("|") !== expectedKeys.join("|")) {
+    const candidateKeys = Object.keys(candidateRecord).sort();
+    const legacyKeys = expectedKeys.join("|");
+    const primitiveKeys = [...expectedKeys, "primitive"].sort().join("|");
+    if (candidateKeys.join("|") !== legacyKeys && candidateKeys.join("|") !== primitiveKeys) {
       throw new Error(`Visual harmony candidate ${String(index)} must use exact fields.`);
     }
     if (typeof candidateValue.id !== "string" || !CANDIDATE_ID_PATTERN.test(candidateValue.id) || ids.has(candidateValue.id)) {
@@ -576,10 +616,11 @@ function validateCandidates(
     })) {
       if (!Number.isFinite(value)) throw new Error(`Visual harmony candidate ${String(index)} ${field} must be finite.`);
     }
-    if (candidateValue.x < 0 || candidateValue.y < 0 || candidateValue.width <= 0 || candidateValue.height <= 0
+    if (candidateValue.x < 0 || candidateValue.y < 0 || candidateValue.width < 0 || candidateValue.height < 0
       || candidateValue.x + candidateValue.width > 1 || candidateValue.y + candidateValue.height > 1) {
-      throw new Error(`Visual harmony candidate ${String(index)} must be a positive normalized rectangle inside the image.`);
+      throw new Error(`Visual harmony candidate ${String(index)} must have normalized primitive bounds inside the image.`);
     }
+    const primitive = validateCandidatePrimitive(candidateValue.primitive, candidateValue, index);
     return {
       id: candidateValue.id,
       label: candidateValue.label,
@@ -589,8 +630,103 @@ function validateCandidates(
       y: canonicalNumber(candidateValue.y),
       width: canonicalNumber(candidateValue.width),
       height: canonicalNumber(candidateValue.height),
+      ...(primitive === undefined ? {} : { primitive }),
     };
   });
+}
+
+function validateCandidatePrimitive(
+  value: PersonalVisualHarmonyPrimitiveV1 | undefined,
+  bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
+  candidateIndex: number,
+): PersonalVisualHarmonyPrimitiveV1 | undefined {
+  if (value === undefined) {
+    requirePositiveRectangleBounds(bounds, candidateIndex);
+    return undefined;
+  }
+  if (value === null || typeof value !== "object" || !PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS.includes(value.kind)) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} has an unsupported primitive.`);
+  }
+  if (value.kind === "rectangle") {
+    if (Object.keys(value).sort().join("|") !== "kind") {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} rectangle primitive must use exact fields.`);
+    }
+    requirePositiveRectangleBounds(bounds, candidateIndex);
+    return { kind: "rectangle" };
+  }
+  if (value.kind === "segment" || value.kind === "axis") {
+    if (Object.keys(value).sort().join("|") !== "end|kind|start") {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} line primitive must use exact fields.`);
+    }
+    const start = validatePrimitivePoint(value.start, `candidates.${String(candidateIndex)}.primitive.start`);
+    const end = validatePrimitivePoint(value.end, `candidates.${String(candidateIndex)}.primitive.end`);
+    if (start.x === end.x && start.y === end.y) {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} line primitive requires distinct endpoints.`);
+    }
+    requireLineEnvelope(bounds, start, end, candidateIndex);
+    return { kind: value.kind, start, end };
+  }
+  if (Object.keys(value).sort().join("|") !== "center|kind|radiusX|radiusY") {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse primitive must use exact fields.`);
+  }
+  const center = validatePrimitivePoint(value.center, `candidates.${String(candidateIndex)}.primitive.center`);
+  if (!Number.isFinite(value.radiusX) || !Number.isFinite(value.radiusY)
+    || value.radiusX <= 0 || value.radiusY <= 0
+    || center.x - value.radiusX < 0 || center.x + value.radiusX > 1
+    || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
+  }
+  const tolerance = 0.000001;
+  if (Math.abs(bounds.x - (center.x - value.radiusX)) > tolerance
+    || Math.abs(bounds.y - (center.y - value.radiusY)) > tolerance
+    || Math.abs(bounds.width - (value.radiusX * 2)) > tolerance
+    || Math.abs(bounds.height - (value.radiusY * 2)) > tolerance) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse bounds must match its visible contour.`);
+  }
+  return {
+    kind: "ellipse",
+    center,
+    radiusX: canonicalNumber(value.radiusX),
+    radiusY: canonicalNumber(value.radiusY),
+  };
+}
+
+function validatePrimitivePoint(value: unknown, field: string): PersonalVisualHarmonyPointV1 {
+  if (value === null || typeof value !== "object"
+    || Object.keys(value).sort().join("|") !== "x|y") {
+    throw new Error(`${field} must use exact x and y fields.`);
+  }
+  const point = value as Record<string, unknown>;
+  if (typeof point.x !== "number" || typeof point.y !== "number"
+    || !Number.isFinite(point.x) || !Number.isFinite(point.y)
+    || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) {
+    throw new Error(`${field} must be a normalized point inside the image.`);
+  }
+  return { x: canonicalNumber(point.x), y: canonicalNumber(point.y) };
+}
+
+function requirePositiveRectangleBounds(
+  bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
+  candidateIndex: number,
+): void {
+  if (bounds.width <= 0 || bounds.height <= 0) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rectangle must have positive normalized bounds.`);
+  }
+}
+
+function requireLineEnvelope(
+  bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
+  start: PersonalVisualHarmonyPointV1,
+  end: PersonalVisualHarmonyPointV1,
+  candidateIndex: number,
+): void {
+  const tolerance = 0.000001;
+  if (Math.abs(bounds.x - Math.min(start.x, end.x)) > tolerance
+    || Math.abs(bounds.y - Math.min(start.y, end.y)) > tolerance
+    || Math.abs(bounds.width - Math.abs(end.x - start.x)) > tolerance
+    || Math.abs(bounds.height - Math.abs(end.y - start.y)) > tolerance) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} line bounds must match its endpoints.`);
+  }
 }
 
 function normalizeSelectedCandidateIds(
@@ -610,6 +746,12 @@ function normalizeSelectedCandidateIds(
   const ordered = prepared.candidates.filter((candidateValue) => selected.has(candidateValue.id)).map(({ id }) => id);
   if (ordered.length !== selected.size) {
     throw new Error("Selected candidate id does not exist in the prepared review.");
+  }
+  const nonRectangleSelection = prepared.candidates.find((candidateValue) => (
+    selected.has(candidateValue.id) && primitiveKindFor(candidateValue) !== "rectangle"
+  ));
+  if (nonRectangleSelection !== undefined) {
+    throw new Error("Visual guides cannot enter Norma Core until a compatible deterministic mapping exists.");
   }
   return ordered;
 }
@@ -649,6 +791,29 @@ function formatNumber(value: number): string {
 
 function canonicalNumber(value: number): number {
   return Object.is(value, -0) ? 0 : Number(value.toFixed(12));
+}
+
+function primitiveKindFor(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+): PersonalVisualHarmonyPrimitiveKindV1 {
+  return candidate.primitive?.kind ?? "rectangle";
+}
+
+function visualPrimitiveMarkup(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+  color: string,
+  selected: boolean,
+): string {
+  const primitive = candidate.primitive;
+  const strokeWidth = selected ? "7" : "4";
+  if (primitive?.kind === "segment" || primitive?.kind === "axis") {
+    const dash = primitive.kind === "axis" ? "20 12" : (selected ? "none" : "14 10");
+    return `<line data-candidate-shape x1="${numberAttr(primitive.start.x * 1000)}" y1="${numberAttr(primitive.start.y * 1000)}" x2="${numberAttr(primitive.end.x * 1000)}" y2="${numberAttr(primitive.end.y * 1000)}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round"/>`;
+  }
+  if (primitive?.kind === "ellipse") {
+    return `<ellipse data-candidate-shape cx="${numberAttr(primitive.center.x * 1000)}" cy="${numberAttr(primitive.center.y * 1000)}" rx="${numberAttr(primitive.radiusX * 1000)}" ry="${numberAttr(primitive.radiusY * 1000)}" fill="${color}" fill-opacity="${selected ? "0.12" : "0.05"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
+  }
+  return `<rect data-candidate-box data-candidate-shape x="${numberAttr(candidate.x * 1000)}" y="${numberAttr(candidate.y * 1000)}" width="${numberAttr(candidate.width * 1000)}" height="${numberAttr(candidate.height * 1000)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
 }
 
 function numberAttr(value: number): string {
