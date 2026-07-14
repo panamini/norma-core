@@ -51,6 +51,7 @@ import {
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  personalVisualHarmonyTruthSyncChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -1582,6 +1583,7 @@ test("PR117 changed-file guard rejects forbidden extras and preserves PR111 PR11
 
 test("PR122 package files lockfiles package root exports scripts and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;

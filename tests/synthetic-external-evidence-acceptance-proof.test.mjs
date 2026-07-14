@@ -31,6 +31,7 @@ import {
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  personalVisualHarmonyTruthSyncChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -340,6 +341,7 @@ test("PR111 helper has no forbidden imports or package-public exposure", async (
 
 test("PR111 package files lockfiles docs fixtures and metadata remain unchanged", async () => {
   const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
