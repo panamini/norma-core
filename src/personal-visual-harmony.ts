@@ -192,6 +192,12 @@ export interface PersonalVisualHarmonyImagePlaneRelationV1 {
   readonly tangentAngleDeltaDegrees: number;
   readonly supportingLineContactWithinObservedSegment: boolean;
   readonly classification: "intersection" | "near_tangent" | "proximity";
+  readonly contactCharacter:
+    | "tangent"
+    | "near_tangent"
+    | "shallow_intersection"
+    | "crossing_intersection"
+    | "proximity";
   readonly derivation: "infinite_supporting_line_from_confirmed_endpoints";
   readonly explanation: string;
 }
@@ -214,6 +220,7 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly positionToleranceImageWidthShare: number;
   readonly maxReportedGapImageWidthShare: number;
   readonly tangentAngleToleranceDegrees: number;
+  readonly shallowIntersectionAngleToleranceDegrees: number;
   readonly relationships: readonly PersonalVisualHarmonyImagePlaneRelationV1[];
   readonly limits: {
     readonly imagePlaneOnly: true;
@@ -240,6 +247,7 @@ const MATCH_TOLERANCE = 0.025;
 const IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE = 0.01;
 const IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE = 0.025;
 const IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES = 5;
+const IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES = 12;
 
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
@@ -442,14 +450,17 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     );
     return relationship === null ? [] : [relationship];
   })).sort((first, second) => {
-    const classificationOrder = imagePlaneRelationPriority(first.classification)
-      - imagePlaneRelationPriority(second.classification);
+    const classificationOrder = imagePlaneRelationPriority(first.contactCharacter)
+      - imagePlaneRelationPriority(second.contactCharacter);
     if (classificationOrder !== 0) return classificationOrder;
     if (first.supportingLineContactWithinObservedSegment
       !== second.supportingLineContactWithinObservedSegment) {
       return first.supportingLineContactWithinObservedSegment ? -1 : 1;
     }
     if (first.gapPixels !== second.gapPixels) return first.gapPixels - second.gapPixels;
+    if (first.tangentAngleDeltaDegrees !== second.tangentAngleDeltaDegrees) {
+      return first.tangentAngleDeltaDegrees - second.tangentAngleDeltaDegrees;
+    }
     return stableStringCompare(first.relationshipId, second.relationshipId);
   });
   const withoutIdentity = {
@@ -470,6 +481,8 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     positionToleranceImageWidthShare: IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE,
     maxReportedGapImageWidthShare: IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE,
     tangentAngleToleranceDegrees: IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES,
+    shallowIntersectionAngleToleranceDegrees:
+      IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES,
     relationships,
     limits: {
       imagePlaneOnly: true as const,
@@ -608,13 +621,22 @@ function createEllipseSupportingLineRelationship(
   const gapPixels = canonicalNumber(gapPixelsValue);
   const gapPercentOfImageWidth = percentage(gapImageWidthShare);
   const canonicalTangentAngleDeltaDegrees = canonicalNumber(tangentAngleDeltaDegrees);
-  const relationLabel = classification === "intersection"
-    ? `intersection apparente (${String(intersectionPointsPixels.length)} point${intersectionPointsPixels.length === 1 ? "" : "s"})`
+  const contactCharacter = classification === "intersection"
+    ? tangentAngleDeltaDegrees <= IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES
+      ? "shallow_intersection" as const
+      : "crossing_intersection" as const
     : classification === "near_tangent"
-      ? gapPixels <= 0.000001
-        ? "tangence apparente"
-        : "quasi-tangence apparente"
-      : "proximité apparente";
+      ? gapPixels <= 0.000001 && intersectionPointsPixels.length === 1
+        ? "tangent" as const
+        : "near_tangent" as const
+      : "proximity" as const;
+  const relationLabel = {
+    tangent: "tangence apparente",
+    near_tangent: "quasi-tangence apparente",
+    shallow_intersection: `intersection rasante apparente (${String(intersectionPointsPixels.length)} points)`,
+    crossing_intersection: `intersection franche apparente (${String(intersectionPointsPixels.length)} points)`,
+    proximity: "proximité apparente",
+  }[contactCharacter];
   const observedExtentLabel = supportingLineContactWithinObservedSegment
     ? "sur le segment visible"
     : "sur le prolongement de sa droite support";
@@ -655,6 +677,7 @@ function createEllipseSupportingLineRelationship(
     tangentAngleDeltaDegrees: canonicalTangentAngleDeltaDegrees,
     supportingLineContactWithinObservedSegment,
     classification,
+    contactCharacter,
     derivation: "infinite_supporting_line_from_confirmed_endpoints",
     explanation: `${ellipseCandidate.label} ↔ ${lineCandidate.label}: ${relationLabel} au contact ${ellipseContactLocationLabel(contactLocation)}, ${observedExtentLabel}; écart ${formatNumber(gapPixels)} px (${formatPercent(gapPercentOfImageWidth)} de la largeur), angle ligne/tangente ${formatNumber(canonicalTangentAngleDeltaDegrees)}° dans le plan image.`,
   };
@@ -783,9 +806,15 @@ function stableStringCompare(first: string, second: string): number {
 }
 
 function imagePlaneRelationPriority(
-  classification: PersonalVisualHarmonyImagePlaneRelationV1["classification"],
+  contactCharacter: PersonalVisualHarmonyImagePlaneRelationV1["contactCharacter"],
 ): number {
-  return { near_tangent: 0, intersection: 1, proximity: 2 }[classification];
+  return {
+    tangent: 0,
+    near_tangent: 1,
+    shallow_intersection: 2,
+    crossing_intersection: 3,
+    proximity: 4,
+  }[contactCharacter];
 }
 
 export function createPersonalVisualHarmonyOverlaySvgV1(input: {

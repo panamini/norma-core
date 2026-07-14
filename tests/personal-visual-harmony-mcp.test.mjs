@@ -299,8 +299,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /data-norma-bridge","ready"/u);
     assert.match(resource.contents[0].text, /data-norma-last-error","tools-call"/u);
     assert.match(resource.contents[0].text, /payload\.stage==="confirmation_required"&&!state\.payload/u);
-    assert.match(resource.contents[0].text, /BOOTSTRAP_RETRY_LIMIT=50/u);
-    assert.match(resource.contents[0].text, /ChatGPT n’a pas transmis l’image au widget/u);
+    assert.match(resource.contents[0].text, /BOOTSTRAP_PENDING_NOTICE_AFTER=50/u);
+    assert.match(resource.contents[0].text, /BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000/u);
+    assert.match(resource.contents[0].text, /Connexion au résultat de l’analyse en cours/u);
     assert.doesNotMatch(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",\(\)=>\{const payload=currentPayload\(\);if\(payload&&payload\.stage==="completed"/u);
     assert.match(resource.contents[0].text, /MESURES REVALIDÉES/u);
     assert.match(resource.contents[0].text, /RAPPORT MÉMORISÉ · NON REVALIDÉ/u);
@@ -330,6 +331,13 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /N’attribue jamais un ratio du Core aux guides/u);
     assert.match(resource.contents[0].text, /guide"\+\(confirmedGuideCount===1\?"":"s"\)\+" confirmé/u);
     assert.match(resource.contents[0].text, /function appendImagePlaneRelations\(analysis\)/u);
+    assert.match(resource.contents[0].text, /shallow_intersection:"COUPE RASANTE"/u);
+    assert.match(resource.contents[0].text, /contactCharacter:item\.contactCharacter/u);
+    assert.match(resource.contents[0].text, /imageLoadGeneration:0/u);
+    assert.match(resource.contents[0].text, /function imageLoadIsCurrent\(generation,fileId\)/u);
+    assert.match(resource.contents[0].text, /if\(!imageLoadIsCurrent\(generation,fileId\)\)return/u);
+    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId\);if\(!imageLoaded\)return/u);
+    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId\)\)return/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);

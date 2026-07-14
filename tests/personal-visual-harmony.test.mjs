@@ -292,6 +292,7 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   assert.equal(analysis.sourcePixelHeight, 1000);
   assert.equal(analysis.coordinateSpace, "image_plane_pixels_v1");
   assert.equal(analysis.limits.axisAlignedEllipseOnly, true);
+  assert.equal(analysis.shallowIntersectionAngleToleranceDegrees, 12);
   assert.deepEqual(analysis.confirmedVisualGuideCandidateIds, confirmedVisualGuideCandidateIds);
   assert.match(analysis.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.equal(analysis.relationships.length, 3);
@@ -301,6 +302,7 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   ));
   assert.ok(vertical);
   assert.equal(vertical.classification, "near_tangent");
+  assert.equal(vertical.contactCharacter, "near_tangent");
   assert.equal(vertical.contactLocation, "right");
   assert.equal(vertical.gapPixels, 5);
   assert.equal(vertical.gapPercentOfImageWidth, 0.5);
@@ -315,6 +317,7 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   ));
   assert.ok(oblique);
   assert.equal(oblique.classification, "near_tangent");
+  assert.equal(oblique.contactCharacter, "tangent");
   assert.equal(oblique.contactLocation, "oblique");
   assert.ok(oblique.gapPixels < 0.000001);
   assert.ok(oblique.tangentAngleDeltaDegrees < 0.000001);
@@ -326,10 +329,46 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   ));
   assert.ok(secant);
   assert.equal(secant.classification, "intersection");
+  assert.equal(secant.contactCharacter, "crossing_intersection");
   assert.equal(secant.gapPixels, 0);
   assert.equal(secant.intersectionPoints.length, 2);
   assert.equal(secant.supportingLineContactWithinObservedSegment, true);
   assert.match(confirmation.overlaySvg, /data-image-plane-relation-id=/u);
+});
+
+test("a two-point ellipse crossing with a small tangent delta is reported as a shallow intersection", () => {
+  const candidates = [
+    ...ellipseLineRelationCandidates(),
+    {
+      id: "vertical-shallow-intersection",
+      label: "Bord droit rasant",
+      role: "structural-region",
+      reason: "Bord visible coupant très légèrement le contour droit",
+      x: 0.699,
+      y: 0.2,
+      width: 0,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.699, y: 0.2 },
+        end: { x: 0.699, y: 0.8 },
+      },
+    },
+  ];
+  const prepared = prepare(candidates);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["ellipse", "vertical-shallow-intersection"],
+    sourcePixelHeight: 1000,
+  });
+  const relationship = confirmation.imagePlaneGuideAnalysis.relationships[0];
+
+  assert.ok(relationship);
+  assert.equal(relationship.classification, "intersection");
+  assert.equal(relationship.contactCharacter, "shallow_intersection");
+  assert.equal(relationship.intersectionPoints.length, 2);
+  assert.ok(relationship.tangentAngleDeltaDegrees < 12);
+  assert.equal(relationship.supportingLineContactWithinObservedSegment, true);
+  assert.match(relationship.explanation, /intersection rasante apparente/u);
 });
 
 test("guide confirmation is separate from Core identity and rejects rectangle or unknown guide ids", () => {
