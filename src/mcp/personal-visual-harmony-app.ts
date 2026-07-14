@@ -687,6 +687,150 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
   return server;
 }
 
+export type PersonalVisualHarmonyImageHydrationFailureV1 =
+  | "download_url_unavailable"
+  | "download_url_invalid"
+  | "image_load_failed";
+
+export type PersonalVisualHarmonyImageHydrationResultV1 =
+  | {
+      readonly status: "ready";
+      readonly attemptCount: number;
+      readonly downloadUrl: string;
+      readonly width: number;
+      readonly height: number;
+    }
+  | {
+      readonly status: "failed";
+      readonly attemptCount: number;
+      readonly failure: PersonalVisualHarmonyImageHydrationFailureV1;
+    }
+  | {
+      readonly status: "stale";
+      readonly attemptCount: number;
+    };
+
+export interface PersonalVisualHarmonyImageHydrationOptionsV1 {
+  readonly fileId: string;
+  readonly maxAttempts: number;
+  readonly retryDelayMs: number;
+  readonly getDownloadUrl: (fileId: string) => Promise<unknown>;
+  readonly loadDownloadUrl: (
+    downloadUrl: string,
+  ) => Promise<{ readonly width: number; readonly height: number }>;
+  readonly isCurrent: () => boolean;
+  readonly waitBeforeRetry: (delayMs: number) => Promise<void>;
+}
+
+type PersonalVisualHarmonyDownloadUrlStepV1 =
+  | { readonly status: "ready"; readonly downloadUrl: string }
+  | { readonly status: "failed"; readonly failure: PersonalVisualHarmonyImageHydrationFailureV1 }
+  | { readonly status: "stale" };
+
+type PersonalVisualHarmonyImageLoadStepV1 =
+  | { readonly status: "ready"; readonly width: number; readonly height: number }
+  | { readonly status: "failed"; readonly failure: "image_load_failed" }
+  | { readonly status: "stale" };
+
+function boundedImageHydrationAttemptCount(maxAttempts: number): number {
+  return Number.isFinite(maxAttempts) ? Math.max(1, Math.min(3, Math.trunc(maxAttempts))) : 1;
+}
+
+function boundedImageHydrationRetryDelay(retryDelayMs: number): number {
+  return Number.isFinite(retryDelayMs) ? Math.max(0, retryDelayMs) : 0;
+}
+
+// The explicit branches preserve typed, fail-closed outcomes at the external file-URL boundary.
+// fallow-ignore-next-line complexity
+async function requestPersonalVisualHarmonyDownloadUrlV1(
+  fileId: string,
+  getDownloadUrl: (requestedFileId: string) => Promise<unknown>,
+  isCurrent: () => boolean,
+): Promise<PersonalVisualHarmonyDownloadUrlStepV1> {
+  let response: unknown;
+  try {
+    response = await getDownloadUrl(fileId);
+  } catch {
+    return isCurrent()
+      ? { status: "failed", failure: "download_url_unavailable" }
+      : { status: "stale" };
+  }
+  if (!isCurrent()) return { status: "stale" };
+  const downloadUrl = (response as { readonly downloadUrl?: unknown } | null)?.downloadUrl;
+  return typeof downloadUrl === "string" && downloadUrl.length > 0
+    ? { status: "ready", downloadUrl }
+    : { status: "failed", failure: "download_url_invalid" };
+}
+
+function validImageHydrationDimensions(dimensions: { readonly width: number; readonly height: number }): boolean {
+  return Number.isInteger(dimensions.width) && dimensions.width > 0
+    && Number.isInteger(dimensions.height) && dimensions.height > 0;
+}
+
+// The explicit branches distinguish stale loads from genuine image failures without collapsing either state.
+// fallow-ignore-next-line complexity
+async function loadPersonalVisualHarmonyDownloadUrlV1(
+  downloadUrl: string,
+  loadDownloadUrl: (
+    requestedDownloadUrl: string,
+  ) => Promise<{ readonly width: number; readonly height: number }>,
+  isCurrent: () => boolean,
+): Promise<PersonalVisualHarmonyImageLoadStepV1> {
+  let dimensions: { readonly width: number; readonly height: number };
+  try {
+    dimensions = await loadDownloadUrl(downloadUrl);
+  } catch {
+    return isCurrent()
+      ? { status: "failed", failure: "image_load_failed" }
+      : { status: "stale" };
+  }
+  if (!isCurrent()) return { status: "stale" };
+  return validImageHydrationDimensions(dimensions)
+    ? { status: "ready", width: dimensions.width, height: dimensions.height }
+    : { status: "failed", failure: "image_load_failed" };
+}
+
+// This function is exported only so the exact routine embedded in the widget can be regression-tested.
+// Its bounded state machine is intentionally explicit so retries cannot fall through into Core execution.
+// fallow-ignore-next-line complexity unused-export
+export async function runPersonalVisualHarmonyImageHydrationV1({
+  fileId,
+  maxAttempts,
+  retryDelayMs,
+  getDownloadUrl,
+  loadDownloadUrl,
+  isCurrent,
+  waitBeforeRetry,
+}: PersonalVisualHarmonyImageHydrationOptionsV1): Promise<PersonalVisualHarmonyImageHydrationResultV1> {
+  let failure: PersonalVisualHarmonyImageHydrationFailureV1 = "download_url_unavailable";
+  const boundedAttemptCount = boundedImageHydrationAttemptCount(maxAttempts);
+  const boundedRetryDelayMs = boundedImageHydrationRetryDelay(retryDelayMs);
+  for (let attempt = 1; attempt <= boundedAttemptCount; attempt += 1) {
+    if (!isCurrent()) return { status: "stale", attemptCount: attempt - 1 };
+    const download = await requestPersonalVisualHarmonyDownloadUrlV1(fileId, getDownloadUrl, isCurrent);
+    if (download.status === "stale") return { status: "stale", attemptCount: attempt };
+    if (download.status === "failed") {
+      failure = download.failure;
+    } else {
+      const image = await loadPersonalVisualHarmonyDownloadUrlV1(download.downloadUrl, loadDownloadUrl, isCurrent);
+      if (image.status === "stale") return { status: "stale", attemptCount: attempt };
+      if (image.status === "failed") failure = image.failure;
+      else {
+        return {
+          status: "ready",
+          attemptCount: attempt,
+          downloadUrl: download.downloadUrl,
+          width: image.width,
+          height: image.height,
+        };
+      }
+    }
+    if (attempt === boundedAttemptCount) return { status: "failed", attemptCount: attempt, failure };
+    await waitBeforeRetry(boundedRetryDelayMs);
+  }
+  return { status: "failed", attemptCount: boundedAttemptCount, failure };
+}
+
 export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
   return `<!doctype html>
 <html lang="fr">
@@ -696,7 +840,7 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
 <title>Norma Visual Harmony</title>
 <style>
 :root{color-scheme:dark;--ink:#f8fafc;--muted:#a8b3c7;--panel:#0b1120;--line:#263248;--orange:#fb7a27;--cyan:#4bd4ff;--green:#34d399;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;background:transparent;color:var(--ink)}button,input{font:inherit}.shell{overflow:hidden;border:1px solid rgba(148,163,184,.22);border-radius:24px;background:radial-gradient(circle at 15% 0%,rgba(75,212,255,.13),transparent 34%),radial-gradient(circle at 100% 100%,rgba(251,122,39,.14),transparent 40%),linear-gradient(145deg,#111a2e,#070b14 72%);box-shadow:0 22px 60px rgba(2,6,23,.34)}.header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px 14px}.brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:39px;height:39px;border-radius:13px;background:linear-gradient(135deg,var(--orange),#ffb36c);color:#160b04;font-weight:950;font-size:19px}.eyebrow{margin:0;color:#dce7f7;font-size:12px;font-weight:850;letter-spacing:.14em}.sub{margin:3px 0 0;color:var(--muted);font-size:12px}.stage{border:1px solid rgba(251,122,39,.45);border-radius:999px;padding:7px 11px;background:rgba(251,122,39,.12);color:#ffd3b5;font-size:11px;font-weight:850;letter-spacing:.06em}.stage.done{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.12);color:#b9f8df}.content{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.8fr);gap:16px;padding:0 18px 18px}.visual{position:relative;aspect-ratio:16/9;min-height:0;overflow:hidden;border:1px solid rgba(148,163,184,.23);border-radius:18px;background:linear-gradient(135deg,#121a2b,#0a0f1a)}.visual img{display:block;width:100%;height:100%;object-fit:fill;background:#05070c}.overlay{position:absolute;inset:0;pointer-events:auto}.overlay.locked{pointer-events:none}.overlay svg{display:block;width:100%;height:100%}.overlay [data-candidate-id]{transition:opacity .16s ease}.overlay [data-primitive-kind="rectangle"],.overlay [data-primitive-kind="quadrilateral"],.overlay [data-primitive-kind="segment"],.overlay [data-primitive-kind="axis"]{touch-action:none}.overlay [data-candidate-box]{cursor:move}.overlay [data-resize-handle]{cursor:nwse-resize}.overlay [data-point-handle],.overlay [data-vertex-handle]{cursor:crosshair}.overlay [data-supporting-line]{pointer-events:none}.loading{position:absolute;inset:0;display:grid;place-items:center;padding:24px;color:var(--muted);text-align:center;background:linear-gradient(135deg,#111827,#060912)}.side{display:flex;min-width:0;flex-direction:column;gap:13px}.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:6px;padding:11px;border:1px solid rgba(148,163,184,.18);border-radius:15px;background:rgba(15,23,42,.62);font-size:10px;font-weight:800;color:#b9c5d8;text-align:center}.arrow{color:var(--orange)}.family-filters{display:flex;flex-wrap:wrap;gap:6px}.family-filter{border:1px solid rgba(75,212,255,.34);border-radius:999px;padding:6px 9px;background:rgba(75,212,255,.08);color:#d9f7ff;font-size:10px;font-weight:800;cursor:pointer}.family-filter[aria-pressed="false"]{border-color:rgba(148,163,184,.18);background:rgba(15,23,42,.35);color:#718096}.candidate-list{display:flex;max-height:240px;flex-direction:column;gap:8px;overflow:auto}.candidate{display:grid;grid-template-columns:auto 1fr;gap:9px;padding:10px;border:1px solid rgba(148,163,184,.17);border-radius:13px;background:rgba(15,23,42,.6);cursor:pointer}.candidate:has(input:checked){border-color:rgba(75,212,255,.5);background:rgba(75,212,255,.08)}.candidate input{width:18px;height:18px;margin-top:2px;accent-color:var(--orange)}.candidate strong{display:block;font-size:12px}.candidate span{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.35}.candidate .candidate-kind{display:inline-block;margin:0 0 3px;padding:2px 6px;border-radius:999px;background:rgba(148,163,184,.13);color:#cbd5e1;font-size:9px;font-weight:800}.confirm{width:100%;border:0;border-radius:14px;padding:13px 15px;background:linear-gradient(135deg,var(--orange),#ffad67);color:#1e0d03;font-weight:900;box-shadow:0 12px 28px rgba(251,122,39,.22);cursor:pointer}.confirm:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}.status{min-height:18px;margin:0;color:var(--muted);font-size:11px;line-height:1.45}.result{display:none;gap:10px}.result.visible{display:grid}.headline{margin:0;font-size:17px;line-height:1.25}.matches{display:grid;gap:8px}.match{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px;border:1px solid rgba(52,211,153,.25);border-radius:13px;background:rgba(52,211,153,.07)}.ratio{min-width:72px;color:#b9f8df;font-size:17px;font-weight:950}.match-copy strong{display:block;font-size:11px}.match-copy span{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.35}.limit{margin:0;padding-top:2px;color:#8090aa;font-size:9px;line-height:1.4}.identity{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8px}@media(max-width:720px){.content{grid-template-columns:1fr}.candidate-list{max-height:190px}}
+*{box-sizing:border-box}body{margin:0;background:transparent;color:var(--ink)}button,input{font:inherit}.shell{overflow:hidden;border:1px solid rgba(148,163,184,.22);border-radius:24px;background:radial-gradient(circle at 15% 0%,rgba(75,212,255,.13),transparent 34%),radial-gradient(circle at 100% 100%,rgba(251,122,39,.14),transparent 40%),linear-gradient(145deg,#111a2e,#070b14 72%);box-shadow:0 22px 60px rgba(2,6,23,.34)}.header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px 14px}.brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:39px;height:39px;border-radius:13px;background:linear-gradient(135deg,var(--orange),#ffb36c);color:#160b04;font-weight:950;font-size:19px}.eyebrow{margin:0;color:#dce7f7;font-size:12px;font-weight:850;letter-spacing:.14em}.sub{margin:3px 0 0;color:var(--muted);font-size:12px}.stage{border:1px solid rgba(251,122,39,.45);border-radius:999px;padding:7px 11px;background:rgba(251,122,39,.12);color:#ffd3b5;font-size:11px;font-weight:850;letter-spacing:.06em}.stage.done{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.12);color:#b9f8df}.content{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.8fr);gap:16px;padding:0 18px 18px}.visual{position:relative;aspect-ratio:16/9;min-height:0;overflow:hidden;border:1px solid rgba(148,163,184,.23);border-radius:18px;background:linear-gradient(135deg,#121a2b,#0a0f1a)}.visual img{display:block;width:100%;height:100%;object-fit:fill;background:#05070c}.overlay{position:absolute;inset:0;pointer-events:auto}.overlay.locked{pointer-events:none}.overlay svg{display:block;width:100%;height:100%}.overlay [data-candidate-id]{transition:opacity .16s ease}.overlay [data-primitive-kind="rectangle"],.overlay [data-primitive-kind="quadrilateral"],.overlay [data-primitive-kind="segment"],.overlay [data-primitive-kind="axis"]{touch-action:none}.overlay [data-candidate-box]{cursor:move}.overlay [data-resize-handle]{cursor:nwse-resize}.overlay [data-point-handle],.overlay [data-vertex-handle]{cursor:crosshair}.overlay [data-supporting-line]{pointer-events:none}.loading{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;gap:12px;padding:24px;color:var(--muted);text-align:center;background:linear-gradient(135deg,#111827,#060912)}.loading-retry{border:1px solid rgba(75,212,255,.45);border-radius:999px;padding:8px 13px;background:rgba(75,212,255,.1);color:#d9f7ff;font-weight:850;cursor:pointer}.side{display:flex;min-width:0;flex-direction:column;gap:13px}.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:6px;padding:11px;border:1px solid rgba(148,163,184,.18);border-radius:15px;background:rgba(15,23,42,.62);font-size:10px;font-weight:800;color:#b9c5d8;text-align:center}.arrow{color:var(--orange)}.family-filters{display:flex;flex-wrap:wrap;gap:6px}.family-filter{border:1px solid rgba(75,212,255,.34);border-radius:999px;padding:6px 9px;background:rgba(75,212,255,.08);color:#d9f7ff;font-size:10px;font-weight:800;cursor:pointer}.family-filter[aria-pressed="false"]{border-color:rgba(148,163,184,.18);background:rgba(15,23,42,.35);color:#718096}.candidate-list{display:flex;max-height:240px;flex-direction:column;gap:8px;overflow:auto}.candidate{display:grid;grid-template-columns:auto 1fr;gap:9px;padding:10px;border:1px solid rgba(148,163,184,.17);border-radius:13px;background:rgba(15,23,42,.6);cursor:pointer}.candidate:has(input:checked){border-color:rgba(75,212,255,.5);background:rgba(75,212,255,.08)}.candidate input{width:18px;height:18px;margin-top:2px;accent-color:var(--orange)}.candidate strong{display:block;font-size:12px}.candidate span{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.35}.candidate .candidate-kind{display:inline-block;margin:0 0 3px;padding:2px 6px;border-radius:999px;background:rgba(148,163,184,.13);color:#cbd5e1;font-size:9px;font-weight:800}.confirm{width:100%;border:0;border-radius:14px;padding:13px 15px;background:linear-gradient(135deg,var(--orange),#ffad67);color:#1e0d03;font-weight:900;box-shadow:0 12px 28px rgba(251,122,39,.22);cursor:pointer}.confirm:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}.status{min-height:18px;margin:0;color:var(--muted);font-size:11px;line-height:1.45}.result{display:none;gap:10px}.result.visible{display:grid}.headline{margin:0;font-size:17px;line-height:1.25}.matches{display:grid;gap:8px}.match{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px;border:1px solid rgba(52,211,153,.25);border-radius:13px;background:rgba(52,211,153,.07)}.ratio{min-width:72px;color:#b9f8df;font-size:17px;font-weight:950}.match-copy strong{display:block;font-size:11px}.match-copy span{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.35}.limit{margin:0;padding-top:2px;color:#8090aa;font-size:9px;line-height:1.4}.identity{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8px}@media(max-width:720px){.content{grid-template-columns:1fr}.candidate-list{max-height:190px}}
 .guide-marker{display:grid!important;place-items:center;width:18px;height:18px;margin-top:1px!important;color:var(--cyan)!important;font-size:18px!important}.overlay [data-candidate-id]{outline:none}.overlay [data-candidate-id]:focus [data-candidate-shape],.overlay [data-candidate-id]:focus-within [data-candidate-shape]{filter:drop-shadow(0 0 10px #f8fafc)}
 </style>
 </head>
@@ -722,7 +866,14 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
 <script type="module">
 const PREPARE_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PREPARE_TOOL)},CONFIRM_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL)};
 const BOOTSTRAP_PENDING_NOTICE_AFTER=50,BOOTSTRAP_RETRY_DELAY_MS=100,BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000;
-const state={payload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),imageReady:false,imageLoadGeneration:0,dimensions:null,downloadUrl:null,completed:false,confirming:false};
+const IMAGE_HYDRATION_MAX_ATTEMPTS=2,IMAGE_HYDRATION_RETRY_DELAY_MS=250,IMAGE_HYDRATION_TIMEOUT_MS=10000;
+const boundedImageHydrationAttemptCount=${boundedImageHydrationAttemptCount.toString()};
+const boundedImageHydrationRetryDelay=${boundedImageHydrationRetryDelay.toString()};
+const requestPersonalVisualHarmonyDownloadUrlV1=${requestPersonalVisualHarmonyDownloadUrlV1.toString()};
+const validImageHydrationDimensions=${validImageHydrationDimensions.toString()};
+const loadPersonalVisualHarmonyDownloadUrlV1=${loadPersonalVisualHarmonyDownloadUrlV1.toString()};
+const runImageHydration=${runPersonalVisualHarmonyImageHydrationV1.toString()};
+const state={payload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),imageReady:false,imageLoadGeneration:0,imageLoadTask:null,imageLoadFileId:null,dimensions:null,downloadUrl:null,pendingStructuredContent:null,completed:false,confirming:false};
 let rpcId=0,bridgeReady;
 const pendingRequests=new Map();
 function rpcNotify(method,params){window.parent.postMessage({jsonrpc:"2.0",method,params},"*")}
@@ -777,7 +928,13 @@ if(!Array.isArray(completed.selectedCandidateIds)||completed.selectedCandidateId
 return{...completed,confirmedVisualGuideCandidateIds:completedGuides}
 }
 function imageLoadIsCurrent(generation,fileId){return generation===state.imageLoadGeneration&&state.payload?.fileId===fileId}
-async function loadImage(fileId){const generation=state.imageLoadGeneration+1;state.imageLoadGeneration=generation;state.imageReady=false;if(!window.openai?.getFileDownloadUrl){if(imageLoadIsCurrent(generation,fileId))loading.textContent="Cette vue nécessite l’API fichiers de ChatGPT pour afficher et confirmer l’image.";return false}try{const response=await window.openai.getFileDownloadUrl({fileId});if(!imageLoadIsCurrent(generation,fileId))return false;const url=response?.downloadUrl;if(typeof url!=="string")throw new Error("missing download URL");state.downloadUrl=url;source.referrerPolicy="no-referrer";return await new Promise(resolve=>{let settled=false;const finishLoaded=()=>{if(settled)return;settled=true;if(!imageLoadIsCurrent(generation,fileId)){resolve(false);return}state.imageReady=true;state.dimensions={width:source.naturalWidth,height:source.naturalHeight};visual.style.aspectRatio=source.naturalWidth+" / "+source.naturalHeight;loading.style.display="none";if(!state.completed&&!state.confirming)statusNode.textContent="Rectangles : glissez ou redimensionnez · segments : ajustez les extrémités · quadrilatères : ajustez les quatre sommets · puis confirmez.";updateConfirm();resolve(true)};source.onload=finishLoaded;source.onerror=()=>{if(settled)return;settled=true;if(imageLoadIsCurrent(generation,fileId))loading.textContent="Impossible d’afficher l’image dans cette vue.";resolve(false)};source.src=url;if(source.complete&&source.naturalWidth>0)queueMicrotask(finishLoaded)})}catch{if(imageLoadIsCurrent(generation,fileId))loading.textContent="Impossible d’ouvrir temporairement l’image dans ChatGPT.";return false}}
+function setImageHydrationStatus(status,failure){document.documentElement.setAttribute("data-norma-image-hydration",status);if(failure)document.documentElement.setAttribute("data-norma-image-error",failure);else document.documentElement.removeAttribute("data-norma-image-error")}
+function showImageLoading(){loading.replaceChildren(document.createTextNode("Chargement de l’image sécurisée…"));loading.style.display="grid";setImageHydrationStatus("loading",null)}
+function imageFailureMessage(failure){if(failure==="file_api_unavailable")return"L’API fichiers de ChatGPT n’est pas disponible dans cette vue.";if(failure==="image_load_failed")return"L’image n’a pas pu être chargée depuis deux liens temporaires successifs.";return"ChatGPT n’a pas pu fournir un lien temporaire valide pour cette image."}
+function showImageFailure(failure){if(!state.payload)return;const message=document.createElement("span"),retry=document.createElement("button");message.textContent=imageFailureMessage(failure);retry.type="button";retry.className="loading-retry";retry.textContent="Réessayer l’affichage";retry.addEventListener("click",()=>{const payload=state.payload;if(payload)void hydrate(payload,state.pendingStructuredContent,{forceImageReload:true})});loading.replaceChildren(message,retry);loading.style.display="grid";setImageHydrationStatus("failed",failure)}
+function probeImage(downloadUrl,generation,fileId){return new Promise((resolve,reject)=>{const probe=new Image();let settled=false,timeout;const finish=(callback,value)=>{if(settled)return;settled=true;clearTimeout(timeout);probe.onload=null;probe.onerror=null;callback(value)};timeout=setTimeout(()=>finish(reject,new Error("image hydration timeout")),IMAGE_HYDRATION_TIMEOUT_MS);probe.referrerPolicy="no-referrer";probe.onload=()=>finish(resolve,{width:probe.naturalWidth,height:probe.naturalHeight});probe.onerror=()=>finish(reject,new Error("image hydration failed"));probe.src=downloadUrl;if(!imageLoadIsCurrent(generation,fileId))finish(reject,new Error("stale image hydration"))})}
+async function performImageLoad(fileId,generation){if(typeof window.openai?.getFileDownloadUrl!=="function"){if(imageLoadIsCurrent(generation,fileId))showImageFailure("file_api_unavailable");return false}const result=await runImageHydration({fileId,maxAttempts:IMAGE_HYDRATION_MAX_ATTEMPTS,retryDelayMs:IMAGE_HYDRATION_RETRY_DELAY_MS,getDownloadUrl:requestedFileId=>window.openai.getFileDownloadUrl({fileId:requestedFileId}),loadDownloadUrl:downloadUrl=>probeImage(downloadUrl,generation,fileId),isCurrent:()=>imageLoadIsCurrent(generation,fileId),waitBeforeRetry:delayMs=>new Promise(resolve=>setTimeout(resolve,delayMs))});if(result.status==="stale")return false;if(result.status==="failed"){if(imageLoadIsCurrent(generation,fileId))showImageFailure(result.failure);return false}if(!imageLoadIsCurrent(generation,fileId))return false;state.downloadUrl=result.downloadUrl;state.imageReady=true;state.dimensions={width:result.width,height:result.height};source.referrerPolicy="no-referrer";source.src=result.downloadUrl;visual.style.aspectRatio=result.width+" / "+result.height;loading.style.display="none";setImageHydrationStatus("ready",null);if(!state.completed&&!state.confirming)statusNode.textContent="Rectangles : glissez ou redimensionnez · segments : ajustez les extrémités · quadrilatères : ajustez les quatre sommets · puis confirmez.";updateConfirm();return true}
+async function loadImage(fileId,{force=false}={}){if(!force&&state.imageReady&&state.imageLoadFileId===fileId)return true;if(!force&&state.imageLoadTask&&state.imageLoadFileId===fileId)return state.imageLoadTask;const generation=state.imageLoadGeneration+1;state.imageLoadGeneration=generation;state.imageReady=false;state.dimensions=null;state.downloadUrl=null;state.imageLoadFileId=fileId;source.removeAttribute("src");showImageLoading();const task=performImageLoad(fileId,generation);state.imageLoadTask=task;try{return await task}finally{if(state.imageLoadTask===task)state.imageLoadTask=null}}
 function renderCandidates(prepared){candidateList.replaceChildren();overlay.classList.remove("locked");state.proposalCandidateSetIdentity=prepared.candidateSetIdentity;state.proposalCandidates=prepared.candidates.map(item=>JSON.parse(JSON.stringify(item)));state.reviewedCandidates=reviewedCandidatesFor(prepared);const saved=publicWidgetState(),storedSelection=saved.selectedCandidateIds,storedGuides=saved.confirmedVisualGuideCandidateIds,rectangleIds=prepared.candidates.filter(item=>primitiveKind(item)==="rectangle").map(item=>item.id),guideIds=prepared.candidates.filter(item=>primitiveKind(item)!=="rectangle").map(item=>item.id),selectedIds=Array.isArray(storedSelection)?storedSelection:rectangleIds,selectedGuideIds=Array.isArray(storedGuides)?storedGuides:guideIds;state.selected=new Set(selectedIds.filter(id=>rectangleIds.includes(id)));state.selectedGuides=new Set(selectedGuideIds.filter(id=>guideIds.includes(id)));renderFamilyFilters(prepared);for(const [index,item] of state.reviewedCandidates.entries()){const kind=primitiveKind(item),isCore=kind==="rectangle",selection=isCore?state.selected:state.selectedGuides,label=document.createElement("label");label.className="candidate";label.setAttribute("data-primitive-kind",kind);const copy=document.createElement("div"),kindNode=document.createElement("span"),title=document.createElement("strong"),reason=document.createElement("span"),input=document.createElement("input");kindNode.className="candidate-kind";kindNode.textContent=primitiveLabel(kind);title.textContent=(index+1)+" · "+item.label;reason.textContent=item.reason;copy.append(kindNode,title,reason);input.type="checkbox";input.checked=selection.has(item.id);input.disabled=state.completed||state.confirming;input.setAttribute("aria-label",(isCore?"Inclure dans Norma Core : ":"Confirmer comme guide visuel : ")+item.label);input.addEventListener("change",()=>{if(state.confirming){input.checked=selection.has(item.id);return}if(input.checked)selection.add(item.id);else selection.delete(item.id);syncOverlaySelection();persistSelection();updateConfirm()});label.append(input,copy);candidateList.append(label)}decorateEditableOverlay();syncOverlayGeometry();syncOverlaySelection();syncFamilyVisibility()}
 function updateConfirm(){const noCoreRectangle=coreSelectedIds().length===0;confirmButton.disabled=state.completed||state.confirming||!state.imageReady||noCoreRectangle||!state.payload;if(!state.completed&&!state.confirming&&state.imageReady&&noCoreRectangle)statusNode.textContent="Sélectionnez au moins un rectangle structurel pour lancer le Core actuel."}
 function setReviewLocked(locked){const disabled=locked||state.completed;overlay.classList.toggle("locked",disabled);candidateList.querySelectorAll("input").forEach(input=>input.disabled=disabled);overlay.querySelectorAll("[data-candidate-id]").forEach(group=>{const editable=group.getAttribute("data-primitive-kind")!=="ellipse"&&!disabled;group.setAttribute("tabindex",editable?"0":"-1");group.querySelectorAll("[data-resize-handle],[data-point-handle],[data-vertex-handle]").forEach(handle=>handle.setAttribute("tabindex",editable?"0":"-1"));if(disabled)group.setAttribute("aria-disabled","true");else group.removeAttribute("aria-disabled")});updateConfirm()}
@@ -807,10 +964,10 @@ function translateGuideCandidate(item,dx,dy){const primitive=item.primitive,poin
 function adjustGuideHandle(item,pointHandle,vertexHandle,dx,dy){const primitive=item.primitive;if((primitive?.kind==="segment"||primitive?.kind==="axis")&&(pointHandle==="start"||pointHandle==="end")){const other=pointHandle==="start"?primitive.end:primitive.start,point=primitive[pointHandle],adjusted={x:clampUnit(point.x+dx),y:clampUnit(point.y+dy)};if(adjusted.x===other.x&&adjusted.y===other.y)return item;return candidateWithPrimitive(item,{...primitive,[pointHandle]:adjusted})}if(primitive?.kind==="quadrilateral"&&Number.isInteger(vertexHandle)&&vertexHandle>=0&&vertexHandle<4){const vertices=primitive.vertices.map(point=>({...point})),point=vertices[vertexHandle];vertices[vertexHandle]={x:clampUnit(point.x+dx),y:clampUnit(point.y+dy)};return validQuadrilateralVertices(vertices)?candidateWithPrimitive(item,{...primitive,vertices}):item}return item}
 overlay.addEventListener("keydown",event=>{if(state.completed||state.confirming||!state.imageReady||!event.key.startsWith("Arrow")||!(event.target instanceof Element))return;const group=event.target.closest("[data-candidate-id]");if(!group)return;const index=state.reviewedCandidates.findIndex(item=>item.id===group.getAttribute("data-candidate-id"));if(index<0)return;const start=state.reviewedCandidates[index],kind=primitiveKind(start);if(kind==="ellipse")return;event.preventDefault();const step=event.shiftKey ? .001 : .005,xDelta=event.key==="ArrowLeft"?-step:event.key==="ArrowRight"?step:0,yDelta=event.key==="ArrowUp"?-step:event.key==="ArrowDown"?step:0,resizeKeyboard=event.target.hasAttribute("data-resize-handle")||event.shiftKey;let next=start;if(kind==="rectangle"){next=resizeKeyboard?{...start,width:rounded(Math.max(.02,Math.min(1-start.x,start.width+xDelta))),height:rounded(Math.max(.02,Math.min(1-start.y,start.height+yDelta)))}:{...start,x:rounded(Math.max(0,Math.min(1-start.width,start.x+xDelta))),y:rounded(Math.max(0,Math.min(1-start.height,start.y+yDelta)))}}else{const pointHandle=event.target.getAttribute("data-point-handle"),vertexValue=event.target.getAttribute("data-vertex-handle"),vertexHandle=vertexValue===null?null:Number(vertexValue);next=pointHandle!==null||vertexHandle!==null?adjustGuideHandle(start,pointHandle,vertexHandle,xDelta,yDelta):translateGuideCandidate(start,xDelta,yDelta)}if(next===start){statusNode.textContent="Correction refusée : la primitive doit rester valide et entièrement dans l’image.";return}state.reviewedCandidates[index]=next;syncOverlayGeometry();persistReviewState();updateConfirm();statusNode.textContent=kind==="rectangle"?(resizeKeyboard?"Taille ajustée au clavier.":"Position ajustée au clavier."):"Géométrie du guide ajustée au clavier · Maj + flèches applique un pas fin."});
 overlay.addEventListener("pointerdown",event=>{if(state.completed||state.confirming||!state.imageReady||event.isPrimary===false||event.button!==0||!(event.target instanceof Element))return;const group=event.target.closest("[data-candidate-id]");if(!group)return;const id=group.getAttribute("data-candidate-id"),index=state.reviewedCandidates.findIndex(item=>item.id===id),svg=overlay.querySelector("svg");if(index<0||!svg)return;const kind=primitiveKind(state.reviewedCandidates[index]);if(kind==="ellipse")return;event.preventDefault();const focusTarget=event.target.closest("[data-point-handle],[data-vertex-handle],[data-resize-handle]")||group;focusTarget.focus?.();const pointerId=event.pointerId;group.setPointerCapture?.(pointerId);const bounds=svg.getBoundingClientRect(),start=JSON.parse(JSON.stringify(state.reviewedCandidates[index])),startClientX=event.clientX,startClientY=event.clientY,resize=event.target.closest("[data-resize-handle]")!==null,pointHandle=event.target.closest("[data-point-handle]")?.getAttribute("data-point-handle")||null,vertexValue=event.target.closest("[data-vertex-handle]")?.getAttribute("data-vertex-handle"),vertexHandle=vertexValue===undefined?null:Number(vertexValue);const move=moveEvent=>{if(moveEvent.pointerId!==pointerId||state.confirming)return;moveEvent.preventDefault();const dx=(moveEvent.clientX-startClientX)/bounds.width,dy=(moveEvent.clientY-startClientY)/bounds.height;let next=start;if(kind==="rectangle")next=resize?{...start,width:rounded(Math.max(.02,Math.min(1-start.x,start.width+dx))),height:rounded(Math.max(.02,Math.min(1-start.y,start.height+dy)))}:{...start,x:rounded(Math.max(0,Math.min(1-start.width,start.x+dx))),y:rounded(Math.max(0,Math.min(1-start.height,start.y+dy)))};else next=pointHandle!==null||vertexHandle!==null?adjustGuideHandle(start,pointHandle,vertexHandle,dx,dy):translateGuideCandidate(start,dx,dy);state.reviewedCandidates[index]=next;syncOverlayGeometry();updateConfirm()};const end=endEvent=>{if(endEvent.pointerId!==pointerId)return;window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",end);window.removeEventListener("pointercancel",end);group.releasePointerCapture?.(pointerId);if(state.confirming)return;persistReviewState();statusNode.textContent=kind==="rectangle"?"Zone ajustée et liée à cette proposition · vérifiez les autres zones puis confirmez.":"Guide ajusté par ses points géométriques · vérifiez les contacts et confirmez."};window.addEventListener("pointermove",move,{passive:false});window.addEventListener("pointerup",end);window.addEventListener("pointercancel",end)});
-async function hydrate(payload=currentPayload(),structured=window.openai?.toolOutput){if(!payload)return;if(payload.stage==="confirmation_required"&&state.confirming){state.payload=payload;return}if(payload.stage==="confirmation_required"||!state.payload)state.payload=payload;if(payload.overlaySvg)overlay.innerHTML=safeSvg(payload.overlaySvg);if(payload.stage==="confirmation_required"){renderCandidates(payload.prepared);const imageLoaded=await loadImage(payload.fileId);if(!imageLoaded)return;const completed=completedWidgetStateFor(payload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(payload,completed);return}if(payload.stage==="completed"){if(payload.fileId&&!await loadImage(payload.fileId))return;renderResult(payload,structured)}}
+async function hydrate(payload=currentPayload(),structured=window.openai?.toolOutput,{forceImageReload=false}={}){if(!payload)return;state.pendingStructuredContent=structured;if(payload.stage==="confirmation_required"&&state.confirming){state.payload=payload;return}if(payload.stage==="confirmation_required"||!state.payload)state.payload=payload;if(payload.overlaySvg)overlay.innerHTML=safeSvg(payload.overlaySvg);if(payload.stage==="confirmation_required"){renderCandidates(payload.prepared);const imageLoaded=await loadImage(payload.fileId,{force:forceImageReload});if(!imageLoaded)return;const completed=completedWidgetStateFor(payload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(payload,completed);return}if(payload.stage==="completed"){if(payload.fileId&&!await loadImage(payload.fileId,{force:forceImageReload}))return;renderResult(payload,structured)}}
 confirmButton.addEventListener("click",async()=>{if(state.confirming||!state.payload||!state.dimensions||coreSelectedIds().length===0)return;state.confirming=true;const payloadSnapshot=state.payload,candidateSnapshot=reviewedCandidateSnapshot(),selectedSnapshot=Object.freeze(coreSelectedIds()),guideSnapshot=Object.freeze(confirmedGuideIds()),dimensionsSnapshot=Object.freeze({...state.dimensions}),changed=geometryChanged(candidateSnapshot);setReviewLocked(true);confirmButton.textContent="Norma mesure…";statusNode.textContent=changed?"Corrections structurées en cours de validation avant mesure…":"Sélection confirmée dans le widget. Calcul du Core et des relations du plan image…";try{const analysisPayload=changed?await prepareReviewedPayload(payloadSnapshot,candidateSnapshot):payloadSnapshot;const response=await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot);const structured=findCompletedResult(response);const hiddenPayload=findPayload(response);if(!structured)throw new Error("missing verified result");state.reviewedCandidates=candidateSnapshot.map(item=>({...item}));state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.dimensions={...dimensionsSnapshot};const completedPayload=hiddenPayload||{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured.imagePlaneGuideAnalysis,overlaySvg:""};renderResult(completedPayload,structured);await sendCompletionFollowUp(completedPayload,structured)}catch{statusNode.textContent="Analyse interrompue : les corrections n’ont pas pu être validées par le connecteur local. Réessayez depuis cette image.";confirmButton.textContent="Réessayer l’analyse"}finally{state.confirming=false;setReviewLocked(state.completed)}});
 let bootstrapRetryCount=0;
-function bootstrap(){const payload=currentPayload();if(payload){bootstrapRetryCount=0;if(payload.stage==="confirmation_required"&&!state.payload){void hydrate(payload);return}if(payload.stage==="completed"&&!state.completed)renderResult(payload,window.openai?.toolOutput);return}if(bootstrapRetryCount===BOOTSTRAP_PENDING_NOTICE_AFTER)loading.textContent="Connexion au résultat de l’analyse en cours…";const delay=bootstrapRetryCount<BOOTSTRAP_PENDING_NOTICE_AFTER?BOOTSTRAP_RETRY_DELAY_MS:BOOTSTRAP_SLOW_RETRY_DELAY_MS;bootstrapRetryCount=Math.min(bootstrapRetryCount+1,BOOTSTRAP_PENDING_NOTICE_AFTER);setTimeout(bootstrap,delay)}
+function bootstrap(){const payload=currentPayload();if(payload){bootstrapRetryCount=0;if(payload.stage==="confirmation_required"&&!state.payload){void hydrate(payload);return}if(payload.stage==="completed"&&!state.completed){void hydrate(payload,window.openai?.toolOutput);return}return}if(bootstrapRetryCount===BOOTSTRAP_PENDING_NOTICE_AFTER)loading.textContent="Connexion au résultat de l’analyse en cours…";const delay=bootstrapRetryCount<BOOTSTRAP_PENDING_NOTICE_AFTER?BOOTSTRAP_RETRY_DELAY_MS:BOOTSTRAP_SLOW_RETRY_DELAY_MS;bootstrapRetryCount=Math.min(bootstrapRetryCount+1,BOOTSTRAP_PENDING_NOTICE_AFTER);setTimeout(bootstrap,delay)}
 window.addEventListener("openai:set_globals",bootstrap);
 window.addEventListener("message",event=>{if(event.source!==window.parent)return;const message=event.data;if(!message||message.jsonrpc!=="2.0")return;if(typeof message.id==="number"){const pending=pendingRequests.get(message.id);if(!pending)return;pendingRequests.delete(message.id);if(message.error){pending.reject(message.error);return}pending.resolve(message.result);return}if(message.method!=="ui/notifications/tool-result")return;const payload=findPayload(message.params);if(payload)void hydrate(payload,message.params?.structuredContent)},{passive:true});
 bridgeReady=initializeBridge().catch(error=>{document.documentElement.setAttribute("data-norma-bridge","failed");document.documentElement.setAttribute("data-norma-last-error","initialize");throw error});

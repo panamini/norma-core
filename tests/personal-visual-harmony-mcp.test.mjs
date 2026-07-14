@@ -15,6 +15,7 @@ import {
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
   PERSONAL_VISUAL_HARMONY_WIDGET_URI,
   PersonalVisualHarmonySessionServiceV1,
+  runPersonalVisualHarmonyImageHydrationV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
@@ -237,6 +238,8 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
   };
 }
 
+// This exact resource contract intentionally keeps its symmetric prepare/confirm assertions together.
+// fallow-ignore-next-line complexity code-duplication
 test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation, and widget resource", async () => {
   const connected = await createConnectedClient();
   try {
@@ -444,10 +447,18 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /shallow_intersection:"COUPE RASANTE"/u);
     assert.match(resource.contents[0].text, /contactCharacter:item\.contactCharacter/u);
     assert.match(resource.contents[0].text, /imageLoadGeneration:0/u);
+    assert.match(resource.contents[0].text, /IMAGE_HYDRATION_MAX_ATTEMPTS=2/u);
+    assert.match(resource.contents[0].text, /const runImageHydration=async function runPersonalVisualHarmonyImageHydrationV1/u);
+    assert.match(resource.contents[0].text, /imageLoadTask:null,imageLoadFileId:null/u);
     assert.match(resource.contents[0].text, /function imageLoadIsCurrent\(generation,fileId\)/u);
     assert.match(resource.contents[0].text, /if\(!imageLoadIsCurrent\(generation,fileId\)\)return/u);
-    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId\);if\(!imageLoaded\)return/u);
-    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId\)\)return/u);
+    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,\{force:forceImageReload\}\);if\(!imageLoaded\)return/u);
+    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId,\{force:forceImageReload\}\)\)return/u);
+    assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
+    assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
+    assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
+    assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId\)return state\.imageLoadTask/u);
+    assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
@@ -473,6 +484,86 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   } finally {
     await connected.close();
   }
+});
+
+test("image hydration refreshes an expired URL once without repeating Norma preparation", async () => {
+  const downloadUrls = ["https://files.example/expired", "https://files.example/fresh"];
+  const requestedFileIds = [];
+  const loadedUrls = [];
+  const waits = [];
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-123",
+    maxAttempts: 2,
+    retryDelayMs: 250,
+    getDownloadUrl: async (fileId) => {
+      requestedFileIds.push(fileId);
+      return { downloadUrl: downloadUrls.shift() };
+    },
+    loadDownloadUrl: async (downloadUrl) => {
+      loadedUrls.push(downloadUrl);
+      if (downloadUrl.endsWith("/expired")) throw new Error("expired");
+      return { width: 720, height: 480 };
+    },
+    isCurrent: () => true,
+    waitBeforeRetry: async (delayMs) => { waits.push(delayMs); },
+  });
+
+  assert.deepEqual(result, {
+    status: "ready",
+    attemptCount: 2,
+    downloadUrl: "https://files.example/fresh",
+    width: 720,
+    height: 480,
+  });
+  assert.deepEqual(requestedFileIds, ["file-123", "file-123"]);
+  assert.deepEqual(loadedUrls, ["https://files.example/expired", "https://files.example/fresh"]);
+  assert.deepEqual(waits, [250]);
+});
+
+test("image hydration fails closed after its bounded URL attempts", async () => {
+  let requestCount = 0;
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-123",
+    maxAttempts: 2,
+    retryDelayMs: 0,
+    getDownloadUrl: async () => {
+      requestCount += 1;
+      throw new Error("temporary file API failure");
+    },
+    loadDownloadUrl: async () => { throw new Error("must not load"); },
+    isCurrent: () => true,
+    waitBeforeRetry: async () => {},
+  });
+
+  assert.deepEqual(result, {
+    status: "failed",
+    attemptCount: 2,
+    failure: "download_url_unavailable",
+  });
+  assert.equal(requestCount, 2);
+});
+
+test("image hydration discards a stale response before loading it", async () => {
+  let current = true;
+  let loadCount = 0;
+  const result = await runPersonalVisualHarmonyImageHydrationV1({
+    fileId: "file-old",
+    maxAttempts: 2,
+    retryDelayMs: 0,
+    getDownloadUrl: async () => {
+      current = false;
+      return { downloadUrl: "https://files.example/stale" };
+    },
+    loadDownloadUrl: async () => {
+      loadCount += 1;
+      return { width: 1, height: 1 };
+    },
+    isCurrent: () => current,
+    waitBeforeRetry: async () => {},
+  });
+
+  assert.deepEqual(result, { status: "stale", attemptCount: 1 });
+  assert.equal(loadCount, 0);
 });
 
 test("prepare keeps Core stopped and confirm runs deterministic Core only after the literal widget gate", async () => {
