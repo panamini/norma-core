@@ -1810,13 +1810,19 @@ function numberAttr(value: number): string {
   return canonicalNumber(value).toString();
 }
 
+const XML_DELIMITER_ESCAPES = Object.freeze({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+});
+
 function escapeXml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+  return value.replace(
+    /[&<>"']/gu,
+    (character) => XML_DELIMITER_ESCAPES[character as keyof typeof XML_DELIMITER_ESCAPES],
+  );
 }
 
 function contentIdentityFor(value: unknown): string {

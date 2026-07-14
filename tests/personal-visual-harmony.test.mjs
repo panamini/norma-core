@@ -846,17 +846,17 @@ test("overlay is transparent, image-aligned, and escapes model-provided labels",
     {
       ...goldenCandidates()[0],
       id: "safe",
-      label: "<script>alert(1)</script>",
+      label: '<script data-test="unsafe">alert(\'1\') & more</script>',
     },
   ]);
   const svg = createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared });
 
   assert.match(svg, /^<svg/u);
   assert.match(svg, /viewBox="0 0 1000 1000"/u);
-  assert.match(svg, /<g data-candidate-id="safe" data-primitive-kind="rectangle" tabindex="0" role="group" aria-label="Ajuster &lt;script&gt;alert\(1\)&lt;\/script&gt;"\s*>/u);
+  assert.match(svg, /<g data-candidate-id="safe" data-primitive-kind="rectangle" tabindex="0" role="group" aria-label="Ajuster &lt;script data-test=&quot;unsafe&quot;&gt;alert\(&#39;1&#39;\) &amp; more&lt;\/script&gt;"\s*>/u);
   assert.match(svg, /data-candidate-box/u);
   assert.match(svg, /data-resize-handle/u);
-  assert.match(svg, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
+  assert.match(svg, /&lt;script data-test=&quot;unsafe&quot;&gt;alert\(&#39;1&#39;\) &amp; more&lt;\/script&gt;/u);
   assert.doesNotMatch(svg, /<script>/u);
   assert.doesNotMatch(svg, /file-private-demo-123/u);
   assert.doesNotMatch(svg, /<image\b/u);
