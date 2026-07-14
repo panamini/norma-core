@@ -593,6 +593,43 @@ test("mixed structural primitives stay visible while only rectangles cross the C
   }
 });
 
+test("prepare canonically derives ellipse bounds from its measured center and radii", async () => {
+  let sequence = 0;
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-13T15:00:00.000Z"),
+    createSessionId: () => `session:ellipse-canonical-${String(++sequence)}`,
+  }));
+  try {
+    const prepare = async (ellipseBounds) => connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates: mixedPrimitiveCandidates().map((candidate) => candidate.id === "main-ellipse"
+          ? { ...candidate, ...ellipseBounds }
+          : candidate),
+      },
+    });
+
+    const first = await prepare({ x: 0.24, y: 0.14, width: 0.51, height: 0.71 });
+    const second = await prepare({ x: 0.26, y: 0.16, width: 0.49, height: 0.69 });
+
+    assert.equal(first.isError, undefined);
+    assert.equal(second.isError, undefined);
+    const ellipse = first.structuredContent.candidates.find(({ id }) => id === "main-ellipse");
+    assert.deepEqual(
+      { x: ellipse.x, y: ellipse.y, width: ellipse.width, height: ellipse.height },
+      { x: 0.25, y: 0.15, width: 0.5, height: 0.7 },
+    );
+    assert.equal(first.structuredContent.candidateSetIdentity, second.structuredContent.candidateSetIdentity);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("expired confirmation sessions are reconstructed from the exact hidden candidate set", async () => {
   let nowMs = Date.parse("2026-07-13T15:00:00.000Z");
   let sequence = 0;

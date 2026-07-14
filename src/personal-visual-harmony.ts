@@ -1125,24 +1125,45 @@ function validateCandidates(
       height: candidateValue.height,
     })) {
       if (!Number.isFinite(value)) throw new Error(`Visual harmony candidate ${String(index)} ${field} must be finite.`);
-    }
-    if (candidateValue.x < 0 || candidateValue.y < 0 || candidateValue.width < 0 || candidateValue.height < 0
-      || candidateValue.x + candidateValue.width > 1 || candidateValue.y + candidateValue.height > 1) {
-      throw new Error(`Visual harmony candidate ${String(index)} must have normalized primitive bounds inside the image.`);
+      if (value < 0 || value > 1) {
+        throw new Error(`Visual harmony candidate ${String(index)} must have normalized primitive bounds inside the image.`);
+      }
     }
     const primitive = validateCandidatePrimitive(candidateValue.primitive, candidateValue, index);
+    const bounds = canonicalBoundsForPrimitive(candidateValue, primitive);
+    if (bounds.x < 0 || bounds.y < 0 || bounds.width < 0 || bounds.height < 0
+      || bounds.x + bounds.width > 1 || bounds.y + bounds.height > 1) {
+      throw new Error(`Visual harmony candidate ${String(index)} must have normalized primitive bounds inside the image.`);
+    }
     return {
       id: candidateValue.id,
       label: candidateValue.label,
       role: candidateValue.role,
       reason: candidateValue.reason,
-      x: canonicalNumber(candidateValue.x),
-      y: canonicalNumber(candidateValue.y),
-      width: canonicalNumber(candidateValue.width),
-      height: canonicalNumber(candidateValue.height),
+      ...bounds,
       ...(primitive === undefined ? {} : { primitive }),
     };
   });
+}
+
+function canonicalBoundsForPrimitive(
+  bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
+  primitive: PersonalVisualHarmonyPrimitiveV1 | undefined,
+): Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height"> {
+  if (primitive?.kind === "ellipse") {
+    return {
+      x: canonicalNumber(primitive.center.x - primitive.radiusX),
+      y: canonicalNumber(primitive.center.y - primitive.radiusY),
+      width: canonicalNumber(primitive.radiusX * 2),
+      height: canonicalNumber(primitive.radiusY * 2),
+    };
+  }
+  return {
+    x: canonicalNumber(bounds.x),
+    y: canonicalNumber(bounds.y),
+    width: canonicalNumber(bounds.width),
+    height: canonicalNumber(bounds.height),
+  };
 }
 
 function validateCandidatePrimitive(
@@ -1185,13 +1206,6 @@ function validateCandidatePrimitive(
     || center.x - value.radiusX < 0 || center.x + value.radiusX > 1
     || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
-  }
-  const tolerance = 0.000001;
-  if (Math.abs(bounds.x - (center.x - value.radiusX)) > tolerance
-    || Math.abs(bounds.y - (center.y - value.radiusY)) > tolerance
-    || Math.abs(bounds.width - (value.radiusX * 2)) > tolerance
-    || Math.abs(bounds.height - (value.radiusY * 2)) > tolerance) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse bounds must match its visible contour.`);
   }
   return {
     kind: "ellipse",

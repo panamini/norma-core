@@ -200,7 +200,7 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
 });
 
-test("candidate validation is closed and rejects out-of-bounds, duplicate, or injected shapes", () => {
+test("candidate validation stays closed while redundant ellipse bounds are canonicalized", () => {
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], width: 1.1 }]),
     /normalized primitive bounds/u,
@@ -235,12 +235,18 @@ test("candidate validation is closed and rejects out-of-bounds, duplicate, or in
     }]),
     /requires distinct endpoints/u,
   );
-  assert.throws(
-    () => prepare([{
-      ...mixedPrimitiveCandidates().find(({ id }) => id === "main-ellipse"),
-      width: 0.4,
-    }]),
-    /ellipse bounds must match its visible contour/u,
+  const canonicalEllipse = prepare([{
+    ...mixedPrimitiveCandidates().find(({ id }) => id === "main-ellipse"),
+    width: 0.4,
+  }]).candidates[0];
+  assert.deepEqual(
+    {
+      x: canonicalEllipse.x,
+      y: canonicalEllipse.y,
+      width: canonicalEllipse.width,
+      height: canonicalEllipse.height,
+    },
+    { x: 0.25, y: 0.15, width: 0.5, height: 0.7 },
   );
 });
 

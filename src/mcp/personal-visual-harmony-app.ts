@@ -71,16 +71,16 @@ const CandidateSchema = z.object({
     "Name the visible construction line, contour, axis, or region edges used and disclose uncertainty; never cite an expected harmonic ratio as the coordinate basis.",
   ),
   x: z.number().min(0).max(1).describe(
-    "Left visible edge divided by the full image pixel width. Measure the raster edge first; never snap or round it toward phi, halves, or thirds.",
+    "Left visible edge divided by the full image pixel width. Measure the raster edge first; never snap or round it toward phi, halves, or thirds. For ellipses, Norma canonically derives this envelope value from center and radiusX.",
   ),
   y: z.number().min(0).max(1).describe(
-    "Top visible edge divided by the full image pixel height. Measure from the full image origin, including any surrounding background.",
+    "Top visible edge divided by the full image pixel height. Measure from the full image origin, including any surrounding background. For ellipses, Norma canonically derives this envelope value from center and radiusY.",
   ),
   width: z.number().min(0).max(1).describe(
-    "Visible primitive envelope width divided by full image pixel width. It may be zero only for a perfectly vertical segment or axis; rectangles and ellipses require positive width.",
+    "Visible primitive envelope width divided by full image pixel width. It may be zero only for a perfectly vertical segment or axis; rectangles require positive width. For ellipses, Norma canonically derives it as 2 * radiusX.",
   ),
   height: z.number().min(0).max(1).describe(
-    "Visible primitive envelope height divided by full image pixel height. It may be zero only for a perfectly horizontal segment or axis; rectangles and ellipses require positive height.",
+    "Visible primitive envelope height divided by full image pixel height. It may be zero only for a perfectly horizontal segment or axis; rectangles require positive height. For ellipses, Norma canonically derives it as 2 * radiusY.",
   ),
   primitive: CandidatePrimitiveSchema.optional().describe(
     `Visible construction primitive. Omit only for legacy rectangles. Supported kinds: ${PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS.join(", ")}.`,
