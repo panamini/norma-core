@@ -113,6 +113,7 @@ const MIN_ABSOLUTE_EDGE_SUPPORT = 0.16;
 const MIN_EDGE_SUPPORT_GAIN = 0.025;
 const MIN_AMBIGUITY_MARGIN = 0.0005;
 const MATERIAL_AMBIGUITY_SEPARATION_PIXELS = 2.5;
+const ELLIPSE_DISPLACEMENT_SAMPLE_COUNT = 256;
 const EPSILON = 1e-9;
 
 /**
@@ -127,7 +128,10 @@ export function refinePersonalVisualHarmonyPrimitivePixelsV1(input: {
   validateRefinementInput(input);
   validateRaster(input.raster);
   validatePrimitive(input.primitive, input.raster);
-  const displacementBound = validateDisplacementBound(input.maxDisplacementPixels);
+  const displacementBound = validateDisplacementBound(
+    input.maxDisplacementPixels,
+    Object.prototype.hasOwnProperty.call(input, "maxDisplacementPixels"),
+  );
   const originalGeometry = clonePrimitive(input.primitive);
 
   const decision = input.primitive.kind === "segment" || input.primitive.kind === "axis"
@@ -630,7 +634,28 @@ function ellipseDisplacement(
   original: EllipsePrimitive,
   proposed: EllipsePrimitive,
 ): { readonly maximum: number; readonly mean: number } {
-  return pointDisplacements(ellipseCardinalPoints(original), ellipseCardinalPoints(proposed));
+  const centerDeltaX = proposed.center.x - original.center.x;
+  const centerDeltaY = proposed.center.y - original.center.y;
+  const radiusDeltaX = proposed.radiusX - original.radiusX;
+  const radiusDeltaY = proposed.radiusY - original.radiusY;
+  const values: number[] = [];
+  for (let index = 0; index < ELLIPSE_DISPLACEMENT_SAMPLE_COUNT; index += 1) {
+    const angle = 2 * Math.PI * index / ELLIPSE_DISPLACEMENT_SAMPLE_COUNT;
+    values.push(Math.hypot(
+      centerDeltaX + radiusDeltaX * Math.cos(angle),
+      centerDeltaY + radiusDeltaY * Math.sin(angle),
+    ));
+  }
+  const sampledMaximum = Math.max(...values);
+  // The displacement norm is Lipschitz-continuous in angle with this bound.
+  // Adding the farthest distance to a sample prevents perimeter underestimation.
+  const angularLipschitzBound = Math.max(Math.abs(radiusDeltaX), Math.abs(radiusDeltaY));
+  const conservativeMaximum = sampledMaximum
+    + angularLipschitzBound * Math.PI / ELLIPSE_DISPLACEMENT_SAMPLE_COUNT;
+  return {
+    maximum: conservativeMaximum,
+    mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+  };
 }
 
 function geometrySeparation(
@@ -649,15 +674,6 @@ function geometrySeparation(
     return ellipseDisplacement(first, second).maximum;
   }
   return Number.POSITIVE_INFINITY;
-}
-
-function ellipseCardinalPoints(ellipse: EllipsePrimitive): readonly PersonalVisualHarmonyPointV1[] {
-  return [
-    { x: ellipse.center.x - ellipse.radiusX, y: ellipse.center.y },
-    { x: ellipse.center.x + ellipse.radiusX, y: ellipse.center.y },
-    { x: ellipse.center.x, y: ellipse.center.y - ellipse.radiusY },
-    { x: ellipse.center.x, y: ellipse.center.y + ellipse.radiusY },
-  ];
 }
 
 function lineInsideRaster(line: LinePrimitive, raster: PersonalVisualHarmonyLuminanceRasterV1): boolean {
@@ -814,8 +830,8 @@ function requireExactFields(
   }
 }
 
-function validateDisplacementBound(value: unknown): number {
-  const bound = value === undefined ? DEFAULT_MAX_DISPLACEMENT_PIXELS : value;
+function validateDisplacementBound(value: unknown, explicitlyProvided: boolean): number {
+  const bound = explicitlyProvided ? value : DEFAULT_MAX_DISPLACEMENT_PIXELS;
   if (typeof bound !== "number"
     || !Number.isInteger(bound)
     || bound < 1

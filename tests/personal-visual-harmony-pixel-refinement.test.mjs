@@ -266,6 +266,10 @@ test("invalid raster data and unbounded searches fail closed", () => {
     () => refinePersonalVisualHarmonyPrimitivePixelsV1({ ...input, maxDisplacementPixels: null }),
     /integer from 1 to 6/u,
   );
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({ ...input, maxDisplacementPixels: undefined }),
+    /integer from 1 to 6/u,
+  );
   const withoutBound = structuredClone(input);
   delete withoutBound.maxDisplacementPixels;
   const defaulted = refinePersonalVisualHarmonyPrimitivePixelsV1(withoutBound);
@@ -277,6 +281,34 @@ test("invalid raster data and unbounded searches fail closed", () => {
     }),
     /length must equal/u,
   );
+});
+
+test("ellipse proposals respect the displacement bound across the full perimeter", () => {
+  const primitive = {
+    kind: "ellipse",
+    center: { x: 30, y: 30 },
+    radiusX: 12,
+    radiusY: 12,
+  };
+  const target = {
+    kind: "ellipse",
+    center: { x: 28, y: 30 },
+    radiusX: 11,
+    radiusY: 10,
+  };
+  const raster = renderRaster({
+    raster: { width: 64, height: 64, background: 0.07 },
+    shapes: [{ ...target, kind: "filled-ellipse", luminance: 0.93 }],
+  });
+  const result = refinePersonalVisualHarmonyPrimitivePixelsV1({
+    raster,
+    primitive,
+    maxDisplacementPixels: 3,
+  });
+
+  if (result.proposedGeometry !== null) {
+    assert.ok(denseEllipseMaximumDisplacement(primitive, result.proposedGeometry) <= 3 + 1e-9);
+  }
 });
 
 function refinementInput(fixture) {
@@ -322,6 +354,26 @@ function renderRaster(fixture) {
     }
   }
   return { width, height, luminance };
+}
+
+function denseEllipseMaximumDisplacement(original, proposed) {
+  let maximum = 0;
+  for (let index = 0; index < 4096; index += 1) {
+    const angle = 2 * Math.PI * index / 4096;
+    const originalPoint = {
+      x: original.center.x + original.radiusX * Math.cos(angle),
+      y: original.center.y + original.radiusY * Math.sin(angle),
+    };
+    const proposedPoint = {
+      x: proposed.center.x + proposed.radiusX * Math.cos(angle),
+      y: proposed.center.y + proposed.radiusY * Math.sin(angle),
+    };
+    maximum = Math.max(maximum, Math.hypot(
+      proposedPoint.x - originalPoint.x,
+      proposedPoint.y - originalPoint.y,
+    ));
+  }
+  return maximum;
 }
 
 function pointInPolygon(point, vertices) {
