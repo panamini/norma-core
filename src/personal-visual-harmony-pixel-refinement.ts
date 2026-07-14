@@ -101,6 +101,12 @@ type EllipsePrimitive = Extract<
 const DEFAULT_MAX_DISPLACEMENT_PIXELS = 4;
 const MAX_MAX_DISPLACEMENT_PIXELS = 6;
 const MAX_RASTER_PIXELS = 4_194_304;
+const SUPPORTED_PRIMITIVE_KINDS: readonly string[] = Object.freeze([
+  "segment",
+  "axis",
+  "quadrilateral",
+  "ellipse",
+]);
 const LINE_ANGLE_DELTAS_DEGREES = Object.freeze([-3, -2, -1, 0, 1, 2, 3]);
 const CONTRAST_SAMPLE_OFFSET_PIXELS = 1.25;
 const MIN_ABSOLUTE_EDGE_SUPPORT = 0.16;
@@ -118,6 +124,7 @@ export function refinePersonalVisualHarmonyPrimitivePixelsV1(input: {
   readonly primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1;
   readonly maxDisplacementPixels?: number;
 }): PersonalVisualHarmonyPixelRefinementResultV1 {
+  validateRefinementInput(input);
   validateRaster(input.raster);
   validatePrimitive(input.primitive, input.raster);
   const displacementBound = validateDisplacementBound(input.maxDisplacementPixels);
@@ -575,9 +582,13 @@ function quadrilateralIsValid(
   const proposedArea = signedArea(proposed.vertices);
   const originalArea = signedArea(original.vertices);
   if (Math.abs(proposedArea) < 4 || Math.sign(proposedArea) !== Math.sign(originalArea)) return false;
-  const crossProducts = proposed.vertices.map((point, index) => {
-    const next = proposed.vertices[(index + 1) % 4];
-    const after = proposed.vertices[(index + 2) % 4];
+  return quadrilateralIsStrictlyConvex(proposed.vertices);
+}
+
+function quadrilateralIsStrictlyConvex(vertices: QuadrilateralPrimitive["vertices"]): boolean {
+  const crossProducts = vertices.map((point, index) => {
+    const next = vertices[(index + 1) % 4];
+    const after = vertices[(index + 2) % 4];
     if (next === undefined || after === undefined) return 0;
     return cross(next.x - point.x, next.y - point.y, after.x - next.x, after.y - next.y);
   });
@@ -699,11 +710,15 @@ function diagnosticFor(
 }
 
 function validateRaster(raster: PersonalVisualHarmonyLuminanceRasterV1): void {
+  requireExactFields(raster, ["height", "luminance", "width"], "Pixel refinement rasters");
   if (!Number.isInteger(raster.width) || !Number.isInteger(raster.height) || raster.width < 8 || raster.height < 8) {
     throw new Error("Pixel refinement requires integer raster dimensions of at least 8 by 8 pixels.");
   }
   if (raster.width * raster.height > MAX_RASTER_PIXELS) {
     throw new Error(`Pixel refinement supports at most ${MAX_RASTER_PIXELS} luminance samples.`);
+  }
+  if (!Array.isArray(raster.luminance)) {
+    throw new Error("Raster luminance must be an array.");
   }
   if (raster.luminance.length !== raster.width * raster.height) {
     throw new Error("Raster luminance length must equal width multiplied by height.");
@@ -719,6 +734,13 @@ function validatePrimitive(
   primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
   raster: PersonalVisualHarmonyLuminanceRasterV1,
 ): void {
+  if (primitive === null || typeof primitive !== "object" || Array.isArray(primitive)) {
+    throw new Error("Pixel refinement requires a supported primitive object.");
+  }
+  const primitiveKind = (primitive as unknown as Record<string, unknown>).kind;
+  if (typeof primitiveKind !== "string" || !SUPPORTED_PRIMITIVE_KINDS.includes(primitiveKind)) {
+    throw new Error("Pixel refinement requires a supported primitive kind.");
+  }
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     requireExactFields(primitive, ["end", "kind", "start"], "Line-like primitives");
     validatePoint(primitive.start, raster);
@@ -737,7 +759,13 @@ function validatePrimitive(
     if (Math.abs(signedArea(primitive.vertices)) < 4) {
       throw new Error("Quadrilateral primitives must have a non-degenerate area.");
     }
+    if (!quadrilateralIsStrictlyConvex(primitive.vertices)) {
+      throw new Error("Quadrilateral primitives must form a simple strictly convex perimeter.");
+    }
     return;
+  }
+  if (primitive.kind !== "ellipse") {
+    throw new Error("Pixel refinement requires a supported primitive kind.");
   }
   requireExactFields(primitive, ["center", "kind", "radiusX", "radiusY"], "Ellipse primitives");
   validatePoint(primitive.center, raster);
@@ -760,11 +788,24 @@ function validatePoint(
   }
 }
 
+function validateRefinementInput(input: unknown): void {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Pixel refinement input must use exact fields.");
+  }
+  const fields = Object.prototype.hasOwnProperty.call(input, "maxDisplacementPixels")
+    ? ["maxDisplacementPixels", "primitive", "raster"]
+    : ["primitive", "raster"];
+  requireExactFields(input, fields, "Pixel refinement input");
+}
+
 function requireExactFields(
-  value: object,
+  value: unknown,
   expectedFields: readonly string[],
   label: string,
 ): void {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must use exact fields.`);
+  }
   const actualFields = Object.keys(value).sort(compareStrings);
   const expected = [...expectedFields].sort(compareStrings);
   if (actualFields.length !== expected.length

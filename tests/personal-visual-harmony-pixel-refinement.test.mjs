@@ -157,6 +157,66 @@ test("malformed quadrilaterals and primitive authority extras fail closed", () =
   );
 });
 
+test("unsupported primitive kinds and non-convex quadrilaterals fail closed", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "frame-edge-alignment");
+  const ellipseFixture = corpus.cases.find((entry) => entry.id === "ellipse-with-nearby-line");
+  assert.ok(fixture);
+  assert.ok(ellipseFixture);
+  const raster = renderRaster(fixture);
+
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+      raster,
+      primitive: { ...ellipseFixture.primitive, kind: "circle" },
+    }),
+    /supported primitive kind/u,
+  );
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+      raster,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 10, y: 10 },
+          { x: 50, y: 10 },
+          { x: 25, y: 25 },
+          { x: 10, y: 45 },
+        ],
+      },
+    }),
+    /strictly convex perimeter/u,
+  );
+});
+
+test("input and raster envelopes reject ignored fields and malformed runtime values", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "frame-edge-alignment");
+  assert.ok(fixture);
+  const input = refinementInput(fixture);
+
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({ ...input, sourceTruth: true }),
+    /input must use exact fields/u,
+  );
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+      ...input,
+      raster: { ...input.raster, providerMetadata: "ignored" },
+    }),
+    /rasters must use exact fields/u,
+  );
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({
+      ...input,
+      raster: { ...input.raster, luminance: { length: input.raster.luminance.length } },
+    }),
+    /luminance must be an array/u,
+  );
+  assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({ ...input, primitive: null }),
+    /supported primitive object/u,
+  );
+});
+
 test("weak contour evidence abstains and never emits proposed geometry", () => {
   const fixture = corpus.cases.find((entry) => entry.id === "weak-ambiguous-negative");
   assert.ok(fixture);

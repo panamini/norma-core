@@ -2496,14 +2496,7 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 });
 
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
-  const stackedChangedFiles = branchChangedFiles(undefined, [
-    "origin/codex/personal-chatgpt-visual-harmony-demo",
-    "codex/personal-chatgpt-visual-harmony-demo",
-  ]);
-  const changedFiles = isExactChangedFileSet(
-    stackedChangedFiles,
-    personalVisualHarmonyPixelRefinementShadowChangedFiles,
-  ) ? stackedChangedFiles : branchChangedFiles();
+  const changedFiles = activeControlledProviderObservationProofChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
   const isPersonalVisualHarmonyImageHydrationSet = isExactChangedFileSet(
     changedFiles,
@@ -5524,6 +5517,22 @@ test("branch changed-file detection fails closed when known base refs are absent
   }
 });
 
+test("active proof detection falls back when optional stacked-base refs are absent", () => {
+  const repoRoot = mkdtempSync(join(tmpdir(), "changed-file-guard-"));
+
+  try {
+    execFileSync("git", ["init"], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["checkout", "-B", "main"], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Test User"], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["commit", "--allow-empty", "-m", "initial"], { cwd: repoRoot, stdio: "ignore" });
+
+    assert.deepEqual(activeControlledProviderObservationProofChangedFiles(repoRoot), []);
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("branch changed-file detection includes working tree files when a base ref exists", async () => {
   const repoRoot = mkdtempSync(join(tmpdir(), "changed-file-guard-"));
 
@@ -5541,3 +5550,19 @@ test("branch changed-file detection includes working tree files when a base ref 
     rmSync(repoRoot, { recursive: true, force: true });
   }
 });
+
+function activeControlledProviderObservationProofChangedFiles(repoRoot) {
+  let stackedChangedFiles = null;
+  try {
+    stackedChangedFiles = branchChangedFiles(repoRoot, [
+      "origin/codex/personal-chatgpt-visual-harmony-demo",
+      "codex/personal-chatgpt-visual-harmony-demo",
+    ]);
+  } catch {
+    // The stacked base is optional outside this PR checkout; default refs remain authoritative.
+  }
+  return stackedChangedFiles !== null && isExactChangedFileSet(
+    stackedChangedFiles,
+    personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  ) ? stackedChangedFiles : branchChangedFiles(repoRoot);
+}
