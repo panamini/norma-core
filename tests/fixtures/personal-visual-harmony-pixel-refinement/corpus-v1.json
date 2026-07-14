@@ -1,0 +1,154 @@
+{
+  "contractId": "norma.personal-visual-harmony-pixel-refinement-regression-corpus@1",
+  "cases": [
+    {
+      "id": "frame-edge-alignment",
+      "description": "A high-contrast rectangular frame whose proposed quadrilateral is inset by two pixels.",
+      "raster": { "width": 72, "height": 56, "background": 0.08 },
+      "shapes": [
+        {
+          "kind": "filled-quadrilateral",
+          "luminance": 0.92,
+          "vertices": [
+            { "x": 8, "y": 7 },
+            { "x": 63, "y": 7 },
+            { "x": 63, "y": 48 },
+            { "x": 8, "y": 48 }
+          ]
+        }
+      ],
+      "primitive": {
+        "kind": "quadrilateral",
+        "vertices": [
+          { "x": 10, "y": 9 },
+          { "x": 61, "y": 9 },
+          { "x": 61, "y": 46 },
+          { "x": 10, "y": 46 }
+        ]
+      },
+      "expectedGeometry": {
+        "kind": "quadrilateral",
+        "vertices": [
+          { "x": 8, "y": 7 },
+          { "x": 63, "y": 7 },
+          { "x": 63, "y": 48 },
+          { "x": 8, "y": 48 }
+        ]
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "trapezoid-strong-oblique",
+      "description": "A filled trapezoid with a strong right oblique edge and a slightly inaccurate proposal.",
+      "raster": { "width": 80, "height": 60, "background": 0.06 },
+      "shapes": [
+        {
+          "kind": "filled-quadrilateral",
+          "luminance": 0.94,
+          "vertices": [
+            { "x": 12, "y": 10 },
+            { "x": 66, "y": 13 },
+            { "x": 58, "y": 50 },
+            { "x": 18, "y": 48 }
+          ]
+        }
+      ],
+      "primitive": {
+        "kind": "quadrilateral",
+        "vertices": [
+          { "x": 14, "y": 11 },
+          { "x": 64, "y": 14 },
+          { "x": 56, "y": 48 },
+          { "x": 20, "y": 46 }
+        ]
+      },
+      "expectedGeometry": {
+        "kind": "quadrilateral",
+        "vertices": [
+          { "x": 12, "y": 10 },
+          { "x": 66, "y": 13 },
+          { "x": 58, "y": 50 },
+          { "x": 18, "y": 48 }
+        ]
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "ellipse-with-nearby-line",
+      "description": "A filled ellipse with a separate near-tangent vertical line retained as image context.",
+      "raster": { "width": 72, "height": 64, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 36, "y": 32 },
+          "radiusX": 17,
+          "radiusY": 12
+        },
+        {
+          "kind": "segment",
+          "luminance": 0.55,
+          "width": 1,
+          "start": { "x": 55, "y": 10 },
+          "end": { "x": 55, "y": 54 }
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 34, "y": 33 },
+        "radiusX": 16,
+        "radiusY": 11
+      },
+      "expectedGeometry": {
+        "kind": "ellipse",
+        "center": { "x": 36, "y": 32 },
+        "radiusX": 17,
+        "radiusY": 12
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "weak-ambiguous-negative",
+      "description": "A nearly uniform raster with no defensible local contour evidence.",
+      "raster": { "width": 64, "height": 48, "background": 0.5 },
+      "shapes": [],
+      "primitive": {
+        "kind": "segment",
+        "start": { "x": 10, "y": 20 },
+        "end": { "x": 52, "y": 22 }
+      },
+      "expectedGeometry": null,
+      "expectedStatus": "abstained",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "two-equally-supported-edges",
+      "description": "Two equally strong parallel boundaries create materially separated local proposals.",
+      "raster": { "width": 64, "height": 48, "background": 0.08 },
+      "shapes": [
+        {
+          "kind": "filled-quadrilateral",
+          "luminance": 0.92,
+          "vertices": [
+            { "x": 28, "y": 6 },
+            { "x": 32, "y": 6 },
+            { "x": 32, "y": 42 },
+            { "x": 28, "y": 42 }
+          ]
+        }
+      ],
+      "primitive": {
+        "kind": "segment",
+        "start": { "x": 30, "y": 9 },
+        "end": { "x": 30, "y": 39 }
+      },
+      "expectedGeometry": null,
+      "expectedStatus": "abstained",
+      "expectedReason": "ambiguous_edge_support",
+      "maxDisplacementPixels": 4
+    }
+  ]
+}
