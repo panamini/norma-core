@@ -736,7 +736,9 @@ test("ellipse-line relationship ids change when confirmed geometry changes", () 
     }).imagePlaneGuideAnalysis.relationships[0]?.relationshipId;
   };
 
-  assert.notEqual(relationshipId(originalCandidates), relationshipId(adjustedCandidates));
+  const originalRelationshipId = relationshipId(originalCandidates);
+  assert.equal(originalRelationshipId, relationshipId(structuredClone(originalCandidates)));
+  assert.notEqual(originalRelationshipId, relationshipId(adjustedCandidates));
 });
 
 test("explicit confirmation creates AcceptedGeometry, maps it, and detects golden relationships", () => {
@@ -856,20 +858,23 @@ test("harmonic analysis supports halves and thirds and returns an honest empty r
   assert.ok(declared.relationships.some((entry) => entry.ratio.ratioId === "1/3"));
   assert.ok(declared.relationships.some((entry) => entry.ratio.ratioId === "1/2"));
 
-  const square = analyzeHarmonicRelationshipsV1({
+  const squareInput = {
     composition: composition([
       { kind: "element", id: "half-square", geometry: { kind: "rect", x: 0, y: 0, width: 1 / 2, height: 1 / 2 } },
     ]),
     ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
-  });
+  };
+  const square = analyzeHarmonicRelationshipsV1(squareInput);
+  const repeatedSquare = analyzeHarmonicRelationshipsV1(structuredClone(squareInput));
+  const halfShareRelationships = square.relationships
+    .filter((entry) => entry.ratio.ratioId === "1/2")
+    .filter((entry) => entry.metric.endsWith("-share"));
+  assert.equal(halfShareRelationships.length, 2);
   assert.deepEqual(
-    square.relationships
-      .filter((entry) => entry.ratio.ratioId === "1/2")
-      .map((entry) => entry.metric)
-      .filter((metric) => metric.endsWith("-share"))
-      .sort(),
+    halfShareRelationships.map((entry) => entry.metric).sort(),
     ["height-share", "width-share"],
   );
+  assert.deepEqual(repeatedSquare.relationships, square.relationships);
 
   const empty = analyzeHarmonicRelationshipsV1({
     composition: composition([

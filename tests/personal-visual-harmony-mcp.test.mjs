@@ -80,7 +80,7 @@ test("presentation promotes the complementary phi split and collapses duplicate 
     explanation: "Mesure déterministe de fixture",
     ...overrides,
   });
-  const presentation = createPersonalVisualHarmonyPresentationV1([
+  const matches = [
     makeMatch({ relatedCandidateIds: ["upper"] }),
     makeMatch({
       subjectCandidateId: "upper",
@@ -111,9 +111,12 @@ test("presentation promotes the complementary phi split and collapses duplicate 
       targetPercent: 61.803,
       deltaPercentagePoints: 1.503,
     }),
-  ]);
+  ];
+  const presentation = createPersonalVisualHarmonyPresentationV1(matches);
+  const reordered = createPersonalVisualHarmonyPresentationV1([...matches].reverse());
 
   assert.equal(presentation.primaryPattern.kind, "complementary_pair");
+  assert.deepEqual(reordered, presentation);
   assert.equal(presentation.primaryPattern.metricLabel, "part du découpage vertical");
   assert.deepEqual(
     presentation.primaryPattern.subjects.map(({ label, observedPercent, ratioLabel }) => ({ label, observedPercent, ratioLabel })),
@@ -149,6 +152,158 @@ test("presentation does not promote unrelated complementary phi matches", () => 
 
   assert.equal(presentation.primaryPattern.kind, "single_relationship");
   assert.equal(presentation.primaryPattern.subjects.length, 1);
+});
+
+test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
+  const identity = (character) => `sha256:${character.repeat(64)}`;
+  const candidateSetIdentity = identity("a");
+  const candidates = [
+    {
+      id: "major",
+      label: "Zone principale",
+      role: "structural-region",
+      reason: "Fixture",
+      x: 0,
+      y: 0,
+      width: GOLDEN_MAJOR,
+      height: 1,
+    },
+    {
+      id: "minor",
+      label: "Zone secondaire",
+      role: "structural-region",
+      reason: "Fixture",
+      x: GOLDEN_MAJOR,
+      y: 0,
+      width: 1 - GOLDEN_MAJOR,
+      height: 1,
+    },
+  ];
+  const reviewedCandidateGeometry = candidates.map(({ id, x, y, width, height }) => ({
+    id,
+    x,
+    y,
+    width,
+    height,
+  }));
+  const match = {
+    subjectCandidateId: "major",
+    subjectLabel: "Zone principale",
+    relatedCandidateIds: ["minor"],
+    metric: "horizontal-split-share",
+    quality: "exact",
+    ratioLabel: "φ major",
+    ratioFamily: "golden-ratio",
+    observedPercent: 61.803,
+    targetPercent: 61.803,
+    deltaPercentagePoints: 0,
+    explanation: "Mesure déterministe de fixture",
+  };
+  const presentation = createPersonalVisualHarmonyPresentationV1([match]);
+  const persistedStates = [];
+  const state = {
+    completed: false,
+    payload: { prepared: { candidateSetIdentity } },
+    proposalCandidateSetIdentity: candidateSetIdentity,
+    dimensions: { width: 1_000, height: 800 },
+  };
+  const classList = { add() {}, remove() {} };
+  const renderResult = widgetScriptFunction("renderResult", "function renderCachedResult", {
+    state,
+    overlay: { classList, innerHTML: "" },
+    candidateList: { querySelectorAll: () => [] },
+    confirmButton: { style: {} },
+    stageNode: { textContent: "", classList },
+    statusNode: { textContent: "" },
+    renderFacts() {},
+    appendQuadrilateralMeasurements() {},
+    appendImagePlaneRelations() {},
+    safeSvg: () => "",
+    syncFamilyVisibility() {},
+    geometrySnapshot: () => reviewedCandidateGeometry,
+    coreSelectedIds: () => ["major", "minor"],
+    confirmedGuideIds: () => [],
+    publicWidgetState: () => ({}),
+    window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
+    CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    updateConfirm() {},
+  });
+  renderResult(
+    {
+      result: {
+        headline: "Analyse terminée",
+        contentIdentity: identity("b"),
+        confirmedSelectionIdentity: identity("c"),
+        mappedGeometryContentIdentity: identity("d"),
+        explanations: [match],
+      },
+      overlaySvg: "",
+    },
+    { ratioPackRefs: ["norma.geometry-harmonies@0.1.0"], presentation },
+  );
+
+  const persisted = persistedStates.at(-1);
+  assert.deepEqual(
+    persisted.completedVisualHarmony.matches[0].relatedCandidateIds,
+    ["minor"],
+  );
+
+  const isStoredMatch = widgetScriptFunction(
+    "isStoredMatch",
+    "function isStoredPresentationSubject",
+    {},
+  );
+  const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
+    "completedWidgetStateFor",
+    "function payloadIdentity",
+    {
+      publicWidgetState,
+      primitiveKind: (item) => item?.primitive?.kind ?? "rectangle",
+      sameIds: (left, right) => (
+        Array.isArray(left)
+        && Array.isArray(right)
+        && left.length === right.length
+        && left.every((id, index) => id === right[index])
+      ),
+      isStoredGeometrySnapshot: () => true,
+      sameGeometrySnapshots: (left, right) => JSON.stringify(left) === JSON.stringify(right),
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      isStoredMatch,
+      isStoredPresentation: () => true,
+      CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    },
+  );
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-cache",
+    prepared: { candidateSetIdentity, candidates },
+    overlaySvg: "<svg></svg>",
+  };
+  const acceptPersisted = completedWidgetStateFor(() => persisted);
+  assert.deepEqual(acceptPersisted(payload)?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
+  const hydrationState = widgetHydrationState();
+  const revalidated = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state: hydrationState,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity,
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => true,
+    completedWidgetStateFor: acceptPersisted,
+    revalidateCompleted: async (_payload, completed) => { revalidated.push(completed); },
+    renderResult() { throw new Error("confirmation payload must revalidate cached state"); },
+  });
+  await hydrate(payload);
+  assert.deepEqual(revalidated[0]?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const legacy = structuredClone(persisted);
+  delete legacy.completedVisualHarmony.matches[0].relatedCandidateIds;
+  assert.equal(completedWidgetStateFor(() => legacy)(payload), null);
 });
 
 function candidates() {
