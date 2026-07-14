@@ -323,6 +323,8 @@ function selectRelationships(
   for (const match of matched) {
     const key = [
       match.entry.subjectElementId,
+      match.entry.metric,
+      [...match.entry.relatedElementIds].sort(stableCompare).join(","),
       canonicalNumber(match.entry.observedValue).toFixed(9),
       canonicalNumber(match.closest.ratio.normalizedValue).toFixed(9),
     ].join("|");

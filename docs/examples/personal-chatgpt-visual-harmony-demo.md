@@ -81,7 +81,7 @@ rectification or calibration.
 | Ellipse/supporting-line relations | Implemented locally; live proof required | Exact intersections or ellipse support/contact point; fixed gap tolerance; visible-segment versus prolongation provenance |
 | Extended obliques and format diagonals | Next | Preserve the observed finite segment; derive and label the infinite support line and corner-to-corner references separately |
 | Junction angles | Next | Measure in pixel-scaled image coordinates and label as projected/image-plane values |
-| Quadrilaterals and trapezoids | Next | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
+| Quadrilaterals and trapezoids | Implemented locally; live proof required | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
 | Triangles, medians, and bisectors | Next, opt-in | Derive only from accepted parent segments, vertices, triangles, or angles |
 | Rotated ellipses | Next | Add explicit rotation to the primitive contract before measuring tangent relations |
 | Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |

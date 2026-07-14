@@ -69,11 +69,11 @@ const CandidatePrimitiveSchema = z.discriminatedUnion("kind", [
 
 const CandidateSchema = z.object({
   id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u),
-  label: z.string().min(1).max(240).describe(
+  label: z.string().min(1).max(80).describe(
     "Neutral name for the visible construction primitive; a ratio name is allowed only when it is literally visible in the image.",
   ),
   role: z.enum(["primary-subject", "secondary-subject", "structural-region", "frame"]),
-  reason: z.string().min(1).max(1_000).describe(
+  reason: z.string().min(1).max(240).describe(
     "Name the visible construction line, contour, axis, or region edges used and disclose uncertainty; never cite an expected harmonic ratio as the coordinate basis.",
   ),
   x: z.number().min(0).max(1).describe(
@@ -155,6 +155,7 @@ const ConfirmInputSchema = z.object({
 const PublicMatchSchema = z.object({
   subjectCandidateId: z.string(),
   subjectLabel: z.string(),
+  relatedCandidateIds: z.array(z.string()).max(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES),
   metric: z.string(),
   quality: z.enum(["exact", "strong", "near"]),
   ratioLabel: z.string(),
@@ -765,7 +766,7 @@ function isStoredIdentity(value){return typeof value==="string"&&/^sha256:[0-9a-
 function sameIds(left,right){return Array.isArray(left)&&Array.isArray(right)&&left.length===right.length&&left.every((id,index)=>id===right[index])}
 function isStoredGeometrySnapshot(value,candidates){return Array.isArray(value)&&value.length===candidates.length&&value.every((item,index)=>{const candidate=candidates[index];return candidate&&validGeometryPatch(item,candidate)})}
 function sameGeometrySnapshots(left,right){return JSON.stringify(left)===JSON.stringify(right)}
-function isStoredMatch(value,selectedIds){return value&&typeof value==="object"&&typeof value.subjectCandidateId==="string"&&selectedIds.includes(value.subjectCandidateId)&&typeof value.subjectLabel==="string"&&value.subjectLabel.length<=160&&typeof value.metric==="string"&&value.metric.length<=80&&typeof value.ratioLabel==="string"&&value.ratioLabel.length<=80&&Number.isFinite(value.observedPercent)&&Number.isFinite(value.targetPercent)&&Number.isFinite(value.deltaPercentagePoints)}
+function isStoredMatch(value,selectedIds){return value&&typeof value==="object"&&typeof value.subjectCandidateId==="string"&&selectedIds.includes(value.subjectCandidateId)&&typeof value.subjectLabel==="string"&&value.subjectLabel.length<=160&&Array.isArray(value.relatedCandidateIds)&&value.relatedCandidateIds.length<=12&&value.relatedCandidateIds.every(id=>typeof id==="string"&&selectedIds.includes(id))&&typeof value.metric==="string"&&value.metric.length<=80&&typeof value.ratioLabel==="string"&&value.ratioLabel.length<=80&&Number.isFinite(value.observedPercent)&&Number.isFinite(value.targetPercent)&&Number.isFinite(value.deltaPercentagePoints)}
 function isStoredPresentationSubject(value,selectedIds){return value&&typeof value==="object"&&typeof value.candidateId==="string"&&selectedIds.includes(value.candidateId)&&typeof value.label==="string"&&value.label.length<=160&&typeof value.ratioLabel==="string"&&value.ratioLabel.length<=80&&Number.isFinite(value.observedPercent)&&Number.isFinite(value.targetPercent)&&Number.isFinite(value.deltaPercentagePoints)}
 function isStoredPresentation(value,selectedIds){if(value===undefined)return true;if(!value||typeof value!=="object"||value.contractId!=="personal-visual-harmony-presentation"||value.contractVersion!==1||!Array.isArray(value.supportingObservations)||value.supportingObservations.length>3)return false;const primary=value.primaryPattern;if(primary!==null&&(!primary||typeof primary!=="object"||!['complementary_pair','single_relationship'].includes(primary.kind)||typeof primary.metric!=="string"||primary.metric.length>80||typeof primary.metricLabel!=="string"||primary.metricLabel.length>120||!Array.isArray(primary.subjects)||primary.subjects.length<1||primary.subjects.length>2||!primary.subjects.every(subject=>isStoredPresentationSubject(subject,selectedIds))||!Number.isFinite(primary.maxDeltaPercentagePoints)))return false;return value.supportingObservations.every(item=>item&&typeof item==="object"&&typeof item.metric==="string"&&item.metric.length<=80&&typeof item.metricLabel==="string"&&item.metricLabel.length<=120&&Array.isArray(item.subjectCandidateIds)&&item.subjectCandidateIds.length>=1&&item.subjectCandidateIds.length<=12&&item.subjectCandidateIds.every(id=>selectedIds.includes(id))&&Array.isArray(item.subjectLabels)&&item.subjectLabels.length===item.subjectCandidateIds.length&&item.subjectLabels.every(label=>typeof label==="string"&&label.length<=160)&&typeof item.ratioLabel==="string"&&item.ratioLabel.length<=80&&Number.isFinite(item.observedPercent)&&Number.isFinite(item.targetPercent)&&Number.isFinite(item.deltaPercentagePoints))}
 function completedWidgetStateFor(payload){
@@ -871,6 +872,8 @@ function stablePresentationCompare(first: string, second: string): number {
 function isComplementaryGoldenPair(first: PublicMatch, second: PublicMatch): boolean {
   const ratioLabels = new Set([first.ratioLabel, second.ratioLabel]);
   return first.subjectCandidateId !== second.subjectCandidateId
+    && first.relatedCandidateIds.includes(second.subjectCandidateId)
+    && second.relatedCandidateIds.includes(first.subjectCandidateId)
     && first.metric === second.metric
     && ratioLabels.has("φ major")
     && ratioLabels.has("φ minor")
@@ -1017,6 +1020,7 @@ function publicConfirmResult(
   const matches = result.explanations.map((explanation) => ({
     subjectCandidateId: explanation.subjectCandidateId,
     subjectLabel: explanation.subjectLabel,
+    relatedCandidateIds: [...explanation.relatedCandidateIds],
     metric: explanation.metric,
     quality: explanation.quality,
     ratioLabel: explanation.ratioLabel,

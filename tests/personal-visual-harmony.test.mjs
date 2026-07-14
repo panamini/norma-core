@@ -713,6 +713,32 @@ test("ellipse-line relationship ids remain unique when candidate ids contain amb
   )));
 });
 
+test("ellipse-line relationship ids change when confirmed geometry changes", () => {
+  const originalCandidates = ellipseLineRelationCandidates();
+  const adjustedCandidates = originalCandidates.map((candidate) => (
+    candidate.id === "vertical-near-tangent"
+      ? {
+        ...candidate,
+        x: 0.706,
+        primitive: {
+          ...candidate.primitive,
+          start: { x: 0.706, y: 0.2 },
+          end: { x: 0.706, y: 0.8 },
+        },
+      }
+      : candidate
+  ));
+  const relationshipId = (candidateValues) => {
+    const prepared = prepare(candidateValues);
+    return confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["ellipse", "vertical-near-tangent"],
+      sourcePixelHeight: 1000,
+    }).imagePlaneGuideAnalysis.relationships[0]?.relationshipId;
+  };
+
+  assert.notEqual(relationshipId(originalCandidates), relationshipId(adjustedCandidates));
+});
+
 test("explicit confirmation creates AcceptedGeometry, maps it, and detects golden relationships", () => {
   const prepared = prepare();
   const confirmation = confirm(prepared);
@@ -829,6 +855,21 @@ test("harmonic analysis supports halves and thirds and returns an honest empty r
   });
   assert.ok(declared.relationships.some((entry) => entry.ratio.ratioId === "1/3"));
   assert.ok(declared.relationships.some((entry) => entry.ratio.ratioId === "1/2"));
+
+  const square = analyzeHarmonicRelationshipsV1({
+    composition: composition([
+      { kind: "element", id: "half-square", geometry: { kind: "rect", x: 0, y: 0, width: 1 / 2, height: 1 / 2 } },
+    ]),
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+  });
+  assert.deepEqual(
+    square.relationships
+      .filter((entry) => entry.ratio.ratioId === "1/2")
+      .map((entry) => entry.metric)
+      .filter((metric) => metric.endsWith("-share"))
+      .sort(),
+    ["height-share", "width-share"],
+  );
 
   const empty = analyzeHarmonicRelationshipsV1({
     composition: composition([

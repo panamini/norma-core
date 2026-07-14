@@ -24,6 +24,7 @@ test("presentation promotes the complementary phi split and collapses duplicate 
   const makeMatch = (overrides) => ({
     subjectCandidateId: "square",
     subjectLabel: "Carré rouge",
+    relatedCandidateIds: [],
     metric: "vertical-split-share",
     quality: "near",
     ratioLabel: "φ major",
@@ -35,10 +36,11 @@ test("presentation promotes the complementary phi split and collapses duplicate 
     ...overrides,
   });
   const presentation = createPersonalVisualHarmonyPresentationV1([
-    makeMatch({}),
+    makeMatch({ relatedCandidateIds: ["upper"] }),
     makeMatch({
       subjectCandidateId: "upper",
       subjectLabel: "Rectangle supérieur",
+      relatedCandidateIds: ["square"],
       ratioLabel: "φ minor",
       observedPercent: 37.62,
       targetPercent: 38.197,
@@ -79,6 +81,29 @@ test("presentation promotes the complementary phi split and collapses duplicate 
   const groupedRightEdge = presentation.supportingObservations.filter(({ metric }) => metric === "right-edge-position");
   assert.equal(groupedRightEdge.length, 1);
   assert.deepEqual(groupedRightEdge[0].subjectLabels, ["Rectangle complet", "Carré rouge"]);
+});
+
+test("presentation does not promote unrelated complementary phi matches", () => {
+  const makeMatch = (subjectCandidateId, ratioLabel, observedPercent, targetPercent) => ({
+    subjectCandidateId,
+    subjectLabel: subjectCandidateId,
+    relatedCandidateIds: [],
+    metric: "vertical-split-share",
+    quality: "near",
+    ratioLabel,
+    ratioFamily: "golden-ratio",
+    observedPercent,
+    targetPercent,
+    deltaPercentagePoints: 0.577,
+    explanation: "Mesure déterministe de fixture",
+  });
+  const presentation = createPersonalVisualHarmonyPresentationV1([
+    makeMatch("left", "φ major", 62.38, 61.803),
+    makeMatch("remote", "φ minor", 37.62, 38.197),
+  ]);
+
+  assert.equal(presentation.primaryPattern.kind, "single_relationship");
+  assert.equal(presentation.primaryPattern.subjects.length, 1);
 });
 
 function candidates() {
@@ -311,8 +336,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(candidateProperties.x.description, /never snap or round it toward phi, halves, or thirds/u);
     assert.match(candidateProperties.height.description, /zero only for a perfectly horizontal segment or axis/u);
     assert.match(candidateProperties.reason.description, /never cite an expected harmonic ratio as the coordinate basis/u);
-    assert.equal(candidateProperties.label.maxLength, 240);
-    assert.equal(candidateProperties.reason.maxLength, 1_000);
+    assert.equal(candidateProperties.label.maxLength, 80);
+    assert.equal(candidateProperties.reason.maxLength, 240);
     const primitiveSchema = JSON.stringify(candidateProperties.primitive);
     for (const kind of ["rectangle", "segment", "axis", "quadrilateral", "ellipse"]) {
       assert.match(primitiveSchema, new RegExp(`"${kind}"`, "u"));

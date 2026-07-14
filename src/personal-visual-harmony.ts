@@ -937,7 +937,12 @@ function createEllipseSupportingLineRelationship(
   const relationshipIdentity = contentIdentityFor({
     kind: "ellipse-supporting-line-relation",
     ellipseCandidateId: ellipseCandidate.id,
+    ellipsePrimitive: ellipse,
     lineCandidateId: lineEvidence.candidateId,
+    lineStart: lineEvidence.start,
+    lineEnd: lineEvidence.end,
+    sourcePixelWidth,
+    sourcePixelHeight,
     ...(lineEvidence.quadrilateralSideIndex === undefined
       ? {}
       : { quadrilateralSideIndex: lineEvidence.quadrilateralSideIndex }),
