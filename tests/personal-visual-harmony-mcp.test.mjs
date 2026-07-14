@@ -158,6 +158,31 @@ function mixedPrimitiveCandidates() {
   ];
 }
 
+function quadrilateralCandidates() {
+  return [
+    ...candidates(),
+    {
+      id: "right-trapezoid",
+      label: "Cadre trapézoïdal droit",
+      role: "structural-region",
+      reason: "Quatre arêtes visibles confirment un quadrilatère construit",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.7, y: 0.8 },
+          { x: 0.3, y: 0.8 },
+        ],
+      },
+    },
+  ];
+}
+
 function recoveryInput(fileId = "file-private-opaque-id", candidateValues = candidates()) {
   return {
     fileId,
@@ -245,6 +270,36 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       relationshipOutput.properties.supportingLineContactWithinObservedSegment.type,
       "boolean",
     );
+    assert.deepEqual(relationshipOutput.properties.linePrimitiveKind.enum, [
+      "segment",
+      "axis",
+      "quadrilateral-side",
+    ]);
+    assert.equal(relationshipOutput.required.includes("quadrilateralSideIndex"), false);
+    const quadrilateralOutput = imagePlaneOutput.properties.quadrilateralMeasurements.items;
+    assert.equal(imagePlaneOutput.required.includes("quadrilateralMeasurements"), false);
+    assert.equal(quadrilateralOutput.additionalProperties, false);
+    assert.deepEqual(quadrilateralOutput.properties.classification.enum, [
+      "quadrilateral",
+      "trapezoid",
+      "parallelogram",
+      "rectangle",
+    ]);
+    for (const field of [
+      "vertices",
+      "sideLengthsPixels",
+      "interiorAnglesDegrees",
+      "diagonalLengthsPixels",
+      "oppositeSideParallelism",
+      "parallelAngleToleranceDegrees",
+      "rightAngleToleranceDegrees",
+      "areaPixelsSquared",
+      "areaImageShare",
+      "centroid",
+      "explanation",
+    ]) {
+      assert.ok(quadrilateralOutput.required.includes(field));
+    }
     assert.equal(imagePlaneOutput.properties.limits.properties.axisAlignedEllipseOnly.const, true);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
@@ -256,10 +311,28 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(candidateProperties.x.description, /never snap or round it toward phi, halves, or thirds/u);
     assert.match(candidateProperties.height.description, /zero only for a perfectly horizontal segment or axis/u);
     assert.match(candidateProperties.reason.description, /never cite an expected harmonic ratio as the coordinate basis/u);
+    assert.equal(candidateProperties.label.maxLength, 240);
+    assert.equal(candidateProperties.reason.maxLength, 1_000);
     const primitiveSchema = JSON.stringify(candidateProperties.primitive);
-    for (const kind of ["rectangle", "segment", "axis", "ellipse"]) {
+    for (const kind of ["rectangle", "segment", "axis", "quadrilateral", "ellipse"]) {
       assert.match(primitiveSchema, new RegExp(`"${kind}"`, "u"));
     }
+    const primitiveAlternatives = candidateProperties.primitive.anyOf
+      ?? candidateProperties.primitive.oneOf;
+    assert.ok(primitiveAlternatives);
+    const quadrilateralInput = primitiveAlternatives.find(
+      (alternative) => alternative.properties?.kind?.const === "quadrilateral",
+    );
+    assert.ok(quadrilateralInput);
+    const quadrilateralVerticesInput = quadrilateralInput.properties.vertices;
+    assert.equal(quadrilateralVerticesInput.type, "array");
+    assert.equal(quadrilateralVerticesInput.minItems, 4);
+    assert.equal(quadrilateralVerticesInput.maxItems, 4);
+    assert.equal(quadrilateralVerticesInput.items.type, "object");
+    assert.equal("prefixItems" in quadrilateralVerticesInput, false);
+    assert.match(primitiveSchema, /four measured visible corners in perimeter order/u);
+    assert.match(primitiveSchema, /do not replace it with an enclosing rectangle/u);
+    assert.match(primitiveSchema, /measured endpoint of the visible finite segment/u);
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
@@ -321,16 +394,28 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /overlay\.addEventListener\("pointerdown"/u);
     assert.match(resource.contents[0].text, /overlay\.addEventListener\("keydown"/u);
     assert.match(resource.contents[0].text, /event\.shiftKey/u);
-    assert.match(resource.contents[0].text, /group\.focus\(\)/u);
+    assert.match(resource.contents[0].text, /focusTarget\.focus\?\.\(\)/u);
     assert.match(resource.contents[0].text, /data-resize-handle/u);
+    assert.match(resource.contents[0].text, /data-point-handle/u);
+    assert.match(resource.contents[0].text, /data-vertex-handle/u);
+    assert.match(resource.contents[0].text, /function canonicalQuadrilateralVerticesForWidget\(vertices\)/u);
+    assert.match(resource.contents[0].text, /function canonicalGeometryNumber\(value\)/u);
+    assert.match(resource.contents[0].text, /function candidateWithPrimitive\(item,primitive,canonicalizeQuadrilateral=false\)/u);
+    assert.match(resource.contents[0].text, /candidateWithPrimitive\(item,item\.primitive,true\)/u);
+    assert.match(resource.contents[0].text, /function adjustGuideHandle\(item,pointHandle,vertexHandle,dx,dy\)/u);
+    assert.match(resource.contents[0].text, /function translateGuideCandidate\(item,dx,dy\)/u);
+    assert.match(resource.contents[0].text, /data-supporting-line/u);
     assert.match(resource.contents[0].text, /id="familyFilters"/u);
-    assert.match(resource.contents[0].text, /visibleKinds:new Set\(\["rectangle","segment","axis","ellipse"\]\)/u);
+    assert.match(resource.contents[0].text, /visibleKinds:new Set\(\["rectangle","quadrilateral","segment","axis","ellipse"\]\)/u);
     assert.match(resource.contents[0].text, /function syncFamilyVisibility\(\)/u);
     assert.match(resource.contents[0].text, /primitiveKind\(item\)==="rectangle"/u);
     assert.match(resource.contents[0].text, /confirmedVisualGuideCandidateIds/u);
     assert.match(resource.contents[0].text, /N’attribue jamais un ratio du Core aux guides/u);
     assert.match(resource.contents[0].text, /guide"\+\(confirmedGuideCount===1\?"":"s"\)\+" confirmé/u);
     assert.match(resource.contents[0].text, /function appendImagePlaneRelations\(analysis\)/u);
+    assert.match(resource.contents[0].text, /function appendQuadrilateralMeasurements\(analysis\)/u);
+    assert.match(resource.contents[0].text, /quadrilateralMeasurements:\(analysis\?\.quadrilateralMeasurements\|\|\[\]\)/u);
+    assert.match(resource.contents[0].text, /classification mesurée, côtés, angles, diagonales, parallélismes et surface/u);
     assert.match(resource.contents[0].text, /shallow_intersection:"COUPE RASANTE"/u);
     assert.match(resource.contents[0].text, /contactCharacter:item\.contactCharacter/u);
     assert.match(resource.contents[0].text, /imageLoadGeneration:0/u);
@@ -343,6 +428,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);
     assert.match(resource.contents[0].text, /download_url:state\.downloadUrl/u);
+    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
+    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
+    assert.match(resource.contents[0].text, /candidateSetIdentity=state\.proposalCandidateSetIdentity\|\|state\.payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
@@ -353,7 +441,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
     assert.match(resource.contents[0].text, /group\.setPointerCapture\?\.\(pointerId\)/u);
     assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",editable\?"0":"-1"\)/u);
-    assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\]\{touch-action:none/u);
+    assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\],\.overlay \[data-primitive-kind="quadrilateral"\]/u);
     assert.doesNotMatch(resource.contents[0].text, /\.overlay\{[^}]*touch-action:none/u);
     assert.ok(confirmTool.inputSchema.properties.confirmedVisualGuideCandidateIds);
     assert.ok(confirmTool.outputSchema.properties.imagePlaneGuideAnalysis);
@@ -588,6 +676,75 @@ test("mixed structural primitives stay visible while only rectangles cross the C
     )));
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="axis"/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-image-plane-relation-id=/u);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("MCP preserves a reviewed quadrilateral as four editable vertices and returns its image-plane measurements outside Core", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const candidateValues = quadrilateralCandidates();
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    assert.equal(prepared.isError, undefined);
+    const quadrilateral = prepared.structuredContent.candidates.find(({ id }) => (
+      id === "right-trapezoid"
+    ));
+    assert.equal(quadrilateral.primitive.kind, "quadrilateral");
+    assert.equal(quadrilateral.primitive.vertices.length, 4);
+    const quadrilateralGroup = prepared._meta.normaPersonalVisualHarmony.overlaySvg
+      .match(/<g data-candidate-id="right-trapezoid"[\s\S]*?<\/g>/u)?.[0];
+    assert.ok(quadrilateralGroup);
+    assert.match(quadrilateralGroup, /<polygon data-candidate-shape/u);
+    assert.equal([...quadrilateralGroup.matchAll(/data-vertex-handle=/gu)].length, 4);
+
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(confirmed.isError, undefined);
+    assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
+    assert.deepEqual(confirmed.structuredContent.confirmedVisualGuideCandidateIds, [
+      "right-trapezoid",
+    ]);
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships.length, 0);
+    const measurement = confirmed.structuredContent.imagePlaneGuideAnalysis
+      .quadrilateralMeasurements[0];
+    assert.equal(measurement.classification, "trapezoid");
+    assert.deepEqual(measurement.sideLengthsPixels, [
+      600,
+      608.276253029822,
+      400,
+      608.276253029822,
+    ]);
+    assert.equal(measurement.parallelAngleToleranceDegrees, 2);
+    assert.equal(measurement.rightAngleToleranceDegrees, 2);
+    assert.equal(measurement.areaImageShare, 0.3);
+    assert.match(measurement.explanation, /plan image/u);
+    assert.match(confirmed.content[0].text, /Mesures de quadrilatères dans le plan image/u);
+    assert.match(confirmed.content[0].text, /ni des rapports harmoniques ni des mesures du monde réel/u);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="quadrilateral"/u);
+    assert.doesNotMatch(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-vertex-handle/u);
   } finally {
     await connected.close();
   }

@@ -92,6 +92,47 @@ function mixedPrimitiveCandidates() {
   ];
 }
 
+function quadrilateralCandidates({ includeEllipse = false } = {}) {
+  return [
+    ...goldenCandidates(),
+    {
+      id: "right-trapezoid",
+      label: "Cadre trapézoïdal droit",
+      role: "structural-region",
+      reason: "Quatre arêtes visibles confirment un quadrilatère construit",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.7, y: 0.8 },
+          { x: 0.3, y: 0.8 },
+        ],
+      },
+    },
+    ...(includeEllipse ? [{
+      id: "quad-ellipse",
+      label: "Ellipse au contact du cadre",
+      role: "structural-region",
+      reason: "Contour elliptique visible contre le côté droit du cadre",
+      x: 0.25,
+      y: 0.3,
+      width: 0.5,
+      height: 0.4,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.25,
+        radiusY: 0.2,
+      },
+    }] : []),
+  ];
+}
+
 function ellipseLineRelationCandidates() {
   const obliqueLineSum = 1 + Math.sqrt(0.05);
   return [
@@ -200,7 +241,7 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
 });
 
-test("candidate validation stays closed while redundant ellipse bounds are canonicalized", () => {
+test("candidate validation stays closed while ellipse and quadrilateral envelopes are canonicalized", () => {
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], width: 1.1 }]),
     /normalized primitive bounds/u,
@@ -248,6 +289,70 @@ test("candidate validation stays closed while redundant ellipse bounds are canon
     },
     { x: 0.25, y: 0.15, width: 0.5, height: 0.7 },
   );
+
+  const quadrilateral = quadrilateralCandidates().find(({ id }) => id === "right-trapezoid");
+  const canonicalQuadrilateral = prepare([{
+    ...quadrilateral,
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    primitive: {
+      kind: "quadrilateral",
+      vertices: [
+        { x: 0.7, y: 0.8 },
+        { x: 0.8, y: 0.2 },
+        { x: 0.2, y: 0.2 },
+        { x: 0.3, y: 0.8 },
+      ],
+    },
+  }]).candidates[0];
+  assert.deepEqual(
+    {
+      x: canonicalQuadrilateral.x,
+      y: canonicalQuadrilateral.y,
+      width: canonicalQuadrilateral.width,
+      height: canonicalQuadrilateral.height,
+      vertices: canonicalQuadrilateral.primitive.vertices,
+    },
+    {
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      vertices: quadrilateral.primitive.vertices,
+    },
+  );
+  assert.throws(
+    () => prepare([{
+      ...quadrilateral,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.2, y: 0.8 },
+        ],
+      },
+    }]),
+    /simple convex perimeter/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...quadrilateral,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.3, y: 0.8 },
+        ],
+      },
+    }]),
+    /four distinct vertices/u,
+  );
 });
 
 test("structural primitive guides render by kind but never enter rectangle-only Core", () => {
@@ -273,6 +378,94 @@ test("structural primitive guides render by kind but never enter rectangle-only 
     () => confirm(prepared, { selectedCandidateIds: ["major", "diagonal"] }),
     /Visual guides cannot enter Norma Core/u,
   );
+});
+
+test("confirmed quadrilateral guides retain four vertices and produce deterministic side, angle, diagonal, parallelism, and area measures", () => {
+  const prepared = prepare(quadrilateralCandidates());
+  const svg = createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared });
+  const quadrilateralGroup = svg.match(/<g data-candidate-id="right-trapezoid"[\s\S]*?<\/g>/u)?.[0];
+
+  assert.ok(quadrilateralGroup);
+  assert.match(quadrilateralGroup, /data-primitive-kind="quadrilateral"/u);
+  assert.match(quadrilateralGroup, /<polygon data-candidate-shape/u);
+  assert.equal([...quadrilateralGroup.matchAll(/data-vertex-handle=/gu)].length, 4);
+  assert.doesNotMatch(quadrilateralGroup, /data-resize-handle/u);
+
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+    sourcePixelHeight: 1000,
+  });
+  const analysis = confirmation.imagePlaneGuideAnalysis;
+  const measurement = analysis.quadrilateralMeasurements[0];
+
+  assert.equal(analysis.relationships.length, 0);
+  assert.equal(analysis.quadrilateralMeasurements.length, 1);
+  assert.ok(measurement);
+  assert.equal(measurement.kind, "quadrilateral-measurement");
+  assert.equal(measurement.candidateId, "right-trapezoid");
+  assert.equal(measurement.classification, "trapezoid");
+  assert.deepEqual(measurement.vertices, quadrilateralCandidates()[2].primitive.vertices);
+  assert.deepEqual(measurement.sideLengthsPixels, [
+    600,
+    608.276253029822,
+    400,
+    608.276253029822,
+  ]);
+  assert.deepEqual(measurement.interiorAnglesDegrees, [
+    80.537677791974,
+    80.537677791974,
+    99.462322208026,
+    99.462322208026,
+  ]);
+  assert.deepEqual(measurement.diagonalLengthsPixels, [
+    781.024967590665,
+    781.024967590665,
+  ]);
+  assert.deepEqual(measurement.diagonalIntersection, { x: 0.5, y: 0.56 });
+  assert.deepEqual(measurement.oppositeSideParallelism, [
+    {
+      sideIndices: [0, 2],
+      angleDeltaDegrees: 0,
+      parallelWithinTolerance: true,
+    },
+    {
+      sideIndices: [1, 3],
+      angleDeltaDegrees: 18.924644416052,
+      parallelWithinTolerance: false,
+    },
+  ]);
+  assert.equal(measurement.parallelAngleToleranceDegrees, 2);
+  assert.equal(measurement.rightAngleToleranceDegrees, 2);
+  assert.equal(measurement.areaPixelsSquared, 300000);
+  assert.equal(measurement.areaImageShare, 0.3);
+  assert.deepEqual(measurement.centroid, { x: 0.5, y: 0.48 });
+  assert.match(measurement.measurementId, /^measurement:quadrilateral:[0-9a-f]{64}$/u);
+  assert.match(measurement.explanation, /trapèze apparent mesuré dans le plan image/u);
+  assert.match(confirmation.overlaySvg, /data-primitive-kind="quadrilateral"/u);
+  assert.doesNotMatch(confirmation.overlaySvg, /data-vertex-handle/u);
+  assert.throws(
+    () => confirm(prepared, { selectedCandidateIds: ["major", "right-trapezoid"] }),
+    /Visual guides cannot enter Norma Core/u,
+  );
+});
+
+test("each confirmed quadrilateral side can participate in ellipse contact evidence without becoming a Core rectangle", () => {
+  const prepared = prepare(quadrilateralCandidates({ includeEllipse: true }));
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["right-trapezoid", "quad-ellipse"],
+    sourcePixelHeight: 1000,
+  });
+  const relations = confirmation.imagePlaneGuideAnalysis.relationships;
+
+  assert.equal(relations.length, 2);
+  assert.deepEqual(relations.map(({ quadrilateralSideIndex }) => quadrilateralSideIndex), [3, 1]);
+  assert.ok(relations.every(({ linePrimitiveKind }) => linePrimitiveKind === "quadrilateral-side"));
+  assert.ok(relations.every(({ lineCandidateId }) => lineCandidateId === "right-trapezoid"));
+  assert.ok(relations.every(({ supportingLineContactWithinObservedSegment }) => (
+    supportingLineContactWithinObservedSegment === true
+  )));
+  assert.ok(relations.every(({ contactCharacter }) => contactCharacter === "shallow_intersection"));
+  assert.equal(new Set(relations.map(({ relationshipId }) => relationshipId)).size, 2);
 });
 
 test("confirmed ellipse and line guides produce deterministic image-plane tangency and intersection evidence", () => {
@@ -302,6 +495,7 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   assert.deepEqual(analysis.confirmedVisualGuideCandidateIds, confirmedVisualGuideCandidateIds);
   assert.match(analysis.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.equal(analysis.relationships.length, 3);
+  assert.equal(Object.hasOwn(analysis, "quadrilateralMeasurements"), false);
 
   const vertical = analysis.relationships.find(({ lineCandidateId }) => (
     lineCandidateId === "vertical-near-tangent"

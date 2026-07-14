@@ -52,6 +52,7 @@ export type PersonalVisualHarmonyCandidateRoleV1 =
 
 export const PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS = [
   "rectangle",
+  "quadrilateral",
   "segment",
   "axis",
   "ellipse",
@@ -67,6 +68,15 @@ export interface PersonalVisualHarmonyPointV1 {
 
 export type PersonalVisualHarmonyPrimitiveV1 =
   | { readonly kind: "rectangle" }
+  | {
+    readonly kind: "quadrilateral";
+    readonly vertices: readonly [
+      PersonalVisualHarmonyPointV1,
+      PersonalVisualHarmonyPointV1,
+      PersonalVisualHarmonyPointV1,
+      PersonalVisualHarmonyPointV1,
+    ];
+  }
   | {
     readonly kind: "segment";
     readonly start: PersonalVisualHarmonyPointV1;
@@ -177,7 +187,8 @@ export interface PersonalVisualHarmonyImagePlaneRelationV1 {
   readonly ellipseLabel: string;
   readonly lineCandidateId: string;
   readonly lineLabel: string;
-  readonly linePrimitiveKind: "segment" | "axis";
+  readonly linePrimitiveKind: "segment" | "axis" | "quadrilateral-side";
+  readonly quadrilateralSideIndex?: 0 | 1 | 2 | 3;
   readonly contactLocation: PersonalVisualHarmonyEllipseContactLocationV1;
   readonly ellipseContactPoint: PersonalVisualHarmonyPointV1;
   readonly closestPointOnSupportingLine: PersonalVisualHarmonyPointV1;
@@ -202,6 +213,40 @@ export interface PersonalVisualHarmonyImagePlaneRelationV1 {
   readonly explanation: string;
 }
 
+export interface PersonalVisualHarmonyQuadrilateralMeasurementV1 {
+  readonly measurementId: string;
+  readonly kind: "quadrilateral-measurement";
+  readonly candidateId: string;
+  readonly candidateLabel: string;
+  readonly classification: "quadrilateral" | "trapezoid" | "parallelogram" | "rectangle";
+  readonly vertices: readonly [
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+  ];
+  readonly sideLengthsPixels: readonly [number, number, number, number];
+  readonly interiorAnglesDegrees: readonly [number, number, number, number];
+  readonly diagonalLengthsPixels: readonly [number, number];
+  readonly diagonalIntersection: PersonalVisualHarmonyPointV1;
+  readonly oppositeSideParallelism: readonly [{
+    readonly sideIndices: readonly [0, 2];
+    readonly angleDeltaDegrees: number;
+    readonly parallelWithinTolerance: boolean;
+  }, {
+    readonly sideIndices: readonly [1, 3];
+    readonly angleDeltaDegrees: number;
+    readonly parallelWithinTolerance: boolean;
+  }];
+  readonly parallelAngleToleranceDegrees: number;
+  readonly rightAngleToleranceDegrees: number;
+  readonly areaPixelsSquared: number;
+  readonly areaImageShare: number;
+  readonly centroid: PersonalVisualHarmonyPointV1;
+  readonly derivation: "confirmed_quadrilateral_vertices";
+  readonly explanation: string;
+}
+
 export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -222,6 +267,7 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly tangentAngleToleranceDegrees: number;
   readonly shallowIntersectionAngleToleranceDegrees: number;
   readonly relationships: readonly PersonalVisualHarmonyImagePlaneRelationV1[];
+  readonly quadrilateralMeasurements?: readonly PersonalVisualHarmonyQuadrilateralMeasurementV1[];
   readonly limits: {
     readonly imagePlaneOnly: true;
     readonly axisAlignedEllipseOnly: true;
@@ -248,6 +294,8 @@ const IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE = 0.01;
 const IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE = 0.025;
 const IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES = 5;
 const IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES = 12;
+const IMAGE_PLANE_PARALLEL_ANGLE_TOLERANCE_DEGREES = 2;
+const IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES = 2;
 
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
@@ -437,10 +485,16 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   const ellipses = prepared.candidates.filter((candidate) => (
     confirmed.has(candidate.id) && candidate.primitive?.kind === "ellipse"
   ));
-  const lines = prepared.candidates.filter((candidate) => (
-    confirmed.has(candidate.id)
-    && (candidate.primitive?.kind === "segment" || candidate.primitive?.kind === "axis")
-  ));
+  const confirmedGuides = prepared.candidates.filter((candidate) => confirmed.has(candidate.id));
+  const lines = confirmedGuides.flatMap(imagePlaneLineEvidenceForCandidate);
+  const quadrilateralMeasurements = confirmedGuides.flatMap((candidate) => {
+    const measurement = createQuadrilateralMeasurement(
+      candidate,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    return measurement === null ? [] : [measurement];
+  }).sort((first, second) => stableStringCompare(first.measurementId, second.measurementId));
   const relationships = ellipses.flatMap((ellipse) => lines.flatMap((line) => {
     const relationship = createEllipseSupportingLineRelationship(
       ellipse,
@@ -484,6 +538,7 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     shallowIntersectionAngleToleranceDegrees:
       IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES,
     relationships,
+    ...(quadrilateralMeasurements.length === 0 ? {} : { quadrilateralMeasurements }),
     limits: {
       imagePlaneOnly: true as const,
       axisAlignedEllipseOnly: true as const,
@@ -498,22 +553,261 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   };
 }
 
+interface PersonalVisualHarmonyImagePlaneLineEvidenceV1 {
+  readonly candidateId: string;
+  readonly label: string;
+  readonly primitiveKind: "segment" | "axis" | "quadrilateral-side";
+  readonly start: PersonalVisualHarmonyPointV1;
+  readonly end: PersonalVisualHarmonyPointV1;
+  readonly quadrilateralSideIndex?: 0 | 1 | 2 | 3;
+}
+
+function imagePlaneLineEvidenceForCandidate(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+): readonly PersonalVisualHarmonyImagePlaneLineEvidenceV1[] {
+  const primitive = candidate.primitive;
+  if (primitive?.kind === "segment" || primitive?.kind === "axis") {
+    return [{
+      candidateId: candidate.id,
+      label: candidate.label,
+      primitiveKind: primitive.kind,
+      start: primitive.start,
+      end: primitive.end,
+    }];
+  }
+  if (primitive?.kind !== "quadrilateral") return [];
+  return primitive.vertices.map((start, index) => {
+    const sideIndex = index as 0 | 1 | 2 | 3;
+    const end = primitive.vertices[(index + 1) % primitive.vertices.length];
+    if (end === undefined) throw new Error("Quadrilateral side endpoint is missing.");
+    return {
+      candidateId: candidate.id,
+      label: `${candidate.label} · côté ${String(index + 1)}`,
+      primitiveKind: "quadrilateral-side" as const,
+      start,
+      end,
+      quadrilateralSideIndex: sideIndex,
+    };
+  });
+}
+
+function createQuadrilateralMeasurement(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyQuadrilateralMeasurementV1 | null {
+  const primitive = candidate.primitive;
+  if (primitive?.kind !== "quadrilateral") return null;
+  const vertices = primitive.vertices;
+  const pixelVertices = vertices.map((point) => ({
+    x: point.x * sourcePixelWidth,
+    y: point.y * sourcePixelHeight,
+  })) as [
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+  ];
+  const sideVectors = pixelVertices.map((point, index) => {
+    const next = pixelVertices[(index + 1) % pixelVertices.length];
+    if (next === undefined) throw new Error("Quadrilateral side endpoint is missing.");
+    return { x: next.x - point.x, y: next.y - point.y };
+  }) as [
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+  ];
+  const sideLengthsPixels = sideVectors.map((vector) => canonicalNumber(Math.hypot(vector.x, vector.y))) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const interiorAnglesDegrees = pixelVertices.map((point, index) => {
+    const previous = pixelVertices[(index + pixelVertices.length - 1) % pixelVertices.length];
+    const next = pixelVertices[(index + 1) % pixelVertices.length];
+    if (previous === undefined || next === undefined) {
+      throw new Error("Quadrilateral angle endpoint is missing.");
+    }
+    return canonicalNumber(angleBetweenVectorsDegrees(
+      { x: previous.x - point.x, y: previous.y - point.y },
+      { x: next.x - point.x, y: next.y - point.y },
+    ));
+  }) as [number, number, number, number];
+  const firstParallelAngleDeltaDegrees = undirectedAngleDistanceDegrees(
+    normalizeUndirectedAngleDegrees(Math.atan2(sideVectors[0].y, sideVectors[0].x) * (180 / Math.PI)),
+    normalizeUndirectedAngleDegrees(Math.atan2(sideVectors[2].y, sideVectors[2].x) * (180 / Math.PI)),
+  );
+  const secondParallelAngleDeltaDegrees = undirectedAngleDistanceDegrees(
+    normalizeUndirectedAngleDegrees(Math.atan2(sideVectors[1].y, sideVectors[1].x) * (180 / Math.PI)),
+    normalizeUndirectedAngleDegrees(Math.atan2(sideVectors[3].y, sideVectors[3].x) * (180 / Math.PI)),
+  );
+  const oppositeSideParallelism: PersonalVisualHarmonyQuadrilateralMeasurementV1["oppositeSideParallelism"] = [
+    {
+      sideIndices: [0, 2],
+      angleDeltaDegrees: firstParallelAngleDeltaDegrees,
+      parallelWithinTolerance:
+        firstParallelAngleDeltaDegrees <= IMAGE_PLANE_PARALLEL_ANGLE_TOLERANCE_DEGREES,
+    },
+    {
+      sideIndices: [1, 3],
+      angleDeltaDegrees: secondParallelAngleDeltaDegrees,
+      parallelWithinTolerance:
+        secondParallelAngleDeltaDegrees <= IMAGE_PLANE_PARALLEL_ANGLE_TOLERANCE_DEGREES,
+    },
+  ];
+  const parallelPairCount = oppositeSideParallelism.filter(({ parallelWithinTolerance }) => (
+    parallelWithinTolerance
+  )).length;
+  const allRightAngles = interiorAnglesDegrees.every((angle) => (
+    Math.abs(angle - 90) <= IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES
+  ));
+  const classification: PersonalVisualHarmonyQuadrilateralMeasurementV1["classification"] =
+    parallelPairCount === 2 && allRightAngles
+      ? "rectangle"
+      : parallelPairCount === 2
+        ? "parallelogram"
+        : parallelPairCount === 1
+          ? "trapezoid"
+          : "quadrilateral";
+  const firstDiagonalLength = Math.hypot(
+    pixelVertices[2].x - pixelVertices[0].x,
+    pixelVertices[2].y - pixelVertices[0].y,
+  );
+  const secondDiagonalLength = Math.hypot(
+    pixelVertices[3].x - pixelVertices[1].x,
+    pixelVertices[3].y - pixelVertices[1].y,
+  );
+  const diagonalIntersectionPixels = lineIntersection(
+    pixelVertices[0],
+    pixelVertices[2],
+    pixelVertices[1],
+    pixelVertices[3],
+  );
+  if (diagonalIntersectionPixels === null) {
+    throw new Error("Confirmed quadrilateral diagonals must intersect.");
+  }
+  const { areaPixelsSquared, centroidPixels } = polygonAreaAndCentroid(pixelVertices);
+  const measurementIdentity = contentIdentityFor({
+    kind: "quadrilateral-measurement",
+    candidateId: candidate.id,
+    vertices,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  });
+  const classLabel = {
+    quadrilateral: "quadrilatère",
+    trapezoid: "trapèze apparent",
+    parallelogram: "parallélogramme apparent",
+    rectangle: "rectangle apparent",
+  }[classification];
+  const areaImageShare = canonicalNumber(areaPixelsSquared / (sourcePixelWidth * sourcePixelHeight));
+  return {
+    measurementId: `measurement:quadrilateral:${identityToken(measurementIdentity)}`,
+    kind: "quadrilateral-measurement",
+    candidateId: candidate.id,
+    candidateLabel: candidate.label,
+    classification,
+    vertices,
+    sideLengthsPixels,
+    interiorAnglesDegrees,
+    diagonalLengthsPixels: [
+      canonicalNumber(firstDiagonalLength),
+      canonicalNumber(secondDiagonalLength),
+    ],
+    diagonalIntersection: {
+      x: canonicalNumber(diagonalIntersectionPixels.x / sourcePixelWidth),
+      y: canonicalNumber(diagonalIntersectionPixels.y / sourcePixelHeight),
+    },
+    oppositeSideParallelism,
+    parallelAngleToleranceDegrees: IMAGE_PLANE_PARALLEL_ANGLE_TOLERANCE_DEGREES,
+    rightAngleToleranceDegrees: IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES,
+    areaPixelsSquared: canonicalNumber(areaPixelsSquared),
+    areaImageShare,
+    centroid: {
+      x: canonicalNumber(centroidPixels.x / sourcePixelWidth),
+      y: canonicalNumber(centroidPixels.y / sourcePixelHeight),
+    },
+    derivation: "confirmed_quadrilateral_vertices",
+    explanation: `${candidate.label}: ${classLabel} mesuré dans le plan image; côtés ${sideLengthsPixels.map(formatNumber).join(" / ")} px, angles ${interiorAnglesDegrees.map((angle) => `${formatNumber(angle)}°`).join(" / ")}, surface ${formatPercent(percentage(areaImageShare))} de l’image.`,
+  };
+}
+
+function angleBetweenVectorsDegrees(
+  first: PersonalVisualHarmonyPointV1,
+  second: PersonalVisualHarmonyPointV1,
+): number {
+  const denominator = Math.hypot(first.x, first.y) * Math.hypot(second.x, second.y);
+  if (denominator === 0) throw new Error("Quadrilateral sides must have positive length.");
+  const cosine = Math.max(-1, Math.min(1, ((first.x * second.x) + (first.y * second.y)) / denominator));
+  return Math.acos(cosine) * (180 / Math.PI);
+}
+
+function lineIntersection(
+  firstStart: PersonalVisualHarmonyPointV1,
+  firstEnd: PersonalVisualHarmonyPointV1,
+  secondStart: PersonalVisualHarmonyPointV1,
+  secondEnd: PersonalVisualHarmonyPointV1,
+): PersonalVisualHarmonyPointV1 | null {
+  const firstVector = { x: firstEnd.x - firstStart.x, y: firstEnd.y - firstStart.y };
+  const secondVector = { x: secondEnd.x - secondStart.x, y: secondEnd.y - secondStart.y };
+  const denominator = crossProduct(firstVector, secondVector);
+  if (Math.abs(denominator) <= 1e-12) return null;
+  const offset = { x: secondStart.x - firstStart.x, y: secondStart.y - firstStart.y };
+  const firstScale = crossProduct(offset, secondVector) / denominator;
+  return {
+    x: firstStart.x + (firstScale * firstVector.x),
+    y: firstStart.y + (firstScale * firstVector.y),
+  };
+}
+
+function polygonAreaAndCentroid(
+  points: readonly PersonalVisualHarmonyPointV1[],
+): { readonly areaPixelsSquared: number; readonly centroidPixels: PersonalVisualHarmonyPointV1 } {
+  let signedAreaTwice = 0;
+  let centroidXTimesSixArea = 0;
+  let centroidYTimesSixArea = 0;
+  for (const [index, point] of points.entries()) {
+    const next = points[(index + 1) % points.length];
+    if (next === undefined) throw new Error("Polygon endpoint is missing.");
+    const cross = (point.x * next.y) - (next.x * point.y);
+    signedAreaTwice += cross;
+    centroidXTimesSixArea += (point.x + next.x) * cross;
+    centroidYTimesSixArea += (point.y + next.y) * cross;
+  }
+  if (Math.abs(signedAreaTwice) <= 1e-12) throw new Error("Polygon area must be positive.");
+  return {
+    areaPixelsSquared: Math.abs(signedAreaTwice) / 2,
+    centroidPixels: {
+      x: centroidXTimesSixArea / (3 * signedAreaTwice),
+      y: centroidYTimesSixArea / (3 * signedAreaTwice),
+    },
+  };
+}
+
+function crossProduct(
+  first: PersonalVisualHarmonyPointV1,
+  second: PersonalVisualHarmonyPointV1,
+): number {
+  return (first.x * second.y) - (first.y * second.x);
+}
+
 function createEllipseSupportingLineRelationship(
   ellipseCandidate: PersonalVisualHarmonyCandidateInputV1,
-  lineCandidate: PersonalVisualHarmonyCandidateInputV1,
+  lineEvidence: PersonalVisualHarmonyImagePlaneLineEvidenceV1,
   sourcePixelWidth: number,
   sourcePixelHeight: number,
 ): PersonalVisualHarmonyImagePlaneRelationV1 | null {
   const ellipse = ellipseCandidate.primitive;
-  const line = lineCandidate.primitive;
-  if (ellipse?.kind !== "ellipse" || (line?.kind !== "segment" && line?.kind !== "axis")) return null;
+  if (ellipse?.kind !== "ellipse") return null;
   const lineStart = {
-    x: line.start.x * sourcePixelWidth,
-    y: line.start.y * sourcePixelHeight,
+    x: lineEvidence.start.x * sourcePixelWidth,
+    y: lineEvidence.start.y * sourcePixelHeight,
   };
   const lineEnd = {
-    x: line.end.x * sourcePixelWidth,
-    y: line.end.y * sourcePixelHeight,
+    x: lineEvidence.end.x * sourcePixelWidth,
+    y: lineEvidence.end.y * sourcePixelHeight,
   };
   const dx = lineEnd.x - lineStart.x;
   const dy = lineEnd.y - lineStart.y;
@@ -643,7 +937,10 @@ function createEllipseSupportingLineRelationship(
   const relationshipIdentity = contentIdentityFor({
     kind: "ellipse-supporting-line-relation",
     ellipseCandidateId: ellipseCandidate.id,
-    lineCandidateId: lineCandidate.id,
+    lineCandidateId: lineEvidence.candidateId,
+    ...(lineEvidence.quadrilateralSideIndex === undefined
+      ? {}
+      : { quadrilateralSideIndex: lineEvidence.quadrilateralSideIndex }),
     contactLocation,
   });
   return {
@@ -651,9 +948,12 @@ function createEllipseSupportingLineRelationship(
     kind: "ellipse-supporting-line-relation",
     ellipseCandidateId: ellipseCandidate.id,
     ellipseLabel: ellipseCandidate.label,
-    lineCandidateId: lineCandidate.id,
-    lineLabel: lineCandidate.label,
-    linePrimitiveKind: line.kind,
+    lineCandidateId: lineEvidence.candidateId,
+    lineLabel: lineEvidence.label,
+    linePrimitiveKind: lineEvidence.primitiveKind,
+    ...(lineEvidence.quadrilateralSideIndex === undefined
+      ? {}
+      : { quadrilateralSideIndex: lineEvidence.quadrilateralSideIndex }),
     contactLocation,
     ellipseContactPoint: {
       x: canonicalNumber(contactPixels.x / sourcePixelWidth),
@@ -679,7 +979,7 @@ function createEllipseSupportingLineRelationship(
     classification,
     contactCharacter,
     derivation: "infinite_supporting_line_from_confirmed_endpoints",
-    explanation: `${ellipseCandidate.label} ↔ ${lineCandidate.label}: ${relationLabel} au contact ${ellipseContactLocationLabel(contactLocation)}, ${observedExtentLabel}; écart ${formatNumber(gapPixels)} px (${formatPercent(gapPercentOfImageWidth)} de la largeur), angle ligne/tangente ${formatNumber(canonicalTangentAngleDeltaDegrees)}° dans le plan image.`,
+    explanation: `${ellipseCandidate.label} ↔ ${lineEvidence.label}: ${relationLabel} au contact ${ellipseContactLocationLabel(contactLocation)}, ${observedExtentLabel}; écart ${formatNumber(gapPixels)} px (${formatPercent(gapPercentOfImageWidth)} de la largeur), angle ligne/tangente ${formatNumber(canonicalTangentAngleDeltaDegrees)}° dans le plan image.`,
   };
 }
 
@@ -851,16 +1151,14 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ? `${String(index + 1)} · ${candidateValue.label}`
       : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
     const badgeWidth = Math.min(360, Math.max(120, 22 + (badge.length * 8)));
-    const editable = input.result === undefined && primitiveKind === "rectangle";
-    const resizeHandle = editable
-      ? `<rect data-resize-handle x="${numberAttr(x + width - 16)}" y="${numberAttr(y + height - 16)}" width="32" height="32" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`
-      : "";
+    const editable = input.result === undefined && primitiveKind !== "ellipse";
+    const editHandles = editable ? candidateEditHandlesMarkup(candidateValue) : "";
     return [
       `<g data-candidate-id="${escapeXml(candidateValue.id)}" data-primitive-kind="${primitiveKind}"${editable ? ` tabindex="0" role="group" aria-label="Ajuster ${escapeXml(candidateValue.label)}"` : ` role="img" aria-label="${escapeXml(candidateValue.label)} · guide ${primitiveKind}"`} >`,
       visualPrimitiveMarkup(candidateValue, color, selected),
       `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
       `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
-      resizeHandle,
+      editHandles,
       "</g>",
     ].join("");
   }).join("");
@@ -1158,6 +1456,18 @@ function canonicalBoundsForPrimitive(
       height: canonicalNumber(primitive.radiusY * 2),
     };
   }
+  if (primitive?.kind === "quadrilateral") {
+    const xs = primitive.vertices.map(({ x }) => x);
+    const ys = primitive.vertices.map(({ y }) => y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return {
+      x: canonicalNumber(minX),
+      y: canonicalNumber(minY),
+      width: canonicalNumber(Math.max(...xs) - minX),
+      height: canonicalNumber(Math.max(...ys) - minY),
+    };
+  }
   return {
     x: canonicalNumber(bounds.x),
     y: canonicalNumber(bounds.y),
@@ -1197,6 +1507,15 @@ function validateCandidatePrimitive(
     requireLineEnvelope(bounds, start, end, candidateIndex);
     return { kind: value.kind, start, end };
   }
+  if (value.kind === "quadrilateral") {
+    if (Object.keys(value).sort().join("|") !== "kind|vertices"
+      || !Array.isArray(value.vertices)
+      || value.vertices.length !== 4) {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} quadrilateral primitive must use exactly four vertices.`);
+    }
+    const vertices = canonicalQuadrilateralVertices(value.vertices, candidateIndex);
+    return { kind: "quadrilateral", vertices };
+  }
   if (Object.keys(value).sort().join("|") !== "center|kind|radiusX|radiusY") {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse primitive must use exact fields.`);
   }
@@ -1213,6 +1532,62 @@ function validateCandidatePrimitive(
     radiusX: canonicalNumber(value.radiusX),
     radiusY: canonicalNumber(value.radiusY),
   };
+}
+
+function canonicalQuadrilateralVertices(
+  values: readonly unknown[],
+  candidateIndex: number,
+): readonly [
+  PersonalVisualHarmonyPointV1,
+  PersonalVisualHarmonyPointV1,
+  PersonalVisualHarmonyPointV1,
+  PersonalVisualHarmonyPointV1,
+] {
+  let vertices = values.map((value, vertexIndex) => validatePrimitivePoint(
+    value,
+    `candidates.${String(candidateIndex)}.primitive.vertices.${String(vertexIndex)}`,
+  ));
+  const uniqueVertices = new Set(vertices.map(({ x, y }) => `${String(x)}:${String(y)}`));
+  if (uniqueVertices.size !== 4) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} quadrilateral requires four distinct vertices.`);
+  }
+  if (signedPolygonAreaTwice(vertices) < 0) {
+    vertices = [vertices[0]!, ...vertices.slice(1).reverse()];
+  }
+  const firstIndex = vertices.reduce((bestIndex, vertex, index) => {
+    const best = vertices[bestIndex];
+    if (best === undefined) return index;
+    return vertex.y < best.y || (vertex.y === best.y && vertex.x < best.x) ? index : bestIndex;
+  }, 0);
+  vertices = [...vertices.slice(firstIndex), ...vertices.slice(0, firstIndex)];
+  const crossValues = vertices.map((point, index) => {
+    const next = vertices[(index + 1) % vertices.length];
+    const afterNext = vertices[(index + 2) % vertices.length];
+    if (next === undefined || afterNext === undefined) {
+      throw new Error("Quadrilateral vertex is missing.");
+    }
+    return crossProduct(
+      { x: next.x - point.x, y: next.y - point.y },
+      { x: afterNext.x - next.x, y: afterNext.y - next.y },
+    );
+  });
+  if (crossValues.some((value) => value <= 1e-12)) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} quadrilateral must be a simple convex perimeter.`);
+  }
+  return vertices as [
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+    PersonalVisualHarmonyPointV1,
+  ];
+}
+
+function signedPolygonAreaTwice(points: readonly PersonalVisualHarmonyPointV1[]): number {
+  return points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    if (next === undefined) throw new Error("Polygon endpoint is missing.");
+    return sum + ((point.x * next.y) - (next.x * point.y));
+  }, 0);
 }
 
 function validatePrimitivePoint(value: unknown, field: string): PersonalVisualHarmonyPointV1 {
@@ -1362,13 +1737,73 @@ function visualPrimitiveMarkup(
   const primitive = candidate.primitive;
   const strokeWidth = selected ? "7" : "4";
   if (primitive?.kind === "segment" || primitive?.kind === "axis") {
-    const dash = primitive.kind === "axis" ? "20 12" : (selected ? "none" : "14 10");
-    return `<line data-candidate-shape x1="${numberAttr(primitive.start.x * 1000)}" y1="${numberAttr(primitive.start.y * 1000)}" x2="${numberAttr(primitive.end.x * 1000)}" y2="${numberAttr(primitive.end.y * 1000)}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round"/>`;
+    const support = extendLineToUnitSquare(primitive.start, primitive.end);
+    const dash = primitive.kind === "axis" ? "20 12" : "none";
+    return [
+      `<line data-supporting-line x1="${numberAttr(support.start.x * 1000)}" y1="${numberAttr(support.start.y * 1000)}" x2="${numberAttr(support.end.x * 1000)}" y2="${numberAttr(support.end.y * 1000)}" stroke="${color}" stroke-width="3" stroke-dasharray="10 14" stroke-opacity="0.58"/>`,
+      `<line data-candidate-shape x1="${numberAttr(primitive.start.x * 1000)}" y1="${numberAttr(primitive.start.y * 1000)}" x2="${numberAttr(primitive.end.x * 1000)}" y2="${numberAttr(primitive.end.y * 1000)}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round"/>`,
+    ].join("");
+  }
+  if (primitive?.kind === "quadrilateral") {
+    const points = primitive.vertices
+      .map(({ x, y }) => `${numberAttr(x * 1000)},${numberAttr(y * 1000)}`)
+      .join(" ");
+    return `<polygon data-candidate-shape data-candidate-polygon points="${points}" fill="${color}" fill-opacity="${selected ? "0.14" : "0.06"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`;
   }
   if (primitive?.kind === "ellipse") {
     return `<ellipse data-candidate-shape cx="${numberAttr(primitive.center.x * 1000)}" cy="${numberAttr(primitive.center.y * 1000)}" rx="${numberAttr(primitive.radiusX * 1000)}" ry="${numberAttr(primitive.radiusY * 1000)}" fill="${color}" fill-opacity="${selected ? "0.12" : "0.05"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
   }
   return `<rect data-candidate-box data-candidate-shape x="${numberAttr(candidate.x * 1000)}" y="${numberAttr(candidate.y * 1000)}" width="${numberAttr(candidate.width * 1000)}" height="${numberAttr(candidate.height * 1000)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
+}
+
+function candidateEditHandlesMarkup(candidate: PersonalVisualHarmonyCandidateInputV1): string {
+  const primitive = candidate.primitive;
+  const handle = (attributes: string) => `<circle ${attributes} r="15" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`;
+  if (primitive?.kind === "segment" || primitive?.kind === "axis") {
+    return [
+      handle(`data-point-handle="start" tabindex="0" cx="${numberAttr(primitive.start.x * 1000)}" cy="${numberAttr(primitive.start.y * 1000)}"`),
+      handle(`data-point-handle="end" tabindex="0" cx="${numberAttr(primitive.end.x * 1000)}" cy="${numberAttr(primitive.end.y * 1000)}"`),
+    ].join("");
+  }
+  if (primitive?.kind === "quadrilateral") {
+    return primitive.vertices.map((point, index) => handle(
+      `data-vertex-handle="${String(index)}" tabindex="0" cx="${numberAttr(point.x * 1000)}" cy="${numberAttr(point.y * 1000)}"`,
+    )).join("");
+  }
+  return `<rect data-resize-handle x="${numberAttr((candidate.x + candidate.width) * 1000 - 16)}" y="${numberAttr((candidate.y + candidate.height) * 1000 - 16)}" width="32" height="32" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`;
+}
+
+function extendLineToUnitSquare(
+  start: PersonalVisualHarmonyPointV1,
+  end: PersonalVisualHarmonyPointV1,
+): { readonly start: PersonalVisualHarmonyPointV1; readonly end: PersonalVisualHarmonyPointV1 } {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const candidates: { readonly point: PersonalVisualHarmonyPointV1; readonly scale: number }[] = [];
+  const add = (scale: number) => {
+    const point = { x: start.x + (scale * dx), y: start.y + (scale * dy) };
+    if (point.x < -1e-12 || point.x > 1 + 1e-12 || point.y < -1e-12 || point.y > 1 + 1e-12) return;
+    if (candidates.some(({ point: existing }) => (
+      Math.abs(existing.x - point.x) <= 1e-12 && Math.abs(existing.y - point.y) <= 1e-12
+    ))) return;
+    candidates.push({
+      scale,
+      point: { x: canonicalNumber(Math.max(0, Math.min(1, point.x))), y: canonicalNumber(Math.max(0, Math.min(1, point.y))) },
+    });
+  };
+  if (dx !== 0) {
+    add((0 - start.x) / dx);
+    add((1 - start.x) / dx);
+  }
+  if (dy !== 0) {
+    add((0 - start.y) / dy);
+    add((1 - start.y) / dy);
+  }
+  candidates.sort((first, second) => first.scale - second.scale);
+  const first = candidates[0];
+  const last = candidates.at(-1);
+  if (first === undefined || last === undefined) return { start, end };
+  return { start: first.point, end: last.point };
 }
 
 function numberAttr(value: number): string {
