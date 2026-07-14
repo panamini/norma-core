@@ -212,6 +212,40 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "mime_type",
     ]);
     assert.equal(prepareTool.inputSchema.properties.image.additionalProperties, false);
+    const guideConfirmationInput = confirmTool.inputSchema.properties.confirmedVisualGuideCandidateIds;
+    assert.equal(guideConfirmationInput.type, "array");
+    assert.equal(guideConfirmationInput.maxItems, 12);
+    assert.deepEqual(guideConfirmationInput.default, []);
+    assert.equal(guideConfirmationInput.items.type, "string");
+    assert.match(guideConfirmationInput.items.pattern, /A-Za-z0-9/u);
+    assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
+    const imagePlaneOutput = confirmTool.outputSchema.properties.imagePlaneGuideAnalysis;
+    assert.equal(imagePlaneOutput.type, "object");
+    assert.equal(imagePlaneOutput.additionalProperties, false);
+    for (const requiredField of [
+      "candidateSetIdentity",
+      "sourceImageReferenceIdentity",
+      "sourcePixelWidth",
+      "sourcePixelHeight",
+      "confirmedVisualGuideCandidateIds",
+      "relationships",
+      "limits",
+      "contentIdentity",
+    ]) {
+      assert.ok(imagePlaneOutput.required.includes(requiredField));
+    }
+    const relationshipOutput = imagePlaneOutput.properties.relationships.items;
+    assert.equal(relationshipOutput.additionalProperties, false);
+    assert.deepEqual(relationshipOutput.properties.classification.enum, [
+      "intersection",
+      "near_tangent",
+      "proximity",
+    ]);
+    assert.equal(
+      relationshipOutput.properties.supportingLineContactWithinObservedSegment.type,
+      "boolean",
+    );
+    assert.equal(imagePlaneOutput.properties.limits.properties.axisAlignedEllipseOnly.const, true);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
     assert.match(prepareTool.description, /major diagonals/u);
@@ -233,6 +267,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(resource.contents[0].text, createPersonalVisualHarmonyWidgetHtmlV1());
+    const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
+    assert.ok(widgetScript);
+    assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /window\.openai\.getFileDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
@@ -240,11 +277,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /completedVisualHarmony/u);
     assert.match(resource.contents[0].text, /presentation:\s*structured\?\.presentation/u);
     assert.match(resource.contents[0].text, /La séparation principale suit presque φ/u);
-    assert.match(resource.contents[0].text, /primaryPattern\.kind vaut complementary_pair/u);
-    assert.match(resource.contents[0].text, /ne duplique aucune observation/u);
+    assert.match(resource.contents[0].text, /Résume d’abord presentation/u);
+    assert.match(resource.contents[0].text, /distingue clairement intersection, tangence ou quasi-tangence/u);
     assert.match(resource.contents[0].text, /completedWidgetStateFor\(payload\)/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity:payload\.prepared\.candidateSetIdentity/u);
-    assert.match(resource.contents[0].text, /selectedCandidateIds:\[\.\.\.state\.selected\]/u);
+    assert.match(resource.contents[0].text, /selectedCandidateIds=coreSelectedIds\(\)/u);
     assert.match(resource.contents[0].text, /sourcePixelWidth:state\.dimensions\.width/u);
     assert.match(resource.contents[0].text, /confirmedSelectionIdentity/u);
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
@@ -265,19 +302,21 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /BOOTSTRAP_RETRY_LIMIT=50/u);
     assert.match(resource.contents[0].text, /ChatGPT n’a pas transmis l’image au widget/u);
     assert.doesNotMatch(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",\(\)=>\{const payload=currentPayload\(\);if\(payload&&payload\.stage==="completed"/u);
-    assert.match(resource.contents[0].text, /CORE REVALIDÉ/u);
+    assert.match(resource.contents[0].text, /MESURES REVALIDÉES/u);
     assert.match(resource.contents[0].text, /RAPPORT MÉMORISÉ · NON REVALIDÉ/u);
     assert.doesNotMatch(resource.contents[0].text, /CORE VÉRIFIÉ · MÉMORISÉ/u);
-    assert.match(resource.contents[0].text, /status:"CORE_VERIFIED"/u);
+    assert.match(resource.contents[0].text, /status:"CORE_AND_IMAGE_PLANE_VERIFIED"/u);
     assert.match(resource.contents[0].text, /scrollToBottom:true/u);
     assert.match(resource.contents[0].text, /confirmClientReviewedSelection:true/u);
     assert.match(resource.contents[0].text, /recovery:\{fileId:payload\.fileId/u);
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,overlaySvg:""\}/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
     assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
+    assert.match(resource.contents[0].text, /function isStoredGeometrySnapshot\(value,candidates\)/u);
+    assert.match(resource.contents[0].text, /sameGeometrySnapshots\(saved\.reviewedCandidateGeometry,completed\.reviewedCandidateGeometry\)/u);
     assert.match(resource.contents[0].text, /overlay\.addEventListener\("pointerdown"/u);
     assert.match(resource.contents[0].text, /overlay\.addEventListener\("keydown"/u);
     assert.match(resource.contents[0].text, /event\.shiftKey/u);
@@ -287,10 +326,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /visibleKinds:new Set\(\["rectangle","segment","axis","ellipse"\]\)/u);
     assert.match(resource.contents[0].text, /function syncFamilyVisibility\(\)/u);
     assert.match(resource.contents[0].text, /primitiveKind\(item\)==="rectangle"/u);
-    assert.match(resource.contents[0].text, /visualGuideCandidateIds/u);
-    assert.match(resource.contents[0].text, /N’attribue aucun rapport aux visualGuideCandidateIds/u);
-    assert.match(resource.contents[0].text, /peuvent rester affichées ou masquées dans l’overlay/u);
-    assert.match(resource.contents[0].text, /présent"\+\(visualGuideCount===1\?"":"s"\)\+" comme repère/u);
+    assert.match(resource.contents[0].text, /confirmedVisualGuideCandidateIds/u);
+    assert.match(resource.contents[0].text, /N’attribue jamais un ratio du Core aux guides/u);
+    assert.match(resource.contents[0].text, /guide"\+\(confirmedGuideCount===1\?"":"s"\)\+" confirmé/u);
+    assert.match(resource.contents[0].text, /function appendImagePlaneRelations\(analysis\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
@@ -300,7 +339,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
-    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot\)/u);
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
     assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
@@ -308,6 +347,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",editable\?"0":"-1"\)/u);
     assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\]\{touch-action:none/u);
     assert.doesNotMatch(resource.contents[0].text, /\.overlay\{[^}]*touch-action:none/u);
+    assert.ok(confirmTool.inputSchema.properties.confirmedVisualGuideCandidateIds);
+    assert.ok(confirmTool.outputSchema.properties.imagePlaneGuideAnalysis);
   } finally {
     await connected.close();
   }
@@ -356,6 +397,21 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     });
     assert.equal(rejected.isError, true);
 
+    const malformedGuides = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: "main-ellipse",
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput(),
+      },
+    });
+    assert.equal(malformedGuides.isError, true);
+
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
@@ -378,6 +434,12 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     assert.equal(confirmed.structuredContent.coreRun, true);
     assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
     assert.deepEqual(confirmed.structuredContent.visualGuideCandidateIds, []);
+    assert.deepEqual(confirmed.structuredContent.confirmedVisualGuideCandidateIds, []);
+    assert.deepEqual(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships, []);
+    assert.match(
+      confirmed.structuredContent.imagePlaneGuideAnalysis.contentIdentity,
+      /^sha256:[0-9a-f]{64}$/u,
+    );
     assert.ok(confirmed.structuredContent.relationshipCount >= 2);
     assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ major"));
     assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ minor"));
@@ -465,12 +527,29 @@ test("mixed structural primitives stay visible while only rectangles cross the C
     assert.equal(guideRejected.isError, true);
     assert.match(guideRejected.content[0].text, /Visual guides cannot enter Norma Core/u);
 
+    const rectangleAsGuideRejected = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["major"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(rectangleAsGuideRejected.isError, true);
+    assert.match(rectangleAsGuideRejected.content[0].text, /separate confirmation fields/u);
+
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
         sessionId: widgetMeta.sessionId,
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["diagonal", "central-axis", "main-ellipse"],
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
@@ -484,7 +563,23 @@ test("mixed structural primitives stay visible while only rectangles cross the C
       "central-axis",
       "main-ellipse",
     ]);
+    assert.deepEqual(confirmed.structuredContent.confirmedVisualGuideCandidateIds, [
+      "diagonal",
+      "central-axis",
+      "main-ellipse",
+    ]);
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships.length, 2);
+    assert.deepEqual(
+      confirmed.structuredContent.imagePlaneGuideAnalysis.relationships
+        .map(({ lineCandidateId }) => lineCandidateId)
+        .sort(),
+      ["central-axis", "diagonal"],
+    );
+    assert.ok(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships.every(({ classification }) => (
+      classification === "intersection"
+    )));
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="axis"/u);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-image-plane-relation-id=/u);
   } finally {
     await connected.close();
   }

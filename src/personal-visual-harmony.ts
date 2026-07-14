@@ -40,6 +40,8 @@ export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@1" as const;
 export const PERSONAL_VISUAL_HARMONY_RESULT_CONTRACT_ID =
   "norma.personal-visual-harmony-result@1" as const;
+export const PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID =
+  "norma.personal-visual-harmony-image-plane-relations@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES = 12;
 
 export type PersonalVisualHarmonyCandidateRoleV1 =
@@ -161,8 +163,71 @@ export interface PersonalVisualHarmonyResultV1 {
   readonly contentIdentity: string;
 }
 
+export type PersonalVisualHarmonyEllipseContactLocationV1 =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "oblique";
+
+export interface PersonalVisualHarmonyImagePlaneRelationV1 {
+  readonly relationshipId: string;
+  readonly kind: "ellipse-supporting-line-relation";
+  readonly ellipseCandidateId: string;
+  readonly ellipseLabel: string;
+  readonly lineCandidateId: string;
+  readonly lineLabel: string;
+  readonly linePrimitiveKind: "segment" | "axis";
+  readonly contactLocation: PersonalVisualHarmonyEllipseContactLocationV1;
+  readonly ellipseContactPoint: PersonalVisualHarmonyPointV1;
+  readonly closestPointOnSupportingLine: PersonalVisualHarmonyPointV1;
+  readonly intersectionPoints: readonly PersonalVisualHarmonyPointV1[];
+  readonly gapPixels: number;
+  readonly gapImageWidthShare: number;
+  readonly gapPercentOfImageWidth: number;
+  readonly centerToLineDistancePixels: number;
+  readonly ellipseSupportRadiusPixels: number;
+  readonly lineAngleDegrees: number;
+  readonly tangentAngleDegrees: number;
+  readonly tangentAngleDeltaDegrees: number;
+  readonly supportingLineContactWithinObservedSegment: boolean;
+  readonly classification: "intersection" | "near_tangent" | "proximity";
+  readonly derivation: "infinite_supporting_line_from_confirmed_endpoints";
+  readonly explanation: string;
+}
+
+export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "completed";
+  readonly candidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly imageBytesObservedByNorma: false;
+  readonly sourceImageDimensionsObservedBy: "chatgpt_widget";
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly coordinateSpace: "image_plane_pixels_v1";
+  readonly normalization: "image_width";
+  readonly confirmationMode: "client_asserted_widget_interaction";
+  readonly serverVerifiedHumanPresence: false;
+  readonly confirmedVisualGuideCandidateIds: readonly string[];
+  readonly positionToleranceImageWidthShare: number;
+  readonly maxReportedGapImageWidthShare: number;
+  readonly tangentAngleToleranceDegrees: number;
+  readonly relationships: readonly PersonalVisualHarmonyImagePlaneRelationV1[];
+  readonly limits: {
+    readonly imagePlaneOnly: true;
+    readonly axisAlignedEllipseOnly: true;
+    readonly noWorldSpaceMetricClaim: true;
+    readonly noHarmonicRatioClaim: true;
+    readonly noIntentInference: true;
+  };
+  readonly contentIdentity: string;
+}
+
 export interface PersonalVisualHarmonyConfirmationV1 {
   readonly result: PersonalVisualHarmonyResultV1;
+  readonly imagePlaneGuideAnalysis: PersonalVisualHarmonyImagePlaneRelationsV1;
   readonly overlaySvg: string;
   readonly acceptedGeometryContentIdentity: string;
   readonly mappingResultContentIdentity: string;
@@ -172,6 +237,9 @@ const CANDIDATE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const MATCH_TOLERANCE = 0.025;
+const IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE = 0.01;
+const IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE = 0.025;
+const IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES = 5;
 
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
@@ -218,6 +286,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly expectedCandidateSetIdentity: string;
   readonly selectedCandidateIds: readonly string[];
+  readonly confirmedVisualGuideCandidateIds?: readonly string[];
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
   readonly acceptedAt: string;
@@ -227,6 +296,10 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     throw new Error("Candidate set identity does not match the prepared review.");
   }
   const selectedCandidateIds = normalizeSelectedCandidateIds(prepared, input.selectedCandidateIds);
+  const confirmedVisualGuideCandidateIds = normalizeVisualGuideCandidateIds(
+    prepared,
+    input.confirmedVisualGuideCandidateIds ?? [],
+  );
   requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
   if (!UTC_TIMESTAMP_PATTERN.test(input.acceptedAt)) {
@@ -320,21 +393,412 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     ...resultWithoutIdentity,
     contentIdentity: contentIdentityFor(resultWithoutIdentity),
   };
+  const imagePlaneGuideAnalysis = analyzePersonalVisualHarmonyImagePlaneRelationsV1({
+    preparedCandidateSet: prepared,
+    confirmedVisualGuideCandidateIds,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+  });
   return {
     result,
-    overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared, result }),
+    imagePlaneGuideAnalysis,
+    overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({
+      preparedCandidateSet: prepared,
+      result,
+      imagePlaneGuideAnalysis,
+    }),
     acceptedGeometryContentIdentity: acceptedGeometry.contentIdentity,
     mappingResultContentIdentity: mapping.resultContentIdentity,
   };
 }
 
+export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
+  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV1;
+  readonly confirmedVisualGuideCandidateIds: readonly string[];
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): PersonalVisualHarmonyImagePlaneRelationsV1 {
+  const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
+  requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const confirmedVisualGuideCandidateIds = normalizeVisualGuideCandidateIds(
+    prepared,
+    input.confirmedVisualGuideCandidateIds,
+  );
+  const confirmed = new Set(confirmedVisualGuideCandidateIds);
+  const ellipses = prepared.candidates.filter((candidate) => (
+    confirmed.has(candidate.id) && candidate.primitive?.kind === "ellipse"
+  ));
+  const lines = prepared.candidates.filter((candidate) => (
+    confirmed.has(candidate.id)
+    && (candidate.primitive?.kind === "segment" || candidate.primitive?.kind === "axis")
+  ));
+  const relationships = ellipses.flatMap((ellipse) => lines.flatMap((line) => {
+    const relationship = createEllipseSupportingLineRelationship(
+      ellipse,
+      line,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    return relationship === null ? [] : [relationship];
+  })).sort((first, second) => {
+    const classificationOrder = imagePlaneRelationPriority(first.classification)
+      - imagePlaneRelationPriority(second.classification);
+    if (classificationOrder !== 0) return classificationOrder;
+    if (first.supportingLineContactWithinObservedSegment
+      !== second.supportingLineContactWithinObservedSegment) {
+      return first.supportingLineContactWithinObservedSegment ? -1 : 1;
+    }
+    if (first.gapPixels !== second.gapPixels) return first.gapPixels - second.gapPixels;
+    return stableStringCompare(first.relationshipId, second.relationshipId);
+  });
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "completed" as const,
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    imageBytesObservedByNorma: false as const,
+    sourceImageDimensionsObservedBy: "chatgpt_widget" as const,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+    coordinateSpace: "image_plane_pixels_v1" as const,
+    normalization: "image_width" as const,
+    confirmationMode: "client_asserted_widget_interaction" as const,
+    serverVerifiedHumanPresence: false as const,
+    confirmedVisualGuideCandidateIds,
+    positionToleranceImageWidthShare: IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE,
+    maxReportedGapImageWidthShare: IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE,
+    tangentAngleToleranceDegrees: IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES,
+    relationships,
+    limits: {
+      imagePlaneOnly: true as const,
+      axisAlignedEllipseOnly: true as const,
+      noWorldSpaceMetricClaim: true as const,
+      noHarmonicRatioClaim: true as const,
+      noIntentInference: true as const,
+    },
+  };
+  return {
+    ...withoutIdentity,
+    contentIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+function createEllipseSupportingLineRelationship(
+  ellipseCandidate: PersonalVisualHarmonyCandidateInputV1,
+  lineCandidate: PersonalVisualHarmonyCandidateInputV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyImagePlaneRelationV1 | null {
+  const ellipse = ellipseCandidate.primitive;
+  const line = lineCandidate.primitive;
+  if (ellipse?.kind !== "ellipse" || (line?.kind !== "segment" && line?.kind !== "axis")) return null;
+  const lineStart = {
+    x: line.start.x * sourcePixelWidth,
+    y: line.start.y * sourcePixelHeight,
+  };
+  const lineEnd = {
+    x: line.end.x * sourcePixelWidth,
+    y: line.end.y * sourcePixelHeight,
+  };
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  const lengthSquared = (dx * dx) + (dy * dy);
+  if (lengthSquared === 0) return null;
+  const length = Math.sqrt(lengthSquared);
+  const unitNormal = { x: -dy / length, y: dx / length };
+  const lineConstant = -((unitNormal.x * lineStart.x) + (unitNormal.y * lineStart.y));
+  const center = {
+    x: ellipse.center.x * sourcePixelWidth,
+    y: ellipse.center.y * sourcePixelHeight,
+  };
+  const radiusX = ellipse.radiusX * sourcePixelWidth;
+  const radiusY = ellipse.radiusY * sourcePixelHeight;
+  const signedCenterToLineDistance = (unitNormal.x * center.x)
+    + (unitNormal.y * center.y)
+    + lineConstant;
+  const centerToLineDistancePixels = Math.abs(signedCenterToLineDistance);
+  const ellipseSupportRadiusPixels = Math.sqrt(
+    ((radiusX * unitNormal.x) ** 2) + ((radiusY * unitNormal.y) ** 2),
+  );
+  if (ellipseSupportRadiusPixels === 0) return null;
+  const lineAngleDegrees = normalizeUndirectedAngleDegrees(Math.atan2(dy, dx) * (180 / Math.PI));
+  const offsetX = (radiusX * radiusX * unitNormal.x) / ellipseSupportRadiusPixels;
+  const offsetY = (radiusY * radiusY * unitNormal.y) / ellipseSupportRadiusPixels;
+  const centerSide = signedCenterToLineDistance >= 0 ? 1 : -1;
+  let contactPixels = {
+    x: center.x - (centerSide * offsetX),
+    y: center.y - (centerSide * offsetY),
+  };
+  let closestPixels = projectPointOntoSupportingLine(
+    contactPixels,
+    unitNormal,
+    lineConstant,
+  );
+  let intersectionPointsPixels = ellipseLineIntersections(
+    center,
+    radiusX,
+    radiusY,
+    lineStart,
+    dx,
+    dy,
+    centerToLineDistancePixels,
+    ellipseSupportRadiusPixels,
+    contactPixels,
+  );
+  let classification: PersonalVisualHarmonyImagePlaneRelationV1["classification"];
+  let gapPixelsValue: number;
+  let supportingLineContactWithinObservedSegment: boolean;
+  if (intersectionPointsPixels.length > 0) {
+    const rankedIntersections = intersectionPointsPixels
+      .map((point) => ({
+        point,
+        projectionScale: projectionScaleOnLine(point, lineStart, dx, dy, lengthSquared),
+      }))
+      .sort((first, second) => {
+        const firstDistance = distanceFromUnitInterval(first.projectionScale);
+        const secondDistance = distanceFromUnitInterval(second.projectionScale);
+        if (firstDistance !== secondDistance) return firstDistance - secondDistance;
+        return first.projectionScale - second.projectionScale;
+      });
+    const chosen = rankedIntersections[0];
+    if (chosen === undefined) return null;
+    contactPixels = chosen.point;
+    closestPixels = chosen.point;
+    classification = intersectionPointsPixels.length === 1 ? "near_tangent" : "intersection";
+    gapPixelsValue = 0;
+    supportingLineContactWithinObservedSegment = rankedIntersections.some(({ projectionScale }) => (
+      projectionScale >= 0 && projectionScale <= 1
+    ));
+  } else {
+    gapPixelsValue = Math.max(0, centerToLineDistancePixels - ellipseSupportRadiusPixels);
+    const gapImageWidthShareValue = gapPixelsValue / sourcePixelWidth;
+    if (gapImageWidthShareValue > IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE) return null;
+    classification = "proximity";
+    const contactProjectionScale = projectionScaleOnLine(
+      closestPixels,
+      lineStart,
+      dx,
+      dy,
+      lengthSquared,
+    );
+    supportingLineContactWithinObservedSegment = contactProjectionScale >= 0
+      && contactProjectionScale <= 1;
+  }
+  intersectionPointsPixels = [...intersectionPointsPixels]
+    .sort((first, second) => (first.x - second.x) || (first.y - second.y));
+  const contactLocation = ellipseContactLocation(contactPixels, center, radiusX, radiusY);
+  const tangentAngleDegrees = ellipseTangentAngleDegrees(
+    contactPixels,
+    center,
+    radiusX,
+    radiusY,
+  );
+  const tangentAngleDeltaDegrees = undirectedAngleDistanceDegrees(
+    lineAngleDegrees,
+    tangentAngleDegrees,
+  );
+  const gapImageWidthShare = gapPixelsValue / sourcePixelWidth;
+  if (intersectionPointsPixels.length === 0
+    && gapImageWidthShare <= IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE
+    && tangentAngleDeltaDegrees <= IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES) {
+    classification = "near_tangent";
+  }
+  const gapPixels = canonicalNumber(gapPixelsValue);
+  const gapPercentOfImageWidth = percentage(gapImageWidthShare);
+  const canonicalTangentAngleDeltaDegrees = canonicalNumber(tangentAngleDeltaDegrees);
+  const relationLabel = classification === "intersection"
+    ? `intersection apparente (${String(intersectionPointsPixels.length)} point${intersectionPointsPixels.length === 1 ? "" : "s"})`
+    : classification === "near_tangent"
+      ? gapPixels <= 0.000001
+        ? "tangence apparente"
+        : "quasi-tangence apparente"
+      : "proximité apparente";
+  const observedExtentLabel = supportingLineContactWithinObservedSegment
+    ? "sur le segment visible"
+    : "sur le prolongement de sa droite support";
+  const relationshipIdentity = contentIdentityFor({
+    kind: "ellipse-supporting-line-relation",
+    ellipseCandidateId: ellipseCandidate.id,
+    lineCandidateId: lineCandidate.id,
+    contactLocation,
+  });
+  return {
+    relationshipId: `relation:ellipse-supporting-line:${identityToken(relationshipIdentity)}`,
+    kind: "ellipse-supporting-line-relation",
+    ellipseCandidateId: ellipseCandidate.id,
+    ellipseLabel: ellipseCandidate.label,
+    lineCandidateId: lineCandidate.id,
+    lineLabel: lineCandidate.label,
+    linePrimitiveKind: line.kind,
+    contactLocation,
+    ellipseContactPoint: {
+      x: canonicalNumber(contactPixels.x / sourcePixelWidth),
+      y: canonicalNumber(contactPixels.y / sourcePixelHeight),
+    },
+    closestPointOnSupportingLine: {
+      x: canonicalNumber(closestPixels.x / sourcePixelWidth),
+      y: canonicalNumber(closestPixels.y / sourcePixelHeight),
+    },
+    intersectionPoints: intersectionPointsPixels.map((point) => ({
+      x: canonicalNumber(point.x / sourcePixelWidth),
+      y: canonicalNumber(point.y / sourcePixelHeight),
+    })),
+    gapPixels,
+    gapImageWidthShare: canonicalNumber(gapImageWidthShare),
+    gapPercentOfImageWidth,
+    centerToLineDistancePixels: canonicalNumber(centerToLineDistancePixels),
+    ellipseSupportRadiusPixels: canonicalNumber(ellipseSupportRadiusPixels),
+    lineAngleDegrees: canonicalNumber(lineAngleDegrees),
+    tangentAngleDegrees: canonicalNumber(tangentAngleDegrees),
+    tangentAngleDeltaDegrees: canonicalTangentAngleDeltaDegrees,
+    supportingLineContactWithinObservedSegment,
+    classification,
+    derivation: "infinite_supporting_line_from_confirmed_endpoints",
+    explanation: `${ellipseCandidate.label} ↔ ${lineCandidate.label}: ${relationLabel} au contact ${ellipseContactLocationLabel(contactLocation)}, ${observedExtentLabel}; écart ${formatNumber(gapPixels)} px (${formatPercent(gapPercentOfImageWidth)} de la largeur), angle ligne/tangente ${formatNumber(canonicalTangentAngleDeltaDegrees)}° dans le plan image.`,
+  };
+}
+
+function projectPointOntoSupportingLine(
+  point: PersonalVisualHarmonyPointV1,
+  unitNormal: PersonalVisualHarmonyPointV1,
+  lineConstant: number,
+): PersonalVisualHarmonyPointV1 {
+  const signedDistance = (unitNormal.x * point.x) + (unitNormal.y * point.y) + lineConstant;
+  return {
+    x: point.x - (signedDistance * unitNormal.x),
+    y: point.y - (signedDistance * unitNormal.y),
+  };
+}
+
+function ellipseLineIntersections(
+  center: PersonalVisualHarmonyPointV1,
+  radiusX: number,
+  radiusY: number,
+  lineStart: PersonalVisualHarmonyPointV1,
+  dx: number,
+  dy: number,
+  centerToLineDistancePixels: number,
+  ellipseSupportRadiusPixels: number,
+  tangentContactPoint: PersonalVisualHarmonyPointV1,
+): readonly PersonalVisualHarmonyPointV1[] {
+  const numericalDistanceTolerancePixels = 1e-9 * Math.max(
+    1,
+    centerToLineDistancePixels,
+    ellipseSupportRadiusPixels,
+  );
+  if (centerToLineDistancePixels
+    > ellipseSupportRadiusPixels + numericalDistanceTolerancePixels) return [];
+  if (Math.abs(centerToLineDistancePixels - ellipseSupportRadiusPixels)
+    <= numericalDistanceTolerancePixels) return [tangentContactPoint];
+  const relativeX = lineStart.x - center.x;
+  const relativeY = lineStart.y - center.y;
+  const radiusXSquared = radiusX * radiusX;
+  const radiusYSquared = radiusY * radiusY;
+  const a = ((dx * dx) / radiusXSquared) + ((dy * dy) / radiusYSquared);
+  const b = 2 * (((relativeX * dx) / radiusXSquared) + ((relativeY * dy) / radiusYSquared));
+  const c = ((relativeX * relativeX) / radiusXSquared)
+    + ((relativeY * relativeY) / radiusYSquared)
+    - 1;
+  const discriminant = (b * b) - (4 * a * c);
+  const root = Math.sqrt(Math.max(0, discriminant));
+  const firstParameter = (-b - root) / (2 * a);
+  const secondParameter = (-b + root) / (2 * a);
+  return [firstParameter, secondParameter].map((parameter) => ({
+    x: lineStart.x + (parameter * dx),
+    y: lineStart.y + (parameter * dy),
+  }));
+}
+
+function projectionScaleOnLine(
+  point: PersonalVisualHarmonyPointV1,
+  lineStart: PersonalVisualHarmonyPointV1,
+  dx: number,
+  dy: number,
+  lengthSquared: number,
+): number {
+  return (((point.x - lineStart.x) * dx) + ((point.y - lineStart.y) * dy)) / lengthSquared;
+}
+
+function distanceFromUnitInterval(value: number): number {
+  if (value < 0) return -value;
+  if (value > 1) return value - 1;
+  return 0;
+}
+
+function ellipseContactLocation(
+  point: PersonalVisualHarmonyPointV1,
+  center: PersonalVisualHarmonyPointV1,
+  radiusX: number,
+  radiusY: number,
+): PersonalVisualHarmonyEllipseContactLocationV1 {
+  const normalizedX = (point.x - center.x) / radiusX;
+  const normalizedY = (point.y - center.y) / radiusY;
+  const extremumTolerance = 0.000001;
+  if (Math.abs(Math.abs(normalizedX) - 1) <= extremumTolerance
+    && Math.abs(normalizedY) <= extremumTolerance) {
+    return normalizedX < 0 ? "left" : "right";
+  }
+  if (Math.abs(Math.abs(normalizedY) - 1) <= extremumTolerance
+    && Math.abs(normalizedX) <= extremumTolerance) {
+    return normalizedY < 0 ? "top" : "bottom";
+  }
+  return "oblique";
+}
+
+function ellipseTangentAngleDegrees(
+  point: PersonalVisualHarmonyPointV1,
+  center: PersonalVisualHarmonyPointV1,
+  radiusX: number,
+  radiusY: number,
+): number {
+  const gradientX = (point.x - center.x) / (radiusX * radiusX);
+  const gradientY = (point.y - center.y) / (radiusY * radiusY);
+  return normalizeUndirectedAngleDegrees(Math.atan2(gradientX, -gradientY) * (180 / Math.PI));
+}
+
+function normalizeUndirectedAngleDegrees(value: number): number {
+  const normalized = value % 180;
+  return canonicalNumber(normalized < 0 ? normalized + 180 : normalized);
+}
+
+function undirectedAngleDistanceDegrees(first: number, second: number): number {
+  const absolute = Math.abs(first - second) % 180;
+  return canonicalNumber(Math.min(absolute, 180 - absolute));
+}
+
+function ellipseContactLocationLabel(value: PersonalVisualHarmonyEllipseContactLocationV1): string {
+  return {
+    left: "gauche",
+    right: "droite",
+    top: "haut",
+    bottom: "bas",
+    oblique: "oblique",
+  }[value];
+}
+
+function stableStringCompare(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
+}
+
+function imagePlaneRelationPriority(
+  classification: PersonalVisualHarmonyImagePlaneRelationV1["classification"],
+): number {
+  return { near_tangent: 0, intersection: 1, proximity: 2 }[classification];
+}
+
 export function createPersonalVisualHarmonyOverlaySvgV1(input: {
   readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly result?: PersonalVisualHarmonyResultV1;
+  readonly imagePlaneGuideAnalysis?: PersonalVisualHarmonyImagePlaneRelationsV1;
   readonly selectedCandidateIds?: readonly string[];
 }): string {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
-  const selectedIds = new Set(input.result?.selectedCandidateIds ?? input.selectedCandidateIds ?? []);
+  const selectedIds = new Set([
+    ...(input.result?.selectedCandidateIds ?? input.selectedCandidateIds ?? []),
+    ...(input.imagePlaneGuideAnalysis?.confirmedVisualGuideCandidateIds ?? []),
+  ]);
   const palette = ["#f97316", "#0ea5e9", "#8b5cf6", "#10b981", "#e11d48", "#eab308"];
   const guides = input.result?.harmonicAnalysis.relationships
     .filter((relationship) => relationship.guide !== null)
@@ -380,13 +844,30 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       : `<line x1="0" y1="${numberAttr(1000 - position)}" x2="1000" y2="${numberAttr(1000 - position)}"/>`;
     return `<g pointer-events="none" stroke="#f8fafc" stroke-width="4" stroke-dasharray="18 12" stroke-opacity="0.92">${line}</g>`;
   }).join("");
+  const imagePlaneRelationMarkup = (input.imagePlaneGuideAnalysis?.relationships ?? [])
+    .slice(0, 5)
+    .map((relationship) => {
+      const fromX = relationship.ellipseContactPoint.x * 1000;
+      const fromY = relationship.ellipseContactPoint.y * 1000;
+      const toX = relationship.closestPointOnSupportingLine.x * 1000;
+      const toY = relationship.closestPointOnSupportingLine.y * 1000;
+      return [
+        `<g data-image-plane-relation-id="${escapeXml(relationship.relationshipId)}" pointer-events="none" stroke="#f8fafc" stroke-width="5" stroke-dasharray="12 10">`,
+        `<line x1="${numberAttr(fromX)}" y1="${numberAttr(fromY)}" x2="${numberAttr(toX)}" y2="${numberAttr(toY)}"/>`,
+        `<circle cx="${numberAttr(fromX)}" cy="${numberAttr(fromY)}" r="10" fill="#fb7a27" stroke="#020617" stroke-width="4"/>`,
+        `<circle cx="${numberAttr(toX)}" cy="${numberAttr(toY)}" r="10" fill="#4bd4ff" stroke="#020617" stroke-width="4"/>`,
+        "</g>",
+      ].join("");
+    })
+    .join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
-    : `NORMA CORE · ${String(input.result.explanations.length)} RELATION${input.result.explanations.length === 1 ? "" : "S"} DÉTECTÉE${input.result.explanations.length === 1 ? "" : "S"}`;
+    : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
   return [
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1000 1000\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"Norma visual harmony overlay\">",
     guideMarkup,
     candidateMarkup,
+    imagePlaneRelationMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -752,6 +1233,37 @@ function normalizeSelectedCandidateIds(
   ));
   if (nonRectangleSelection !== undefined) {
     throw new Error("Visual guides cannot enter Norma Core until a compatible deterministic mapping exists.");
+  }
+  return ordered;
+}
+
+function normalizeVisualGuideCandidateIds(
+  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+  confirmedVisualGuideCandidateIds: readonly string[],
+): readonly string[] {
+  if (!Array.isArray(confirmedVisualGuideCandidateIds)) {
+    throw new Error("Confirmed visual guide candidate ids must be an array.");
+  }
+  const confirmed = new Set<string>();
+  for (const candidateId of confirmedVisualGuideCandidateIds) {
+    if (typeof candidateId !== "string"
+      || !CANDIDATE_ID_PATTERN.test(candidateId)
+      || confirmed.has(candidateId)) {
+      throw new Error("Confirmed visual guide candidate ids must be unique prepared candidate ids.");
+    }
+    confirmed.add(candidateId);
+  }
+  const ordered = prepared.candidates
+    .filter((candidateValue) => confirmed.has(candidateValue.id))
+    .map(({ id }) => id);
+  if (ordered.length !== confirmed.size) {
+    throw new Error("Confirmed visual guide candidate id does not exist in the prepared review.");
+  }
+  const rectangleConfirmation = prepared.candidates.find((candidateValue) => (
+    confirmed.has(candidateValue.id) && primitiveKindFor(candidateValue) === "rectangle"
+  ));
+  if (rectangleConfirmation !== undefined) {
+    throw new Error("Core rectangles and visual guides require separate confirmation fields.");
   }
   return ordered;
 }

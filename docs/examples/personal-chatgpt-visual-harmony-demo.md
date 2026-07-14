@@ -4,9 +4,9 @@ Status: local personal-development proof only. This rail does not use Render, Au
 
 ## What the demo proves
 
-The user gives ChatGPT an image. ChatGPT proposes normalized rectangular candidates from its own visual understanding. Norma displays those candidates over the exact ChatGPT file, keeps Core stopped until a selection is submitted from the widget, maps the selected structured geometry into Core, and returns deterministic ratio matches plus a transparent overlay.
+The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, segments, axes, and axis-aligned ellipses. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. The widget returns the two proof families with separate canonical identities plus a transparent overlay.
 
-The server records the confirmation honestly as `client_asserted_widget_interaction`; it does not claim server-verified human presence. Candidates remain non-authoritative evidence until that selection. Norma never downloads or inspects the image bytes, and Core receives structured geometry only.
+The server records the confirmation honestly as `client_asserted_widget_interaction`; it does not claim server-verified human presence. Candidates remain non-authoritative evidence until that selection. Norma never downloads or inspects the image bytes, and Core receives structured geometry only. An image-plane guide relation is not a harmonic ratio, a physical-world measurement, or evidence of artistic intent.
 
 ## Local start
 
@@ -46,16 +46,63 @@ Stop the tunnel and server after the personal session. Rotate the capability for
 
 Attach an image, or start with `examples/personal-visual-harmony/golden-split-poster.png`, then ask:
 
-> Analyse cette image avec Norma. Observe-la toi-même et propose 2 à 6 rectangles significatifs en coordonnées normalisées. Montre-moi les candidats avant toute analyse Core. Pour l’affiche de démo, privilégie les deux grands panneaux verticaux. Je confirmerai ou retirerai les régions dans le widget. Ensuite seulement, explique les rapports proches de φ, des moitiés ou des tiers, sans jugement esthétique ni intention inférée.
+> Analyse cette image avec Norma. Propose d’abord les structures visuelles réellement construites : cadre et rectangles, segments/axes/diagonales, et contours elliptiques visibles. Évite les boîtes de personnes fondées seulement sur l’importance du sujet. Affiche les candidats dans le widget et attends ma confirmation avant toute mesure.
 
 Expected sequence:
 
-1. ChatGPT calls `norma.preparePersonalVisualHarmonyV1` with the attached file and its candidate rectangles.
-2. The widget retrieves the exact file through the ChatGPT file API, aligns the candidate overlay to its natural aspect ratio, and lets the user include or exclude candidates.
+1. ChatGPT calls `norma.preparePersonalVisualHarmonyV1` with the attached file and its typed construction candidates.
+2. The widget retrieves the exact file through the ChatGPT file API, aligns the candidate overlay to its natural aspect ratio, and lets the user include or exclude Core rectangles and image-plane guides independently. Family filters only control visibility.
 3. Clicking **Confirmer et analyser avec Norma Core** calls the app-only confirmation tool.
-4. Norma maps only the selected candidates, runs deterministic Core ratio analysis, and replaces the preview with the matched ratio labels, measured percentages, guides, and canonical result identity.
+4. Norma maps only selected rectangles into Core. In parallel it measures confirmed ellipse/line pairs against the infinite supporting line derived from the observed endpoints.
+5. For every ellipse/line pair, Norma solves actual intersections. Without an intersection it computes the exact support/contact point of the ellipse in the line-normal direction, rather than checking only the four cardinal extrema. It reports pixel gap, image-width-normalized gap, tangent angle delta, and whether the relation lies on the visible segment or only on its prolongation.
+6. The widget replaces the preview with Core ratio matches, separate image-plane relation cards, measured connectors, and both canonical identities.
 
 An honest empty result is valid: it means the confirmed geometry was not within the declared tolerance of any ratio in the active packs.
+
+## Composition grammar and roadmap
+
+Norma uses this authority chain:
+
+```text
+visual observation candidate
+-> human-confirmed image-plane geometry
+-> deterministic derived construction or measurement
+-> optional interpretation stated as a hypothesis
+```
+
+Image-plane and rectified-plane measurements must remain separate. A photograph
+can be measured in its final image plane. Claims about the physical geometry of
+architecture, design objects, or archaeological remains require explicit
+rectification or calibration.
+
+| Capability | Horizon | Deterministic treatment |
+| --- | --- | --- |
+| Rectangles, segments, axes, axis-aligned ellipses | Implemented | Typed candidates; separate human confirmation; rectangles alone enter the current Core mapper |
+| Ellipse/supporting-line relations | Implemented locally; live proof required | Exact intersections or ellipse support/contact point; fixed gap tolerance; visible-segment versus prolongation provenance |
+| Extended obliques and format diagonals | Next | Preserve the observed finite segment; derive and label the infinite support line and corner-to-corner references separately |
+| Junction angles | Next | Measure in pixel-scaled image coordinates and label as projected/image-plane values |
+| Quadrilaterals and trapezoids | Next | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
+| Triangles, medians, and bisectors | Next, opt-in | Derive only from accepted parent segments, vertices, triangles, or angles |
+| Rotated ellipses | Next | Add explicit rotation to the primitive contract before measuring tangent relations |
+| Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |
+| Repetition and rhythm | Later | First measure count, spacing, orientation, scale progression, alternation, and symmetry in a confirmed family; keep `rhythm` interpretive |
+| Movement, stability, emphasis, and artist intent | Human interpretation only | Reviewable hypotheses linked to facts, never deterministic Core output |
+
+More guides create more accidental coincidences. Ranking therefore favors
+human confirmation, visible support, rare relations such as tangency, low
+residual, on-segment contact, and declared uncertainty. Proximity to a harmonic
+constant is never sufficient evidence by itself.
+
+The current ellipse contract is intentionally axis-aligned. It solves the
+general contact point for any line direction, including an oblique tangent, but
+does not yet fit or measure a rotated ellipse.
+
+Product references: the Core V1 wiki already names guides, diagonals,
+intersections, and angle measurements; the vision plan names lines, corners,
+axes, perspective, vanishing points, diagonals, and alignments. Formal-analysis
+references additionally preserve direction, repetition, proportion, pattern,
+movement, rhythm, pyramidal structures, and corresponding diagonals as analysis
+vocabulary. These interpretive terms stay downstream from confirmed geometry.
 
 ## Verification
 

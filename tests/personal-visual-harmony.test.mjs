@@ -92,6 +92,74 @@ function mixedPrimitiveCandidates() {
   ];
 }
 
+function ellipseLineRelationCandidates() {
+  const obliqueLineSum = 1 + Math.sqrt(0.05);
+  return [
+    ...goldenCandidates(),
+    {
+      id: "ellipse",
+      label: "Ellipse de construction",
+      role: "structural-region",
+      reason: "Contour elliptique confirmé",
+      x: 0.3,
+      y: 0.4,
+      width: 0.4,
+      height: 0.2,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.2,
+        radiusY: 0.1,
+      },
+    },
+    {
+      id: "vertical-near-tangent",
+      label: "Montant vertical",
+      role: "structural-region",
+      reason: "Bord vertical confirmé près du contour droit",
+      x: 0.705,
+      y: 0.2,
+      width: 0,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.705, y: 0.2 },
+        end: { x: 0.705, y: 0.8 },
+      },
+    },
+    {
+      id: "oblique-tangent",
+      label: "Oblique tangente",
+      role: "structural-region",
+      reason: "Oblique confirmée au contact du contour",
+      x: 0.3,
+      y: obliqueLineSum - 0.9,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.3, y: obliqueLineSum - 0.3 },
+        end: { x: 0.9, y: obliqueLineSum - 0.9 },
+      },
+    },
+    {
+      id: "vertical-secant",
+      label: "Verticale sécante",
+      role: "structural-region",
+      reason: "Verticale confirmée traversant le contour",
+      x: 0.6,
+      y: 0.2,
+      width: 0,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.6, y: 0.2 },
+        end: { x: 0.6, y: 0.8 },
+      },
+    },
+  ];
+}
+
 function prepare(candidates = goldenCandidates()) {
   return preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-private-demo-123",
@@ -199,6 +267,211 @@ test("structural primitive guides render by kind but never enter rectangle-only 
     () => confirm(prepared, { selectedCandidateIds: ["major", "diagonal"] }),
     /Visual guides cannot enter Norma Core/u,
   );
+});
+
+test("confirmed ellipse and line guides produce deterministic image-plane tangency and intersection evidence", () => {
+  const prepared = prepare(ellipseLineRelationCandidates());
+  const confirmedVisualGuideCandidateIds = [
+    "ellipse",
+    "vertical-near-tangent",
+    "oblique-tangent",
+    "vertical-secant",
+  ];
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    sourcePixelHeight: 1000,
+  });
+  const analysis = confirmation.imagePlaneGuideAnalysis;
+
+  assert.equal(analysis.contractId, "norma.personal-visual-harmony-image-plane-relations@1");
+  assert.equal(analysis.candidateSetIdentity, prepared.candidateSetIdentity);
+  assert.equal(analysis.sourceImageReferenceIdentity, prepared.sourceImageReferenceIdentity);
+  assert.equal(analysis.imageBytesObservedByNorma, false);
+  assert.equal(analysis.sourceImageDimensionsObservedBy, "chatgpt_widget");
+  assert.equal(analysis.sourcePixelWidth, 1000);
+  assert.equal(analysis.sourcePixelHeight, 1000);
+  assert.equal(analysis.coordinateSpace, "image_plane_pixels_v1");
+  assert.equal(analysis.limits.axisAlignedEllipseOnly, true);
+  assert.deepEqual(analysis.confirmedVisualGuideCandidateIds, confirmedVisualGuideCandidateIds);
+  assert.match(analysis.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.equal(analysis.relationships.length, 3);
+
+  const vertical = analysis.relationships.find(({ lineCandidateId }) => (
+    lineCandidateId === "vertical-near-tangent"
+  ));
+  assert.ok(vertical);
+  assert.equal(vertical.classification, "near_tangent");
+  assert.equal(vertical.contactLocation, "right");
+  assert.equal(vertical.gapPixels, 5);
+  assert.equal(vertical.gapPercentOfImageWidth, 0.5);
+  assert.equal(vertical.centerToLineDistancePixels, 205);
+  assert.equal(vertical.ellipseSupportRadiusPixels, 200);
+  assert.equal(vertical.tangentAngleDeltaDegrees, 0);
+  assert.equal(vertical.supportingLineContactWithinObservedSegment, true);
+  assert.deepEqual(vertical.intersectionPoints, []);
+
+  const oblique = analysis.relationships.find(({ lineCandidateId }) => (
+    lineCandidateId === "oblique-tangent"
+  ));
+  assert.ok(oblique);
+  assert.equal(oblique.classification, "near_tangent");
+  assert.equal(oblique.contactLocation, "oblique");
+  assert.ok(oblique.gapPixels < 0.000001);
+  assert.ok(oblique.tangentAngleDeltaDegrees < 0.000001);
+  assert.equal(oblique.supportingLineContactWithinObservedSegment, true);
+  assert.equal(oblique.intersectionPoints.length, 1);
+
+  const secant = analysis.relationships.find(({ lineCandidateId }) => (
+    lineCandidateId === "vertical-secant"
+  ));
+  assert.ok(secant);
+  assert.equal(secant.classification, "intersection");
+  assert.equal(secant.gapPixels, 0);
+  assert.equal(secant.intersectionPoints.length, 2);
+  assert.equal(secant.supportingLineContactWithinObservedSegment, true);
+  assert.match(confirmation.overlaySvg, /data-image-plane-relation-id=/u);
+});
+
+test("guide confirmation is separate from Core identity and rejects rectangle or unknown guide ids", () => {
+  const prepared = prepare(ellipseLineRelationCandidates());
+  const withoutGuides = confirm(prepared, { sourcePixelHeight: 1000 });
+  const withGuides = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["ellipse", "vertical-near-tangent"],
+    sourcePixelHeight: 1000,
+  });
+
+  assert.equal(withoutGuides.result.contentIdentity, withGuides.result.contentIdentity);
+  assert.equal(
+    withoutGuides.acceptedGeometryContentIdentity,
+    withGuides.acceptedGeometryContentIdentity,
+  );
+  assert.notEqual(
+    withoutGuides.imagePlaneGuideAnalysis.contentIdentity,
+    withGuides.imagePlaneGuideAnalysis.contentIdentity,
+  );
+  assert.deepEqual(withoutGuides.imagePlaneGuideAnalysis.relationships, []);
+  assert.equal(withGuides.imagePlaneGuideAnalysis.relationships.length, 1);
+  assert.throws(
+    () => confirm(prepared, { confirmedVisualGuideCandidateIds: ["major"] }),
+    /separate confirmation fields/u,
+  );
+  assert.throws(
+    () => confirm(prepared, { confirmedVisualGuideCandidateIds: ["unknown-guide"] }),
+    /does not exist/u,
+  );
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["ellipse", "ellipse"],
+    }),
+    /must be unique/u,
+  );
+});
+
+test("ellipse-line evidence distinguishes the observed segment from its deterministic extension", () => {
+  const candidateValues = ellipseLineRelationCandidates().map((candidate) => {
+    if (candidate.id !== "vertical-near-tangent") return candidate;
+    return {
+      ...candidate,
+      y: 0.1,
+      height: 0.1,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.705, y: 0.1 },
+        end: { x: 0.705, y: 0.2 },
+      },
+    };
+  });
+  const prepared = prepare(candidateValues);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["ellipse", "vertical-near-tangent"],
+    sourcePixelHeight: 1000,
+  });
+  const relationship = confirmation.imagePlaneGuideAnalysis.relationships[0];
+
+  assert.ok(relationship);
+  assert.equal(relationship.classification, "near_tangent");
+  assert.equal(relationship.supportingLineContactWithinObservedSegment, false);
+  assert.match(relationship.explanation, /prolongement de sa droite support/u);
+});
+
+test("ellipse intersection classification is invariant to a very short observed line fragment", () => {
+  const candidateValues = ellipseLineRelationCandidates().map((candidate) => {
+    if (candidate.id !== "vertical-secant") return candidate;
+    return {
+      ...candidate,
+      y: 0.499999,
+      height: 0.000002,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.6, y: 0.499999 },
+        end: { x: 0.6, y: 0.500001 },
+      },
+    };
+  });
+  const prepared = prepare(candidateValues);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["ellipse", "vertical-secant"],
+    sourcePixelHeight: 1000,
+  });
+  const relationship = confirmation.imagePlaneGuideAnalysis.relationships[0];
+
+  assert.ok(relationship);
+  assert.equal(relationship.classification, "intersection");
+  assert.equal(relationship.intersectionPoints.length, 2);
+  assert.equal(relationship.supportingLineContactWithinObservedSegment, false);
+});
+
+test("ellipse-line relationship ids remain unique when candidate ids contain ambiguous separators", () => {
+  const ellipse = (id) => ({
+    id,
+    label: `Ellipse ${id}`,
+    role: "structural-region",
+    reason: "Contour elliptique confirmé pour le test d’identité",
+    x: 0.3,
+    y: 0.4,
+    width: 0.4,
+    height: 0.2,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+    },
+  });
+  const line = (id) => ({
+    id,
+    label: `Ligne ${id}`,
+    role: "structural-region",
+    reason: "Ligne confirmée pour le test d’identité",
+    x: 0.705,
+    y: 0.2,
+    width: 0,
+    height: 0.6,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.705, y: 0.2 },
+      end: { x: 0.705, y: 0.8 },
+    },
+  });
+  const prepared = prepare([
+    ...goldenCandidates(),
+    ellipse("a:b"),
+    ellipse("a"),
+    line("c"),
+    line("b:c"),
+  ]);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["a:b", "a", "c", "b:c"],
+    sourcePixelHeight: 1000,
+  });
+  const relationshipIds = confirmation.imagePlaneGuideAnalysis.relationships
+    .map(({ relationshipId }) => relationshipId);
+
+  assert.equal(relationshipIds.length, 4);
+  assert.equal(new Set(relationshipIds).size, 4);
+  assert.ok(relationshipIds.every((relationshipId) => (
+    /^relation:ellipse-supporting-line:[0-9a-f]{64}$/u.test(relationshipId)
+  )));
 });
 
 test("explicit confirmation creates AcceptedGeometry, maps it, and detects golden relationships", () => {
