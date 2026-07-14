@@ -263,6 +263,14 @@ test("invalid raster data and unbounded searches fail closed", () => {
     /integer from 1 to 6/u,
   );
   assert.throws(
+    () => refinePersonalVisualHarmonyPrimitivePixelsV1({ ...input, maxDisplacementPixels: null }),
+    /integer from 1 to 6/u,
+  );
+  const withoutBound = structuredClone(input);
+  delete withoutBound.maxDisplacementPixels;
+  const defaulted = refinePersonalVisualHarmonyPrimitivePixelsV1(withoutBound);
+  assert.equal(defaulted.displacementPixels.bound, 4);
+  assert.throws(
     () => refinePersonalVisualHarmonyPrimitivePixelsV1({
       ...input,
       raster: { ...input.raster, luminance: input.raster.luminance.slice(1) },

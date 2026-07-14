@@ -814,9 +814,12 @@ function requireExactFields(
   }
 }
 
-function validateDisplacementBound(value: number | undefined): number {
-  const bound = value ?? DEFAULT_MAX_DISPLACEMENT_PIXELS;
-  if (!Number.isInteger(bound) || bound < 1 || bound > MAX_MAX_DISPLACEMENT_PIXELS) {
+function validateDisplacementBound(value: unknown): number {
+  const bound = value === undefined ? DEFAULT_MAX_DISPLACEMENT_PIXELS : value;
+  if (typeof bound !== "number"
+    || !Number.isInteger(bound)
+    || bound < 1
+    || bound > MAX_MAX_DISPLACEMENT_PIXELS) {
     throw new Error(`maxDisplacementPixels must be an integer from 1 to ${MAX_MAX_DISPLACEMENT_PIXELS}.`);
   }
   return bound;
