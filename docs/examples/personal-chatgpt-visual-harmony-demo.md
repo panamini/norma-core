@@ -2,6 +2,28 @@
 
 Status: local personal-development proof only. This rail does not use Render, Auth0, a vision provider API, or a commercial deployment.
 
+## Current truth gate (2026-07-15)
+
+The geometry and hydration foundation is merged in PR221 (`6a061dbb`), the
+hydration/stale-payload protections are merged in PR222
+(`0774109d130599faa374c020c49c1f6666652803`), and the deterministic shadow
+pixel-refinement kernel is merged in PR223
+(`6299335ab467af0687d15973cde82ba254685680`). The kernel is intentionally
+not called by the widget or candidate-preparation path yet; it remains
+candidate evidence only.
+
+The exact-main local gate is green: the build, the focused personal visual
+harmony tests (39/39), the full repository suite (1608/1608), and the static
+widget harness all pass. A bounded ChatGPT audit also created a temporary
+private development app and reached the current app-management UI, but the
+submitted image prompt stayed in `Analyse de l’image en cours`, produced no
+request at the exact-main HTTP server, and never reached the widget,
+confirmation, or Core result. Therefore full live ChatGPT hydration/write
+proof is **UNVERIFIED**, not a live pass. The temporary app and tunnel were
+removed after the attempt; the original `parser.dasti.ai -> 127.0.0.1:8001`
+configuration and Docker health were restored. A later live smoke must repeat
+the same matrix before any claim that refinement improves the live overlay.
+
 ## What the demo proves
 
 The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, segments, axes, and axis-aligned ellipses. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. The widget returns the two proof families with separate canonical identities plus a transparent overlay.
