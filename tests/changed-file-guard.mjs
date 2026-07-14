@@ -182,7 +182,7 @@ export const privateDevChatGptMcpCompleteLiveProofChangedFiles = Object.freeze([
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
-export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
+export const personalChatGptVisualHarmonyDemoOriginalChangedFiles = Object.freeze([
   "bin/norma-core-personal-visual-harmony-mcp-http.mjs",
   "bin/norma-core-personal-visual-harmony-mcp-stdio.mjs",
   "docs/examples/personal-chatgpt-visual-harmony-demo.md",
@@ -208,6 +208,13 @@ export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-mcp.test.mjs",
   "tests/personal-visual-harmony.test.mjs",
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
+export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
+  ...personalChatGptVisualHarmonyDemoOriginalChangedFiles,
+  "src/personal-visual-harmony-pixel-refinement.ts",
+  "tests/fixtures/personal-visual-harmony-pixel-refinement/corpus-v1.json",
+  "tests/personal-visual-harmony-pixel-refinement.test.mjs",
 ].sort());
 
 export const personalVisualHarmonyImageHydrationChangedFiles = Object.freeze([
@@ -405,6 +412,13 @@ const semgrepCiGuardMaintenanceFiles = new Set([
 export const personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles =
   Object.freeze(
     personalChatGptVisualHarmonyDemoChangedFiles
+      .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
+      .sort(),
+  );
+
+export const personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles =
+  Object.freeze(
+    personalChatGptVisualHarmonyDemoOriginalChangedFiles
       .filter((file) => !semgrepCiGuardMaintenanceFiles.has(file))
       .sort(),
   );
@@ -1295,6 +1309,8 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyImageHydrationChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
+  personalChatGptVisualHarmonyDemoOriginalChangedFiles,
+  personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,

@@ -24,6 +24,8 @@ import {
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles,
+  personalChatGptVisualHarmonyDemoOriginalChangedFiles,
+  personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -152,6 +154,79 @@ test("shared exact changed-file guard accepts only the personal ChatGPT visual h
   ]) {
     assert.equal(sharedExactApprovedChangedFiles([...personalChatGptVisualHarmonyDemoChangedFiles, extra]), null);
   }
+});
+
+test("shared exact changed-file guard accepts only the 28-file personal ChatGPT visual harmony aggregate set", () => {
+  const expectedAggregate = [
+    ...personalChatGptVisualHarmonyDemoOriginalChangedFiles,
+    "src/personal-visual-harmony-pixel-refinement.ts",
+    "tests/fixtures/personal-visual-harmony-pixel-refinement/corpus-v1.json",
+    "tests/personal-visual-harmony-pixel-refinement.test.mjs",
+  ].sort();
+
+  assert.equal(personalChatGptVisualHarmonyDemoChangedFiles.length, 28);
+  assert.deepEqual(personalChatGptVisualHarmonyDemoChangedFiles, expectedAggregate);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoChangedFiles),
+    personalChatGptVisualHarmonyDemoChangedFiles,
+  );
+  for (const missingFile of personalChatGptVisualHarmonyDemoChangedFiles) {
+    const incompleteAggregate = personalChatGptVisualHarmonyDemoChangedFiles.filter(
+      (file) => file !== missingFile,
+    );
+    assert.equal(
+      isExactChangedFileSet(incompleteAggregate, personalChatGptVisualHarmonyDemoChangedFiles),
+      false,
+      missingFile,
+    );
+  }
+  assert.equal(
+    sharedExactApprovedChangedFiles(
+      personalChatGptVisualHarmonyDemoChangedFiles.filter(
+        (file) => file !== "src/harmonic-relationship-analysis.ts",
+      ),
+    ),
+    null,
+  );
+  for (const extra of [
+    "src/index.ts",
+    "src/mcp/remote-http-auth.ts",
+    "package.json",
+    ".github/workflows/ci.yml",
+    "wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalChatGptVisualHarmonyDemoChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard preserves the original personal ChatGPT visual harmony demo sets", () => {
+  assert.equal(personalChatGptVisualHarmonyDemoOriginalChangedFiles.length, 25);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoOriginalChangedFiles),
+    personalChatGptVisualHarmonyDemoOriginalChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoOriginalChangedFiles.slice(1)),
+    null,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles),
+    personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles([
+      ...personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
+      "tests/unrelated.test.mjs",
+    ]),
+    null,
+  );
 });
 
 test("shared exact changed-file guard accepts the semgrep-filtered personal ChatGPT visual harmony demo set exactly", () => {
