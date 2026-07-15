@@ -153,6 +153,8 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
       sessionId: widgetPayload.sessionId,
       candidateSetIdentity: widgetPayload.prepared.candidateSetIdentity,
       selectedCandidateIds: ["major", "minor"],
+      confirmedVisualGuideCandidateIds: ["oblique"],
+      constructionLayers: ["support-line-extensions", "format-diagonals"],
       sourcePixelWidth: 1_000,
       sourcePixelHeight: 618,
       confirmClientReviewedSelection: true,
@@ -166,6 +168,15 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   assert.equal(confirmed.structuredContent.status, "completed");
   assert.equal(confirmed.structuredContent.coreRun, true);
   assert.equal(confirmed.structuredContent.serverVerifiedHumanPresence, false);
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.supportLineExtensions.length,
+    1,
+  );
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.formatDiagonals.length,
+    2,
+  );
+  assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.coreRun, false);
   assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ major"));
   assert.match(confirmed.structuredContent.canonicalResultIdentity, /^sha256:[0-9a-f]{64}$/u);
 });
