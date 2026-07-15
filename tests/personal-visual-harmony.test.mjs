@@ -741,6 +741,14 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   };
   const prepared = prepare([...goldenCandidates(), ...triangleGuides], [request]);
   const confirmedVisualGuideCandidateIds = triangleGuides.map(({ id }) => id);
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: confirmedVisualGuideCandidateIds.slice(1),
+      constructionLayers: ["support-line-extensions", "triangles"],
+      sourcePixelHeight: 1000,
+    }),
+    /parents must remain explicitly confirmed visual guides/u,
+  );
   const baseline = confirm(prepared, { confirmedVisualGuideCandidateIds, sourcePixelHeight: 1000 });
   const enabled = confirm(prepared, {
     confirmedVisualGuideCandidateIds,

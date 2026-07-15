@@ -506,6 +506,11 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   const confirmedGuides = prepared.candidates.filter((candidate) => confirmed.has(candidate.id));
   const lines = confirmedGuides.flatMap(imagePlaneLineEvidenceForCandidate);
   const constructionLayers = input.constructionLayers ?? [];
+  validateTriangleConstructionConfirmation(
+    prepared.triangleConstructionRequests ?? [],
+    confirmedVisualGuideCandidateIds,
+    constructionLayers,
+  );
   const quadrilateralMeasurements = confirmedGuides.flatMap((candidate) => {
     const measurement = createQuadrilateralMeasurement(
       candidate,
@@ -1536,6 +1541,41 @@ function validateTriangleRequestCandidateReferences(
       for (const participant of vertex.parent.participants) {
         if (participant.kind === "support-line-extension") {
           requireObservedLineCandidate(participant.candidateId);
+        }
+      }
+    }
+  }
+}
+
+function validateTriangleConstructionConfirmation(
+  requests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
+  confirmedVisualGuideCandidateIds: readonly string[],
+  constructionLayers: readonly PersonalVisualHarmonyConstructionLayerV1[],
+): void {
+  if (!constructionLayers.includes("triangles")) return;
+  if (!constructionLayers.includes("support-line-extensions")) {
+    throw new Error("Triangles require the support-line extension layer.");
+  }
+  const confirmed = new Set(confirmedVisualGuideCandidateIds);
+  for (const request of requests) {
+    for (const vertex of request.vertices) {
+      if (vertex.parent.kind === "observed-line-endpoint") {
+        if (!confirmed.has(vertex.parent.candidateId)) {
+          throw new Error("Triangle observed endpoint parents must remain explicitly confirmed visual guides.");
+        }
+        continue;
+      }
+      if (!constructionLayers.includes("junction-angles")) {
+        throw new Error("Triangle junction parents require the junction-angle layer.");
+      }
+      for (const participant of vertex.parent.participants) {
+        if (participant.kind === "support-line-extension"
+          && !confirmed.has(participant.candidateId)) {
+          throw new Error("Triangle support-line parents must remain explicitly confirmed visual guides.");
+        }
+        if (participant.kind === "format-diagonal"
+          && !constructionLayers.includes("format-diagonals")) {
+          throw new Error("Triangle format-diagonal parents require the format-diagonal layer.");
         }
       }
     }

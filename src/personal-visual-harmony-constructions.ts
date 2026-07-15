@@ -1061,6 +1061,9 @@ export function constructPersonalVisualHarmonyTrianglesV1(input: {
       input.sourcePixelWidth,
       input.sourcePixelHeight,
     );
+    if (interiorAnglesDegrees.some((angle) => !Number.isFinite(angle) || angle <= 0 || angle >= 180)) {
+      throw new Error("Triangle is degenerate in pixel space.");
+    }
     const withoutIdentity = {
       kind: "triangle-construction" as const,
       requestId: request.requestId,

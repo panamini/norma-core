@@ -472,6 +472,10 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles"\]/u);
   assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
   assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
+  assert.match(
+    html,
+    /invalidateTriangleConstruction\(\);updateConstructionControls\(\);syncOverlaySelection\(\)/u,
+  );
 
   const layers = ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"];
   const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
@@ -492,6 +496,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     proposalCandidateSetIdentity: candidateSetIdentity,
     constructionLayers: new Set(),
     visibleConstructionLayers: new Set(),
+    selectedGuides: new Set(["line-a", "line-b"]),
     payload: { prepared },
   };
   let persisted = 0;
@@ -499,14 +504,29 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   let appToolCalls = 0;
   const triangleRequestDependencies = widgetScriptFunction(
     "triangleRequestDependencies",
-    "function triangleLayerReady",
+    "function triangleRequestParentGuideIds",
     { CONSTRUCTION_LAYERS: layers },
+  );
+  const triangleRequestParentGuideIds = widgetScriptFunction(
+    "triangleRequestParentGuideIds",
+    "function triangleLayerReady",
+    {},
   );
   const triangleLayerReady = widgetScriptFunction(
     "triangleLayerReady",
     "function storedConstructionGuideStateFor",
-    { state, triangleRequestDependencies, geometryChanged: () => false },
+    {
+      state,
+      triangleRequestDependencies,
+      triangleRequestParentGuideIds,
+      geometryChanged: () => false,
+    },
   );
+  const readyLayers = new Set(["support-line-extensions"]);
+  assert.equal(triangleLayerReady(prepared, readyLayers), true);
+  state.selectedGuides.delete("line-b");
+  assert.equal(triangleLayerReady(prepared, readyLayers), false);
+  state.selectedGuides.add("line-b");
   const toggleConstructionLayer = widgetScriptFunction(
     "toggleConstructionLayer",
     "function syncFamilyVisibility",
@@ -568,6 +588,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     {
       publicWidgetState: () => saved,
       storedConstructionGuideStateFor,
+      triangleLayerReady: () => true,
       state: restoreState,
       syncConstructionVisibility() {},
     },
@@ -2440,6 +2461,61 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
     assert.equal(missingParent.isError, true);
 
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const unconfirmedParent = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: [],
+        constructionLayers: [
+          "support-line-extensions",
+          "format-diagonals",
+          "junction-angles",
+          "triangles",
+        ],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput("file-triangle-construction", candidateValues),
+          triangleConstructionRequests: canonicalTriangleRequests,
+        },
+      },
+    });
+    assert.equal(unconfirmedParent.isError, true);
+    assert.match(
+      unconfirmedParent.content[0].text,
+      /parents must remain explicitly confirmed visual guides/u,
+    );
+
+    const missingConstructionDependency = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["diagonal"],
+        constructionLayers: [
+          "support-line-extensions",
+          "junction-angles",
+          "triangles",
+        ],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput("file-triangle-construction", candidateValues),
+          triangleConstructionRequests: canonicalTriangleRequests,
+        },
+      },
+    });
+    assert.equal(missingConstructionDependency.isError, true);
+    assert.match(
+      missingConstructionDependency.content[0].text,
+      /format-diagonal parents require the format-diagonal layer/u,
+    );
+
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {

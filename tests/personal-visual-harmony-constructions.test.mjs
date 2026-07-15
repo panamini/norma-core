@@ -532,6 +532,13 @@ test("duplicate, collinear, near-collinear, non-finite, out-of-bound, and stale 
     () => run(validVertices, observedLines.slice(1)),
     /missing or stale/u,
   );
+  assert.throws(
+    () => analyzeObservedTriangle(
+      [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 0.000001 }],
+      { sourcePixelWidth: 100_000, sourcePixelHeight: 1 },
+    ),
+    /degenerate in pixel space/u,
+  );
 });
 
 test("explicit junction parents build a triangle from support-line and format-diagonal constructions", () => {
