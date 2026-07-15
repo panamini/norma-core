@@ -31,6 +31,7 @@ import {
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
@@ -389,6 +390,41 @@ test("shared exact changed-file guard accepts only the junction-angle constructi
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyJunctionAnglesChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the triangle construction set", () => {
+  assert.equal(personalVisualHarmonyTriangleConstructionsChangedFiles.length, 17);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyTriangleConstructionsChangedFiles),
+    personalVisualHarmonyTriangleConstructionsChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyTriangleConstructionsChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyTriangleConstructionsChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of [
+    "src/index.ts",
+    "package.json",
+    "package-lock.json",
+    "tests/fixtures/personal-visual-harmony/user-image.png",
+    ".github/workflows/ci.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyTriangleConstructionsChangedFiles,
         extra,
       ]),
       null,

@@ -37,8 +37,10 @@ import {
 } from "./serialization.js";
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
+  normalizePersonalVisualHarmonyTriangleRequestsV1,
   type PersonalVisualHarmonyConstructionAnalysisV1,
   type PersonalVisualHarmonyConstructionLayerV1,
+  type PersonalVisualHarmonyTriangleRequestInputV1,
 } from "./personal-visual-harmony-constructions.js";
 
 export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
@@ -132,6 +134,7 @@ export interface PersonalVisualHarmonyPreparedCandidateSetV1 {
     readonly bounds: { readonly x: readonly [0, 1]; readonly y: readonly [0, 1] };
   };
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
   readonly candidateSetIdentity: string;
 }
 
@@ -307,10 +310,15 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
   readonly sourceImageMediaType?: string | null;
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): PersonalVisualHarmonyPreparedCandidateSetV1 {
   requireBoundedString(input.sourceFileId, "sourceFileId", 1, 2_048);
   const sourceImageMediaType = normalizeMediaType(input.sourceImageMediaType);
   const candidates = validateCandidates(input.candidates);
+  const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
+    input.triangleConstructionRequests ?? [],
+  );
+  validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
   const coordinateFrame = {
     dimensions: 2 as const,
     coordinateScale: "normalized" as const,
@@ -337,6 +345,7 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
     coreRun: false as const,
     coordinateFrame,
     candidates,
+    ...(triangleConstructionRequests.length === 0 ? {} : { triangleConstructionRequests }),
   };
   return {
     ...withoutIdentity,
@@ -551,6 +560,7 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
           start: line.start,
           end: line.end,
         })),
+      triangleRequests: prepared.triangleConstructionRequests ?? [],
     });
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID,
@@ -1263,6 +1273,28 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ].join("");
     })
     .join("");
+  const triangleMarkup = (input.imagePlaneGuideAnalysis?.constructionAnalysis?.triangles ?? [])
+    .map((triangle, triangleIndex) => {
+      const points = triangle.vertices
+        .map(({ point }) => `${numberAttr(point.x * 1000)},${numberAttr(point.y * 1000)}`)
+        .join(" ");
+      const vertices = triangle.vertices.map(({ point, parent }, vertexIndex) => {
+        const observedParent = parent.kind === "observed-line-endpoint";
+        const parentLabel = observedParent ? "O" : "J";
+        const fill = observedParent ? "#fb7185" : "#facc15";
+        return [
+          `<circle data-triangle-vertex="${String(vertexIndex)}" data-parent-kind="${parent.kind}" data-parent-provenance="${parent.provenance}" cx="${numberAttr(point.x * 1000)}" cy="${numberAttr(point.y * 1000)}" r="${observedParent ? "10" : "12"}" fill="${fill}" stroke="#020617" stroke-width="4"${observedParent ? "" : ` stroke-dasharray="5 3"`}/>`,
+          `<text x="${numberAttr((point.x * 1000) + 15)}" y="${numberAttr((point.y * 1000) - 15)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" fill="#fae8ff" stroke="#020617" stroke-width="4" paint-order="stroke">T${String(triangleIndex + 1)}.${parentLabel}${String(vertexIndex + 1)}</text>`,
+        ].join("");
+      }).join("");
+      return [
+        `<g data-triangle-construction-id="${escapeXml(triangle.triangleId)}" data-construction-layer="triangles" data-provenance="derived-construction" pointer-events="none"${enabledConstructionLayers.has("triangles") ? "" : ` style="display:none"`}>`,
+        `<polygon points="${points}" fill="#e879f9" fill-opacity="0.08" stroke="#e879f9" stroke-width="5" stroke-dasharray="18 9" stroke-linejoin="round"/>`,
+        vertices,
+        "</g>",
+      ].join("");
+    })
+    .join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1273,6 +1305,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     candidateMarkup,
     imagePlaneRelationMarkup,
     junctionAngleMarkup,
+    triangleMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -1438,7 +1471,15 @@ function validatePreparedCandidateSet(
     throw new Error("Prepared visual harmony candidate set is invalid.");
   }
   const candidates = validateCandidates(prepared.candidates);
-  const expected = prepareCandidateIdentityProjection(prepared, candidates);
+  const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
+    prepared.triangleConstructionRequests ?? [],
+  );
+  validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
+  const expected = prepareCandidateIdentityProjection(
+    prepared,
+    candidates,
+    triangleConstructionRequests,
+  );
   if (contentIdentityFor(expected) !== prepared.candidateSetIdentity) {
     throw new Error("Prepared visual harmony candidate set identity is invalid.");
   }
@@ -1448,6 +1489,7 @@ function validatePreparedCandidateSet(
 function prepareCandidateIdentityProjection(
   prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
 ) {
   return {
     contractId: prepared.contractId,
@@ -1463,7 +1505,41 @@ function prepareCandidateIdentityProjection(
     coreRun: prepared.coreRun,
     coordinateFrame: prepared.coordinateFrame,
     candidates,
+    ...(triangleConstructionRequests.length === 0 ? {} : { triangleConstructionRequests }),
   };
+}
+
+function validateTriangleRequestCandidateReferences(
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  requests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
+): void {
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const requireObservedLineCandidate = (candidateId: string) => {
+    const candidate = candidatesById.get(candidateId);
+    const primitive = candidate?.primitive;
+    if (primitive?.kind !== "segment" && primitive?.kind !== "axis") {
+      throw new Error("Triangle observed parent must reference a prepared segment or axis candidate.");
+    }
+    return { candidate, primitive };
+  };
+  for (const request of requests) {
+    for (const vertex of request.vertices) {
+      if (vertex.parent.kind === "observed-line-endpoint") {
+        const { primitive } = requireObservedLineCandidate(vertex.parent.candidateId);
+        const point = primitive[vertex.parent.endpoint];
+        if (Math.abs(point.x - vertex.point.x) > 1e-9
+          || Math.abs(point.y - vertex.point.y) > 1e-9) {
+          throw new Error("Triangle observed endpoint point must match its prepared candidate parent.");
+        }
+        continue;
+      }
+      for (const participant of vertex.parent.participants) {
+        if (participant.kind === "support-line-extension") {
+          requireObservedLineCandidate(participant.candidateId);
+        }
+      }
+    }
+  }
 }
 
 function validateCandidates(
