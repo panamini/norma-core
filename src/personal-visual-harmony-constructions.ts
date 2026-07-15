@@ -495,6 +495,9 @@ function normalizeTriangleVertexParentInput(
     === triangleParticipantReferenceKey(participants[1]!)) {
     throw new Error(`${field} requires two distinct junction participants.`);
   }
+  if (participants.every(({ kind }) => kind === "frame-edge")) {
+    throw new Error(`${field} does not support a junction made only from frame edges.`);
+  }
   return {
     kind: "junction-intersection",
     participants: [participants[0]!, participants[1]!] as const,

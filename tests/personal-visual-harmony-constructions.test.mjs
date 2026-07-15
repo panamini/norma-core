@@ -493,6 +493,23 @@ test("duplicate, collinear, near-collinear, non-finite, out-of-bound, and stale 
     /distinct stable parent references/u,
   );
   assert.throws(
+    () => run([
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+            { kind: "frame-edge", frameEdgeIndex: 3 },
+          ],
+        },
+      },
+      validVertices[1],
+      validVertices[2],
+    ]),
+    /does not support a junction made only from frame edges/u,
+  );
+  assert.throws(
     () => run(observedTriangleRequest("collinear", [
       { candidateId: "negative-line-0", point: { x: 0.2, y: 0.2 } },
       { candidateId: "negative-line-1", point: { x: 0.5, y: 0.5 } },
