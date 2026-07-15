@@ -746,6 +746,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
   const attributes = new Map();
   const shape = {
     setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
   };
   const group = {
     querySelector(selector) {
@@ -788,6 +789,104 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
     rx: "200",
     ry: "100",
   });
+});
+
+test("widget preserves rotated ellipse rendering and excludes it from axis-aligned pixel refinement", () => {
+  const attributes = new Map();
+  const shape = {
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
+  };
+  const rotated = {
+    id: "rotated",
+    label: "Ellipse orientée",
+    x: 0.3,
+    y: 0.35,
+    width: 0.4,
+    height: 0.3,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 30,
+    },
+  };
+  const state = {
+    reviewedCandidates: [rotated],
+    pixelRefinementProposals: new Map(),
+    adoptedPixelRefinements: new Map(),
+  };
+  const syncOverlayGeometry = widgetScriptFunction(
+    "syncOverlayGeometry",
+    "function syncOverlaySelection",
+    {
+      state,
+      overlay: { querySelector: () => ({
+        querySelector: (selector) => selector === "[data-candidate-shape]" ? shape : null,
+      }) },
+      primitiveKind: (item) => item.primitive.kind,
+      CSS: { escape: (value) => value },
+      syncPixelProposalOverlay: () => {},
+      syncConstructionVisibility: () => {},
+      supportingLineEndpoints: () => null,
+    },
+  );
+  syncOverlayGeometry();
+  assert.equal(attributes.get("transform"), "rotate(30 500 500)");
+  assert.equal(attributes.get("data-ellipse-orientation-degrees"), "30");
+
+  const pixelRefinementCandidateSnapshot = widgetScriptFunction(
+    "pixelRefinementCandidateSnapshot",
+    "function reconcileStoredPixelAdoptions",
+    {
+      state,
+      primitiveKind: (item) => item.primitive?.kind ?? "rectangle",
+      samePixelProposalPrimitive: () => false,
+      candidateWithPrimitive: (item) => item,
+      clonePrimitive: structuredClone,
+    },
+  );
+  assert.deepEqual(pixelRefinementCandidateSnapshot(), []);
+
+  const ellipseEnvelope = (primitive) => {
+    const radians = primitive.rotationDegrees * Math.PI / 180;
+    const halfWidth = Math.hypot(primitive.radiusX * Math.cos(radians),
+      primitive.radiusY * Math.sin(radians));
+    const halfHeight = Math.hypot(primitive.radiusX * Math.sin(radians),
+      primitive.radiusY * Math.cos(radians));
+    return {
+      x: primitive.center.x - halfWidth,
+      y: primitive.center.y - halfHeight,
+      width: halfWidth * 2,
+      height: halfHeight * 2,
+    };
+  };
+  const envelope = ellipseEnvelope(rotated.primitive);
+  const reviewed = {
+    id: rotated.id,
+    ...envelope,
+    primitive: rotated.primitive,
+  };
+  const validGeometryPatch = widgetScriptFunction(
+    "validGeometryPatch",
+    "function reviewedCandidatesFor",
+    {
+      primitiveKind: (item) => item.primitive?.kind ?? "rectangle",
+      validPoint: (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
+      pointEnvelope: () => null,
+      envelopeMatches: (value, expected) => ["x", "y", "width", "height"]
+        .every((field) => Math.abs(value[field] - expected[field]) <= 0.000001),
+      validQuadrilateralVertices: () => false,
+      ellipseEnvelope,
+    },
+  );
+  assert.equal(validGeometryPatch(reviewed, rotated), true);
+  assert.equal(validGeometryPatch({
+    ...reviewed,
+    ...ellipseEnvelope({ ...reviewed.primitive, rotationDegrees: 31 }),
+    primitive: { ...reviewed.primitive, rotationDegrees: 31 },
+  }, rotated), false);
 });
 
 test("widget blocks geometry edits while pixel proposals are in flight", () => {
@@ -1586,7 +1685,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     ]) {
       assert.ok(quadrilateralOutput.required.includes(field));
     }
-    assert.equal(imagePlaneOutput.properties.limits.properties.axisAlignedEllipseOnly.const, true);
+    const imagePlaneLimitsSchema = JSON.stringify(imagePlaneOutput.properties.limits);
+    assert.match(imagePlaneLimitsSchema, /axisAlignedEllipseOnly/u);
+    assert.match(imagePlaneLimitsSchema, /explicit_normalized_image_plane_rotation/u);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
     assert.match(prepareTool.description, /major diagonals/u);
@@ -1609,7 +1710,13 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const quadrilateralInput = primitiveAlternatives.find(
       (alternative) => alternative.properties?.kind?.const === "quadrilateral",
     );
+    const ellipseInput = primitiveAlternatives.find(
+      (alternative) => alternative.properties?.kind?.const === "ellipse",
+    );
     assert.ok(quadrilateralInput);
+    assert.ok(ellipseInput);
+    assert.equal(ellipseInput.properties.rotationDegrees.type, "number");
+    assert.match(ellipseInput.properties.rotationDegrees.description, /normalized image-plane degrees/u);
     const quadrilateralVerticesInput = quadrilateralInput.properties.vertices;
     assert.equal(quadrilateralVerticesInput.type, "array");
     assert.equal(quadrilateralVerticesInput.minItems, 4);
@@ -1716,6 +1823,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /id="familyFilters"/u);
     assert.match(resource.contents[0].text, /visibleKinds:new Set\(\["rectangle","quadrilateral","segment","axis","ellipse"\]\)/u);
     assert.match(resource.contents[0].text, /function syncFamilyVisibility\(\)/u);
+    assert.match(resource.contents[0].text,
+      /\.construction-controls\{grid-template-columns:minmax\(0,1fr\)\}/u);
+    assert.match(resource.contents[0].text, /\.shell,\.header,\.content,\.visual,\.side,\.flow,\.construction-controls\{width:100%/u);
     assert.match(resource.contents[0].text, /primitiveKind\(item\)==="rectangle"/u);
     assert.match(resource.contents[0].text, /confirmedVisualGuideCandidateIds/u);
     assert.match(resource.contents[0].text, /N’attribue jamais un ratio du Core aux guides/u);
@@ -2678,6 +2788,77 @@ test("prepare canonically derives ellipse bounds from its measured center and ra
       { x: 0.25, y: 0.15, width: 0.5, height: 0.7 },
     );
     assert.equal(first.structuredContent.candidateSetIdentity, second.structuredContent.candidateSetIdentity);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("MCP canonicalizes, renders, and measures an explicitly rotated ellipse without changing Core authority", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-15T12:00:00.000Z"),
+    createSessionId: () => "session:rotated-ellipse",
+  }));
+  try {
+    const candidates = mixedPrimitiveCandidates().map((candidate) => candidate.id === "main-ellipse"
+      ? {
+        ...candidate,
+        primitive: {
+          kind: "ellipse",
+          center: { x: 0.5, y: 0.5 },
+          radiusX: 0.1,
+          radiusY: 0.25,
+          rotationDegrees: -60,
+        },
+      }
+      : candidate);
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates,
+      },
+    });
+    assert.equal(prepared.isError, undefined);
+    const ellipse = prepared.structuredContent.candidates.find(({ id }) => id === "main-ellipse");
+    assert.deepEqual(ellipse.primitive, {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.25,
+      radiusY: 0.1,
+      rotationDegrees: 30,
+    });
+    assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-ellipse-orientation-degrees="30"/u);
+    assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg,
+      /transform="rotate\(30 500 500\)"/u);
+
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["central-axis", "main-ellipse"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidates),
+      },
+    });
+    assert.equal(confirmed.isError, undefined);
+    assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
+    assert.deepEqual(confirmed.structuredContent.confirmedVisualGuideCandidateIds,
+      ["central-axis", "main-ellipse"]);
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.limits.rotatedEllipseSupport,
+      "explicit_normalized_image_plane_rotation");
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships.length, 1);
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships[0].classification,
+      "intersection");
   } finally {
     await connected.close();
   }
