@@ -1908,10 +1908,42 @@ function validateCandidatePrimitive(
       radiusY: canonicalNumber(value.radiusY),
     };
   }
-  if (!Number.isFinite(value.rotationDegrees)
-    || value.radiusX <= 1e-9
-    || value.radiusY <= 1e-9) {
+  const canonical = canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    kind: "ellipse",
+    center,
+    radiusX: value.radiusX,
+    radiusY: value.radiusY,
+    rotationDegrees: value.rotationDegrees,
+  });
+  if (canonical === null) {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must use finite non-degenerate geometry.`);
+  }
+  const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(canonical);
+  if (canonical.center.x - halfWidth < -1e-12
+    || canonical.center.y - halfHeight < -1e-12
+    || canonical.center.x + halfWidth > 1 + 1e-12
+    || canonical.center.y + halfHeight > 1 + 1e-12) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must remain inside the image.`);
+  }
+  return canonical;
+}
+
+/**
+ * Canonicalizes an explicitly oriented ellipse without assigning it source or
+ * Core authority. This package-private module export is shared by deterministic
+ * image-plane consumers; it is intentionally absent from the package root.
+ */
+export function canonicalizePersonalVisualHarmonyRotatedEllipseV1(
+  value: Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }> & {
+    readonly rotationDegrees: number;
+  },
+): Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }> | null {
+  if (value === null || typeof value !== "object"
+    || !Number.isFinite(value.center?.x) || !Number.isFinite(value.center?.y)
+    || !Number.isFinite(value.radiusX) || !Number.isFinite(value.radiusY)
+    || !Number.isFinite(value.rotationDegrees)
+    || value.radiusX <= 1e-9 || value.radiusY <= 1e-9) {
+    return null;
   }
   let radiusX = canonicalNumber(value.radiusX);
   let radiusY = canonicalNumber(value.radiusY);
@@ -1924,21 +1956,16 @@ function validateCandidatePrimitive(
     [radiusX, radiusY] = [radiusY, radiusX];
     rotationDegrees = normalizeEllipseRotationDegrees(rotationDegrees + 90);
   }
-  const canonical = {
-    kind: "ellipse" as const,
-    center,
+  return {
+    kind: "ellipse",
+    center: {
+      x: canonicalNumber(value.center.x),
+      y: canonicalNumber(value.center.y),
+    },
     radiusX,
     radiusY,
     ...(rotationDegrees === 0 ? {} : { rotationDegrees }),
   };
-  const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(canonical);
-  if (canonical.center.x - halfWidth < -1e-12
-    || canonical.center.y - halfHeight < -1e-12
-    || canonical.center.x + halfWidth > 1 + 1e-12
-    || canonical.center.y + halfHeight > 1 + 1e-12) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must remain inside the image.`);
-  }
-  return canonical;
 }
 
 function normalizeEllipseRotationDegrees(value: number): number {

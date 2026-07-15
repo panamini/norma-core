@@ -149,6 +149,189 @@
       "expectedStatus": "abstained",
       "expectedReason": "ambiguous_edge_support",
       "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-full-perimeter",
+      "description": "A strongly supported rotated ellipse whose center, axes, and orientation are all locally offset.",
+      "raster": { "width": 80, "height": 60, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 40, "y": 30 },
+          "radiusX": 20,
+          "radiusY": 10,
+          "rotationDegrees": 32
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 39, "y": 31 },
+        "radiusX": 19,
+        "radiusY": 9,
+        "rotationDegrees": 30
+      },
+      "expectedGeometry": {
+        "kind": "ellipse",
+        "center": { "x": 40, "y": 30 },
+        "radiusX": 20,
+        "radiusY": 10,
+        "rotationDegrees": 32
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-nearby-line",
+      "description": "A rotated ellipse with a nearby vertical line that retains separate contextual edge evidence.",
+      "raster": { "width": 80, "height": 60, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 40, "y": 30 },
+          "radiusX": 20,
+          "radiusY": 10,
+          "rotationDegrees": 32
+        },
+        {
+          "kind": "segment",
+          "luminance": 0.55,
+          "width": 1,
+          "start": { "x": 58, "y": 8 },
+          "end": { "x": 58, "y": 52 }
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 39, "y": 31 },
+        "radiusX": 19,
+        "radiusY": 9,
+        "rotationDegrees": 30
+      },
+      "expectedGeometry": {
+        "kind": "ellipse",
+        "center": { "x": 40, "y": 30 },
+        "radiusX": 20,
+        "radiusY": 10,
+        "rotationDegrees": 32
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-partially-occluded",
+      "description": "A rotated ellipse with one perimeter sector occluded but enough visible arcs for bounded refinement.",
+      "raster": { "width": 80, "height": 60, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 40, "y": 30 },
+          "radiusX": 20,
+          "radiusY": 10,
+          "rotationDegrees": 32
+        },
+        {
+          "kind": "filled-quadrilateral",
+          "luminance": 0.07,
+          "vertices": [
+            { "x": 41, "y": 8 },
+            { "x": 79, "y": 8 },
+            { "x": 79, "y": 29 },
+            { "x": 41, "y": 29 }
+          ]
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 39, "y": 31 },
+        "radiusX": 19,
+        "radiusY": 9,
+        "rotationDegrees": 30
+      },
+      "expectedGeometry": {
+        "kind": "ellipse",
+        "center": { "x": 40, "y": 30 },
+        "radiusX": 20,
+        "radiusY": 10,
+        "rotationDegrees": 32
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-near-circle",
+      "description": "A near-circle with strong perimeter evidence whose weak orientation must be preserved.",
+      "raster": { "width": 80, "height": 60, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 40, "y": 30 },
+          "radiusX": 18,
+          "radiusY": 17.5,
+          "rotationDegrees": 40
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 39, "y": 31 },
+        "radiusX": 17,
+        "radiusY": 16.5,
+        "rotationDegrees": 40
+      },
+      "expectedGeometry": {
+        "kind": "ellipse",
+        "center": { "x": 40, "y": 30 },
+        "radiusX": 18,
+        "radiusY": 17.5,
+        "rotationDegrees": 40
+      },
+      "expectedStatus": "refined",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-weak-negative",
+      "description": "A rotated ellipse over a uniform raster with no defensible visible-arc evidence.",
+      "raster": { "width": 80, "height": 60, "background": 0.5 },
+      "shapes": [],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 40, "y": 30 },
+        "radiusX": 20,
+        "radiusY": 10,
+        "rotationDegrees": 32
+      },
+      "expectedGeometry": null,
+      "expectedStatus": "abstained",
+      "expectedReason": "weak_edge_support",
+      "maxDisplacementPixels": 4
+    },
+    {
+      "id": "rotated-ellipse-competing-orientations",
+      "description": "Circular perimeter evidence gives a slightly eccentric proposal multiple indistinguishable orientations.",
+      "raster": { "width": 80, "height": 60, "background": 0.07 },
+      "shapes": [
+        {
+          "kind": "filled-ellipse",
+          "luminance": 0.93,
+          "center": { "x": 40, "y": 30 },
+          "radiusX": 17.5,
+          "radiusY": 17.5
+        }
+      ],
+      "primitive": {
+        "kind": "ellipse",
+        "center": { "x": 39, "y": 30 },
+        "radiusX": 18,
+        "radiusY": 16.9,
+        "rotationDegrees": 40
+      },
+      "expectedGeometry": null,
+      "expectedStatus": "abstained",
+      "expectedReason": "ambiguous_edge_support",
+      "maxDisplacementPixels": 4
     }
   ]
 }

@@ -3,6 +3,7 @@ import type {
   PersonalVisualHarmonyPointV1,
   PersonalVisualHarmonyPrimitiveV1,
 } from "./personal-visual-harmony.js";
+import { canonicalizePersonalVisualHarmonyRotatedEllipseV1 } from "./personal-visual-harmony.js";
 import {
   DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
   serializeCanonicalJson,
@@ -65,7 +66,32 @@ export interface PersonalVisualHarmonyPixelRefinementResultV1 {
   };
   readonly reason: PersonalVisualHarmonyPixelRefinementReasonV1;
   readonly diagnostics: readonly PersonalVisualHarmonyPixelRefinementDiagnosticV1[];
+  readonly rotatedEllipseSearch?: PersonalVisualHarmonyRotatedEllipsePixelSearchV1;
   readonly contentIdentity: string;
+}
+
+export interface PersonalVisualHarmonyRotatedEllipsePixelSearchV1 {
+  readonly maximumEvaluations: 205;
+  readonly evaluatedCandidates: number;
+  readonly centerWindowPixels: number;
+  readonly semiAxisWindowPixels: number;
+  readonly orientationWindowDegrees: 4;
+  readonly orientationStepDegrees: 1;
+  readonly eccentricity: number;
+  readonly visibleArcShare: number;
+  readonly orientationAmbiguityMargin: number;
+  readonly orientationPolicy:
+    | "refined"
+    | "unchanged"
+    | "preserved_near_circle"
+    | "ambiguous_abstention";
+  readonly parameterDeltas: {
+    readonly centerX: number;
+    readonly centerY: number;
+    readonly radiusX: number;
+    readonly radiusY: number;
+    readonly rotationDegrees: number;
+  };
 }
 
 export type PersonalVisualHarmonyPixelCropPlanV1 =
@@ -324,6 +350,7 @@ export function refinePersonalVisualHarmonyCandidatePixelCropV1(input: {
 interface ScoredGeometry<TGeometry extends PersonalVisualHarmonyPixelRefinementPrimitiveV1> {
   readonly geometry: TGeometry;
   readonly support: number;
+  readonly selectionScore: number;
   readonly maximumDisplacement: number;
   readonly meanDisplacement: number;
   readonly key: string;
@@ -338,6 +365,7 @@ interface RefinementDecision<TGeometry extends PersonalVisualHarmonyPixelRefinem
   readonly maximumDisplacement: number;
   readonly meanDisplacement: number;
   readonly reason: PersonalVisualHarmonyPixelRefinementReasonV1;
+  readonly rotatedEllipseSearch?: PersonalVisualHarmonyRotatedEllipsePixelSearchV1;
 }
 
 type LinePrimitive = Extract<
@@ -369,6 +397,12 @@ const MIN_EDGE_SUPPORT_GAIN = 0.025;
 const MIN_AMBIGUITY_MARGIN = 0.0005;
 const MATERIAL_AMBIGUITY_SEPARATION_PIXELS = 2.5;
 const ELLIPSE_DISPLACEMENT_SAMPLE_COUNT = 256;
+const ROTATED_ELLIPSE_ORIENTATION_DELTAS_DEGREES = Object.freeze([-4, -3, -2, -1, 0, 1, 2, 3, 4]);
+const ROTATED_ELLIPSE_MAX_EVALUATIONS = 205 as const;
+const ROTATED_ELLIPSE_MIN_VISIBLE_ARC_SHARE = 0.3;
+const ROTATED_ELLIPSE_VISIBLE_CONTRAST = 0.12;
+const ROTATED_ELLIPSE_NEAR_CIRCLE_ECCENTRICITY = 0.05;
+const ROTATED_ELLIPSE_MOVEMENT_PENALTY = 0.0025;
 const EPSILON = 1e-9;
 
 /**
@@ -424,6 +458,9 @@ export function refinePersonalVisualHarmonyPrimitivePixelsV1(input: {
     },
     reason: decision.reason,
     diagnostics: Object.freeze([diagnostic]),
+    ...(decision.rotatedEllipseSearch === undefined
+      ? {}
+      : { rotatedEllipseSearch: decision.rotatedEllipseSearch }),
   };
 
   return {
@@ -570,6 +607,21 @@ function refineEllipse(
   primitive: EllipsePrimitive,
   displacementBound: number,
 ): RefinementDecision<EllipsePrimitive> {
+  if (primitive.rotationDegrees !== undefined) {
+    return refineRotatedEllipse(
+      raster,
+      { ...primitive, rotationDegrees: primitive.rotationDegrees },
+      displacementBound,
+    );
+  }
+  return refineAxisAlignedEllipse(raster, primitive, displacementBound);
+}
+
+function refineAxisAlignedEllipse(
+  raster: PersonalVisualHarmonyLuminanceRasterV1,
+  primitive: EllipsePrimitive,
+  displacementBound: number,
+): RefinementDecision<EllipsePrimitive> {
   const searchDelta = Math.min(displacementBound, 3);
   const scored: ScoredGeometry<EllipsePrimitive>[] = [];
   for (let dx = -searchDelta; dx <= searchDelta; dx += 1) {
@@ -599,6 +651,191 @@ function refineEllipse(
   }
   scored.sort(compareScoredGeometry);
   return decideFromCandidates(scored, primitive, ellipseEdgeSupport(raster, primitive));
+}
+
+function refineRotatedEllipse(
+  raster: PersonalVisualHarmonyLuminanceRasterV1,
+  primitive: EllipsePrimitive & { readonly rotationDegrees: number },
+  displacementBound: number,
+): RefinementDecision<EllipsePrimitive> {
+  // The fixed coordinate-descent stages attempt at most
+  // 49 center + 49 axes + 9 orientation + 49 center + 49 axes candidates.
+  const searchDelta = Math.min(displacementBound, 3);
+  const eccentricity = (primitive.radiusX - primitive.radiusY) / primitive.radiusX;
+  const preserveOrientation = eccentricity < ROTATED_ELLIPSE_NEAR_CIRCLE_ECCENTRICITY;
+  let evaluatedCandidates = 0;
+
+  const evaluate = (candidate: EllipsePrimitive | null): ScoredGeometry<EllipsePrimitive> | null => {
+    if (candidate === null || evaluatedCandidates >= ROTATED_ELLIPSE_MAX_EVALUATIONS
+      || (preserveOrientation && candidate.rotationDegrees !== primitive.rotationDegrees)
+      || candidate.radiusX <= 1 || candidate.radiusY <= 1 || !ellipseInsideRaster(candidate, raster)) {
+      return null;
+    }
+    const displacement = ellipseDisplacement(primitive, candidate);
+    if (displacement.maximum > displacementBound + EPSILON) return null;
+    evaluatedCandidates += 1;
+    const evidence = rotatedEllipseEdgeEvidence(raster, candidate);
+    const movementPenalty = ROTATED_ELLIPSE_MOVEMENT_PENALTY
+      * displacement.mean / Math.max(1, displacementBound);
+    const selectionScore = evidence.support * (0.6 + 0.4 * evidence.visibleArcShare)
+      - movementPenalty;
+    return scoredGeometry(candidate, evidence.support, displacement, selectionScore);
+  };
+  const centerStage = (base: EllipsePrimitive): readonly ScoredGeometry<EllipsePrimitive>[] => {
+    const candidates: ScoredGeometry<EllipsePrimitive>[] = [];
+    for (let dx = -searchDelta; dx <= searchDelta; dx += 1) {
+      for (let dy = -searchDelta; dy <= searchDelta; dy += 1) {
+        const scored = evaluate(canonicalRotatedEllipse({
+          ...base,
+          center: { x: base.center.x + dx, y: base.center.y + dy },
+        }));
+        if (scored !== null) candidates.push(scored);
+      }
+    }
+    return candidates.sort(compareScoredGeometry);
+  };
+  const semiAxisStage = (base: EllipsePrimitive): readonly ScoredGeometry<EllipsePrimitive>[] => {
+    const candidates: ScoredGeometry<EllipsePrimitive>[] = [];
+    for (let radiusXDelta = -searchDelta; radiusXDelta <= searchDelta; radiusXDelta += 1) {
+      for (let radiusYDelta = -searchDelta; radiusYDelta <= searchDelta; radiusYDelta += 1) {
+        const scored = evaluate(canonicalRotatedEllipse({
+          ...base,
+          radiusX: base.radiusX + radiusXDelta,
+          radiusY: base.radiusY + radiusYDelta,
+        }));
+        if (scored !== null) candidates.push(scored);
+      }
+    }
+    return candidates.sort(compareScoredGeometry);
+  };
+  const bestGeometry = (
+    candidates: readonly ScoredGeometry<EllipsePrimitive>[],
+    fallback: EllipsePrimitive,
+  ): EllipsePrimitive => candidates[0]?.geometry ?? fallback;
+
+  let current: EllipsePrimitive = primitive;
+  current = bestGeometry(centerStage(current), current);
+  current = bestGeometry(semiAxisStage(current), current);
+
+  let orientationAmbiguityMargin = 1;
+  let ambiguousOrientation = false;
+  if (!preserveOrientation) {
+    const orientationCandidates: ScoredGeometry<EllipsePrimitive>[] = [];
+    const baseRotation = current.rotationDegrees ?? 0;
+    for (const rotationDelta of ROTATED_ELLIPSE_ORIENTATION_DELTAS_DEGREES) {
+      const scored = evaluate(canonicalRotatedEllipse({
+        ...current,
+        rotationDegrees: baseRotation + rotationDelta,
+      }));
+      if (scored !== null) orientationCandidates.push(scored);
+    }
+    orientationCandidates.sort(compareScoredGeometry);
+    const bestOrientation = orientationCandidates[0];
+    if (bestOrientation !== undefined) {
+      current = bestOrientation.geometry;
+      const competingOrientation = orientationCandidates.find((candidate) => (
+        undirectedAngleSeparationDegrees(
+          candidate.geometry.rotationDegrees ?? 0,
+          bestOrientation.geometry.rotationDegrees ?? 0,
+        ) >= 3
+      ));
+      orientationAmbiguityMargin = Math.max(
+        0,
+        bestOrientation.selectionScore - (competingOrientation?.selectionScore ?? 0),
+      );
+      ambiguousOrientation = competingOrientation !== undefined
+        && orientationAmbiguityMargin < MIN_AMBIGUITY_MARGIN;
+    }
+  }
+
+  current = bestGeometry(centerStage(current), current);
+  const finalCandidates = semiAxisStage(current);
+  current = bestGeometry(finalCandidates, current);
+
+  const originalEvidence = rotatedEllipseEdgeEvidence(raster, primitive);
+  const proposedEvidence = rotatedEllipseEdgeEvidence(raster, current);
+  const competingShape = finalCandidates.find((candidate) => (
+    geometrySeparation(current, candidate.geometry) >= MATERIAL_AMBIGUITY_SEPARATION_PIXELS
+  ));
+  const shapeAmbiguityMargin = Math.max(
+    0,
+    proposedEvidence.support - (competingShape?.support ?? 0),
+  );
+  const ambiguityMargin = preserveOrientation
+    ? shapeAmbiguityMargin
+    : Math.min(shapeAmbiguityMargin, orientationAmbiguityMargin);
+  let decision: RefinementDecision<EllipsePrimitive>;
+  if (proposedEvidence.visibleArcShare < ROTATED_ELLIPSE_MIN_VISIBLE_ARC_SHARE) {
+    decision = abstainedDecision(originalEvidence.support, "weak_edge_support");
+  } else if (ambiguousOrientation) {
+    decision = {
+      status: "abstained",
+      geometry: null,
+      originalSupport: originalEvidence.support,
+      proposedSupport: proposedEvidence.support,
+      ambiguityMargin: orientationAmbiguityMargin,
+      maximumDisplacement: 0,
+      meanDisplacement: 0,
+      reason: "ambiguous_edge_support",
+    };
+  } else {
+    decision = decideSingleProposal(
+      primitive,
+      current,
+      originalEvidence.support,
+      proposedEvidence.support,
+      ambiguityMargin,
+      ellipseDisplacement(primitive, current),
+    );
+  }
+
+  const proposed = decision.geometry;
+  const rotationDelta = proposed === null
+    ? 0
+    : signedUndirectedAngleDeltaDegrees(
+        proposed.rotationDegrees ?? 0,
+        primitive.rotationDegrees,
+      );
+  const orientationPolicy = decision.reason === "ambiguous_edge_support" && ambiguousOrientation
+    ? "ambiguous_abstention" as const
+    : preserveOrientation
+      ? "preserved_near_circle" as const
+      : proposed !== null && Math.abs(rotationDelta) > EPSILON
+        ? "refined" as const
+        : "unchanged" as const;
+  return {
+    ...decision,
+    rotatedEllipseSearch: {
+      maximumEvaluations: ROTATED_ELLIPSE_MAX_EVALUATIONS,
+      evaluatedCandidates,
+      centerWindowPixels: searchDelta,
+      semiAxisWindowPixels: searchDelta,
+      orientationWindowDegrees: 4,
+      orientationStepDegrees: 1,
+      eccentricity: canonicalNumber(eccentricity),
+      visibleArcShare: canonicalNumber(proposedEvidence.visibleArcShare),
+      orientationAmbiguityMargin: canonicalNumber(orientationAmbiguityMargin),
+      orientationPolicy,
+      parameterDeltas: {
+        centerX: canonicalNumber(proposed === null ? 0 : proposed.center.x - primitive.center.x),
+        centerY: canonicalNumber(proposed === null ? 0 : proposed.center.y - primitive.center.y),
+        radiusX: canonicalNumber(proposed === null ? 0 : proposed.radiusX - primitive.radiusX),
+        radiusY: canonicalNumber(proposed === null ? 0 : proposed.radiusY - primitive.radiusY),
+        rotationDegrees: canonicalNumber(rotationDelta),
+      },
+    },
+  };
+}
+
+function canonicalRotatedEllipse(ellipse: EllipsePrimitive): EllipsePrimitive | null {
+  const rotationDegrees = ellipse.rotationDegrees ?? 0;
+  return canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    kind: "ellipse",
+    center: ellipse.center,
+    radiusX: ellipse.radiusX,
+    radiusY: ellipse.radiusY,
+    rotationDegrees,
+  });
 }
 
 function decideFromCandidates<TGeometry extends PersonalVisualHarmonyPixelRefinementPrimitiveV1>(
@@ -695,10 +932,12 @@ function scoredGeometry<TGeometry extends PersonalVisualHarmonyPixelRefinementPr
   geometry: TGeometry,
   support: number,
   displacement: { readonly maximum: number; readonly mean: number },
+  selectionScore = support,
 ): ScoredGeometry<TGeometry> {
   return {
     geometry,
     support,
+    selectionScore,
     maximumDisplacement: displacement.maximum,
     meanDisplacement: displacement.mean,
     key: geometryKey(geometry),
@@ -709,7 +948,7 @@ function compareScoredGeometry(
   first: ScoredGeometry<PersonalVisualHarmonyPixelRefinementPrimitiveV1>,
   second: ScoredGeometry<PersonalVisualHarmonyPixelRefinementPrimitiveV1>,
 ): number {
-  return second.support - first.support
+  return second.selectionScore - first.selectionScore
     || first.maximumDisplacement - second.maximumDisplacement
     || compareStrings(first.key, second.key);
 }
@@ -758,6 +997,9 @@ function ellipseEdgeSupport(
   raster: PersonalVisualHarmonyLuminanceRasterV1,
   ellipse: EllipsePrimitive,
 ): number {
+  if (ellipse.rotationDegrees !== undefined) {
+    return rotatedEllipseEdgeEvidence(raster, ellipse).support;
+  }
   const sampleCount = 128;
   let total = 0;
   let observed = 0;
@@ -781,6 +1023,50 @@ function ellipseEdgeSupport(
     }
   }
   return observed === 0 ? 0 : total / observed;
+}
+
+function rotatedEllipseEdgeEvidence(
+  raster: PersonalVisualHarmonyLuminanceRasterV1,
+  ellipse: EllipsePrimitive,
+): { readonly support: number; readonly visibleArcShare: number } {
+  const sampleCount = 128;
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const rotationCos = Math.cos(rotationRadians);
+  const rotationSin = Math.sin(rotationRadians);
+  let total = 0;
+  let observed = 0;
+  let visible = 0;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const angle = 2 * Math.PI * index / sampleCount;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const localX = ellipse.radiusX * cos;
+    const localY = ellipse.radiusY * sin;
+    const point = {
+      x: ellipse.center.x + rotationCos * localX - rotationSin * localY,
+      y: ellipse.center.y + rotationSin * localX + rotationCos * localY,
+    };
+    const localNormalX = cos / ellipse.radiusX;
+    const localNormalY = sin / ellipse.radiusY;
+    const rotatedNormal = {
+      x: rotationCos * localNormalX - rotationSin * localNormalY,
+      y: rotationSin * localNormalX + rotationCos * localNormalY,
+    };
+    const normalLength = Math.hypot(rotatedNormal.x, rotatedNormal.y);
+    const contrast = contrastAcrossNormal(raster, point, {
+      x: rotatedNormal.x / normalLength,
+      y: rotatedNormal.y / normalLength,
+    });
+    if (contrast !== null) {
+      total += contrast;
+      observed += 1;
+      if (contrast >= ROTATED_ELLIPSE_VISIBLE_CONTRAST) visible += 1;
+    }
+  }
+  return {
+    support: observed === 0 ? 0 : total / observed,
+    visibleArcShare: observed === 0 ? 0 : visible / observed,
+  };
 }
 
 function contrastAcrossNormal(
@@ -889,6 +1175,9 @@ function ellipseDisplacement(
   original: EllipsePrimitive,
   proposed: EllipsePrimitive,
 ): { readonly maximum: number; readonly mean: number } {
+  if (original.rotationDegrees !== undefined || proposed.rotationDegrees !== undefined) {
+    return rotatedEllipseDisplacement(original, proposed);
+  }
   const centerDeltaX = proposed.center.x - original.center.x;
   const centerDeltaY = proposed.center.y - original.center.y;
   const radiusDeltaX = proposed.radiusX - original.radiusX;
@@ -910,6 +1199,60 @@ function ellipseDisplacement(
   return {
     maximum: conservativeMaximum,
     mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+  };
+}
+
+function rotatedEllipseDisplacement(
+  original: EllipsePrimitive,
+  proposed: EllipsePrimitive,
+): { readonly maximum: number; readonly mean: number } {
+  const originalMatrix = ellipseParameterMatrix(original);
+  const proposedMatrix = ellipseParameterMatrix(proposed);
+  const deltaMatrix = {
+    xx: proposedMatrix.xx - originalMatrix.xx,
+    xy: proposedMatrix.xy - originalMatrix.xy,
+    yx: proposedMatrix.yx - originalMatrix.yx,
+    yy: proposedMatrix.yy - originalMatrix.yy,
+  };
+  const centerDeltaX = proposed.center.x - original.center.x;
+  const centerDeltaY = proposed.center.y - original.center.y;
+  const values: number[] = [];
+  for (let index = 0; index < ELLIPSE_DISPLACEMENT_SAMPLE_COUNT; index += 1) {
+    const angle = 2 * Math.PI * index / ELLIPSE_DISPLACEMENT_SAMPLE_COUNT;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    values.push(Math.hypot(
+      centerDeltaX + deltaMatrix.xx * cos + deltaMatrix.xy * sin,
+      centerDeltaY + deltaMatrix.yx * cos + deltaMatrix.yy * sin,
+    ));
+  }
+  const derivativeBound = Math.hypot(
+    deltaMatrix.xx,
+    deltaMatrix.xy,
+    deltaMatrix.yx,
+    deltaMatrix.yy,
+  );
+  return {
+    maximum: Math.max(...values)
+      + derivativeBound * Math.PI / ELLIPSE_DISPLACEMENT_SAMPLE_COUNT,
+    mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+  };
+}
+
+function ellipseParameterMatrix(ellipse: EllipsePrimitive): {
+  readonly xx: number;
+  readonly xy: number;
+  readonly yx: number;
+  readonly yy: number;
+} {
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  return {
+    xx: ellipse.radiusX * cos,
+    xy: -ellipse.radiusY * sin,
+    yx: ellipse.radiusX * sin,
+    yy: ellipse.radiusY * cos,
   };
 }
 
@@ -939,10 +1282,32 @@ function ellipseInsideRaster(
   ellipse: EllipsePrimitive,
   raster: PersonalVisualHarmonyLuminanceRasterV1,
 ): boolean {
+  if (ellipse.rotationDegrees !== undefined) {
+    const rotationRadians = ellipse.rotationDegrees * Math.PI / 180;
+    const cos = Math.cos(rotationRadians);
+    const sin = Math.sin(rotationRadians);
+    const halfWidth = Math.hypot(ellipse.radiusX * cos, ellipse.radiusY * sin);
+    const halfHeight = Math.hypot(ellipse.radiusX * sin, ellipse.radiusY * cos);
+    return ellipse.center.x - halfWidth >= CONTRAST_SAMPLE_OFFSET_PIXELS
+      && ellipse.center.y - halfHeight >= CONTRAST_SAMPLE_OFFSET_PIXELS
+      && ellipse.center.x + halfWidth <= raster.width - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS
+      && ellipse.center.y + halfHeight <= raster.height - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS;
+  }
   return ellipse.center.x - ellipse.radiusX >= CONTRAST_SAMPLE_OFFSET_PIXELS
     && ellipse.center.y - ellipse.radiusY >= CONTRAST_SAMPLE_OFFSET_PIXELS
     && ellipse.center.x + ellipse.radiusX <= raster.width - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS
     && ellipse.center.y + ellipse.radiusY <= raster.height - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS;
+}
+
+function undirectedAngleSeparationDegrees(first: number, second: number): number {
+  return Math.abs(signedUndirectedAngleDeltaDegrees(first, second));
+}
+
+function signedUndirectedAngleDeltaDegrees(value: number, reference: number): number {
+  let delta = (value - reference) % 180;
+  if (delta < -90) delta += 180;
+  if (delta >= 90) delta -= 180;
+  return delta;
 }
 
 function pointInsideRaster(
@@ -1315,11 +1680,20 @@ function validatePrimitive(
   if (primitive.kind !== "ellipse") {
     throw new Error("Pixel refinement requires a supported primitive kind.");
   }
-  requireExactFields(primitive, ["center", "kind", "radiusX", "radiusY"], "Ellipse primitives");
+  const ellipseFields = primitive.rotationDegrees === undefined
+    ? ["center", "kind", "radiusX", "radiusY"]
+    : ["center", "kind", "radiusX", "radiusY", "rotationDegrees"];
+  requireExactFields(primitive, ellipseFields, "Ellipse primitives");
   validatePoint(primitive.center, raster);
   if (!Number.isFinite(primitive.radiusX) || !Number.isFinite(primitive.radiusY)
     || primitive.radiusX <= 1 || primitive.radiusY <= 1) {
     throw new Error("Ellipse radii must be finite and greater than 1 pixel.");
+  }
+  if (primitive.rotationDegrees !== undefined) {
+    const canonical = canonicalRotatedEllipse(primitive);
+    if (canonical === null || geometryKey(canonical) !== geometryKey(primitive)) {
+      throw new Error("Rotated ellipse pixel refinement requires canonical finite geometry.");
+    }
   }
   if (!ellipseInsideRaster(primitive, raster)) {
     throw new Error("Ellipse perimeter and contrast samples must stay within the raster.");
@@ -1399,6 +1773,9 @@ function clonePrimitive<TPrimitive extends PersonalVisualHarmonyPixelRefinementP
     center: { ...primitive.center },
     radiusX: primitive.radiusX,
     radiusY: primitive.radiusY,
+    ...(primitive.rotationDegrees === undefined
+      ? {}
+      : { rotationDegrees: primitive.rotationDegrees }),
   } as TPrimitive;
 }
 

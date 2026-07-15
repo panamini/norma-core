@@ -31,6 +31,7 @@ import {
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
@@ -425,6 +426,48 @@ test("shared exact changed-file guard accepts only the rotated ellipse set", () 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyRotatedEllipsesChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("shared exact changed-file guard accepts only the rotated ellipse pixel kernel set", () => {
+  assert.equal(personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles.length, 13);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(
+      personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
+    ),
+    personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles) {
+    const approvedSubset = sharedExactApprovedChangedFiles(
+      personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles
+        .filter((file) => file !== missingFile),
+    );
+    if (missingFile === "src/personal-visual-harmony.ts") {
+      assert.deepEqual(approvedSubset, personalVisualHarmonyPixelRefinementShadowChangedFiles);
+    } else {
+      assert.equal(
+        approvedSubset,
+        null,
+        missingFile,
+      );
+    }
+  }
+  for (const extra of [
+    "src/index.ts",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "package.json",
+    "package-lock.json",
+    "tests/fixtures/personal-visual-harmony/user-image.png",
+    ".github/workflows/ci.yml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
         extra,
       ]),
       null,
@@ -2780,6 +2823,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonyRotatedEllipsesChangedFiles,
   );
+  const isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
+  );
   const isPersonalVisualHarmonySet = isExactChangedFileSet(
     changedFiles,
     personalChatGptVisualHarmonyDemoChangedFiles,
@@ -2820,7 +2867,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2830,6 +2877,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     sharedExactApprovedChangedFiles(changedFiles),
     isPersonalVisualHarmonyTruthSyncSet
       ? personalVisualHarmonyTruthSyncChangedFiles
+      : isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet
+      ? personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles
       : isPersonalVisualHarmonyRotatedEllipsesSet
       ? personalVisualHarmonyRotatedEllipsesChangedFiles
       : isPersonalVisualHarmonyJunctionAnglesSet

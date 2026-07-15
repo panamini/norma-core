@@ -11,6 +11,7 @@ import {
   refinePersonalVisualHarmonyCandidatePixelCropV1,
   refinePersonalVisualHarmonyPrimitivePixelsV1,
 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
+import { canonicalizePersonalVisualHarmonyRotatedEllipseV1 } from "../dist/src/personal-visual-harmony.js";
 import * as packageRoot from "../dist/src/index.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +30,12 @@ test("synthetic corpus contains the required bounded regression scenarios", () =
       "ellipse-with-nearby-line",
       "weak-ambiguous-negative",
       "two-equally-supported-edges",
+      "rotated-ellipse-full-perimeter",
+      "rotated-ellipse-nearby-line",
+      "rotated-ellipse-partially-occluded",
+      "rotated-ellipse-near-circle",
+      "rotated-ellipse-weak-negative",
+      "rotated-ellipse-competing-orientations",
     ],
   );
   assert.equal(corpus.cases.every((fixture) => fixture.raster.width * fixture.raster.height <= 4_800), true);
@@ -66,11 +73,112 @@ test("positive annotations deterministically improve pixel error without gaining
   }
 });
 
+test("rotated ellipse search is bounded, arc-aware, and preserves weak near-circle orientation", () => {
+  const full = refinementResult("rotated-ellipse-full-perimeter");
+  assert.deepEqual(full.proposedGeometry, {
+    kind: "ellipse",
+    center: { x: 40, y: 30 },
+    radiusX: 20,
+    radiusY: 10,
+    rotationDegrees: 32,
+  });
+  assert.equal(full.rotatedEllipseSearch.maximumEvaluations, 205);
+  assert.ok(full.rotatedEllipseSearch.evaluatedCandidates <= 205);
+  assert.equal(full.rotatedEllipseSearch.centerWindowPixels, 3);
+  assert.equal(full.rotatedEllipseSearch.semiAxisWindowPixels, 3);
+  assert.equal(full.rotatedEllipseSearch.orientationWindowDegrees, 4);
+  assert.equal(full.rotatedEllipseSearch.orientationStepDegrees, 1);
+  assert.equal(full.rotatedEllipseSearch.orientationPolicy, "refined");
+  assert.deepEqual(full.rotatedEllipseSearch.parameterDeltas, {
+    centerX: 1,
+    centerY: -1,
+    radiusX: 1,
+    radiusY: 1,
+    rotationDegrees: 2,
+  });
+  assert.ok(denseEllipseMaximumDisplacement(full.originalGeometry, full.proposedGeometry) <= 4 + 1e-9);
+
+  const partial = refinementResult("rotated-ellipse-partially-occluded");
+  assert.equal(partial.status, "refined");
+  assert.ok(partial.rotatedEllipseSearch.visibleArcShare >= 0.3);
+  assert.ok(partial.rotatedEllipseSearch.visibleArcShare < 1);
+
+  const nearCircle = refinementResult("rotated-ellipse-near-circle");
+  assert.equal(nearCircle.status, "refined");
+  assert.equal(nearCircle.rotatedEllipseSearch.orientationPolicy, "preserved_near_circle");
+  assert.equal(nearCircle.rotatedEllipseSearch.parameterDeltas.rotationDegrees, 0);
+  assert.equal(nearCircle.proposedGeometry.rotationDegrees, 40);
+});
+
+test("rotated ellipse refinement abstains on weak and competing orientation evidence", () => {
+  const weak = refinementResult("rotated-ellipse-weak-negative");
+  assert.equal(weak.status, "abstained");
+  assert.equal(weak.reason, "weak_edge_support");
+  assert.equal(weak.proposedGeometry, null);
+  assert.equal(weak.rotatedEllipseSearch.visibleArcShare, 0);
+
+  const competing = refinementResult("rotated-ellipse-competing-orientations");
+  assert.equal(competing.status, "abstained");
+  assert.equal(competing.reason, "ambiguous_edge_support");
+  assert.equal(competing.proposedGeometry, null);
+  assert.equal(competing.rotatedEllipseSearch.orientationPolicy, "ambiguous_abstention");
+  assert.ok(competing.rotatedEllipseSearch.orientationAmbiguityMargin < 0.0005);
+  assert.equal(competing.displacementPixels.maximum, 0);
+  assert.equal(competing.sourceTruth, false);
+  assert.equal(competing.coreRun, false);
+});
+
+test("rotated ellipse canonicalization is equivalent under angle wrapping and axis swaps", () => {
+  const expected = {
+    kind: "ellipse",
+    center: { x: 40, y: 30 },
+    radiusX: 20,
+    radiusY: 10,
+    rotationDegrees: 32,
+  };
+  assert.deepEqual(canonicalizePersonalVisualHarmonyRotatedEllipseV1(expected), expected);
+  assert.deepEqual(canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    ...expected,
+    rotationDegrees: 212,
+  }), expected);
+  assert.deepEqual(canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    ...expected,
+    radiusX: 10,
+    radiusY: 20,
+    rotationDegrees: -58,
+  }), expected);
+  assert.deepEqual(canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    ...expected,
+    radiusX: 12,
+    radiusY: 12,
+    rotationDegrees: 77,
+  }), {
+    kind: "ellipse",
+    center: { x: 40, y: 30 },
+    radiusX: 12,
+    radiusY: 12,
+  });
+});
+
+test("legacy axis-aligned ellipse refinement keeps its established identities and bytes", () => {
+  const result = refinementResult("ellipse-with-nearby-line");
+  assert.equal(
+    result.rasterContentIdentity,
+    "sha256:f64d65619d7b4cf897cfca842703fe3ed1194ddd3ec15d9f70d55b63215e3fb3",
+  );
+  assert.equal(
+    result.contentIdentity,
+    "sha256:62fe4b2d3f8d245e08c914b67c908aee9479bf35dbb2ff980e3b5e108a668828",
+  );
+  assert.equal(result.rotatedEllipseSearch, undefined);
+});
+
 test("shadow refiner is not exported from the public package root", () => {
   assert.equal("refinePersonalVisualHarmonyPrimitivePixelsV1" in packageRoot, false);
   assert.equal("PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_CONTRACT_ID" in packageRoot, false);
   assert.equal("refinePersonalVisualHarmonyCandidatePixelCropV1" in packageRoot, false);
   assert.equal("createPersonalVisualHarmonyPixelCropPlanV1" in packageRoot, false);
+  assert.equal("canonicalizePersonalVisualHarmonyRotatedEllipseV1" in packageRoot, false);
 });
 
 test("bounded crop integration deterministically keeps original and proposed geometry separate", () => {
@@ -339,11 +447,20 @@ test("malformed quadrilaterals and primitive authority extras fail closed", () =
     { kind: "axis", start: { x: 8, y: 10 }, end: { x: 8, y: 44 }, sourceTruth: true },
     { ...fixture.primitive, sourceTruth: true },
     { ...ellipseFixture.primitive, sourceTruth: true },
-    { ...ellipseFixture.primitive, rotationDegrees: 30 },
   ]) {
     assert.throws(
       () => refinePersonalVisualHarmonyPrimitivePixelsV1({ raster, primitive }),
       /must use exact fields/u,
+    );
+  }
+  for (const primitive of [
+    { ...ellipseFixture.primitive, rotationDegrees: 210 },
+    { ...ellipseFixture.primitive, radiusX: 11, radiusY: 16, rotationDegrees: 30 },
+    { ...ellipseFixture.primitive, rotationDegrees: Number.NaN },
+  ]) {
+    assert.throws(
+      () => refinePersonalVisualHarmonyPrimitivePixelsV1({ raster, primitive }),
+      /requires canonical finite geometry/u,
     );
   }
   assert.throws(
@@ -521,6 +638,12 @@ function refinementInput(fixture) {
   };
 }
 
+function refinementResult(id) {
+  const fixture = corpus.cases.find((entry) => entry.id === id);
+  assert.ok(fixture, id);
+  return refinePersonalVisualHarmonyPrimitivePixelsV1(refinementInput(fixture));
+}
+
 function normalizePrimitive(primitive, width, height) {
   const xExtent = width;
   const yExtent = height;
@@ -536,6 +659,9 @@ function normalizePrimitive(primitive, width, height) {
     center: point(primitive.center),
     radiusX: primitive.radiusX / xExtent,
     radiusY: primitive.radiusY / yExtent,
+    ...(primitive.rotationDegrees === undefined
+      ? {}
+      : { rotationDegrees: primitive.rotationDegrees }),
   };
 }
 
@@ -571,10 +697,15 @@ function renderRaster(fixture) {
         }
       }
     } else if (shape.kind === "filled-ellipse") {
+      const rotationRadians = (shape.rotationDegrees ?? 0) * Math.PI / 180;
+      const cos = Math.cos(rotationRadians);
+      const sin = Math.sin(rotationRadians);
       for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
-          const normalizedX = (x + 0.5 - shape.center.x) / shape.radiusX;
-          const normalizedY = (y + 0.5 - shape.center.y) / shape.radiusY;
+          const dx = x + 0.5 - shape.center.x;
+          const dy = y + 0.5 - shape.center.y;
+          const normalizedX = (cos * dx + sin * dy) / shape.radiusX;
+          const normalizedY = (-sin * dx + cos * dy) / shape.radiusY;
           if (normalizedX * normalizedX + normalizedY * normalizedY <= 1) {
             luminance[y * width + x] = shape.luminance;
           }
@@ -599,20 +730,24 @@ function denseEllipseMaximumDisplacement(original, proposed) {
   let maximum = 0;
   for (let index = 0; index < 4096; index += 1) {
     const angle = 2 * Math.PI * index / 4096;
-    const originalPoint = {
-      x: original.center.x + original.radiusX * Math.cos(angle),
-      y: original.center.y + original.radiusY * Math.sin(angle),
-    };
-    const proposedPoint = {
-      x: proposed.center.x + proposed.radiusX * Math.cos(angle),
-      y: proposed.center.y + proposed.radiusY * Math.sin(angle),
-    };
+    const originalPoint = ellipsePoint(original, angle);
+    const proposedPoint = ellipsePoint(proposed, angle);
     maximum = Math.max(maximum, Math.hypot(
       proposedPoint.x - originalPoint.x,
       proposedPoint.y - originalPoint.y,
     ));
   }
   return maximum;
+}
+
+function ellipsePoint(ellipse, angle) {
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const localX = ellipse.radiusX * Math.cos(angle);
+  const localY = ellipse.radiusY * Math.sin(angle);
+  return {
+    x: ellipse.center.x + localX * Math.cos(rotationRadians) - localY * Math.sin(rotationRadians),
+    y: ellipse.center.y + localX * Math.sin(rotationRadians) + localY * Math.cos(rotationRadians),
+  };
 }
 
 function pointInPolygon(point, vertices) {
@@ -649,11 +784,14 @@ function geometryError(actual, expected) {
     ) / 4;
   }
   if (actual.kind === "ellipse") {
-    return (
-      Math.hypot(actual.center.x - expected.center.x, actual.center.y - expected.center.y)
-      + Math.abs(actual.radiusX - expected.radiusX)
-      + Math.abs(actual.radiusY - expected.radiusY)
-    ) / 3;
+    let total = 0;
+    const samples = 720;
+    for (let index = 0; index < samples; index += 1) {
+      const actualPoint = ellipsePoint(actual, 2 * Math.PI * index / samples);
+      const expectedPoint = ellipsePoint(expected, 2 * Math.PI * index / samples);
+      total += Math.hypot(actualPoint.x - expectedPoint.x, actualPoint.y - expectedPoint.y);
+    }
+    return total / samples;
   }
   return lineError(actual, expected);
 }
