@@ -11,7 +11,11 @@ import {
   refinePersonalVisualHarmonyCandidatePixelCropV1,
   refinePersonalVisualHarmonyPrimitivePixelsV1,
 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
-import { canonicalizePersonalVisualHarmonyRotatedEllipseV1 } from "../dist/src/personal-visual-harmony.js";
+import {
+  canonicalizePersonalVisualHarmonyRotatedEllipseV1,
+  confirmPersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyCandidateSetV1,
+} from "../dist/src/personal-visual-harmony.js";
 import * as packageRoot from "../dist/src/index.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -262,6 +266,152 @@ test("bounded crop integration deterministically keeps original and proposed geo
   assert.match(first.kernelContentIdentity, /^sha256:[0-9a-f]{64}$/u);
 });
 
+test("rotated ellipse crop integration preserves affine geometry and returns bounded shadow evidence", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "rotated-ellipse-full-perimeter");
+  assert.ok(fixture);
+  const sourceRaster = renderRaster(fixture);
+  const originalGeometry = ellipseAfterAxisScaleForTest(
+    fixture.primitive,
+    1 / fixture.raster.width,
+    1 / fixture.raster.height,
+    {
+      x: fixture.primitive.center.x / fixture.raster.width,
+      y: fixture.primitive.center.y / fixture.raster.height,
+    },
+  );
+  const expectedGeometry = ellipseAfterAxisScaleForTest(
+    fixture.expectedGeometry,
+    1 / fixture.raster.width,
+    1 / fixture.raster.height,
+    {
+      x: fixture.expectedGeometry.center.x / fixture.raster.width,
+      y: fixture.expectedGeometry.center.y / fixture.raster.height,
+    },
+  );
+  const base = {
+    candidateSetIdentity: `sha256:${"f".repeat(64)}`,
+    candidateId: "rotated-ellipse",
+    primitive: originalGeometry,
+    sourcePixelWidth: fixture.raster.width,
+    sourcePixelHeight: fixture.raster.height,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  const input = {
+    ...base,
+    luminanceBytes: cropLuminanceBytes(sourceRaster, plan),
+  };
+  const snapshot = structuredClone(input);
+  const first = refinePersonalVisualHarmonyCandidatePixelCropV1(input);
+  const second = refinePersonalVisualHarmonyCandidatePixelCropV1(input);
+
+  assert.deepEqual(input, snapshot);
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assert.equal(first.status, "refined");
+  assert.deepEqual(first.originalGeometry, originalGeometry);
+  assert.notDeepEqual(first.proposedGeometry, originalGeometry);
+  assert.ok(first.rotatedEllipseSearch.evaluatedCandidates <= 214);
+  assert.equal(first.rotatedEllipseSearch.maximumEvaluations, 214);
+  assert.ok(first.displacementPixels.maximum <= 6);
+  assert.equal(first.candidateEvidenceOnly, true);
+  assert.equal(first.sourceTruth, false);
+  assert.equal(first.automaticAcceptance, false);
+  assert.equal(first.explicitProposalAdoptionRequired, true);
+  assert.equal(first.proposalAdopted, false);
+  assert.equal(first.explicitUserConfirmationRequired, true);
+  assert.equal(first.coreRun, false);
+  assert.ok(geometryError(first.proposedGeometry, expectedGeometry)
+    < geometryError(originalGeometry, expectedGeometry));
+  const proposedSourcePixels = ellipseAfterAxisScaleForTest(
+    first.proposedGeometry,
+    fixture.raster.width,
+    fixture.raster.height,
+    {
+      x: first.proposedGeometry.center.x * fixture.raster.width,
+      y: first.proposedGeometry.center.y * fixture.raster.height,
+    },
+  );
+  assert.ok(geometryError(proposedSourcePixels, fixture.expectedGeometry)
+    < geometryError(fixture.primitive, fixture.expectedGeometry));
+  assert.match(first.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
+});
+
+test("adopting the supported rotated proposal does not regress its tangent relation", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "rotated-ellipse-full-perimeter");
+  assert.ok(fixture);
+  const originalGeometry = ellipseAfterAxisScaleForTest(
+    fixture.primitive,
+    1 / fixture.raster.width,
+    1 / fixture.raster.height,
+    {
+      x: fixture.primitive.center.x / fixture.raster.width,
+      y: fixture.primitive.center.y / fixture.raster.height,
+    },
+  );
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1({
+    primitive: originalGeometry,
+    sourcePixelWidth: fixture.raster.width,
+    sourcePixelHeight: fixture.raster.height,
+  });
+  const proposal = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    candidateSetIdentity: `sha256:${"9".repeat(64)}`,
+    candidateId: "rotated-ellipse",
+    primitive: originalGeometry,
+    sourcePixelWidth: fixture.raster.width,
+    sourcePixelHeight: fixture.raster.height,
+    luminanceBytes: cropLuminanceBytes(renderRaster(fixture), plan),
+  });
+  assert.equal(proposal.status, "refined");
+  const originalRelation = rotatedEllipseTangentRelation(originalGeometry, fixture.expectedGeometry);
+  const proposedRelation = rotatedEllipseTangentRelation(
+    proposal.proposedGeometry,
+    fixture.expectedGeometry,
+  );
+
+  assert.ok(originalRelation);
+  assert.ok(proposedRelation);
+  assert.ok(["tangent", "near_tangent"].includes(proposedRelation.contactCharacter));
+  assert.ok(proposedRelation.gapPixels <= originalRelation.gapPixels + 1e-9);
+  assert.ok(proposedRelation.tangentAngleDeltaDegrees
+    <= originalRelation.tangentAngleDeltaDegrees + 1e-9);
+  assert.equal(proposal.proposalAdopted, false);
+  assert.equal(proposal.coreRun, false);
+});
+
+test("rotated proposal identities change with the full canonical orientation", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"8".repeat(64)}`,
+    candidateId: "rotated-identity",
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const first = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 30,
+    },
+  });
+  const second = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 31,
+    },
+  });
+
+  assert.equal(first.reason, "pixel_read_unavailable");
+  assert.equal(second.reason, "pixel_read_unavailable");
+  assert.notEqual(first.contentIdentity, second.contentIdentity);
+  assert.notDeepEqual(first.originalGeometry, second.originalGeometry);
+});
+
 test("bounded crop planning uses the confirmed image-width coordinate scale", () => {
   const plan = createPersonalVisualHarmonyPixelCropPlanV1({
     primitive: {
@@ -356,6 +506,36 @@ test("crop integration abstains when mapping yields a kernel-invalid primitive",
   assert.equal(result.evidence, null);
   assert.equal(result.coreRun, false);
   assert.match(result.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
+});
+
+test("rotated crop integration abstains when anisotropic scaling erases orientation", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"7".repeat(64)}`,
+    candidateId: "orientation-degenerate",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 90,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 50,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  const result = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: new Array(plan.rasterWidth * plan.rasterHeight).fill(128),
+  });
+
+  assert.equal(result.status, "abstained");
+  assert.equal(result.reason, "invalid_refined_geometry");
+  assert.equal(result.proposedGeometry, null);
+  assert.equal(result.kernelContentIdentity, null);
+  assert.equal(result.rotatedEllipseSearch, undefined);
+  assert.deepEqual(result.originalGeometry, base.primitive);
+  assert.equal(result.coreRun, false);
 });
 
 test("crop integration fails closed for unavailable, weak, oversized, and authority-bearing evidence", () => {
@@ -698,6 +878,110 @@ function normalizePrimitive(primitive, width, height) {
       ? {}
       : { rotationDegrees: primitive.rotationDegrees }),
   };
+}
+
+function ellipseAfterAxisScaleForTest(ellipse, xScale, yScale, center) {
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  const radiusXSquared = ellipse.radiusX ** 2;
+  const radiusYSquared = ellipse.radiusY ** 2;
+  const xx = xScale ** 2 * (radiusXSquared * cos ** 2 + radiusYSquared * sin ** 2);
+  const yy = yScale ** 2 * (radiusXSquared * sin ** 2 + radiusYSquared * cos ** 2);
+  const xy = xScale * yScale * (radiusXSquared - radiusYSquared) * cos * sin;
+  const separation = Math.hypot(xx - yy, 2 * xy);
+  return canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+    kind: "ellipse",
+    center,
+    radiusX: Math.sqrt((xx + yy + separation) / 2),
+    radiusY: Math.sqrt((xx + yy - separation) / 2),
+    rotationDegrees: Math.atan2(2 * xy, xx - yy) * 90 / Math.PI,
+  });
+}
+
+function rotatedEllipseTangentRelation(ellipseGeometry, expectedSourceGeometry) {
+  const sourcePixelWidth = 80;
+  const sourcePixelHeight = 60;
+  const expectedRotation = (expectedSourceGeometry.rotationDegrees ?? 0) * Math.PI / 180;
+  const direction = { x: Math.cos(expectedRotation), y: Math.sin(expectedRotation) };
+  const normal = { x: -Math.sin(expectedRotation), y: Math.cos(expectedRotation) };
+  const tangentCenter = {
+    x: expectedSourceGeometry.center.x + normal.x * expectedSourceGeometry.radiusY,
+    y: expectedSourceGeometry.center.y + normal.y * expectedSourceGeometry.radiusY,
+  };
+  const sourcePoint = (offset) => ({
+    x: (tangentCenter.x + direction.x * offset) / sourcePixelWidth,
+    y: (tangentCenter.y + direction.y * offset) / sourcePixelHeight,
+  });
+  const start = sourcePoint(-24);
+  const end = sourcePoint(24);
+  const rotation = (ellipseGeometry.rotationDegrees ?? 0) * Math.PI / 180;
+  const halfWidth = Math.hypot(
+    ellipseGeometry.radiusX * Math.cos(rotation),
+    ellipseGeometry.radiusY * Math.sin(rotation),
+  );
+  const halfHeight = Math.hypot(
+    ellipseGeometry.radiusX * Math.sin(rotation),
+    ellipseGeometry.radiusY * Math.cos(rotation),
+  );
+  const prepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-rotated-pixel-relation",
+    sourceImageMediaType: "image/png",
+    candidates: [
+      {
+        id: "major",
+        label: "Moitié gauche",
+        role: "structural-region",
+        reason: "Rectangle structurel confirmé",
+        x: 0,
+        y: 0,
+        width: 0.5,
+        height: 1,
+      },
+      {
+        id: "minor",
+        label: "Moitié droite",
+        role: "structural-region",
+        reason: "Rectangle structurel confirmé",
+        x: 0.5,
+        y: 0,
+        width: 0.5,
+        height: 1,
+      },
+      {
+        id: "ellipse",
+        label: "Ellipse orientée",
+        role: "structural-region",
+        reason: "Ellipse confirmée dans le plan image",
+        x: ellipseGeometry.center.x - halfWidth,
+        y: ellipseGeometry.center.y - halfHeight,
+        width: halfWidth * 2,
+        height: halfHeight * 2,
+        primitive: ellipseGeometry,
+      },
+      {
+        id: "tangent",
+        label: "Ligne tangente annotée",
+        role: "structural-region",
+        reason: "Segment confirmé séparément de sa droite support",
+        x: Math.min(start.x, end.x),
+        y: Math.min(start.y, end.y),
+        width: Math.abs(start.x - end.x),
+        height: Math.abs(start.y - end.y),
+        primitive: { kind: "segment", start, end },
+      },
+    ],
+  });
+  const confirmation = confirmPersonalVisualHarmonyCandidateSetV1({
+    preparedCandidateSet: prepared,
+    expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+    selectedCandidateIds: ["major", "minor"],
+    confirmedVisualGuideCandidateIds: ["ellipse", "tangent"],
+    sourcePixelWidth,
+    sourcePixelHeight,
+    acceptedAt: "2026-07-15T12:00:00.000Z",
+  });
+  return confirmation.imagePlaneGuideAnalysis.relationships[0];
 }
 
 function cropLuminanceBytes(raster, plan) {

@@ -34,6 +34,7 @@ import {
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyJunctionAnglesChangedFiles,
   personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
+  personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
@@ -411,6 +412,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsesChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;

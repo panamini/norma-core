@@ -740,6 +740,29 @@ test("rotated ellipses classify line contacts deterministically in the confirmed
   assert.match(first.overlaySvg, /transform="rotate\(30 500 500\)"/u);
 });
 
+test("rotated pixel shadow state stays outside the deterministic confirmation contract", () => {
+  const prepared = prepare([
+    ...goldenCandidates(),
+    rotatedEllipseCandidate(),
+    lineGuide("rotated-support", { x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }),
+  ]);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["rotated-ellipse", "rotated-support"],
+    sourcePixelHeight: 1000,
+  });
+
+  assert.deepEqual(confirmation.result.selectedCandidateIds, ["major", "minor"]);
+  assert.equal(confirmation.result.coreRun, true);
+  assert.equal(confirmation.imagePlaneGuideAnalysis.imageBytesObservedByNorma, false);
+  assert.equal(confirmation.imagePlaneGuideAnalysis.confirmedVisualGuideCandidateIds.includes(
+    "rotated-ellipse",
+  ), true);
+  assert.doesNotMatch(
+    JSON.stringify(confirmation),
+    /pixelRefinement|proposalAdopted|rotatedEllipseSearch/u,
+  );
+});
+
 test("a two-point ellipse crossing with a small tangent delta is reported as a shallow intersection", () => {
   const candidates = [
     ...ellipseLineRelationCandidates(),

@@ -36,6 +36,7 @@ import {
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyJunctionAnglesChangedFiles,
   personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
+  personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
@@ -662,6 +663,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsesChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
