@@ -273,12 +273,16 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
     },
   );
+  const isStoredGeometrySnapshot = (value, preparedCandidates) => (
+    Array.isArray(value) && value.length === preparedCandidates.length
+  );
   const completedPixelRefinementStateFor = widgetScriptFunction(
     "completedPixelRefinementStateFor",
     "function isStoredMatch",
     {
       storedPixelRefinementStateFor,
       preparedWithReviewedCandidates: (prepared) => prepared,
+      isStoredGeometrySnapshot,
     },
   );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
@@ -293,7 +297,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
         && left.length === right.length
         && left.every((id, index) => id === right[index])
       ),
-      isStoredGeometrySnapshot: () => true,
+      isStoredGeometrySnapshot,
       sameGeometrySnapshots: (left, right) => JSON.stringify(left) === JSON.stringify(right),
       completedPixelRefinementStateFor,
       isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
@@ -317,6 +321,14 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     enabled: true,
   };
   assert.equal(completedWidgetStateFor(() => mismatchedPixelCache)(payload), null);
+
+  for (const corruptTarget of ["saved", "completed"]) {
+    const corruptedGeometryCache = structuredClone(persisted);
+    if (corruptTarget === "saved") corruptedGeometryCache.reviewedCandidateGeometry = { malformed: true };
+    else corruptedGeometryCache.completedVisualHarmony.reviewedCandidateGeometry = { malformed: true };
+    assert.doesNotThrow(() => completedWidgetStateFor(() => corruptedGeometryCache)(payload));
+    assert.equal(completedWidgetStateFor(() => corruptedGeometryCache)(payload), null);
+  }
 
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
   const hydrationState = widgetHydrationState();
@@ -615,6 +627,66 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
   assert.equal(state.pixelRefinementProposals, previousProposals);
   assert.equal(state.pixelRefinementProposals.has("late-proposal"), false);
   assert.equal(state.pixelRefinementRunning, false);
+});
+
+test("widget fails closed when a local pixel crop cannot be planned", async () => {
+  const candidate = {
+    id: "tiny-image-guide",
+    primitive: { kind: "segment", start: { x: 0.1, y: 0.2 }, end: { x: 0.7, y: 0.8 } },
+  };
+  const payload = {
+    prepared: { candidateSetIdentity: "tiny-set", candidates: [candidate] },
+  };
+  const state = {
+    payload,
+    activePayloadIdentity: "tiny-payload",
+    reviewedCandidates: [candidate],
+    pixelRefinementEnabled: true,
+    pixelRefinementRunning: false,
+    pixelRefinementGeneration: 0,
+    pixelRefinementProposals: new Map(),
+    adoptedPixelRefinements: new Map(),
+    completed: false,
+    confirming: false,
+    imageReady: true,
+    dimensions: { width: 7, height: 7 },
+  };
+  let persisted = 0;
+  let pixelStatus = "";
+  const statusNode = { textContent: "" };
+  const refreshPixelRefinements = widgetScriptFunction(
+    "refreshPixelRefinements",
+    "function applyPixelProposal",
+    {
+      state,
+      updatePixelProposalUi() {},
+      updateConfirm() {},
+      pixelRefinementCandidateSnapshot: () => [structuredClone(candidate)],
+      primitiveKind: (item) => item.primitive.kind,
+      createPixelCropPlan() { throw new Error("source dimensions below crop minimum"); },
+      requestPixelProposal() { throw new Error("tool must not run without a crop"); },
+      document: {
+        documentElement: {
+          setAttribute(name, value) {
+            if (name === "data-norma-pixel-refinement") pixelStatus = value;
+          },
+        },
+      },
+      samePixelProposalPrimitive: () => false,
+      candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
+      clonePrimitive: structuredClone,
+      syncOverlayGeometry() {},
+      persistReviewState() { persisted += 1; },
+      statusNode,
+    },
+  );
+
+  await refreshPixelRefinements(payload, "tiny-payload");
+  assert.equal(state.pixelRefinementRunning, false);
+  assert.equal(state.pixelRefinementProposals.size, 0);
+  assert.equal(pixelStatus, "tool-error");
+  assert.equal(persisted, 1);
+  assert.match(statusNode.textContent, /ignorées faute de crop local valide/u);
 });
 
 test("widget canonicalizes adopted quadrilaterals before refresh and revert comparisons", () => {
@@ -1146,6 +1218,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /callAppTool\(REFINE_PIXELS_TOOL,args\)/u);
     assert.match(resource.contents[0].text, /reviewedPrimitive:candidate\.primitive/u);
     assert.match(resource.contents[0].text, /preparedWithReviewedCandidates\(payload\.prepared,\[candidate\]\)/u);
+    assert.match(resource.contents[0].text, /function completedPixelRefinementStateFor\(saved,completed,prepared\)\{if\(!isStoredGeometrySnapshot/u);
+    assert.match(resource.contents[0].text, /try\{const plan=createPixelCropPlan/u);
     assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
