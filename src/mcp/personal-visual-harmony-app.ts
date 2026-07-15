@@ -77,8 +77,8 @@ const CandidatePrimitiveSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("ellipse"),
     center: NormalizedPointSchema,
-    radiusX: z.number().gt(0).max(0.5),
-    radiusY: z.number().gt(0).max(0.5),
+    radiusX: z.number().gt(0).max(1),
+    radiusY: z.number().gt(0).max(1),
     rotationDegrees: z.number().finite().optional().describe(
       "Optional ellipse-axis orientation in normalized image-plane degrees. Norma canonicalizes it modulo 180 and never infers it from pixels.",
     ),
@@ -870,6 +870,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
     const candidate = session.prepared.candidates.find(({ id }) => id === input.candidateId);
     const preparedPrimitive = candidate?.primitive;
     const primitive = input.reviewedPrimitive;
+    if (preparedPrimitive?.kind === "ellipse"
+      && preparedPrimitive.rotationDegrees !== undefined) {
+      throw new Error("Pixel refinement does not support explicitly rotated ellipses.");
+    }
     if (preparedPrimitive === undefined || preparedPrimitive.kind === "rectangle"
       || preparedPrimitive.kind !== primitive.kind) {
       throw new Error("Pixel refinement requires a prepared non-rectangle visual guide.");

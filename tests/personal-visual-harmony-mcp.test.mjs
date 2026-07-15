@@ -2805,9 +2805,9 @@ test("MCP canonicalizes, renders, and measures an explicitly rotated ellipse wit
         primitive: {
           kind: "ellipse",
           center: { x: 0.5, y: 0.5 },
-          radiusX: 0.1,
-          radiusY: 0.25,
-          rotationDegrees: -60,
+          radiusX: 0.05,
+          radiusY: 0.7,
+          rotationDegrees: -45,
         },
       }
       : candidate);
@@ -2827,16 +2827,37 @@ test("MCP canonicalizes, renders, and measures an explicitly rotated ellipse wit
     assert.deepEqual(ellipse.primitive, {
       kind: "ellipse",
       center: { x: 0.5, y: 0.5 },
-      radiusX: 0.25,
-      radiusY: 0.1,
-      rotationDegrees: 30,
+      radiusX: 0.7,
+      radiusY: 0.05,
+      rotationDegrees: 45,
     });
     assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg,
-      /data-ellipse-orientation-degrees="30"/u);
+      /data-ellipse-orientation-degrees="45"/u);
     assert.match(prepared._meta.normaPersonalVisualHarmony.overlaySvg,
-      /transform="rotate\(30 500 500\)"/u);
+      /transform="rotate\(45 500 500\)"/u);
 
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const rejectedRefinement = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        candidateId: "main-ellipse",
+        reviewedPrimitive: {
+          kind: "ellipse",
+          center: { x: 0.5, y: 0.5 },
+          radiusX: 0.5,
+          radiusY: 0.05,
+        },
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        recovery: recoveryInput("file-private-opaque-id", candidates),
+      },
+    });
+    assert.equal(rejectedRefinement.isError, true);
+    assert.match(rejectedRefinement.content[0].text,
+      /does not support explicitly rotated ellipses/u);
+
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
