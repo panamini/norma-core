@@ -201,6 +201,40 @@ function ellipseLineRelationCandidates() {
   ];
 }
 
+function rotatedEllipseCandidate(primitive = {
+  kind: "ellipse",
+  center: { x: 0.5, y: 0.5 },
+  radiusX: 0.2,
+  radiusY: 0.1,
+  rotationDegrees: 30,
+}) {
+  return {
+    id: "rotated-ellipse",
+    label: "Ellipse orientée",
+    role: "structural-region",
+    reason: "Contour elliptique orienté explicitement confirmé",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    primitive,
+  };
+}
+
+function lineGuide(id, start, end, kind = "segment") {
+  return {
+    id,
+    label: id,
+    role: "structural-region",
+    reason: "Ligne image explicitement confirmée",
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+    primitive: { kind, start, end },
+  };
+}
+
 function prepare(candidates = goldenCandidates(), triangleConstructionRequests) {
   return preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-private-demo-123",
@@ -535,6 +569,175 @@ test("confirmed ellipse and line guides produce deterministic image-plane tangen
   assert.equal(secant.intersectionPoints.length, 2);
   assert.equal(secant.supportingLineContactWithinObservedSegment, true);
   assert.match(confirmation.overlaySvg, /data-image-plane-relation-id=/u);
+});
+
+test("rotated ellipse representations canonicalize deterministically without mutating legacy inputs", () => {
+  const representations = [
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.24, radiusY: 0.12, rotationDegrees: 30 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.24, radiusY: 0.12, rotationDegrees: 210 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.12, radiusY: 0.24, rotationDegrees: 120 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.24, radiusY: 0.12, rotationDegrees: -150 },
+  ];
+  const inputs = representations.map((primitive) => [
+    ...goldenCandidates(),
+    rotatedEllipseCandidate(primitive),
+  ]);
+  const snapshots = structuredClone(inputs);
+  const prepared = inputs.map((candidates) => prepare(candidates));
+
+  assert.equal(new Set(prepared.map(({ candidateSetIdentity }) => candidateSetIdentity)).size, 1);
+  assert.deepEqual(inputs, snapshots);
+  assert.deepEqual(prepared[0].candidates[2].primitive, {
+    kind: "ellipse",
+    center: { x: 0.5, y: 0.5 },
+    radiusX: 0.24,
+    radiusY: 0.12,
+    rotationDegrees: 30,
+  });
+  assert.deepEqual(
+    { x: prepared[0].candidates[2].x, y: prepared[0].candidates[2].y,
+      width: prepared[0].candidates[2].width, height: prepared[0].candidates[2].height },
+    { x: 0.283666923472, y: 0.341254921336, width: 0.432666153056, height: 0.317490157328 },
+  );
+
+  const nearCircleInputs = [
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.2000000001, rotationDegrees: 73 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2000000001, radiusY: 0.2, rotationDegrees: -17 },
+  ].map((primitive) => prepare([...goldenCandidates(), rotatedEllipseCandidate(primitive)]));
+  assert.equal(nearCircleInputs[0].candidateSetIdentity, nearCircleInputs[1].candidateSetIdentity);
+  assert.deepEqual(nearCircleInputs[0].candidates[2].primitive, {
+    kind: "ellipse",
+    center: { x: 0.5, y: 0.5 },
+    radiusX: 0.2000000001,
+    radiusY: 0.2,
+  });
+
+  const roundedWrap = [179.9999999999996, 0].map((rotationDegrees) => prepare([
+    ...goldenCandidates(),
+    rotatedEllipseCandidate({
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.24,
+      radiusY: 0.12,
+      rotationDegrees,
+    }),
+  ]));
+  assert.equal(roundedWrap[0].candidateSetIdentity, roundedWrap[1].candidateSetIdentity);
+  assert.equal(Object.hasOwn(roundedWrap[0].candidates[2].primitive, "rotationDegrees"), false);
+
+  const legacyInput = mixedPrimitiveCandidates();
+  const legacySnapshot = structuredClone(legacyInput);
+  const legacyPrepared = prepare(legacyInput);
+  assert.deepEqual(legacyInput, legacySnapshot);
+  assert.deepEqual(legacyPrepared.candidates[4].primitive, legacyInput[4].primitive);
+  assert.equal(legacyPrepared.candidateSetIdentity,
+    "sha256:9631a04a5e62d1b7b29e20e1d14b8cdc32f0eb0e7b5f11131037c2cf8233716a");
+});
+
+test("rotated ellipse validation fails closed for unstable or out-of-frame geometry", () => {
+  const invalid = [
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0, radiusY: 0.1, rotationDegrees: 30 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 1e-10, radiusY: 0.1, rotationDegrees: 30 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.NaN },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.POSITIVE_INFINITY },
+    { kind: "ellipse", center: { x: 0.06, y: 0.06 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: 45 },
+  ];
+  for (const primitive of invalid) {
+    assert.throws(
+      () => prepare([...goldenCandidates(), rotatedEllipseCandidate(primitive)]),
+      /ellipse/u,
+    );
+  }
+
+  const halfWidth = Math.hypot(0.2 * Math.cos(Math.PI / 6), 0.1 * Math.sin(Math.PI / 6));
+  const tolerated = prepare([
+    ...goldenCandidates(),
+    rotatedEllipseCandidate({
+      kind: "ellipse",
+      center: { x: halfWidth - 5e-13, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 30,
+    }),
+  ]);
+  assert.equal(tolerated.candidates[2].x, 0);
+  assert.throws(
+    () => prepare([
+      ...goldenCandidates(),
+      rotatedEllipseCandidate({
+        kind: "ellipse",
+        center: { x: halfWidth - 1e-8, y: 0.5 },
+        radiusX: 0.2,
+        radiusY: 0.1,
+        rotationDegrees: 30,
+      }),
+    ]),
+    /remain inside the image/u,
+  );
+});
+
+test("rotated ellipses classify line contacts deterministically in the confirmed image plane", () => {
+  const angle = 30 * Math.PI / 180;
+  const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+  const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+  const tangentContact = { x: 0.5 + (0.1 * normal.x), y: 0.5 + (0.1 * normal.y) };
+  const tangentStart = { x: tangentContact.x - (0.3 * direction.x), y: tangentContact.y - (0.3 * direction.y) };
+  const tangentEnd = { x: tangentContact.x + (0.3 * direction.x), y: tangentContact.y + (0.3 * direction.y) };
+  const shift = (point, distance) => ({
+    x: point.x + (distance * normal.x),
+    y: point.y + (distance * normal.y),
+  });
+  const candidates = [
+    ...goldenCandidates(),
+    rotatedEllipseCandidate(),
+    lineGuide("tangent", tangentStart, tangentEnd, "axis"),
+    lineGuide("near-tangent", shift(tangentStart, 0.005), shift(tangentEnd, 0.005)),
+    lineGuide("miss", shift(tangentStart, 0.05), shift(tangentEnd, 0.05)),
+    lineGuide("horizontal-secant", { x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }),
+    lineGuide("vertical-secant", { x: 0.5, y: 0.2 }, { x: 0.5, y: 0.8 }),
+    lineGuide("oblique-secant", { x: 0.5 - (0.3 * direction.x), y: 0.5 - (0.3 * direction.y) },
+      { x: 0.5 + (0.3 * direction.x), y: 0.5 + (0.3 * direction.y) }),
+    lineGuide("support-only-secant", { x: 0.05, y: 0.5 }, { x: 0.15, y: 0.5 }),
+  ];
+  const snapshot = structuredClone(candidates);
+  const prepared = prepare(candidates);
+  const guideIds = candidates.slice(2).map(({ id }) => id);
+  const first = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: guideIds,
+    sourcePixelHeight: 1000,
+  });
+  const second = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: guideIds,
+    sourcePixelHeight: 1000,
+  });
+  const relationships = first.imagePlaneGuideAnalysis.relationships;
+  const byLine = new Map(relationships.map((relationship) => [relationship.lineCandidateId, relationship]));
+
+  assert.deepEqual(candidates, snapshot);
+  assert.deepEqual(first.imagePlaneGuideAnalysis, second.imagePlaneGuideAnalysis);
+  assert.equal(first.imagePlaneGuideAnalysis.limits.rotatedEllipseSupport,
+    "explicit_normalized_image_plane_rotation");
+  assert.equal(Object.hasOwn(first.imagePlaneGuideAnalysis.limits, "axisAlignedEllipseOnly"), false);
+  assert.equal(byLine.has("miss"), false);
+  assert.equal(byLine.get("tangent").contactCharacter, "tangent");
+  assert.equal(byLine.get("tangent").intersectionPoints.length, 1);
+  assert.equal(byLine.get("near-tangent").contactCharacter, "near_tangent");
+  assert.ok(Math.abs(byLine.get("near-tangent").gapPixels - 5) <= 1e-9);
+  for (const id of ["horizontal-secant", "vertical-secant", "oblique-secant", "support-only-secant"]) {
+    assert.equal(byLine.get(id).classification, "intersection");
+    assert.equal(byLine.get(id).intersectionPoints.length, 2);
+    assert.deepEqual(
+      byLine.get(id).intersectionPoints,
+      [...byLine.get(id).intersectionPoints].sort((firstPoint, secondPoint) => (
+        (firstPoint.x - secondPoint.x) || (firstPoint.y - secondPoint.y)
+      )),
+    );
+  }
+  assert.equal(byLine.get("support-only-secant").supportingLineContactWithinObservedSegment, false);
+  assert.deepEqual(first.result.selectedCandidateIds, ["major", "minor"]);
+  assert.equal(first.imagePlaneGuideAnalysis.confirmedVisualGuideCandidateIds.includes("rotated-ellipse"), true);
+  assert.match(first.overlaySvg, /data-ellipse-orientation-degrees="30"/u);
+  assert.match(first.overlaySvg, /transform="rotate\(30 500 500\)"/u);
 });
 
 test("a two-point ellipse crossing with a small tangent delta is reported as a shallow intersection", () => {

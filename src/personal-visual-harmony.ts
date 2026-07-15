@@ -99,6 +99,7 @@ export type PersonalVisualHarmonyPrimitiveV1 =
     readonly center: PersonalVisualHarmonyPointV1;
     readonly radiusX: number;
     readonly radiusY: number;
+    readonly rotationDegrees?: number;
   };
 
 export interface PersonalVisualHarmonyCandidateInputV1 {
@@ -279,7 +280,8 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly constructionAnalysis?: PersonalVisualHarmonyConstructionAnalysisV1;
   readonly limits: {
     readonly imagePlaneOnly: true;
-    readonly axisAlignedEllipseOnly: true;
+    readonly axisAlignedEllipseOnly?: true;
+    readonly rotatedEllipseSupport?: "explicit_normalized_image_plane_rotation";
     readonly noWorldSpaceMetricClaim: true;
     readonly noHarmonicRatioClaim: true;
     readonly noIntentInference: true;
@@ -503,6 +505,9 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   const ellipses = prepared.candidates.filter((candidate) => (
     confirmed.has(candidate.id) && candidate.primitive?.kind === "ellipse"
   ));
+  const includesRotatedEllipse = ellipses.some(({ primitive }) => (
+    primitive?.kind === "ellipse" && primitive.rotationDegrees !== undefined
+  ));
   const confirmedGuides = prepared.candidates.filter((candidate) => confirmed.has(candidate.id));
   const lines = confirmedGuides.flatMap(imagePlaneLineEvidenceForCandidate);
   const constructionLayers = input.constructionLayers ?? [];
@@ -592,7 +597,9 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     ...(constructionAnalysis === null ? {} : { constructionAnalysis }),
     limits: {
       imagePlaneOnly: true as const,
-      axisAlignedEllipseOnly: true as const,
+      ...(includesRotatedEllipse
+        ? { rotatedEllipseSupport: "explicit_normalized_image_plane_rotation" as const }
+        : { axisAlignedEllipseOnly: true as const }),
       noWorldSpaceMetricClaim: true as const,
       noHarmonicRatioClaim: true as const,
       noIntentInference: true as const,
@@ -873,17 +880,31 @@ function createEllipseSupportingLineRelationship(
   };
   const radiusX = ellipse.radiusX * sourcePixelWidth;
   const radiusY = ellipse.radiusY * sourcePixelHeight;
+  const rotatedGeometry = ellipse.rotationDegrees === undefined
+    ? null
+    : rotatedEllipsePixelGeometry(ellipse, sourcePixelWidth, sourcePixelHeight);
+  if (ellipse.rotationDegrees !== undefined && rotatedGeometry === null) return null;
   const signedCenterToLineDistance = (unitNormal.x * center.x)
     + (unitNormal.y * center.y)
     + lineConstant;
   const centerToLineDistancePixels = Math.abs(signedCenterToLineDistance);
-  const ellipseSupportRadiusPixels = Math.sqrt(
-    ((radiusX * unitNormal.x) ** 2) + ((radiusY * unitNormal.y) ** 2),
-  );
-  if (ellipseSupportRadiusPixels === 0) return null;
+  const ellipseSupportRadiusPixels = rotatedGeometry === null
+    ? Math.sqrt(((radiusX * unitNormal.x) ** 2) + ((radiusY * unitNormal.y) ** 2))
+    : Math.sqrt(
+      (rotatedGeometry.matrixXX * unitNormal.x * unitNormal.x)
+      + (2 * rotatedGeometry.matrixXY * unitNormal.x * unitNormal.y)
+      + (rotatedGeometry.matrixYY * unitNormal.y * unitNormal.y),
+    );
+  if (!Number.isFinite(ellipseSupportRadiusPixels) || ellipseSupportRadiusPixels <= 0) return null;
   const lineAngleDegrees = normalizeUndirectedAngleDegrees(Math.atan2(dy, dx) * (180 / Math.PI));
-  const offsetX = (radiusX * radiusX * unitNormal.x) / ellipseSupportRadiusPixels;
-  const offsetY = (radiusY * radiusY * unitNormal.y) / ellipseSupportRadiusPixels;
+  const offsetX = rotatedGeometry === null
+    ? (radiusX * radiusX * unitNormal.x) / ellipseSupportRadiusPixels
+    : ((rotatedGeometry.matrixXX * unitNormal.x)
+      + (rotatedGeometry.matrixXY * unitNormal.y)) / ellipseSupportRadiusPixels;
+  const offsetY = rotatedGeometry === null
+    ? (radiusY * radiusY * unitNormal.y) / ellipseSupportRadiusPixels
+    : ((rotatedGeometry.matrixXY * unitNormal.x)
+      + (rotatedGeometry.matrixYY * unitNormal.y)) / ellipseSupportRadiusPixels;
   const centerSide = signedCenterToLineDistance >= 0 ? 1 : -1;
   let contactPixels = {
     x: center.x - (centerSide * offsetX),
@@ -894,17 +915,29 @@ function createEllipseSupportingLineRelationship(
     unitNormal,
     lineConstant,
   );
-  let intersectionPointsPixels = ellipseLineIntersections(
-    center,
-    radiusX,
-    radiusY,
-    lineStart,
-    dx,
-    dy,
-    centerToLineDistancePixels,
-    ellipseSupportRadiusPixels,
-    contactPixels,
-  );
+  const computedIntersections = rotatedGeometry === null
+    ? ellipseLineIntersections(
+      center,
+      radiusX,
+      radiusY,
+      lineStart,
+      dx,
+      dy,
+      centerToLineDistancePixels,
+      ellipseSupportRadiusPixels,
+      contactPixels,
+    )
+    : rotatedEllipseLineIntersections(
+      rotatedGeometry,
+      lineStart,
+      dx,
+      dy,
+      centerToLineDistancePixels,
+      ellipseSupportRadiusPixels,
+      contactPixels,
+    );
+  if (computedIntersections === null) return null;
+  let intersectionPointsPixels = computedIntersections;
   let classification: PersonalVisualHarmonyImagePlaneRelationV1["classification"];
   let gapPixelsValue: number;
   let supportingLineContactWithinObservedSegment: boolean;
@@ -946,13 +979,12 @@ function createEllipseSupportingLineRelationship(
   }
   intersectionPointsPixels = [...intersectionPointsPixels]
     .sort((first, second) => (first.x - second.x) || (first.y - second.y));
-  const contactLocation = ellipseContactLocation(contactPixels, center, radiusX, radiusY);
-  const tangentAngleDegrees = ellipseTangentAngleDegrees(
-    contactPixels,
-    center,
-    radiusX,
-    radiusY,
-  );
+  const contactLocation = rotatedGeometry === null
+    ? ellipseContactLocation(contactPixels, center, radiusX, radiusY)
+    : rotatedEllipseContactLocation(contactPixels, rotatedGeometry);
+  const tangentAngleDegrees = rotatedGeometry === null
+    ? ellipseTangentAngleDegrees(contactPixels, center, radiusX, radiusY)
+    : rotatedEllipseTangentAngleDegrees(contactPixels, rotatedGeometry);
   const tangentAngleDeltaDegrees = undirectedAngleDistanceDegrees(
     lineAngleDegrees,
     tangentAngleDegrees,
@@ -1051,6 +1083,96 @@ function projectPointOntoSupportingLine(
   };
 }
 
+interface RotatedEllipsePixelGeometryV1 {
+  readonly center: PersonalVisualHarmonyPointV1;
+  readonly matrixXX: number;
+  readonly matrixXY: number;
+  readonly matrixYY: number;
+  readonly inverseXX: number;
+  readonly inverseXY: number;
+  readonly inverseYY: number;
+}
+
+function rotatedEllipsePixelGeometry(
+  ellipse: Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }>,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): RotatedEllipsePixelGeometryV1 | null {
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  const firstAxisX = sourcePixelWidth * ellipse.radiusX * cos;
+  const firstAxisY = sourcePixelHeight * ellipse.radiusX * sin;
+  const secondAxisX = -sourcePixelWidth * ellipse.radiusY * sin;
+  const secondAxisY = sourcePixelHeight * ellipse.radiusY * cos;
+  const matrixXX = (firstAxisX * firstAxisX) + (secondAxisX * secondAxisX);
+  const matrixXY = (firstAxisX * firstAxisY) + (secondAxisX * secondAxisY);
+  const matrixYY = (firstAxisY * firstAxisY) + (secondAxisY * secondAxisY);
+  const determinant = (matrixXX * matrixYY) - (matrixXY * matrixXY);
+  const determinantScale = Math.max(1, matrixXX * matrixYY);
+  if (![matrixXX, matrixXY, matrixYY, determinant].every(Number.isFinite)
+    || determinant <= Number.EPSILON * determinantScale) return null;
+  return {
+    center: {
+      x: ellipse.center.x * sourcePixelWidth,
+      y: ellipse.center.y * sourcePixelHeight,
+    },
+    matrixXX,
+    matrixXY,
+    matrixYY,
+    inverseXX: matrixYY / determinant,
+    inverseXY: -matrixXY / determinant,
+    inverseYY: matrixXX / determinant,
+  };
+}
+
+function rotatedEllipseLineIntersections(
+  geometry: RotatedEllipsePixelGeometryV1,
+  lineStart: PersonalVisualHarmonyPointV1,
+  dx: number,
+  dy: number,
+  centerToLineDistancePixels: number,
+  ellipseSupportRadiusPixels: number,
+  tangentContactPoint: PersonalVisualHarmonyPointV1,
+): readonly PersonalVisualHarmonyPointV1[] | null {
+  const numericalDistanceTolerancePixels = 1e-9 * Math.max(
+    1,
+    centerToLineDistancePixels,
+    ellipseSupportRadiusPixels,
+  );
+  if (centerToLineDistancePixels
+    > ellipseSupportRadiusPixels + numericalDistanceTolerancePixels) return [];
+  if (Math.abs(centerToLineDistancePixels - ellipseSupportRadiusPixels)
+    <= numericalDistanceTolerancePixels) return [tangentContactPoint];
+  const relativeX = lineStart.x - geometry.center.x;
+  const relativeY = lineStart.y - geometry.center.y;
+  const quadratic = (x: number, y: number) => (
+    (geometry.inverseXX * x * x)
+    + (2 * geometry.inverseXY * x * y)
+    + (geometry.inverseYY * y * y)
+  );
+  const a = quadratic(dx, dy);
+  const b = 2 * (
+    (geometry.inverseXX * relativeX * dx)
+    + (geometry.inverseXY * ((relativeX * dy) + (relativeY * dx)))
+    + (geometry.inverseYY * relativeY * dy)
+  );
+  const c = quadratic(relativeX, relativeY) - 1;
+  const discriminant = (b * b) - (4 * a * c);
+  const discriminantTolerance = 1e-12 * Math.max(1, Math.abs(b * b), Math.abs(4 * a * c));
+  if (![a, b, c, discriminant].every(Number.isFinite)
+    || a <= Number.EPSILON) return null;
+  if (discriminant < -discriminantTolerance) return null;
+  const root = Math.sqrt(Math.max(0, discriminant));
+  const denominator = 2 * a;
+  const parameters = [(-b - root) / denominator, (-b + root) / denominator];
+  if (!parameters.every(Number.isFinite)) return null;
+  return parameters.map((parameter) => ({
+    x: lineStart.x + (parameter * dx),
+    y: lineStart.y + (parameter * dy),
+  }));
+}
+
 function ellipseLineIntersections(
   center: PersonalVisualHarmonyPointV1,
   radiusX: number,
@@ -1134,6 +1256,35 @@ function ellipseTangentAngleDegrees(
 ): number {
   const gradientX = (point.x - center.x) / (radiusX * radiusX);
   const gradientY = (point.y - center.y) / (radiusY * radiusY);
+  return normalizeUndirectedAngleDegrees(Math.atan2(gradientX, -gradientY) * (180 / Math.PI));
+}
+
+function rotatedEllipseContactLocation(
+  point: PersonalVisualHarmonyPointV1,
+  geometry: RotatedEllipsePixelGeometryV1,
+): PersonalVisualHarmonyEllipseContactLocationV1 {
+  const relativeX = point.x - geometry.center.x;
+  const relativeY = point.y - geometry.center.y;
+  const normalizedX = relativeX / Math.sqrt(geometry.matrixXX);
+  const normalizedY = relativeY / Math.sqrt(geometry.matrixYY);
+  const extremumTolerance = 0.000001;
+  if (Math.abs(Math.abs(normalizedX) - 1) <= extremumTolerance) {
+    return normalizedX < 0 ? "left" : "right";
+  }
+  if (Math.abs(Math.abs(normalizedY) - 1) <= extremumTolerance) {
+    return normalizedY < 0 ? "top" : "bottom";
+  }
+  return "oblique";
+}
+
+function rotatedEllipseTangentAngleDegrees(
+  point: PersonalVisualHarmonyPointV1,
+  geometry: RotatedEllipsePixelGeometryV1,
+): number {
+  const relativeX = point.x - geometry.center.x;
+  const relativeY = point.y - geometry.center.y;
+  const gradientX = (geometry.inverseXX * relativeX) + (geometry.inverseXY * relativeY);
+  const gradientY = (geometry.inverseXY * relativeX) + (geometry.inverseYY * relativeY);
   return normalizeUndirectedAngleDegrees(Math.atan2(gradientX, -gradientY) * (180 / Math.PI));
 }
 
@@ -1643,6 +1794,19 @@ function canonicalBoundsForPrimitive(
   primitive: PersonalVisualHarmonyPrimitiveV1 | undefined,
 ): Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height"> {
   if (primitive?.kind === "ellipse") {
+    if (primitive.rotationDegrees !== undefined) {
+      const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
+      const minX = Math.max(0, primitive.center.x - halfWidth);
+      const minY = Math.max(0, primitive.center.y - halfHeight);
+      const maxX = Math.min(1, primitive.center.x + halfWidth);
+      const maxY = Math.min(1, primitive.center.y + halfHeight);
+      return {
+        x: canonicalNumber(minX),
+        y: canonicalNumber(minY),
+        width: canonicalNumber(maxX - minX),
+        height: canonicalNumber(maxY - minY),
+      };
+    }
     return {
       x: canonicalNumber(primitive.center.x - primitive.radiusX),
       y: canonicalNumber(primitive.center.y - primitive.radiusY),
@@ -1667,6 +1831,18 @@ function canonicalBoundsForPrimitive(
     y: canonicalNumber(bounds.y),
     width: canonicalNumber(bounds.width),
     height: canonicalNumber(bounds.height),
+  };
+}
+
+function rotatedEllipseNormalizedHalfExtents(
+  primitive: Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }>,
+): { readonly halfWidth: number; readonly halfHeight: number } {
+  const rotationRadians = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  return {
+    halfWidth: Math.hypot(primitive.radiusX * cos, primitive.radiusY * sin),
+    halfHeight: Math.hypot(primitive.radiusX * sin, primitive.radiusY * cos),
   };
 }
 
@@ -1710,22 +1886,64 @@ function validateCandidatePrimitive(
     const vertices = canonicalQuadrilateralVertices(value.vertices, candidateIndex);
     return { kind: "quadrilateral", vertices };
   }
-  if (Object.keys(value).sort().join("|") !== "center|kind|radiusX|radiusY") {
+  const ellipseFields = Object.keys(value).sort().join("|");
+  if (ellipseFields !== "center|kind|radiusX|radiusY"
+    && ellipseFields !== "center|kind|radiusX|radiusY|rotationDegrees") {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse primitive must use exact fields.`);
   }
   const center = validatePrimitivePoint(value.center, `candidates.${String(candidateIndex)}.primitive.center`);
   if (!Number.isFinite(value.radiusX) || !Number.isFinite(value.radiusY)
-    || value.radiusX <= 0 || value.radiusY <= 0
-    || center.x - value.radiusX < 0 || center.x + value.radiusX > 1
-    || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
+    || value.radiusX <= 0 || value.radiusY <= 0) {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
   }
-  return {
-    kind: "ellipse",
+  if (value.rotationDegrees === undefined) {
+    if (center.x - value.radiusX < 0 || center.x + value.radiusX > 1
+      || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
+    }
+    return {
+      kind: "ellipse",
+      center,
+      radiusX: canonicalNumber(value.radiusX),
+      radiusY: canonicalNumber(value.radiusY),
+    };
+  }
+  if (!Number.isFinite(value.rotationDegrees)
+    || value.radiusX <= 1e-9
+    || value.radiusY <= 1e-9) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must use finite non-degenerate geometry.`);
+  }
+  let radiusX = canonicalNumber(value.radiusX);
+  let radiusY = canonicalNumber(value.radiusY);
+  let rotationDegrees = normalizeEllipseRotationDegrees(value.rotationDegrees);
+  const nearCircle = Math.abs(radiusX - radiusY) <= 1e-9 * Math.max(radiusX, radiusY);
+  if (nearCircle) {
+    [radiusX, radiusY] = [Math.max(radiusX, radiusY), Math.min(radiusX, radiusY)];
+    rotationDegrees = 0;
+  } else if (radiusX < radiusY) {
+    [radiusX, radiusY] = [radiusY, radiusX];
+    rotationDegrees = normalizeEllipseRotationDegrees(rotationDegrees + 90);
+  }
+  const canonical = {
+    kind: "ellipse" as const,
     center,
-    radiusX: canonicalNumber(value.radiusX),
-    radiusY: canonicalNumber(value.radiusY),
+    radiusX,
+    radiusY,
+    ...(rotationDegrees === 0 ? {} : { rotationDegrees }),
   };
+  const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(canonical);
+  if (canonical.center.x - halfWidth < -1e-12
+    || canonical.center.y - halfHeight < -1e-12
+    || canonical.center.x + halfWidth > 1 + 1e-12
+    || canonical.center.y + halfHeight > 1 + 1e-12) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must remain inside the image.`);
+  }
+  return canonical;
+}
+
+function normalizeEllipseRotationDegrees(value: number): number {
+  const normalized = normalizeUndirectedAngleDegrees(value);
+  return normalized === 180 ? 0 : normalized;
 }
 
 function canonicalQuadrilateralVertices(
@@ -1946,7 +2164,12 @@ function visualPrimitiveMarkup(
     return `<polygon data-candidate-shape data-candidate-polygon points="${points}" fill="${color}" fill-opacity="${selected ? "0.14" : "0.06"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`;
   }
   if (primitive?.kind === "ellipse") {
-    return `<ellipse data-candidate-shape cx="${numberAttr(primitive.center.x * 1000)}" cy="${numberAttr(primitive.center.y * 1000)}" rx="${numberAttr(primitive.radiusX * 1000)}" ry="${numberAttr(primitive.radiusY * 1000)}" fill="${color}" fill-opacity="${selected ? "0.12" : "0.05"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
+    const centerX = numberAttr(primitive.center.x * 1000);
+    const centerY = numberAttr(primitive.center.y * 1000);
+    const rotation = primitive.rotationDegrees === undefined
+      ? ""
+      : ` data-ellipse-orientation-degrees="${numberAttr(primitive.rotationDegrees)}" transform="rotate(${numberAttr(primitive.rotationDegrees)} ${centerX} ${centerY})"`;
+    return `<ellipse data-candidate-shape cx="${centerX}" cy="${centerY}" rx="${numberAttr(primitive.radiusX * 1000)}" ry="${numberAttr(primitive.radiusY * 1000)}"${rotation} fill="${color}" fill-opacity="${selected ? "0.12" : "0.05"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
   }
   return `<rect data-candidate-box data-candidate-shape x="${numberAttr(candidate.x * 1000)}" y="${numberAttr(candidate.y * 1000)}" width="${numberAttr(candidate.width * 1000)}" height="${numberAttr(candidate.height * 1000)}" rx="10" fill="${color}" fill-opacity="${selected ? "0.16" : "0.08"}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${selected ? "none" : "14 10"}"/>`;
 }

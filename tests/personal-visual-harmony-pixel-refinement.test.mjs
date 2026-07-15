@@ -339,6 +339,7 @@ test("malformed quadrilaterals and primitive authority extras fail closed", () =
     { kind: "axis", start: { x: 8, y: 10 }, end: { x: 8, y: 44 }, sourceTruth: true },
     { ...fixture.primitive, sourceTruth: true },
     { ...ellipseFixture.primitive, sourceTruth: true },
+    { ...ellipseFixture.primitive, rotationDegrees: 30 },
   ]) {
     assert.throws(
       () => refinePersonalVisualHarmonyPrimitivePixelsV1({ raster, primitive }),
