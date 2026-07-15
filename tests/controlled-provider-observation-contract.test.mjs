@@ -408,7 +408,13 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalChatGptVisualHarmonyDemoChangedFiles)) return;
-  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyImageHydrationChangedFiles)) {
+    assert.deepEqual(
+      sharedExactApprovedChangedFiles(branchChangedFiles(repoRoot)),
+      personalVisualHarmonyImageHydrationChangedFiles,
+    );
+    return;
+  }
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsesChangedFiles)) return;

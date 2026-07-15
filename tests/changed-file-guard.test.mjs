@@ -256,6 +256,13 @@ test("shared exact changed-file guard accepts the semgrep-filtered personal Chat
 });
 
 test("shared exact changed-file guard accepts only the personal visual harmony image hydration set", () => {
+  assert.equal(personalVisualHarmonyImageHydrationChangedFiles.length, 11);
+  for (const requiredFile of [
+    "src/mcp/personal-visual-harmony-app.ts",
+    "tests/personal-visual-harmony-mcp.test.mjs",
+  ]) {
+    assert.equal(personalVisualHarmonyImageHydrationChangedFiles.includes(requiredFile), true);
+  }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonyImageHydrationChangedFiles),
     personalVisualHarmonyImageHydrationChangedFiles,

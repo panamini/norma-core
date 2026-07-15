@@ -231,6 +231,7 @@ export const personalVisualHarmonyTruthSyncChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
 ].sort());
 
+// Reused for bounded ChatGPT-hosted image hydration repairs, including CORS-safe canvas reads.
 export const personalVisualHarmonyImageHydrationChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
