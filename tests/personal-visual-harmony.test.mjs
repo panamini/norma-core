@@ -201,11 +201,12 @@ function ellipseLineRelationCandidates() {
   ];
 }
 
-function prepare(candidates = goldenCandidates()) {
+function prepare(candidates = goldenCandidates(), triangleConstructionRequests) {
   return preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-private-demo-123",
     sourceImageMediaType: "image/png",
     candidates,
+    ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
   });
 }
 
@@ -692,6 +693,87 @@ test("support lines, format diagonals, and junction angles are opt-in constructi
     unconfirmedMarkup,
     /data-supporting-line[^>]+style="display:none"/u,
   );
+});
+
+test("an explicit prepared triangle stays off by default and cannot alter Core or prior plan-image reports", () => {
+  const triangleGuides = [
+    {
+      id: "triangle-a",
+      label: "Sommet A",
+      role: "structural-region",
+      reason: "Endpoint confirmé A",
+      x: 0.2,
+      y: 0.2,
+      width: 0.1,
+      height: 0.05,
+      primitive: { kind: "segment", start: { x: 0.2, y: 0.2 }, end: { x: 0.3, y: 0.25 } },
+    },
+    {
+      id: "triangle-b",
+      label: "Sommet B",
+      role: "structural-region",
+      reason: "Endpoint confirmé B",
+      x: 0.7,
+      y: 0.2,
+      width: 0.1,
+      height: 0.05,
+      primitive: { kind: "segment", start: { x: 0.8, y: 0.2 }, end: { x: 0.7, y: 0.25 } },
+    },
+    {
+      id: "triangle-c",
+      label: "Sommet C",
+      role: "structural-region",
+      reason: "Endpoint confirmé C",
+      x: 0.2,
+      y: 0.7,
+      width: 0.1,
+      height: 0.1,
+      primitive: { kind: "axis", start: { x: 0.2, y: 0.8 }, end: { x: 0.3, y: 0.7 } },
+    },
+  ];
+  const request = {
+    requestId: "explicit-right-triangle",
+    vertices: [
+      { point: { x: 0.2, y: 0.2 }, parent: { kind: "observed-line-endpoint", candidateId: "triangle-a", endpoint: "start" } },
+      { point: { x: 0.8, y: 0.2 }, parent: { kind: "observed-line-endpoint", candidateId: "triangle-b", endpoint: "start" } },
+      { point: { x: 0.2, y: 0.8 }, parent: { kind: "observed-line-endpoint", candidateId: "triangle-c", endpoint: "start" } },
+    ],
+  };
+  const prepared = prepare([...goldenCandidates(), ...triangleGuides], [request]);
+  const confirmedVisualGuideCandidateIds = triangleGuides.map(({ id }) => id);
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: confirmedVisualGuideCandidateIds.slice(1),
+      constructionLayers: ["support-line-extensions", "triangles"],
+      sourcePixelHeight: 1000,
+    }),
+    /parents must remain explicitly confirmed visual guides/u,
+  );
+  const baseline = confirm(prepared, { confirmedVisualGuideCandidateIds, sourcePixelHeight: 1000 });
+  const enabled = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    constructionLayers: ["triangles", "support-line-extensions"],
+    sourcePixelHeight: 1000,
+  });
+
+  assert.equal(Object.hasOwn(baseline.imagePlaneGuideAnalysis, "constructionAnalysis"), false);
+  assert.equal(enabled.result.contentIdentity, baseline.result.contentIdentity);
+  assert.equal(enabled.acceptedGeometryContentIdentity, baseline.acceptedGeometryContentIdentity);
+  assert.equal(enabled.mappingResultContentIdentity, baseline.mappingResultContentIdentity);
+  assert.deepEqual(enabled.imagePlaneGuideAnalysis.relationships, baseline.imagePlaneGuideAnalysis.relationships);
+  assert.deepEqual(enabled.imagePlaneGuideAnalysis.quadrilateralMeasurements, baseline.imagePlaneGuideAnalysis.quadrilateralMeasurements);
+  const constructions = enabled.imagePlaneGuideAnalysis.constructionAnalysis;
+  assert.deepEqual(constructions.enabledLayers, ["support-line-extensions", "triangles"]);
+  assert.equal(constructions.triangles.length, 1);
+  assert.equal(constructions.triangles[0].requestId, request.requestId);
+  assert.equal(constructions.triangles[0].sourceTruth, false);
+  assert.equal(constructions.triangles[0].coreAuthority, false);
+  assert.match(enabled.overlaySvg, /data-construction-layer="triangles"/u);
+  assert.match(enabled.overlaySvg, /data-triangle-construction-id=/u);
+  assert.match(enabled.overlaySvg, /data-parent-provenance="user-confirmed-observed-endpoint"/u);
+  assert.match(enabled.overlaySvg, /fill="#fb7185"/u);
+  assert.match(enabled.overlaySvg, />T1\.O\d</u);
+  assert.match(enabled.overlaySvg, /data-parent-kind="observed-line-endpoint"/u);
 });
 
 test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior measurements unchanged", () => {

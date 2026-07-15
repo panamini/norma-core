@@ -33,6 +33,7 @@ import {
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyJunctionAnglesChangedFiles,
+  personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -406,6 +407,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyImageHydrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyJunctionAnglesChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;

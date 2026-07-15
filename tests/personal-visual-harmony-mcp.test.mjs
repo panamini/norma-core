@@ -188,6 +188,41 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     width,
     height,
   }));
+  const triangleConstructionRequests = [{
+    requestId: "cached-explicit-triangle",
+    vertices: [
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+      {
+        point: { x: 1, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-1-to-3" },
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+      {
+        point: { x: 0.5, y: 0.5 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "format-diagonal", diagonal: "vertex-1-to-3" },
+          ],
+        },
+      },
+    ],
+  }];
   const match = {
     subjectCandidateId: "major",
     subjectLabel: "Zone principale",
@@ -205,14 +240,19 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const persistedStates = [];
   const state = {
     completed: false,
-    payload: { prepared: { candidateSetIdentity } },
+    payload: { prepared: { candidateSetIdentity, triangleConstructionRequests } },
     proposalCandidateSetIdentity: candidateSetIdentity,
-    constructionLayers: new Set(["support-line-extensions"]),
+    constructionLayers: new Set([
+      "support-line-extensions",
+      "format-diagonals",
+      "junction-angles",
+      "triangles",
+    ]),
     dimensions: { width: 1_000, height: 800 },
   };
   const constructionGuideState = {
     candidateSetIdentity,
-    layers: ["support-line-extensions"],
+    layers: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"],
   };
   const pixelRefinementState = {
     enabled: false,
@@ -238,7 +278,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     geometrySnapshot: () => reviewedCandidateGeometry,
     constructionLayerSnapshot: () => ({
       candidateSetIdentity,
-      layers: ["support-line-extensions", "format-diagonals", "junction-angles"].filter((layer) => (
+      layers: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"].filter((layer) => (
         state.constructionLayers.has(layer)
       )),
     }),
@@ -248,7 +288,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     publicWidgetState: () => ({}),
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
-    CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles"],
+    CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"],
     updateConstructionControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
@@ -267,7 +307,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
         relationships: [],
         quadrilateralMeasurements: [],
         constructionAnalysis: {
-          enabledLayers: ["support-line-extensions"],
+          enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"],
           supportLineExtensions: [],
           formatDiagonals: [],
           junctionAngles: [],
@@ -332,7 +372,14 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const storedConstructionGuideStateFor = widgetScriptFunction(
     "storedConstructionGuideStateFor",
     "function updateConstructionControls",
-    { CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles"] },
+    {
+      CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"],
+      triangleRequestDependencies: widgetScriptFunction(
+        "triangleRequestDependencies",
+        "function triangleLayerReady",
+        { CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"] },
+      ),
+    },
   );
   const completedConstructionGuideStateFor = widgetScriptFunction(
     "completedConstructionGuideStateFor",
@@ -364,7 +411,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const payload = {
     stage: "confirmation_required",
     fileId: "file-cache",
-    prepared: { candidateSetIdentity, candidates },
+    prepared: { candidateSetIdentity, candidates, triangleConstructionRequests },
     overlaySvg: "<svg></svg>",
   };
   const acceptPersisted = completedWidgetStateFor(() => persisted);
@@ -421,27 +468,72 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   assert.match(html, /id="supportLineToggle"[^>]*aria-pressed="false"/u);
   assert.match(html, /id="formatDiagonalToggle"[^>]*aria-pressed="false"/u);
   assert.match(html, /id="junctionAngleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
-  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles"\]/u);
+  assert.match(html, /id="triangleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
+  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles"\]/u);
   assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
   assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
+  assert.match(
+    html,
+    /invalidateTriangleConstruction\(\);updateConstructionControls\(\);syncOverlaySelection\(\)/u,
+  );
 
-  const layers = ["support-line-extensions", "format-diagonals", "junction-angles"];
+  const layers = ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"];
   const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const prepared = {
+    candidateSetIdentity,
+    triangleConstructionRequests: [{
+      requestId: "explicit-triangle",
+      vertices: [
+        { point: { x: 0.1, y: 0.1 }, parent: { kind: "observed-line-endpoint", candidateId: "line-a", endpoint: "start" } },
+        { point: { x: 0.8, y: 0.1 }, parent: { kind: "observed-line-endpoint", candidateId: "line-a", endpoint: "end" } },
+        { point: { x: 0.4, y: 0.8 }, parent: { kind: "observed-line-endpoint", candidateId: "line-b", endpoint: "end" } },
+      ],
+    }],
+  };
   const state = {
     completed: false,
     confirming: false,
     proposalCandidateSetIdentity: candidateSetIdentity,
     constructionLayers: new Set(),
+    visibleConstructionLayers: new Set(),
+    selectedGuides: new Set(["line-a", "line-b"]),
+    payload: { prepared },
   };
   let persisted = 0;
   let visibilitySyncs = 0;
   let appToolCalls = 0;
+  const triangleRequestDependencies = widgetScriptFunction(
+    "triangleRequestDependencies",
+    "function triangleRequestParentGuideIds",
+    { CONSTRUCTION_LAYERS: layers },
+  );
+  const triangleRequestParentGuideIds = widgetScriptFunction(
+    "triangleRequestParentGuideIds",
+    "function triangleLayerReady",
+    {},
+  );
+  const triangleLayerReady = widgetScriptFunction(
+    "triangleLayerReady",
+    "function storedConstructionGuideStateFor",
+    {
+      state,
+      triangleRequestDependencies,
+      triangleRequestParentGuideIds,
+      geometryChanged: () => false,
+    },
+  );
+  const readyLayers = new Set(["support-line-extensions"]);
+  assert.equal(triangleLayerReady(prepared, readyLayers), true);
+  state.selectedGuides.delete("line-b");
+  assert.equal(triangleLayerReady(prepared, readyLayers), false);
+  state.selectedGuides.add("line-b");
   const toggleConstructionLayer = widgetScriptFunction(
     "toggleConstructionLayer",
     "function syncFamilyVisibility",
     {
       state,
       CONSTRUCTION_LAYERS: layers,
+      triangleLayerReady,
       syncConstructionVisibility() { visibilitySyncs += 1; },
       persistReviewState() { persisted += 1; },
       statusNode: { textContent: "" },
@@ -449,6 +541,9 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   );
 
   toggleConstructionLayer("junction-angles");
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.equal(persisted, 0);
+  toggleConstructionLayer("triangles");
   assert.deepEqual([...state.constructionLayers], []);
   assert.equal(persisted, 0);
 
@@ -460,27 +555,32 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
 
   toggleConstructionLayer("junction-angles");
   assert.deepEqual([...state.constructionLayers], ["support-line-extensions", "junction-angles"]);
+  toggleConstructionLayer("triangles");
+  assert.deepEqual([...state.constructionLayers], ["support-line-extensions", "junction-angles", "triangles"]);
   toggleConstructionLayer("support-line-extensions");
   assert.deepEqual([...state.constructionLayers], []);
   toggleConstructionLayer("support-line-extensions");
   toggleConstructionLayer("format-diagonals");
   toggleConstructionLayer("junction-angles");
+  toggleConstructionLayer("triangles");
   assert.deepEqual([...state.constructionLayers], layers);
+  assert.deepEqual([...state.visibleConstructionLayers], layers);
   assert.equal(appToolCalls, 0);
 
   const storedConstructionGuideStateFor = widgetScriptFunction(
     "storedConstructionGuideStateFor",
     "function updateConstructionControls",
-    { CONSTRUCTION_LAYERS: layers },
+    { CONSTRUCTION_LAYERS: layers, triangleRequestDependencies },
   );
   let saved = {
     constructionGuideState: {
       candidateSetIdentity,
-      layers: ["junction-angles", "format-diagonals", "support-line-extensions"],
+      layers: ["triangles", "junction-angles", "format-diagonals", "support-line-extensions"],
     },
   };
   const restoreState = {
     constructionLayers: new Set(),
+    visibleConstructionLayers: new Set(),
   };
   const restoreConstructionGuideState = widgetScriptFunction(
     "restoreConstructionGuideState",
@@ -488,28 +588,36 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     {
       publicWidgetState: () => saved,
       storedConstructionGuideStateFor,
+      triangleLayerReady: () => true,
       state: restoreState,
       syncConstructionVisibility() {},
     },
   );
-  restoreConstructionGuideState({ candidateSetIdentity });
+  restoreConstructionGuideState(prepared);
   assert.deepEqual([...restoreState.constructionLayers], layers);
+  assert.deepEqual([...restoreState.visibleConstructionLayers], layers);
   saved = {
     constructionGuideState: {
       candidateSetIdentity,
       layers: ["junction-angles"],
     },
   };
-  restoreConstructionGuideState({ candidateSetIdentity });
+  restoreConstructionGuideState(prepared);
   assert.deepEqual([...restoreState.constructionLayers], []);
-  restoreConstructionGuideState({ candidateSetIdentity: `sha256:${"b".repeat(64)}` });
+  restoreConstructionGuideState({ ...prepared, candidateSetIdentity: `sha256:${"b".repeat(64)}` });
   assert.deepEqual([...restoreState.constructionLayers], []);
 
+  const pixelRecovery = widgetScriptFunction(
+    "pixelRecovery",
+    "async function requestPixelProposal",
+    {},
+  );
   const callConfirmation = widgetScriptFunction(
     "callConfirmation",
     "function finishConfirmingPayload",
     {
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      pixelRecovery,
       callAppTool: async (_name, args) => {
         appToolCalls += 1;
         return args;
@@ -521,7 +629,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
       sessionId: "session:test",
       fileId: "file-test",
       sourceImageMediaType: "image/png",
-      prepared: { candidateSetIdentity, candidates: [] },
+      prepared: { ...prepared, candidates: [] },
     },
     ["core-rectangle"],
     ["observed-oblique"],
@@ -529,8 +637,21 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     { width: 1200, height: 800 },
   );
   assert.deepEqual(args.constructionLayers, layers);
+  assert.deepEqual(args.recovery.triangleConstructionRequests, prepared.triangleConstructionRequests);
   assert.equal(args.confirmClientReviewedSelection, true);
   assert.equal(appToolCalls, 1);
+
+  const persistedBeforeCompletedToggle = persisted;
+  state.completed = true;
+  state.visibleConstructionLayers = new Set(layers);
+  toggleConstructionLayer("triangles");
+  assert.deepEqual([...state.constructionLayers], layers);
+  assert.deepEqual([...state.visibleConstructionLayers], layers.slice(0, -1));
+  assert.equal(persisted, persistedBeforeCompletedToggle);
+  assert.equal(appToolCalls, 1);
+  toggleConstructionLayer("triangles");
+  assert.deepEqual([...state.visibleConstructionLayers], layers);
+  assert.equal(persisted, persistedBeforeCompletedToggle);
 });
 
 test("widget pixel proposals remain separate until an explicit adoption click", () => {
@@ -576,6 +697,8 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
     reviewedCandidates: [reviewedCandidate],
     pixelRefinementProposals: new Map([[proposal.candidateId, proposal]]),
     adoptedPixelRefinements: new Map(),
+    constructionLayers: new Set(["support-line-extensions", "triangles"]),
+    visibleConstructionLayers: new Set(["support-line-extensions", "triangles"]),
   };
   let persisted = 0;
   let confirmed = 0;
@@ -588,6 +711,10 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      invalidateTriangleConstruction() {
+        state.constructionLayers.delete("triangles");
+        state.visibleConstructionLayers.delete("triangles");
+      },
       updatePixelProposalUi() { proposalUiUpdates += 1; },
       persistReviewState() { persisted += 1; },
       updateConfirm() { confirmed += 1; },
@@ -605,6 +732,8 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
   assert.equal(persisted, 1);
   assert.equal(confirmed, 1);
   assert.equal(proposalUiUpdates, 1);
+  assert.deepEqual([...state.constructionLayers], ["support-line-extensions"]);
+  assert.deepEqual([...state.visibleConstructionLayers], ["support-line-extensions"]);
 
   applyPixelProposal("trapezoid");
   assert.deepEqual(state.reviewedCandidates[0].primitive, originalGeometry);
@@ -1185,6 +1314,40 @@ function mixedPrimitiveCandidates() {
   ];
 }
 
+function explicitTriangleConstructionRequests() {
+  return [{
+    requestId: "explicit-oblique-triangle",
+    vertices: [
+      {
+        point: { x: 0.2, y: 0.8 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "diagonal",
+          endpoint: "start",
+        },
+      },
+      {
+        point: { x: 0.8, y: 0.2 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "diagonal",
+          endpoint: "end",
+        },
+      },
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+    ],
+  }];
+}
+
 function quadrilateralCandidates() {
   return [
     ...candidates(),
@@ -1329,14 +1492,22 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
     const constructionLayerInput = confirmTool.inputSchema.properties.constructionLayers;
     assert.equal(constructionLayerInput.type, "array");
-    assert.equal(constructionLayerInput.maxItems, 3);
+    assert.equal(constructionLayerInput.maxItems, 4);
     assert.deepEqual(constructionLayerInput.default, []);
     assert.deepEqual(constructionLayerInput.items.enum, [
       "support-line-extensions",
       "format-diagonals",
       "junction-angles",
+      "triangles",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
+    const triangleRequestInput = prepareTool.inputSchema.properties.triangleConstructionRequests;
+    assert.equal(triangleRequestInput.type, "array");
+    assert.equal(triangleRequestInput.maxItems, 4);
+    assert.equal(prepareTool.inputSchema.required.includes("triangleConstructionRequests"), false);
+    assert.equal(triangleRequestInput.items.additionalProperties, false);
+    assert.equal(triangleRequestInput.items.properties.vertices.minItems, 3);
+    assert.equal(triangleRequestInput.items.properties.vertices.maxItems, 3);
     const imagePlaneOutput = confirmTool.outputSchema.properties.imagePlaneGuideAnalysis;
     assert.equal(imagePlaneOutput.type, "object");
     assert.equal(imagePlaneOutput.additionalProperties, false);
@@ -1517,7 +1688,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /status:"CORE_AND_IMAGE_PLANE_VERIFIED"/u);
     assert.match(resource.contents[0].text, /scrollToBottom:true/u);
     assert.match(resource.contents[0].text, /confirmClientReviewedSelection:true/u);
-    assert.match(resource.contents[0].text, /recovery:\{fileId:payload\.fileId/u);
+    assert.match(resource.contents[0].text, /function pixelRecovery\(payload\)\{const recovery=\{fileId:payload\.fileId/u);
+    assert.match(resource.contents[0].text, /recovery:pixelRecovery\(payload\)/u);
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
@@ -2221,6 +2393,185 @@ test("mixed structural primitives stay visible while only rectangles cross the C
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-image-plane-relation-id=/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-format-diagonal=/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-junction-angle-id=/u);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("MCP resolves only an explicit parented triangle after opt-in confirmation", async () => {
+  let sequence = 0;
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-15T12:00:00.000Z"),
+    createSessionId: () => `session:triangle-${String(++sequence)}`,
+  }));
+  try {
+    const candidateValues = mixedPrimitiveCandidates();
+    const triangleConstructionRequests = explicitTriangleConstructionRequests();
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/triangle-construction",
+          file_id: "file-triangle-construction",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+        triangleConstructionRequests,
+      },
+    });
+
+    assert.equal(prepared.isError, undefined);
+    assert.equal(prepared.structuredContent.coreRun, false);
+    const canonicalTriangleRequests = prepared.structuredContent.triangleConstructionRequests;
+    assert.equal(canonicalTriangleRequests.length, 1);
+    assert.equal(canonicalTriangleRequests[0].vertices.length, 3);
+    assert.deepEqual(
+      prepared._meta.normaPersonalVisualHarmony.prepared.triangleConstructionRequests,
+      canonicalTriangleRequests,
+    );
+    assert.doesNotMatch(
+      prepared._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-triangle-construction-id=/u,
+    );
+
+    const missingParent = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/triangle-construction-stale",
+          file_id: "file-triangle-construction-stale",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+        triangleConstructionRequests: [{
+          ...triangleConstructionRequests[0],
+          vertices: triangleConstructionRequests[0].vertices.map((vertex, index) => index === 0
+            ? {
+              ...vertex,
+              parent: {
+                kind: "observed-line-endpoint",
+                candidateId: "missing-observed-line",
+                endpoint: "start",
+              },
+            }
+            : vertex),
+        }],
+      },
+    });
+    assert.equal(missingParent.isError, true);
+
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const unconfirmedParent = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: [],
+        constructionLayers: [
+          "support-line-extensions",
+          "format-diagonals",
+          "junction-angles",
+          "triangles",
+        ],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput("file-triangle-construction", candidateValues),
+          triangleConstructionRequests: canonicalTriangleRequests,
+        },
+      },
+    });
+    assert.equal(unconfirmedParent.isError, true);
+    assert.match(
+      unconfirmedParent.content[0].text,
+      /parents must remain explicitly confirmed visual guides/u,
+    );
+
+    const missingConstructionDependency = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["diagonal"],
+        constructionLayers: [
+          "support-line-extensions",
+          "junction-angles",
+          "triangles",
+        ],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput("file-triangle-construction", candidateValues),
+          triangleConstructionRequests: canonicalTriangleRequests,
+        },
+      },
+    });
+    assert.equal(missingConstructionDependency.isError, true);
+    assert.match(
+      missingConstructionDependency.content[0].text,
+      /format-diagonal parents require the format-diagonal layer/u,
+    );
+
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["diagonal"],
+        constructionLayers: [
+          "support-line-extensions",
+          "format-diagonals",
+          "junction-angles",
+          "triangles",
+        ],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          ...recoveryInput("file-triangle-construction", candidateValues),
+          triangleConstructionRequests: canonicalTriangleRequests,
+        },
+      },
+    });
+
+    assert.equal(confirmed.isError, undefined);
+    assert.equal(confirmed.structuredContent.coreRun, true);
+    assert.deepEqual(confirmed.structuredContent.coreAnalyzedCandidateIds, ["major", "minor"]);
+    const constructions = confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis;
+    assert.deepEqual(constructions.enabledLayers, [
+      "support-line-extensions",
+      "format-diagonals",
+      "junction-angles",
+      "triangles",
+    ]);
+    assert.equal(constructions.triangles.length, 1);
+    const triangle = constructions.triangles[0];
+    assert.equal(triangle.requestId, "explicit-oblique-triangle");
+    assert.equal(triangle.provenance, "derived-construction");
+    assert.equal(triangle.derivation, "three_explicit_parented_vertices");
+    assert.equal(triangle.sourceTruth, false);
+    assert.equal(triangle.coreAuthority, false);
+    assert.equal(constructions.coreRun, false);
+    assert.match(triangle.triangleId, /^construction:triangle:[0-9a-f]{64}$/u);
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-construction-layer="triangles"/u,
+    );
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-triangle-construction-id=/u,
+    );
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-parent-provenance="derived-junction-intersection"/u,
+    );
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /fill="#facc15"/u);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, />T1\.J\d</u);
   } finally {
     await connected.close();
   }

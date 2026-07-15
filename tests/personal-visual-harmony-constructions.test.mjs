@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
+  constructPersonalVisualHarmonyTrianglesV1,
+  PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED,
 } from "../dist/src/personal-visual-harmony-constructions.js";
 import * as packageRoot from "../dist/src/index.js";
 
@@ -40,6 +42,45 @@ function analyze(overrides = {}) {
     ],
     ...overrides,
   });
+}
+
+function triangleObservedLine(candidateId, point) {
+  const end = {
+    x: point.x <= 0.9 ? point.x + 0.05 : point.x - 0.05,
+    y: point.y <= 0.9 ? point.y + 0.03 : point.y - 0.03,
+  };
+  return observedLine(candidateId, point, end);
+}
+
+function observedTriangleRequest(requestId, entries) {
+  return {
+    requestId,
+    vertices: entries.map(({ candidateId, point, endpoint = "start" }) => ({
+      point,
+      parent: { kind: "observed-line-endpoint", candidateId, endpoint },
+    })),
+  };
+}
+
+function analyzeObservedTriangle(points, overrides = {}) {
+  const entries = points.map((point, index) => ({ candidateId: `triangle-line-${String(index)}`, point }));
+  return analyze({
+    enabledLayers: ["support-line-extensions", "triangles"],
+    observedLines: entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point)),
+    triangleRequests: [observedTriangleRequest("triangle-request", entries)],
+    ...overrides,
+  });
+}
+
+function permutations(values) {
+  return [
+    [values[0], values[1], values[2]],
+    [values[0], values[2], values[1]],
+    [values[1], values[0], values[2]],
+    [values[1], values[2], values[0]],
+    [values[2], values[0], values[1]],
+    [values[2], values[1], values[0]],
+  ];
 }
 
 test("horizontal, vertical, and strong oblique observations stay distinct from frame-clipped support lines", () => {
@@ -342,4 +383,253 @@ test("junction enumeration stays bounded at the maximum observed-line input", ()
     (48 * 47) / 2,
   );
   assert.ok(result.junctionAngles.length <= 2_048);
+});
+
+test("explicit observed endpoints produce acute, right, and obtuse derived triangle metrics", () => {
+  const cases = [
+    {
+      name: "acute",
+      points: [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.5, y: 0.719615242271 }],
+      assertAngles: (angles) => assert.ok(angles.every((angle) => angle < 90)),
+    },
+    {
+      name: "right",
+      points: [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }],
+      assertAngles: (angles) => assert.deepEqual([...angles].sort((a, b) => a - b), [45, 45, 90]),
+    },
+    {
+      name: "obtuse",
+      points: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.3, y: 0.2 }],
+      assertAngles: (angles) => assert.ok(angles.some((angle) => angle > 90)),
+    },
+  ];
+
+  for (const entry of cases) {
+    const result = analyzeObservedTriangle(entry.points);
+    const triangle = result.triangles[0];
+    assert.ok(triangle, entry.name);
+    assert.equal(triangle.kind, "triangle-construction");
+    assert.equal(triangle.winding, "clockwise_image_plane");
+    assert.equal(triangle.signedNormalizedArea, triangle.absoluteNormalizedArea);
+    assert.ok(triangle.absoluteNormalizedArea > triangle.areaToleranceNormalized);
+    assert.equal(triangle.areaToleranceNormalized, PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED);
+    assert.ok(triangle.sideLengthsPixels.every((length) => length > 0));
+    assert.ok(Math.abs(triangle.interiorAnglesDegrees.reduce((sum, angle) => sum + angle, 0) - 180) < 1e-9);
+    entry.assertAngles(triangle.interiorAnglesDegrees);
+    assert.ok(triangle.vertices.every(({ parent }) => (
+      parent.kind === "observed-line-endpoint"
+      && parent.provenance === "user-confirmed-observed-endpoint"
+    )));
+    assert.equal(triangle.provenance, "derived-construction");
+    assert.equal(triangle.candidateEvidenceOnly, true);
+    assert.equal(triangle.sourceTruth, false);
+    assert.equal(triangle.coreAuthority, false);
+  }
+});
+
+test("all vertex permutations yield byte-identical canonical triangle output and identity", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.25, y: 0.75 }];
+  const entries = points.map((point, index) => ({ candidateId: `permutation-line-${String(index)}`, point }));
+  const observedLines = entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point));
+  const outputs = permutations(entries).map((vertices) => analyze({
+    enabledLayers: ["support-line-extensions", "triangles"],
+    observedLines,
+    triangleRequests: [observedTriangleRequest("permutation-request", vertices)],
+  }).triangles[0]);
+
+  assert.ok(outputs.every((triangle) => JSON.stringify(triangle) === JSON.stringify(outputs[0])));
+  assert.ok(outputs.every(({ triangleId }) => triangleId === outputs[0].triangleId));
+});
+
+test("triangle inputs and prior construction outputs remain immutable and disabled output stays absent", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }];
+  const entries = points.map((point, index) => ({ candidateId: `immutable-line-${String(index)}`, point }));
+  const input = {
+    enabledLayers: ["support-line-extensions", "triangles"],
+    sourcePixelWidth: 1_200,
+    sourcePixelHeight: 800,
+    frame: structuredClone(FRAME),
+    observedLines: entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point)),
+    triangleRequests: [observedTriangleRequest("immutable-request", entries)],
+  };
+  const before = structuredClone(input);
+  const enabled = analyzePersonalVisualHarmonyConstructionsV1(input);
+  const disabled = analyzePersonalVisualHarmonyConstructionsV1({
+    ...input,
+    enabledLayers: ["support-line-extensions"],
+  });
+
+  assert.deepEqual(input, before);
+  assert.equal(enabled.triangles.length, 1);
+  assert.equal(Object.hasOwn(disabled, "triangles"), false);
+  assert.equal(disabled.coreRun, false);
+});
+
+test("duplicate, collinear, near-collinear, non-finite, out-of-bound, and stale triangle vertices fail closed", () => {
+  const basePoints = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }];
+  const baseEntries = basePoints.map((point, index) => ({ candidateId: `negative-line-${String(index)}`, point }));
+  const observedLines = baseEntries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point));
+  const run = (vertices, lineOverrides = observedLines) => analyze({
+    enabledLayers: ["support-line-extensions", "triangles"],
+    observedLines: lineOverrides,
+    triangleRequests: [{ requestId: "negative-request", vertices }],
+  });
+  const validVertices = observedTriangleRequest("negative-request", baseEntries).vertices;
+
+  const duplicatePointEntries = [
+    { candidateId: "negative-line-0", point: { x: 0.2, y: 0.2 } },
+    { candidateId: "negative-line-1", point: { x: 0.2, y: 0.2 } },
+    { candidateId: "negative-line-2", point: { x: 0.2, y: 0.8 } },
+  ];
+  assert.throws(
+    () => run(
+      observedTriangleRequest("duplicate-point", duplicatePointEntries).vertices,
+      duplicatePointEntries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point)),
+    ),
+    /must be distinct/u,
+  );
+  assert.throws(
+    () => run([validVertices[0], validVertices[0], validVertices[2]]),
+    /distinct stable parent references/u,
+  );
+  assert.throws(
+    () => run([
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+            { kind: "frame-edge", frameEdgeIndex: 3 },
+          ],
+        },
+      },
+      validVertices[1],
+      validVertices[2],
+    ]),
+    /does not support a junction made only from frame edges/u,
+  );
+  assert.throws(
+    () => run(observedTriangleRequest("collinear", [
+      { candidateId: "negative-line-0", point: { x: 0.2, y: 0.2 } },
+      { candidateId: "negative-line-1", point: { x: 0.5, y: 0.5 } },
+      { candidateId: "negative-line-2", point: { x: 0.8, y: 0.8 } },
+    ]).vertices, [
+      triangleObservedLine("negative-line-0", { x: 0.2, y: 0.2 }),
+      triangleObservedLine("negative-line-1", { x: 0.5, y: 0.5 }),
+      triangleObservedLine("negative-line-2", { x: 0.8, y: 0.8 }),
+    ]),
+    /collinear or near-collinear/u,
+  );
+  assert.throws(
+    () => run(observedTriangleRequest("near-collinear", [
+      { candidateId: "negative-line-0", point: { x: 0.2, y: 0.2 } },
+      { candidateId: "negative-line-1", point: { x: 0.5, y: 0.5 } },
+      { candidateId: "negative-line-2", point: { x: 0.8, y: 0.800000001 } },
+    ]).vertices, [
+      triangleObservedLine("negative-line-0", { x: 0.2, y: 0.2 }),
+      triangleObservedLine("negative-line-1", { x: 0.5, y: 0.5 }),
+      triangleObservedLine("negative-line-2", { x: 0.8, y: 0.800000001 }),
+    ]),
+    /collinear or near-collinear/u,
+  );
+  assert.throws(
+    () => run([{ ...validVertices[0], point: { x: Number.NaN, y: 0.2 } }, validVertices[1], validVertices[2]]),
+    /finite and inside/u,
+  );
+  assert.throws(
+    () => run([{ ...validVertices[0], point: { x: -0.01, y: 0.2 } }, validVertices[1], validVertices[2]]),
+    /finite and inside/u,
+  );
+  assert.throws(
+    () => run([{ ...validVertices[0], point: { x: 0.21, y: 0.2 } }, validVertices[1], validVertices[2]]),
+    /does not match its stable parent/u,
+  );
+  assert.throws(
+    () => run(validVertices, observedLines.slice(1)),
+    /missing or stale/u,
+  );
+  assert.throws(
+    () => analyzeObservedTriangle(
+      [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 0.000001 }],
+      { sourcePixelWidth: 100_000, sourcePixelHeight: 1 },
+    ),
+    /degenerate in pixel space/u,
+  );
+});
+
+test("explicit junction parents build a triangle from support-line and format-diagonal constructions", () => {
+  const observedLines = [
+    observedLine("horizontal", { x: 0.2, y: 0.25 }, { x: 0.7, y: 0.25 }),
+  ];
+  const prepass = analyze({
+    enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
+    observedLines,
+  });
+  const request = {
+    requestId: "junction-triangle",
+    vertices: [
+      {
+        point: { x: 0.5, y: 0.5 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "format-diagonal", diagonal: "vertex-1-to-3" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.25, y: 0.25 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "horizontal" },
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.75, y: 0.25 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "horizontal" },
+            { kind: "format-diagonal", diagonal: "vertex-1-to-3" },
+          ],
+        },
+      },
+    ],
+  };
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles"],
+    observedLines,
+    triangleRequests: [request],
+  });
+  const triangle = result.triangles[0];
+
+  assert.equal(triangle.vertices.length, 3);
+  assert.ok(triangle.vertices.every(({ parent }) => (
+    parent.kind === "junction-intersection"
+    && parent.provenance === "derived-junction-intersection"
+    && parent.participantConstructionIds.length === 2
+  )));
+  assert.deepEqual(
+    triangle.vertices.map(({ point }) => point).sort((a, b) => a.x - b.x),
+    [{ x: 0.25, y: 0.25 }, { x: 0.5, y: 0.5 }, { x: 0.75, y: 0.25 }],
+  );
+
+  assert.throws(
+    () => constructPersonalVisualHarmonyTrianglesV1({
+      requests: [request],
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 1000,
+      frame: FRAME,
+      observedLines: prepass.observedLines,
+      supportLineExtensions: prepass.supportLineExtensions,
+      formatDiagonals: prepass.formatDiagonals,
+      junctionAngles: [...prepass.junctionAngles, ...prepass.junctionAngles],
+    }),
+    /unique stable ids|ambiguous/u,
+  );
 });

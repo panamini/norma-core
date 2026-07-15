@@ -16,6 +16,19 @@ the widget sends only deterministic candidate-local grayscale crops bounded to
 separate `refined` or `abstained` proposal; it is never source truth, automatic
 acceptance, confirmation, or a Core run.
 
+The derived-construction rail is extended by PR226
+(`f333c9a3ee6e7034b59b03401362a2aec6ffe5ad`) for observed support-line
+extensions and format diagonals, then PR227
+(`25810e39a01a65f9f2453f000d459633376c3419`) for junction angles. The current
+implementation adds a fourth, separately controlled triangle layer. It accepts
+only a bounded explicit request containing exactly three parented image-plane
+vertices; it does not enumerate triangles from available lines. Each parent is
+either a confirmed observed-line endpoint or an already-admitted deterministic
+junction. Canonical winding, starting vertex, identity, area, side lengths, and
+interior angles are deterministic. Invalid, stale, ambiguous, out-of-frame, or
+degenerate requests fail closed. The resulting triangle remains a derived,
+non-source-truth, non-Core construction and is off by default.
+
 The pre-enhancement exact-main gate recorded in PR224 is green: its build,
 focused personal visual harmony tests (39/39), full repository suite
 (1608/1608), and static widget harness all passed. The opt-in integration gate
@@ -34,7 +47,7 @@ before any claim that refinement improves the live overlay.
 
 ## What the demo proves
 
-The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, quadrilaterals, segments, axes, and axis-aligned ellipses. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. Optional construction layers can show a confirmed segment together with its separately labelled, frame-clipped support-line extension, the two format diagonals, and projected junction-angle markers. Those extensions, diagonals, and angle measurements are derived constructions or measurements, not observed or Core-authoritative geometry. The widget returns the proof families with separate canonical identities plus a transparent overlay.
+The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, quadrilaterals, segments, axes, and axis-aligned ellipses. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. Optional construction layers can show a confirmed segment together with its separately labelled, frame-clipped support-line extension, the two format diagonals, projected junction-angle markers, and explicitly requested triangles derived from three stable parents. Those extensions, diagonals, angle measurements, and triangles are derived constructions or measurements, not observed or Core-authoritative geometry. The widget returns the proof families with separate canonical identities plus a transparent overlay.
 
 The server records the confirmation honestly as `client_asserted_widget_interaction`; it does not claim server-verified human presence. Candidates remain non-authoritative evidence until that selection. The preparation server never downloads the attached image. The optional app-only refinement tool receives only a bounded candidate-local luminance crop, returns evidence without adoption authority, and never invokes Core. Core receives structured geometry only. An image-plane guide relation is not a harmonic ratio, a physical-world measurement, or evidence of artistic intent.
 
@@ -84,12 +97,13 @@ Expected sequence:
 2. The widget retrieves the exact file through the ChatGPT file API, aligns the candidate overlay to its natural aspect ratio, and lets the user include or exclude Core rectangles and image-plane guides independently. Family filters only control visibility.
 3. Pixel proposals are off by default. If the user enables them, the widget extracts each bounded local luminance crop and calls `norma.refinePersonalVisualHarmonyPixelsV1`. It displays original and proposed geometry separately, including abstention or confidence, evidence gain, displacement, reason, and deterministic identity.
 4. A refined proposal changes nothing until the user clicks **Adopter cette proposition** for that candidate. Selecting a family, selecting a candidate, or confirming without that adoption click cannot silently adopt it.
-5. **Prolongements**, **Diagonales format**, and **Angles jonction** are separate construction toggles and are off by default. A prolongation never changes the visible, observed segment: it renders the segment's derived infinite support line clipped to the confirmed image frame. The two format diagonals are deterministic corner-to-corner frame constructions. Junction angles require the prolongation layer, report whether each crossing falls within the original observed extent, and remain hidden when their prerequisite is disabled.
-6. Clicking **Confirmer et analyser avec Norma Core** calls the separate app-only confirmation tool. Only the construction layers that were explicitly enabled at that moment enter the optional image-plane construction analysis; toggling them alone never runs Core.
-7. Norma maps only selected rectangles into Core. In parallel it measures confirmed ellipse/line pairs against the infinite supporting line derived from the observed endpoints.
-8. For every ellipse/line pair, Norma solves actual intersections. Without an intersection it computes the exact support/contact point of the ellipse in the line-normal direction, rather than checking only the four cardinal extrema. It reports pixel gap, image-width-normalized gap, tangent angle delta, and whether the relation lies on the visible segment or only on its prolongation.
-9. When enabled, the construction analysis reports deterministic image-plane directions, frame-edge contacts, support-line/format-diagonal intersections, normalized positions, and smaller/supplementary projected angles at bounded line junctions. It never infers artistic intent, physical geometry, a vanishing point, or harmonic meaning.
-10. The widget replaces the preview with Core ratio matches and separate relation/construction cards, measured connectors, and canonical identities.
+5. **Prolongements**, **Diagonales format**, **Angles jonction**, and **Triangles** are separate construction toggles and are off by default. A prolongation never changes the visible, observed segment: it renders the segment's derived infinite support line clipped to the confirmed image frame. The two format diagonals are deterministic corner-to-corner frame constructions. Junction angles require the prolongation layer, report whether each crossing falls within the original observed extent, and remain hidden when their prerequisite is disabled.
+6. A triangle control becomes available only when the prepared payload contains an explicit valid three-vertex request and its construction prerequisites are already enabled. The control never enables another family, changes a candidate, adopts a pixel proposal, confirms geometry, or runs Core. Editing or refining a parent invalidates the triangle request instead of silently retargeting it.
+7. Clicking **Confirmer et analyser avec Norma Core** calls the separate app-only confirmation tool. Only the construction layers that were explicitly enabled at that moment enter the optional image-plane construction analysis; toggling them alone never runs Core.
+8. Norma maps only selected rectangles into Core. In parallel it measures confirmed ellipse/line pairs against the infinite supporting line derived from the observed endpoints.
+9. For every ellipse/line pair, Norma solves actual intersections. Without an intersection it computes the exact support/contact point of the ellipse in the line-normal direction, rather than checking only the four cardinal extrema. It reports pixel gap, image-width-normalized gap, tangent angle delta, and whether the relation lies on the visible segment or only on its prolongation.
+10. When enabled, the construction analysis reports deterministic image-plane directions, frame-edge contacts, support-line/format-diagonal intersections, normalized positions, smaller/supplementary projected angles at bounded line junctions, and metrics for explicitly parented triangles. It never infers artistic intent, physical geometry, a vanishing point, or harmonic meaning.
+11. The widget replaces the preview with Core ratio matches and separate relation/construction cards, measured connectors, and canonical identities.
 
 An honest empty result is valid: it means the confirmed geometry was not within the declared tolerance of any ratio in the active packs.
 
@@ -117,7 +131,8 @@ rectification or calibration.
 | Extended obliques and format diagonals | Implemented locally; live proof required | Disabled by default; preserve the observed, user-confirmed finite segment; derive its separately labelled support line clipped to the confirmed image frame and the two corner-to-corner format diagonals; deterministic image-plane intersections only; no Core authority |
 | Junction angles | Implemented locally; live proof required | Disabled by default and dependent on support-line extensions; deterministic crossings among confirmed support lines, enabled format diagonals, and confirmed frame edges; pixel-scaled smaller/supplementary angles; observed-extent flags and derived-measurement provenance; no Core authority |
 | Quadrilaterals and trapezoids | Implemented locally; live proof required | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
-| Triangles, medians, and bisectors | Next, opt-in | Derive only from accepted parent segments, vertices, triangles, or angles |
+| Explicit triangle constructions | Implemented locally; live proof required | Disabled by default; one bounded explicit request per triangle; exactly three stable observed-endpoint or admitted-junction parents; deterministic canonical winding, identity, area, sides, and interior angles; fail closed; no Core authority |
+| Medians, bisectors, and triangle centers | Deferred, separate slice | May derive only from an explicitly admitted triangle under a new bounded contract; not part of the triangle layer |
 | Rotated ellipses | Next | Add explicit rotation to the primitive contract before measuring tangent relations |
 | Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |
 | Repetition and rhythm | Later | First measure count, spacing, orientation, scale progression, alternation, and symmetry in a confirmed family; keep `rhythm` interpretive |
@@ -146,4 +161,4 @@ rtk npm run build
 rtk node --test tests/personal-visual-harmony-constructions.test.mjs tests/personal-visual-harmony.test.mjs tests/personal-visual-harmony-mcp.test.mjs tests/personal-visual-harmony-http.test.mjs
 ```
 
-The HTTP test uses the real SDK Streamable HTTP client. It covers capability-path rejection, exact ChatGPT CORS, MCP protocol negotiation, stateless request handling with shared bounded business sessions, file-reference redaction from model-visible output, a bounded app-only refinement call that abstains without authority, and the cross-request `prepare` to `confirm` transition.
+The HTTP test uses the real SDK Streamable HTTP client. It covers capability-path rejection, exact ChatGPT CORS, MCP protocol negotiation, stateless request handling with shared bounded business sessions, file-reference redaction from model-visible output, a bounded app-only refinement call that abstains without authority, explicit triangle-request recovery, and the cross-request `prepare` to `confirm` transition.

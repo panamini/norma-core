@@ -11,6 +11,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "support-line-extensions",
   "format-diagonals",
   "junction-angles",
+  "triangles",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -135,6 +136,91 @@ export interface PersonalVisualHarmonyJunctionAngleV1 {
   readonly coreAuthority: false;
 }
 
+export type PersonalVisualHarmonyTriangleParticipantReferenceV1 =
+  | {
+    readonly kind: "support-line-extension";
+    readonly candidateId: string;
+  }
+  | {
+    readonly kind: "format-diagonal";
+    readonly diagonal: "vertex-0-to-2" | "vertex-1-to-3";
+  }
+  | {
+    readonly kind: "frame-edge";
+    readonly frameEdgeIndex: 0 | 1 | 2 | 3;
+  };
+
+export type PersonalVisualHarmonyTriangleVertexParentInputV1 =
+  | {
+    readonly kind: "observed-line-endpoint";
+    readonly candidateId: string;
+    readonly endpoint: "start" | "end";
+  }
+  | {
+    readonly kind: "junction-intersection";
+    readonly participants: readonly [
+      PersonalVisualHarmonyTriangleParticipantReferenceV1,
+      PersonalVisualHarmonyTriangleParticipantReferenceV1,
+    ];
+  };
+
+export interface PersonalVisualHarmonyTriangleVertexInputV1 {
+  readonly point: PersonalVisualHarmonyConstructionPointV1;
+  readonly parent: PersonalVisualHarmonyTriangleVertexParentInputV1;
+}
+
+export interface PersonalVisualHarmonyTriangleRequestInputV1 {
+  readonly requestId: string;
+  readonly vertices: readonly [
+    PersonalVisualHarmonyTriangleVertexInputV1,
+    PersonalVisualHarmonyTriangleVertexInputV1,
+    PersonalVisualHarmonyTriangleVertexInputV1,
+  ];
+}
+
+export type PersonalVisualHarmonyTriangleVertexParentV1 =
+  | {
+    readonly kind: "observed-line-endpoint";
+    readonly parentId: string;
+    readonly candidateId: string;
+    readonly endpoint: "start" | "end";
+    readonly provenance: "user-confirmed-observed-endpoint";
+  }
+  | {
+    readonly kind: "junction-intersection";
+    readonly parentId: string;
+    readonly participantConstructionIds: readonly [string, string];
+    readonly provenance: "derived-junction-intersection";
+  };
+
+export interface PersonalVisualHarmonyTriangleVertexV1 {
+  readonly point: PersonalVisualHarmonyConstructionPointV1;
+  readonly parent: PersonalVisualHarmonyTriangleVertexParentV1;
+}
+
+export interface PersonalVisualHarmonyTriangleConstructionV1 {
+  readonly triangleId: string;
+  readonly kind: "triangle-construction";
+  readonly requestId: string;
+  readonly vertices: readonly [
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+  ];
+  readonly winding: "clockwise_image_plane";
+  readonly signedNormalizedArea: number;
+  readonly absoluteNormalizedArea: number;
+  readonly areaToleranceNormalized: number;
+  readonly sideLengthsPixels: readonly [number, number, number];
+  readonly interiorAnglesDegrees: readonly [number, number, number];
+  readonly angleConvention: "projected_image_plane_interior";
+  readonly provenance: "derived-construction";
+  readonly derivation: "three_explicit_parented_vertices";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -153,6 +239,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly formatDiagonals: readonly PersonalVisualHarmonyFormatDiagonalV1[];
   readonly relations: readonly PersonalVisualHarmonySupportLineDiagonalRelationV1[];
   readonly junctionAngles?: readonly PersonalVisualHarmonyJunctionAngleV1[];
+  readonly triangles?: readonly PersonalVisualHarmonyTriangleConstructionV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -170,6 +257,8 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
 }
 
 const BOUNDARY_TOLERANCE_NORMALIZED = 1e-9;
+export const PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED = 1e-9;
+export const PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS = 4;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 
 interface ClippedContact {
@@ -206,12 +295,16 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
   readonly sourcePixelHeight: number;
   readonly frame: PersonalVisualHarmonyConstructionFrameV1;
   readonly observedLines: readonly PersonalVisualHarmonyObservedLineInputV1[];
+  readonly triangleRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): PersonalVisualHarmonyConstructionAnalysisV1 {
   requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
   const enabledLayers = normalizeLayers(input.enabledLayers);
   const frame = validateFrame(input.frame);
   const observedLineInputs = validateObservedLines(input.observedLines);
+  const triangleRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
+    input.triangleRequests ?? [],
+  );
   const supportLayerEnabled = enabledLayers.includes("support-line-extensions");
   const diagonalLayerEnabled = enabledLayers.includes("format-diagonals");
   const observedLines = supportLayerEnabled
@@ -240,6 +333,19 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
       input.sourcePixelHeight,
     )
     : [];
+  const triangleLayerEnabled = enabledLayers.includes("triangles");
+  const triangles = triangleLayerEnabled
+    ? constructPersonalVisualHarmonyTrianglesV1({
+      requests: triangleRequests,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+      frame,
+      observedLines,
+      supportLineExtensions,
+      formatDiagonals,
+      junctionAngles,
+    })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -259,6 +365,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     formatDiagonals,
     relations,
     ...(junctionLayerEnabled ? { junctionAngles } : {}),
+    ...(triangleLayerEnabled ? { triangles } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -295,7 +402,157 @@ function normalizeLayers(
   if (unique.has("junction-angles") && !unique.has("support-line-extensions")) {
     throw new Error("Junction angles require the support-line extension layer.");
   }
+  if (unique.has("triangles") && !unique.has("support-line-extensions")) {
+    throw new Error("Triangles require the support-line extension layer.");
+  }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
+}
+
+export function normalizePersonalVisualHarmonyTriangleRequestsV1(
+  requests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
+): readonly PersonalVisualHarmonyTriangleRequestInputV1[] {
+  if (!Array.isArray(requests) || requests.length > PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS) {
+    throw new Error("Triangle construction requests must be a bounded array.");
+  }
+  const requestIds = new Set<string>();
+  const normalized = requests.map((request, requestIndex) => {
+    if (request === null || typeof request !== "object" || !ID_PATTERN.test(request.requestId)
+      || !Array.isArray(request.vertices) || request.vertices.length !== 3) {
+      throw new Error(`Triangle construction request ${String(requestIndex)} is invalid.`);
+    }
+    if (requestIds.has(request.requestId)) {
+      throw new Error("Triangle construction request ids must be unique.");
+    }
+    requestIds.add(request.requestId);
+    const vertices = request.vertices.map((
+      vertex: PersonalVisualHarmonyTriangleVertexInputV1,
+      vertexIndex: number,
+    ) => normalizeTriangleVertexInput(
+      vertex,
+      `triangleRequests.${String(requestIndex)}.vertices.${String(vertexIndex)}`,
+    )).sort((
+      first: PersonalVisualHarmonyTriangleVertexInputV1,
+      second: PersonalVisualHarmonyTriangleVertexInputV1,
+    ) => stringCompare(
+      triangleVertexInputKey(first),
+      triangleVertexInputKey(second),
+    ));
+    return {
+      requestId: request.requestId,
+      vertices: [vertices[0]!, vertices[1]!, vertices[2]!] as const,
+    };
+  });
+  return normalized.sort((first, second) => stringCompare(first.requestId, second.requestId));
+}
+
+function normalizeTriangleVertexInput(
+  vertex: PersonalVisualHarmonyTriangleVertexInputV1,
+  field: string,
+): PersonalVisualHarmonyTriangleVertexInputV1 {
+  if (vertex === null || typeof vertex !== "object"
+    || Object.keys(vertex).sort().join("|") !== "parent|point") {
+    throw new Error(`${field} must contain exactly point and parent.`);
+  }
+  const point = validateTrianglePoint(vertex.point, `${field}.point`);
+  const parent = normalizeTriangleVertexParentInput(vertex.parent, `${field}.parent`);
+  return { point, parent };
+}
+
+function normalizeTriangleVertexParentInput(
+  parent: PersonalVisualHarmonyTriangleVertexParentInputV1,
+  field: string,
+): PersonalVisualHarmonyTriangleVertexParentInputV1 {
+  if (parent === null || typeof parent !== "object") {
+    throw new Error(`${field} must be a supported parent reference.`);
+  }
+  if (parent.kind === "observed-line-endpoint") {
+    if (Object.keys(parent).sort().join("|") !== "candidateId|endpoint|kind"
+      || !ID_PATTERN.test(parent.candidateId)
+      || !["start", "end"].includes(parent.endpoint)) {
+      throw new Error(`${field} observed endpoint reference is invalid.`);
+    }
+    return {
+      kind: "observed-line-endpoint",
+      candidateId: parent.candidateId,
+      endpoint: parent.endpoint,
+    };
+  }
+  if (parent.kind !== "junction-intersection"
+    || Object.keys(parent).sort().join("|") !== "kind|participants"
+    || !Array.isArray(parent.participants) || parent.participants.length !== 2) {
+    throw new Error(`${field} junction reference is invalid.`);
+  }
+  const participants = parent.participants
+    .map((participant, index) => normalizeTriangleParticipantReference(
+      participant,
+      `${field}.participants.${String(index)}`,
+    ))
+    .sort((first, second) => stringCompare(
+      triangleParticipantReferenceKey(first),
+      triangleParticipantReferenceKey(second),
+    ));
+  if (triangleParticipantReferenceKey(participants[0]!)
+    === triangleParticipantReferenceKey(participants[1]!)) {
+    throw new Error(`${field} requires two distinct junction participants.`);
+  }
+  if (participants.every(({ kind }) => kind === "frame-edge")) {
+    throw new Error(`${field} does not support a junction made only from frame edges.`);
+  }
+  return {
+    kind: "junction-intersection",
+    participants: [participants[0]!, participants[1]!] as const,
+  };
+}
+
+function normalizeTriangleParticipantReference(
+  participant: PersonalVisualHarmonyTriangleParticipantReferenceV1,
+  field: string,
+): PersonalVisualHarmonyTriangleParticipantReferenceV1 {
+  if (participant === null || typeof participant !== "object") {
+    throw new Error(`${field} must be a supported construction participant.`);
+  }
+  if (participant.kind === "support-line-extension") {
+    if (Object.keys(participant).sort().join("|") !== "candidateId|kind"
+      || !ID_PATTERN.test(participant.candidateId)) {
+      throw new Error(`${field} support-line reference is invalid.`);
+    }
+    return { kind: participant.kind, candidateId: participant.candidateId };
+  }
+  if (participant.kind === "format-diagonal") {
+    if (Object.keys(participant).sort().join("|") !== "diagonal|kind"
+      || !["vertex-0-to-2", "vertex-1-to-3"].includes(participant.diagonal)) {
+      throw new Error(`${field} format-diagonal reference is invalid.`);
+    }
+    return { kind: participant.kind, diagonal: participant.diagonal };
+  }
+  if (participant.kind === "frame-edge") {
+    if (Object.keys(participant).sort().join("|") !== "frameEdgeIndex|kind"
+      || ![0, 1, 2, 3].includes(participant.frameEdgeIndex)) {
+      throw new Error(`${field} frame-edge reference is invalid.`);
+    }
+    return { kind: participant.kind, frameEdgeIndex: participant.frameEdgeIndex };
+  }
+  throw new Error(`${field} must be a supported construction participant.`);
+}
+
+function triangleParticipantReferenceKey(
+  participant: PersonalVisualHarmonyTriangleParticipantReferenceV1,
+): string {
+  if (participant.kind === "support-line-extension") {
+    return `${participant.kind}:${participant.candidateId}`;
+  }
+  if (participant.kind === "format-diagonal") {
+    return `${participant.kind}:${participant.diagonal}`;
+  }
+  return `${participant.kind}:${String(participant.frameEdgeIndex)}`;
+}
+
+function triangleVertexInputKey(vertex: PersonalVisualHarmonyTriangleVertexInputV1): string {
+  const parent = vertex.parent;
+  const parentKey = parent.kind === "observed-line-endpoint"
+    ? `${parent.kind}:${parent.candidateId}:${parent.endpoint}`
+    : `${parent.kind}:${parent.participants.map(triangleParticipantReferenceKey).join("|")}`;
+  return `${parentKey}:${vertex.point.x.toFixed(12)}:${vertex.point.y.toFixed(12)}`;
 }
 
 function validateFrame(frame: PersonalVisualHarmonyConstructionFrameV1): PersonalVisualHarmonyConstructionFrameV1 {
@@ -611,26 +868,7 @@ function createJunctionAngles(
     observedStart: null,
     observedEnd: null,
   }));
-  const frameParticipants = frame.vertices.map((start, frameEdgeIndex): BoundedConstructionLine => {
-    const end = frame.vertices[(frameEdgeIndex + 1) % frame.vertices.length]!;
-    const identity = contentIdentityFor({
-      kind: "frame-edge",
-      frameId: frame.frameId,
-      frameEdgeIndex,
-      start,
-      end,
-    });
-    return {
-      constructionId: `construction:frame-edge:${identityToken(identity)}`,
-      kind: "frame-edge",
-      start,
-      end,
-      provenance: "user-confirmed-frame",
-      sourceObservedLineId: null,
-      observedStart: null,
-      observedEnd: null,
-    };
-  });
+  const frameParticipants = createFrameParticipants(frame);
   const participants = [
     ...supportParticipants,
     ...diagonalParticipants,
@@ -692,6 +930,357 @@ function createJunctionAngles(
     }
   }
   return junctions.sort((first, second) => stringCompare(first.junctionId, second.junctionId));
+}
+
+function createFrameParticipants(
+  frame: PersonalVisualHarmonyConstructionFrameV1,
+): readonly BoundedConstructionLine[] {
+  return frame.vertices.map((start, frameEdgeIndex): BoundedConstructionLine => {
+    const end = frame.vertices[(frameEdgeIndex + 1) % frame.vertices.length]!;
+    const identity = contentIdentityFor({
+      kind: "frame-edge",
+      frameId: frame.frameId,
+      frameEdgeIndex,
+      start,
+      end,
+    });
+    return {
+      constructionId: `construction:frame-edge:${identityToken(identity)}`,
+      kind: "frame-edge",
+      start,
+      end,
+      provenance: "user-confirmed-frame",
+      sourceObservedLineId: null,
+      observedStart: null,
+      observedEnd: null,
+    };
+  });
+}
+
+export function constructPersonalVisualHarmonyTrianglesV1(input: {
+  readonly requests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly frame: PersonalVisualHarmonyConstructionFrameV1;
+  readonly observedLines: readonly PersonalVisualHarmonyObservedLineV1[];
+  readonly supportLineExtensions: readonly PersonalVisualHarmonySupportLineExtensionV1[];
+  readonly formatDiagonals: readonly PersonalVisualHarmonyFormatDiagonalV1[];
+  readonly junctionAngles: readonly PersonalVisualHarmonyJunctionAngleV1[];
+}): readonly PersonalVisualHarmonyTriangleConstructionV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const requests = normalizePersonalVisualHarmonyTriangleRequestsV1(input.requests);
+  const frame = validateFrame(input.frame);
+  const observedById = uniqueValuesBy(
+    input.observedLines,
+    ({ observedLineId }) => observedLineId,
+    "Observed triangle parents must have unique stable ids.",
+  );
+  const observedByCandidate = groupedValuesBy(input.observedLines, ({ candidateId }) => candidateId);
+  const constructionParticipantReferences = new Map<
+    string,
+    PersonalVisualHarmonyTriangleParticipantReferenceV1
+  >();
+  for (const supportLine of input.supportLineExtensions) {
+    const observed = observedById.get(supportLine.observedLineId);
+    if (observed === undefined) {
+      throw new Error("Triangle support-line parent is missing its observed source.");
+    }
+    setUniqueConstructionParticipantReference(
+      constructionParticipantReferences,
+      supportLine.constructionId,
+      { kind: "support-line-extension", candidateId: observed.candidateId },
+    );
+  }
+  for (const diagonal of input.formatDiagonals) {
+    setUniqueConstructionParticipantReference(
+      constructionParticipantReferences,
+      diagonal.constructionId,
+      { kind: "format-diagonal", diagonal: diagonal.diagonal },
+    );
+  }
+  for (const [frameEdgeIndex, edge] of createFrameParticipants(frame).entries()) {
+    setUniqueConstructionParticipantReference(
+      constructionParticipantReferences,
+      edge.constructionId,
+      { kind: "frame-edge", frameEdgeIndex: frameEdgeIndex as 0 | 1 | 2 | 3 },
+    );
+  }
+  const junctionsByParentKey = groupedValuesBy(input.junctionAngles, (junction) => {
+    const first = constructionParticipantReferences.get(junction.firstParticipant.constructionId);
+    const second = constructionParticipantReferences.get(junction.secondParticipant.constructionId);
+    if (first === undefined || second === undefined) {
+      throw new Error("Triangle junction parent references an unknown construction participant.");
+    }
+    return triangleJunctionParentKey([first, second]);
+  });
+  uniqueValuesBy(
+    input.junctionAngles,
+    ({ junctionId }) => junctionId,
+    "Triangle junction parents must have unique stable ids.",
+  );
+  const triangles = requests.map((request) => {
+    const resolved = request.vertices.map((vertex) => resolveTriangleVertex({
+      vertex,
+      observedByCandidate,
+      junctionsByParentKey,
+    }));
+    const parentKeys = resolved.map(({ parent }) => triangleResolvedParentKey(parent));
+    if (new Set(parentKeys).size !== 3) {
+      throw new Error("Triangle vertices require three distinct stable parent references.");
+    }
+    for (let firstIndex = 0; firstIndex < resolved.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < resolved.length; secondIndex += 1) {
+        if (pointsEqual(resolved[firstIndex]!.point, resolved[secondIndex]!.point)) {
+          throw new Error("Triangle vertices must be distinct within the normalized tolerance.");
+        }
+      }
+    }
+    const sorted = [...resolved].sort((first, second) => stringCompare(
+      triangleResolvedVertexKey(first),
+      triangleResolvedVertexKey(second),
+    ));
+    const initiallyOrdered = [sorted[0]!, sorted[1]!, sorted[2]!] as const;
+    const initialSignedArea = triangleSignedNormalizedArea(initiallyOrdered);
+    const vertices = (initialSignedArea < 0
+      ? [initiallyOrdered[0], initiallyOrdered[2], initiallyOrdered[1]]
+      : initiallyOrdered) as readonly [
+        PersonalVisualHarmonyTriangleVertexV1,
+        PersonalVisualHarmonyTriangleVertexV1,
+        PersonalVisualHarmonyTriangleVertexV1,
+      ];
+    const signedNormalizedArea = canonicalNumber(triangleSignedNormalizedArea(vertices));
+    const absoluteNormalizedArea = canonicalNumber(Math.abs(signedNormalizedArea));
+    if (absoluteNormalizedArea <= PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED) {
+      throw new Error("Triangle vertices are collinear or near-collinear within the normalized area tolerance.");
+    }
+    const sideLengthsPixels = triangleSideLengthsPixels(
+      vertices,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const interiorAnglesDegrees = triangleInteriorAnglesDegrees(
+      vertices,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    if (interiorAnglesDegrees.some((angle) => !Number.isFinite(angle) || angle <= 0 || angle >= 180)) {
+      throw new Error("Triangle is degenerate in pixel space.");
+    }
+    const withoutIdentity = {
+      kind: "triangle-construction" as const,
+      requestId: request.requestId,
+      vertices,
+      winding: "clockwise_image_plane" as const,
+      signedNormalizedArea,
+      absoluteNormalizedArea,
+      areaToleranceNormalized: PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED,
+      sideLengthsPixels,
+      interiorAnglesDegrees,
+      angleConvention: "projected_image_plane_interior" as const,
+      provenance: "derived-construction" as const,
+      derivation: "three_explicit_parented_vertices" as const,
+      candidateEvidenceOnly: true as const,
+      sourceTruth: false as const,
+      coreAuthority: false as const,
+    };
+    const identity = contentIdentityFor(withoutIdentity);
+    return {
+      triangleId: `construction:triangle:${identityToken(identity)}`,
+      ...withoutIdentity,
+    };
+  });
+  return triangles.sort((first, second) => stringCompare(first.triangleId, second.triangleId));
+}
+
+function resolveTriangleVertex(input: {
+  readonly vertex: PersonalVisualHarmonyTriangleVertexInputV1;
+  readonly observedByCandidate: ReadonlyMap<string, readonly PersonalVisualHarmonyObservedLineV1[]>;
+  readonly junctionsByParentKey: ReadonlyMap<string, readonly PersonalVisualHarmonyJunctionAngleV1[]>;
+}): PersonalVisualHarmonyTriangleVertexV1 {
+  const requestedPoint = validateTrianglePoint(input.vertex.point, "triangle vertex point");
+  const parent = input.vertex.parent;
+  if (parent.kind === "observed-line-endpoint") {
+    const matches = input.observedByCandidate.get(parent.candidateId) ?? [];
+    if (matches.length !== 1) {
+      throw new Error(matches.length === 0
+        ? "Triangle observed endpoint parent is missing or stale."
+        : "Triangle observed endpoint parent is ambiguous.");
+    }
+    const observedLine = matches[0]!;
+    const actualPoint = validateTrianglePoint(observedLine[parent.endpoint], "triangle observed endpoint");
+    requireMatchingTrianglePoint(requestedPoint, actualPoint);
+    return {
+      point: actualPoint,
+      parent: {
+        kind: "observed-line-endpoint",
+        parentId: observedLine.observedLineId,
+        candidateId: observedLine.candidateId,
+        endpoint: parent.endpoint,
+        provenance: "user-confirmed-observed-endpoint",
+      },
+    };
+  }
+  const parentKey = triangleJunctionParentKey(parent.participants);
+  const matches = input.junctionsByParentKey.get(parentKey) ?? [];
+  if (matches.length !== 1) {
+    throw new Error(matches.length === 0
+      ? "Triangle junction parent is missing, stale, or not admitted."
+      : "Triangle junction parent is ambiguous.");
+  }
+  const junction = matches[0]!;
+  const actualPoint = validateTrianglePoint(junction.intersection, "triangle junction intersection");
+  requireMatchingTrianglePoint(requestedPoint, actualPoint);
+  const participantConstructionIds = [
+    junction.firstParticipant.constructionId,
+    junction.secondParticipant.constructionId,
+  ].sort(stringCompare);
+  return {
+    point: actualPoint,
+    parent: {
+      kind: "junction-intersection",
+      parentId: junction.junctionId,
+      participantConstructionIds: [
+        participantConstructionIds[0]!,
+        participantConstructionIds[1]!,
+      ],
+      provenance: "derived-junction-intersection",
+    },
+  };
+}
+
+function requireMatchingTrianglePoint(
+  requested: PersonalVisualHarmonyConstructionPointV1,
+  actual: PersonalVisualHarmonyConstructionPointV1,
+): void {
+  if (!pointsEqual(requested, actual)) {
+    throw new Error("Triangle vertex point does not match its stable parent geometry.");
+  }
+}
+
+function setUniqueConstructionParticipantReference(
+  references: Map<string, PersonalVisualHarmonyTriangleParticipantReferenceV1>,
+  constructionId: string,
+  reference: PersonalVisualHarmonyTriangleParticipantReferenceV1,
+): void {
+  if (!ID_PATTERN.test(constructionId) || references.has(constructionId)) {
+    throw new Error("Triangle construction participant ids must be unique and bounded.");
+  }
+  references.set(constructionId, reference);
+}
+
+function triangleJunctionParentKey(
+  participants: readonly PersonalVisualHarmonyTriangleParticipantReferenceV1[],
+): string {
+  return [...participants].map(triangleParticipantReferenceKey).sort(stringCompare).join("|");
+}
+
+function triangleResolvedParentKey(parent: PersonalVisualHarmonyTriangleVertexParentV1): string {
+  return parent.kind === "observed-line-endpoint"
+    ? `${parent.kind}:${parent.parentId}:${parent.endpoint}`
+    : `${parent.kind}:${parent.parentId}`;
+}
+
+function triangleResolvedVertexKey(vertex: PersonalVisualHarmonyTriangleVertexV1): string {
+  return `${triangleResolvedParentKey(vertex.parent)}:${vertex.point.x.toFixed(12)}:${vertex.point.y.toFixed(12)}`;
+}
+
+function triangleSignedNormalizedArea(
+  vertices: readonly [
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+  ],
+): number {
+  const [first, second, third] = vertices.map(({ point }) => point);
+  return (
+    (first!.x * second!.y) + (second!.x * third!.y) + (third!.x * first!.y)
+    - (first!.y * second!.x) - (second!.y * third!.x) - (third!.y * first!.x)
+  ) / 2;
+}
+
+function triangleSideLengthsPixels(
+  vertices: readonly [
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+  ],
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): readonly [number, number, number] {
+  return [
+    pixelDistance(vertices[0].point, vertices[1].point, sourcePixelWidth, sourcePixelHeight),
+    pixelDistance(vertices[1].point, vertices[2].point, sourcePixelWidth, sourcePixelHeight),
+    pixelDistance(vertices[2].point, vertices[0].point, sourcePixelWidth, sourcePixelHeight),
+  ];
+}
+
+function triangleInteriorAnglesDegrees(
+  vertices: readonly [
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+    PersonalVisualHarmonyTriangleVertexV1,
+  ],
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): readonly [number, number, number] {
+  const angleAt = (index: number) => {
+    const center = vertices[index]!.point;
+    const before = vertices[(index + 2) % 3]!.point;
+    const after = vertices[(index + 1) % 3]!.point;
+    const first = {
+      x: (before.x - center.x) * sourcePixelWidth,
+      y: (before.y - center.y) * sourcePixelHeight,
+    };
+    const second = {
+      x: (after.x - center.x) * sourcePixelWidth,
+      y: (after.y - center.y) * sourcePixelHeight,
+    };
+    const denominator = Math.hypot(first.x, first.y) * Math.hypot(second.x, second.y);
+    const cosine = ((first.x * second.x) + (first.y * second.y)) / denominator;
+    return canonicalNumber(Math.acos(Math.max(-1, Math.min(1, cosine))) * (180 / Math.PI));
+  };
+  return [angleAt(0), angleAt(1), angleAt(2)];
+}
+
+function pixelDistance(
+  first: PersonalVisualHarmonyConstructionPointV1,
+  second: PersonalVisualHarmonyConstructionPointV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): number {
+  return canonicalNumber(Math.hypot(
+    (second.x - first.x) * sourcePixelWidth,
+    (second.y - first.y) * sourcePixelHeight,
+  ));
+}
+
+function groupedValuesBy<T>(
+  values: readonly T[],
+  keyFor: (value: T) => string,
+): ReadonlyMap<string, readonly T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const value of values) {
+    const key = keyFor(value);
+    const current = grouped.get(key);
+    if (current === undefined) grouped.set(key, [value]);
+    else current.push(value);
+  }
+  return grouped;
+}
+
+function uniqueValuesBy<T>(
+  values: readonly T[],
+  keyFor: (value: T) => string,
+  message: string,
+): ReadonlyMap<string, T> {
+  const unique = new Map<string, T>();
+  for (const value of values) {
+    const key = keyFor(value);
+    if (!ID_PATTERN.test(key) || unique.has(key)) throw new Error(message);
+    unique.set(key, value);
+  }
+  return unique;
 }
 
 function createJunctionParticipant(
@@ -809,6 +1398,26 @@ function validatePoint(value: unknown, field: string): PersonalVisualHarmonyCons
     throw new Error(`${field} must be a normalized point inside the image.`);
   }
   return canonicalPoint({ x: point.x, y: point.y });
+}
+
+function validateTrianglePoint(
+  value: unknown,
+  field: string,
+): PersonalVisualHarmonyConstructionPointV1 {
+  if (value === null || typeof value !== "object"
+    || Object.keys(value).sort().join("|") !== "x|y") {
+    throw new Error(`${field} must use exact x and y fields.`);
+  }
+  const point = value as { readonly x?: unknown; readonly y?: unknown };
+  if (typeof point.x !== "number" || typeof point.y !== "number"
+    || !Number.isFinite(point.x) || !Number.isFinite(point.y)
+    || point.x < -BOUNDARY_TOLERANCE_NORMALIZED
+    || point.x > 1 + BOUNDARY_TOLERANCE_NORMALIZED
+    || point.y < -BOUNDARY_TOLERANCE_NORMALIZED
+    || point.y > 1 + BOUNDARY_TOLERANCE_NORMALIZED) {
+    throw new Error(`${field} must be finite and inside the normalized image tolerance.`);
+  }
+  return canonicalPoint({ x: clampUnit(point.x), y: clampUnit(point.y) });
 }
 
 function pixelAngleDegrees(

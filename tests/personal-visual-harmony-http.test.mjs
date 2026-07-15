@@ -107,6 +107,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
         mime_type: "image/png",
       },
       candidates: goldenCandidates(),
+      triangleConstructionRequests: goldenTriangleConstructionRequests(),
     },
   });
   assert.equal(prepared.structuredContent.status, "confirmation_required");
@@ -117,6 +118,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   const widgetPayload = prepared._meta.normaPersonalVisualHarmony;
   assert.equal(widgetPayload.sessionId, "session:test-personal-http-demo");
   assert.equal(widgetPayload.fileId, "file-private-http-demo");
+  assert.equal(widgetPayload.prepared.triangleConstructionRequests.length, 1);
 
   const oblique = goldenCandidates().find(({ id }) => id === "oblique");
   const cropPlan = createPersonalVisualHarmonyPixelCropPlanV1({
@@ -139,6 +141,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
         fileId: widgetPayload.fileId,
         sourceImageMediaType: "image/png",
         candidates: goldenCandidates(),
+        triangleConstructionRequests: widgetPayload.prepared.triangleConstructionRequests,
       },
     },
   });
@@ -154,7 +157,12 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
       candidateSetIdentity: widgetPayload.prepared.candidateSetIdentity,
       selectedCandidateIds: ["major", "minor"],
       confirmedVisualGuideCandidateIds: ["oblique"],
-      constructionLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
+      constructionLayers: [
+        "support-line-extensions",
+        "format-diagonals",
+        "junction-angles",
+        "triangles",
+      ],
       sourcePixelWidth: 1_000,
       sourcePixelHeight: 618,
       confirmClientReviewedSelection: true,
@@ -162,6 +170,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
         fileId: widgetPayload.fileId,
         sourceImageMediaType: "image/png",
         candidates: goldenCandidates(),
+        triangleConstructionRequests: widgetPayload.prepared.triangleConstructionRequests,
       },
     },
   });
@@ -178,6 +187,14 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   );
   assert.ok(
     confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.junctionAngles.length > 0,
+  );
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.triangles.length,
+    1,
+  );
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.triangles[0].coreAuthority,
+    false,
   );
   assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.coreRun, false);
   assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ major"));
@@ -251,6 +268,40 @@ function goldenCandidates() {
       },
     },
   ];
+}
+
+function goldenTriangleConstructionRequests() {
+  return [{
+    requestId: "http-explicit-oblique-triangle",
+    vertices: [
+      {
+        point: { x: 0.12, y: 0.82 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "oblique",
+          endpoint: "start",
+        },
+      },
+      {
+        point: { x: 0.82, y: 0.18 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "oblique",
+          endpoint: "end",
+        },
+      },
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+    ],
+  }];
 }
 
 function initializeRequest(protocolVersion = PROTOCOL_VERSION) {
