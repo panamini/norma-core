@@ -16,6 +16,15 @@ the widget sends only deterministic candidate-local grayscale crops bounded to
 separate `refined` or `abstained` proposal; it is never source truth, automatic
 acceptance, confirmation, or a Core run.
 
+PR230 (`7eb6179972ea1f472c04256f6dcc90ee1ba6dcea`) adds the bounded
+rotated-ellipse search to that shadow kernel. The current integration extends
+the same opt-in proposal lane to explicitly oriented ellipses: it maps the
+canonical ellipse through the candidate crop's exact affine scale, reports
+bounded center/axis/orientation evidence, and renders original and proposed
+orientations separately. Near-circular or ambiguous orientation evidence keeps
+the prior orientation or abstains. Live ChatGPT write-path proof and controlled
+A/B validation remain required.
+
 The derived-construction rail is extended by PR226
 (`f333c9a3ee6e7034b59b03401362a2aec6ffe5ad`) for observed support-line
 extensions and format diagonals, then PR227
@@ -126,14 +135,14 @@ rectification or calibration.
 | Capability | Horizon | Deterministic treatment |
 | --- | --- | --- |
 | Rectangles, segments, axes, and explicitly oriented ellipses | Implemented locally; live proof required | Typed candidates; optional normalized-image-plane `rotationDegrees`; deterministic axis/angle canonicalization and SVG rendering; separate human confirmation; rectangles alone enter the current Core mapper |
-| Candidate-local pixel refinement | Implemented locally; live A/B required | Disabled by default; bounded grayscale crop; deterministic `refined` or `abstained` evidence; original/proposed separation; explicit per-candidate adoption before the separate confirmation gate |
+| Candidate-local pixel refinement | Implemented locally; live A/B required | Disabled by default; bounded grayscale crop; deterministic `refined` or `abstained` evidence for segments, axes, quadrilaterals, and axis-aligned or explicitly oriented ellipses; original/proposed separation; explicit per-candidate adoption before the separate confirmation gate |
 | Ellipse/supporting-line relations | Implemented locally; live proof required | Exact axis-aligned or rotated-ellipse intersections/support points; fixed tangent and gap tolerances; stable intersection ordering; visible-segment versus prolongation provenance |
 | Extended obliques and format diagonals | Implemented locally; live proof required | Disabled by default; preserve the observed, user-confirmed finite segment; derive its separately labelled support line clipped to the confirmed image frame and the two corner-to-corner format diagonals; deterministic image-plane intersections only; no Core authority |
 | Junction angles | Implemented locally; live proof required | Disabled by default and dependent on support-line extensions; deterministic crossings among confirmed support lines, enabled format diagonals, and confirmed frame edges; pixel-scaled smaller/supplementary angles; observed-extent flags and derived-measurement provenance; no Core authority |
 | Quadrilaterals and trapezoids | Implemented locally; live proof required | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
 | Explicit triangle constructions | Implemented locally; live proof required | Disabled by default; one bounded explicit request per triangle; exactly three stable observed-endpoint or admitted-junction parents; deterministic canonical winding, identity, area, sides, and interior angles; fail closed; no Core authority |
 | Medians, bisectors, and triangle centers | Deferred, separate slice | May derive only from an explicitly admitted triangle under a new bounded contract; not part of the triangle layer |
-| Rotated-ellipse pixel refinement | Deferred, separate shadow slice | The current pixel refiner remains axis-aligned and skips explicitly rotated ellipses; any future support must preserve original/proposed separation and explicit adoption |
+| Rotated-ellipse pixel refinement | Implemented locally; live A/B required | Hard-bounded center, semi-axis, and ±4° orientation search; exact affine crop mapping; stable canonical identity; near-circle preservation and weak/competing-orientation abstention; no automatic adoption, confirmation, or Core authority |
 | Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |
 | Repetition and rhythm | Later | First measure count, spacing, orientation, scale progression, alternation, and symmetry in a confirmed family; keep `rhythm` interpretive |
 | Movement, stability, emphasis, and artist intent | Human interpretation only | Reviewable hypotheses linked to facts, never deterministic Core output |
@@ -146,7 +155,9 @@ constant is never sufficient evidence by itself.
 The ellipse contract accepts an optional explicit orientation in the normalized
 image plane and deterministically measures rotated contacts. It does not infer
 rotation from pixels, fit perspective conics, or promote ellipse evidence into
-Core authority. The pixel-refinement lane remains intentionally axis-aligned.
+Core authority. Its optional local pixel-refinement lane adjusts orientation
+only inside the declared bounded search around an already proposed canonical
+ellipse; it is not a global detector or a perspective-conic fitter.
 
 Product references: the Core V1 wiki already names guides, diagonals,
 intersections, and angle measurements; the vision plan names lines, corners,

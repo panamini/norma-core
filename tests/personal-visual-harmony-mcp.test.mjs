@@ -791,7 +791,12 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
   });
 });
 
-test("widget preserves rotated ellipse rendering and excludes it from axis-aligned pixel refinement", () => {
+test("widget preserves rotated ellipse rendering and includes it in opt-in pixel refinement", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /adopted\?"Géométrie originale et proposition pixel adoptée explicitement":"Géométrie originale et proposition pixel non adoptée"/u,
+  );
   const attributes = new Map();
   const shape = {
     setAttribute(name, value) { attributes.set(name, value); },
@@ -847,7 +852,7 @@ test("widget preserves rotated ellipse rendering and excludes it from axis-align
       clonePrimitive: structuredClone,
     },
   );
-  assert.deepEqual(pixelRefinementCandidateSnapshot(), []);
+  assert.deepEqual(pixelRefinementCandidateSnapshot(), [rotated]);
 
   const ellipseEnvelope = (primitive) => {
     const radians = primitive.rotationDegrees * Math.PI / 180;
@@ -886,7 +891,199 @@ test("widget preserves rotated ellipse rendering and excludes it from axis-align
     ...reviewed,
     ...ellipseEnvelope({ ...reviewed.primitive, rotationDegrees: 31 }),
     primitive: { ...reviewed.primitive, rotationDegrees: 31 },
+  }, rotated), true);
+  assert.equal(validGeometryPatch({
+    ...reviewed,
+    primitive: { ...reviewed.primitive, rotationDegrees: 31 },
   }, rotated), false);
+
+  const proposalShapeAttributes = new Map();
+  const pixelShape = widgetScriptFunction(
+    "pixelShape",
+    "function syncPixelProposalOverlay",
+    {
+      document: {
+        createElementNS: () => ({
+          setAttribute(name, value) { proposalShapeAttributes.set(name, value); },
+        }),
+      },
+    },
+  );
+  pixelShape({ ...rotated.primitive, rotationDegrees: 32 }, "#db2777", "12 8");
+  assert.equal(proposalShapeAttributes.get("transform"), "rotate(32 500 500)");
+  assert.equal(proposalShapeAttributes.get("data-ellipse-orientation-degrees"), "32");
+});
+
+test("widget accepts only equivalent canonical envelopes after rotated adoption re-prepare", () => {
+  const samePreparedReviewCandidates = widgetScriptFunction(
+    "samePreparedReviewCandidates",
+    "async function prepareReviewedPayload",
+    {},
+  );
+  const requested = [{
+    id: "rotated-ellipse",
+    label: "Ellipse orientée",
+    role: "structural-region",
+    reason: "Contour explicite",
+    x: 0.265766,
+    y: 0.293487,
+    width: 0.468468,
+    height: 0.363026,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.475 },
+      radiusX: 0.2625,
+      radiusY: 0.1375,
+      rotationDegrees: 32,
+    },
+  }];
+  const canonical = structuredClone(requested);
+  Object.assign(canonical[0], {
+    x: 0.2657660813,
+    y: 0.293486994047,
+    width: 0.468467837401,
+    height: 0.363026011907,
+  });
+
+  assert.equal(samePreparedReviewCandidates(requested, canonical), true);
+  assert.equal(samePreparedReviewCandidates(requested, [{
+    ...canonical[0],
+    primitive: { ...canonical[0].primitive, rotationDegrees: 33 },
+  }]), false);
+  assert.equal(samePreparedReviewCandidates(requested, [{ ...canonical[0], label: "Substituée" }]), false);
+  assert.equal(samePreparedReviewCandidates(requested, [{ ...canonical[0], x: requested[0].x + 0.000002 }]), false);
+  assert.equal(samePreparedReviewCandidates(requested, [{ ...canonical[0], sourceTruth: false }]), false);
+});
+
+test("widget accepts only bounded rotated ellipse proposal metadata for the active candidate set", () => {
+  const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const originalGeometry = {
+    kind: "ellipse",
+    center: { x: 0.5, y: 0.5 },
+    radiusX: 0.25,
+    radiusY: 0.125,
+    rotationDegrees: 30,
+  };
+  const proposedGeometry = {
+    kind: "ellipse",
+    center: { x: 0.5125, y: 0.4875 },
+    radiusX: 0.2625,
+    radiusY: 0.1375,
+    rotationDegrees: 32,
+  };
+  const candidate = { id: "rotated", primitive: originalGeometry };
+  const prepared = { candidateSetIdentity, candidates: [candidate] };
+  const validPixelProposalFields = widgetScriptFunction(
+    "validPixelProposalFields",
+    "function validRotatedEllipseSearch",
+    {},
+  );
+  const validRotatedEllipseSearch = widgetScriptFunction(
+    "validRotatedEllipseSearch",
+    "function validPixelProposal",
+    {},
+  );
+  const validPixelProposal = widgetScriptFunction(
+    "validPixelProposal",
+    "function storedPixelRefinementStateFor",
+    {
+      validPixelProposalFields,
+      validRotatedEllipseSearch,
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      primitiveKind: (item) => item?.primitive?.kind ?? "rectangle",
+      clonePrimitive: structuredClone,
+      candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
+      geometrySnapshotFor: (item) => item,
+      validGeometryPatch: () => true,
+    },
+  );
+  const proposal = {
+    contractId: "norma.personal-visual-harmony-pixel-refinement-proposal@1",
+    contractVersion: 1,
+    status: "refined",
+    candidateSetIdentity,
+    candidateId: candidate.id,
+    candidateEvidenceOnly: true,
+    sourceTruth: false,
+    automaticAcceptance: false,
+    explicitProposalAdoptionRequired: true,
+    proposalAdopted: false,
+    explicitUserConfirmationRequired: true,
+    coreRun: false,
+    coordinateSpace: "normalized-image",
+    sourcePixelWidth: 80,
+    sourcePixelHeight: 80,
+    crop: { status: "ready" },
+    pixelRasterContentIdentity: `sha256:${"b".repeat(64)}`,
+    kernelContentIdentity: `sha256:${"c".repeat(64)}`,
+    originalGeometry,
+    proposedGeometry,
+    evidence: {
+      originalEdgeSupport: 0.2,
+      proposedEdgeSupport: 0.7,
+      edgeSupportGain: 0.5,
+      ambiguityMargin: 0.3,
+      confidence: 0.8,
+    },
+    displacementPixels: { bound: 6, maximum: 3.5, mean: 1.5 },
+    reason: "improved_edge_support",
+    diagnostics: [{ code: "pixel_refinement.refined", severity: "info", message: "bounded" }],
+    rotatedEllipseSearch: {
+      maximumEvaluations: 214,
+      evaluatedCandidates: 210,
+      centerWindowPixels: 3,
+      semiAxisWindowPixels: 3,
+      orientationWindowDegrees: 4,
+      orientationStepDegrees: 1,
+      eccentricity: 0.5,
+      visibleArcShare: 0.8,
+      orientationAmbiguityMargin: 0.2,
+      orientationPolicy: "refined",
+      parameterDeltas: {
+        centerX: 1,
+        centerY: -1,
+        radiusX: 1,
+        radiusY: 1,
+        rotationDegrees: 2,
+      },
+    },
+    contentIdentity: `sha256:${"d".repeat(64)}`,
+  };
+
+  assert.equal(validPixelProposal(proposal, prepared), true);
+  const missingSearch = structuredClone(proposal);
+  delete missingSearch.rotatedEllipseSearch;
+  assert.equal(validPixelProposal(missingSearch, prepared), false);
+  const unboundedSearch = structuredClone(proposal);
+  unboundedSearch.rotatedEllipseSearch.evaluatedCandidates = 215;
+  assert.equal(validPixelProposal(unboundedSearch, prepared), false);
+  assert.equal(validPixelProposal({ ...proposal, candidateSetIdentity: `sha256:${"e".repeat(64)}` }, prepared), false);
+
+  const storedRotatedEllipseAdoptionMatches = widgetScriptFunction(
+    "storedRotatedEllipseAdoptionMatches",
+    "function reviewedCandidatesFor",
+    { validPixelProposal },
+  );
+  const saved = {
+    pixelRefinementState: {
+      enabled: true,
+      candidateSetIdentity,
+      proposals: [proposal],
+      adopted: [{ candidateId: candidate.id, proposalContentIdentity: proposal.contentIdentity }],
+    },
+  };
+  assert.equal(storedRotatedEllipseAdoptionMatches(
+    saved,
+    prepared,
+    candidate,
+    { primitive: proposedGeometry },
+  ), true);
+  assert.equal(storedRotatedEllipseAdoptionMatches(
+    { ...saved, pixelRefinementState: { ...saved.pixelRefinementState, adopted: [] } },
+    prepared,
+    candidate,
+    { primitive: proposedGeometry },
+  ), false);
 });
 
 test("widget blocks geometry edits while pixel proposals are in flight", () => {
@@ -1480,6 +1677,26 @@ function recoveryInput(fileId = "file-private-opaque-id", candidateValues = cand
   };
 }
 
+function rotatedEllipseCropBase64(plan, ellipse) {
+  assert.equal(plan.status, "ready");
+  const bytes = Buffer.alloc(plan.rasterWidth * plan.rasterHeight);
+  const rotation = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  for (let y = 0; y < plan.rasterHeight; y += 1) {
+    for (let x = 0; x < plan.rasterWidth; x += 1) {
+      const sourceX = plan.originX + (x + 0.5) * plan.scaleX;
+      const sourceY = plan.originY + (y + 0.5) * plan.scaleY;
+      const dx = sourceX - ellipse.center.x;
+      const dy = sourceY - ellipse.center.y;
+      const localX = (cos * dx + sin * dy) / ellipse.radiusX;
+      const localY = (-sin * dx + cos * dy) / ellipse.radiusY;
+      bytes[y * plan.rasterWidth + x] = localX * localX + localY * localY <= 1 ? 238 : 18;
+    }
+  }
+  return bytes.toString("base64");
+}
+
 test("session confirmation rejects duplicate construction layers before idempotent cache lookup", () => {
   const service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
@@ -2040,6 +2257,48 @@ test("displayed image load is the hydration proof for single-use temporary URLs"
   assert.equal(source.referrerPolicy, "no-referrer");
 });
 
+test("successful image hydration enables the opt-in pixel proposal control", async () => {
+  const state = widgetHydrationState({
+    activePayloadIdentity: "payload-ready",
+    imageLoadGeneration: 1,
+    imageLoadFileId: "file-ready",
+  });
+  let pixelUiUpdates = 0;
+  let confirmUpdates = 0;
+  const performImageLoad = widgetScriptFunction(
+    "performImageLoad",
+    "async function loadImage",
+    {
+      window: { openai: { getFileDownloadUrl: async () => ({ downloadUrl: "https://files.example/ready" }) } },
+      imageLoadIsCurrent: () => true,
+      showImageFailure() { throw new Error("ready hydration must not show a failure"); },
+      runImageHydration: async () => ({
+        status: "ready",
+        attemptCount: 1,
+        downloadUrl: "https://files.example/ready",
+        width: 80,
+        height: 80,
+      }),
+      IMAGE_HYDRATION_MAX_ATTEMPTS: 2,
+      IMAGE_HYDRATION_RETRY_DELAY_MS: 0,
+      loadDisplayedImage() { throw new Error("the bounded hydration stub owns image loading"); },
+      state,
+      visual: { style: {} },
+      loading: { style: {} },
+      setImageHydrationStatus() {},
+      statusNode: { textContent: "" },
+      updatePixelProposalUi() { pixelUiUpdates += 1; },
+      updateConfirm() { confirmUpdates += 1; },
+    },
+  );
+
+  assert.equal(await performImageLoad("file-ready", 1, "payload-ready"), true);
+  assert.equal(state.imageReady, true);
+  assert.deepEqual(state.dimensions, { width: 80, height: 80 });
+  assert.equal(pixelUiUpdates, 1);
+  assert.equal(confirmUpdates, 1);
+});
+
 test("ready image cache refreshes when the same file receives a new payload identity", async () => {
   const state = widgetHydrationState({
     imageReady: true,
@@ -2256,6 +2515,92 @@ test("app-only bounded pixel proposals abstain without adopting geometry or runn
       weak.structuredContent.proposal.contentIdentity,
       unavailable.structuredContent.proposal.contentIdentity,
     );
+  } finally {
+    await connected.close();
+  }
+});
+
+test("app-only rotated ellipse refinement returns bounded evidence without adoption or Core", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-15T12:00:00.000Z"),
+    createSessionId: () => "session:rotated-pixel-refinement",
+  }));
+  try {
+    const ellipseCandidate = {
+      id: "rotated-pixel-ellipse",
+      label: "Ellipse orientée observée",
+      role: "structural-region",
+      reason: "Contour elliptique explicitement confirmé avant preuve pixel locale",
+      x: 0.25,
+      y: 0.375,
+      width: 0.5,
+      height: 0.25,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.25,
+        radiusY: 0.125,
+        rotationDegrees: 30,
+      },
+    };
+    const candidateValues = [...candidates(), ellipseCandidate];
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/rotated-pixel-refinement",
+          file_id: "file-rotated-pixel-refinement",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    assert.equal(prepared.isError, undefined);
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const preparedEllipse = widgetMeta.prepared.candidates.find(
+      ({ id }) => id === ellipseCandidate.id,
+    );
+    const plan = createPersonalVisualHarmonyPixelCropPlanV1({
+      primitive: preparedEllipse.primitive,
+      sourcePixelWidth: 80,
+      sourcePixelHeight: 80,
+    });
+    const refined = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        candidateId: ellipseCandidate.id,
+        reviewedPrimitive: preparedEllipse.primitive,
+        sourcePixelWidth: 80,
+        sourcePixelHeight: 80,
+        luminanceBase64: rotatedEllipseCropBase64(plan, {
+          kind: "ellipse",
+          center: { x: 41, y: 39 },
+          radiusX: 21,
+          radiusY: 11,
+          rotationDegrees: 32,
+        }),
+        recovery: recoveryInput("file-rotated-pixel-refinement", candidateValues),
+      },
+    });
+
+    assert.equal(refined.isError, undefined, JSON.stringify(refined));
+    const proposal = refined.structuredContent.proposal;
+    assert.equal(proposal.status, "refined");
+    assert.deepEqual(proposal.originalGeometry, preparedEllipse.primitive);
+    assert.notDeepEqual(proposal.proposedGeometry, proposal.originalGeometry);
+    assert.equal(proposal.rotatedEllipseSearch.maximumEvaluations, 214);
+    assert.ok(proposal.rotatedEllipseSearch.evaluatedCandidates <= 214);
+    assert.ok(Math.abs(proposal.rotatedEllipseSearch.parameterDeltas.rotationDegrees) <= 4);
+    assert.ok(proposal.displacementPixels.maximum <= 6);
+    assert.equal(proposal.candidateEvidenceOnly, true);
+    assert.equal(proposal.sourceTruth, false);
+    assert.equal(proposal.automaticAcceptance, false);
+    assert.equal(proposal.explicitProposalAdoptionRequired, true);
+    assert.equal(proposal.proposalAdopted, false);
+    assert.equal(proposal.explicitUserConfirmationRequired, true);
+    assert.equal(proposal.coreRun, false);
   } finally {
     await connected.close();
   }
@@ -2837,26 +3182,28 @@ test("MCP canonicalizes, renders, and measures an explicitly rotated ellipse wit
       /transform="rotate\(45 500 500\)"/u);
 
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
-    const rejectedRefinement = await connected.client.callTool({
+    const reviewedRotatedEllipse = structuredClone(ellipse.primitive);
+    const unavailableRefinement = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
       arguments: {
         sessionId: widgetMeta.sessionId,
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         candidateId: "main-ellipse",
-        reviewedPrimitive: {
-          kind: "ellipse",
-          center: { x: 0.5, y: 0.5 },
-          radiusX: 0.5,
-          radiusY: 0.05,
-        },
+        reviewedPrimitive: reviewedRotatedEllipse,
         sourcePixelWidth: 1000,
         sourcePixelHeight: 1000,
         recovery: recoveryInput("file-private-opaque-id", candidates),
       },
     });
-    assert.equal(rejectedRefinement.isError, true);
-    assert.match(rejectedRefinement.content[0].text,
-      /does not support explicitly rotated ellipses/u);
+    assert.equal(unavailableRefinement.isError, undefined, JSON.stringify(unavailableRefinement));
+    assert.equal(unavailableRefinement.structuredContent.proposal.status, "abstained");
+    assert.equal(unavailableRefinement.structuredContent.proposal.reason, "pixel_read_unavailable");
+    assert.deepEqual(
+      unavailableRefinement.structuredContent.proposal.originalGeometry,
+      reviewedRotatedEllipse,
+    );
+    assert.equal(unavailableRefinement.structuredContent.proposal.proposalAdopted, false);
+    assert.equal(unavailableRefinement.structuredContent.proposal.coreRun, false);
 
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
