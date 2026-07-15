@@ -71,7 +71,7 @@ export interface PersonalVisualHarmonyPixelRefinementResultV1 {
 }
 
 export interface PersonalVisualHarmonyRotatedEllipsePixelSearchV1 {
-  readonly maximumEvaluations: 205;
+  readonly maximumEvaluations: 214;
   readonly evaluatedCandidates: number;
   readonly centerWindowPixels: number;
   readonly semiAxisWindowPixels: number;
@@ -398,7 +398,7 @@ const MIN_AMBIGUITY_MARGIN = 0.0005;
 const MATERIAL_AMBIGUITY_SEPARATION_PIXELS = 2.5;
 const ELLIPSE_DISPLACEMENT_SAMPLE_COUNT = 256;
 const ROTATED_ELLIPSE_ORIENTATION_DELTAS_DEGREES = Object.freeze([-4, -3, -2, -1, 0, 1, 2, 3, 4]);
-const ROTATED_ELLIPSE_MAX_EVALUATIONS = 205 as const;
+const ROTATED_ELLIPSE_MAX_EVALUATIONS = 214 as const;
 const ROTATED_ELLIPSE_MIN_VISIBLE_ARC_SHARE = 0.3;
 const ROTATED_ELLIPSE_VISIBLE_CONTRAST = 0.12;
 const ROTATED_ELLIPSE_NEAR_CIRCLE_ECCENTRICITY = 0.05;
@@ -658,12 +658,13 @@ function refineRotatedEllipse(
   primitive: EllipsePrimitive & { readonly rotationDegrees: number },
   displacementBound: number,
 ): RefinementDecision<EllipsePrimitive> {
-  // The fixed coordinate-descent stages attempt at most
-  // 49 center + 49 axes + 9 orientation + 49 center + 49 axes candidates.
+  // The fixed coordinate-descent stages attempt at most 49 center + 49 axes
+  // + 9 orientation + 49 center + 49 axes + 9 final orientation candidates.
   const searchDelta = Math.min(displacementBound, 3);
   const eccentricity = (primitive.radiusX - primitive.radiusY) / primitive.radiusX;
   const preserveOrientation = eccentricity < ROTATED_ELLIPSE_NEAR_CIRCLE_ECCENTRICITY;
   let evaluatedCandidates = 0;
+  const visitedCandidates: ScoredGeometry<EllipsePrimitive>[] = [];
 
   const evaluate = (candidate: EllipsePrimitive | null): ScoredGeometry<EllipsePrimitive> | null => {
     if (candidate === null || evaluatedCandidates >= ROTATED_ELLIPSE_MAX_EVALUATIONS
@@ -679,7 +680,9 @@ function refineRotatedEllipse(
       * displacement.mean / Math.max(1, displacementBound);
     const selectionScore = evidence.support * (0.6 + 0.4 * evidence.visibleArcShare)
       - movementPenalty;
-    return scoredGeometry(candidate, evidence.support, displacement, selectionScore);
+    const scored = scoredGeometry(candidate, evidence.support, displacement, selectionScore);
+    visitedCandidates.push(scored);
+    return scored;
   };
   const centerStage = (base: EllipsePrimitive): readonly ScoredGeometry<EllipsePrimitive>[] => {
     const candidates: ScoredGeometry<EllipsePrimitive>[] = [];
@@ -712,54 +715,58 @@ function refineRotatedEllipse(
     candidates: readonly ScoredGeometry<EllipsePrimitive>[],
     fallback: EllipsePrimitive,
   ): EllipsePrimitive => candidates[0]?.geometry ?? fallback;
+  const orientationStage = (base: EllipsePrimitive): readonly ScoredGeometry<EllipsePrimitive>[] => {
+    const candidates: ScoredGeometry<EllipsePrimitive>[] = [];
+    for (const rotationDelta of ROTATED_ELLIPSE_ORIENTATION_DELTAS_DEGREES) {
+      const scored = evaluate(canonicalRotatedEllipse({
+        ...base,
+        rotationDegrees: primitive.rotationDegrees + rotationDelta,
+      }));
+      if (scored !== null) candidates.push(scored);
+    }
+    return candidates.sort(compareScoredGeometry);
+  };
 
   let current: EllipsePrimitive = primitive;
+  current = bestGeometry(centerStage(current), current);
+  current = bestGeometry(semiAxisStage(current), current);
+  if (!preserveOrientation) current = bestGeometry(orientationStage(current), current);
+
   current = bestGeometry(centerStage(current), current);
   current = bestGeometry(semiAxisStage(current), current);
 
   let orientationAmbiguityMargin = 1;
   let ambiguousOrientation = false;
   if (!preserveOrientation) {
-    const orientationCandidates: ScoredGeometry<EllipsePrimitive>[] = [];
-    const baseRotation = current.rotationDegrees ?? 0;
-    for (const rotationDelta of ROTATED_ELLIPSE_ORIENTATION_DELTAS_DEGREES) {
-      const scored = evaluate(canonicalRotatedEllipse({
-        ...current,
-        rotationDegrees: baseRotation + rotationDelta,
-      }));
-      if (scored !== null) orientationCandidates.push(scored);
-    }
-    orientationCandidates.sort(compareScoredGeometry);
+    const orientationCandidates = orientationStage(current);
     const bestOrientation = orientationCandidates[0];
     if (bestOrientation !== undefined) {
       current = bestOrientation.geometry;
-      const competingOrientation = orientationCandidates.find((candidate) => (
-        undirectedAngleSeparationDegrees(
+      const competingOrientationSupport = Math.max(0, ...orientationCandidates
+        .filter((candidate) => undirectedAngleSeparationDegrees(
           candidate.geometry.rotationDegrees ?? 0,
           bestOrientation.geometry.rotationDegrees ?? 0,
-        ) >= 3
-      ));
+        ) >= 3)
+        .map((candidate) => candidate.support));
       orientationAmbiguityMargin = Math.max(
         0,
-        bestOrientation.selectionScore - (competingOrientation?.selectionScore ?? 0),
+        bestOrientation.support - competingOrientationSupport,
       );
-      ambiguousOrientation = competingOrientation !== undefined
+      ambiguousOrientation = competingOrientationSupport > 0
         && orientationAmbiguityMargin < MIN_AMBIGUITY_MARGIN;
     }
   }
 
-  current = bestGeometry(centerStage(current), current);
-  const finalCandidates = semiAxisStage(current);
-  current = bestGeometry(finalCandidates, current);
-
   const originalEvidence = rotatedEllipseEdgeEvidence(raster, primitive);
   const proposedEvidence = rotatedEllipseEdgeEvidence(raster, current);
-  const competingShape = finalCandidates.find((candidate) => (
-    geometrySeparation(current, candidate.geometry) >= MATERIAL_AMBIGUITY_SEPARATION_PIXELS
-  ));
+  const competingShapeSupport = Math.max(0, ...visitedCandidates
+    .filter((candidate) => (
+      geometrySeparation(current, candidate.geometry) >= MATERIAL_AMBIGUITY_SEPARATION_PIXELS
+    ))
+    .map((candidate) => candidate.support));
   const shapeAmbiguityMargin = Math.max(
     0,
-    proposedEvidence.support - (competingShape?.support ?? 0),
+    proposedEvidence.support - competingShapeSupport,
   );
   const ambiguityMargin = preserveOrientation
     ? shapeAmbiguityMargin

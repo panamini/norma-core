@@ -82,8 +82,8 @@ test("rotated ellipse search is bounded, arc-aware, and preserves weak near-circ
     radiusY: 10,
     rotationDegrees: 32,
   });
-  assert.equal(full.rotatedEllipseSearch.maximumEvaluations, 205);
-  assert.ok(full.rotatedEllipseSearch.evaluatedCandidates <= 205);
+  assert.equal(full.rotatedEllipseSearch.maximumEvaluations, 214);
+  assert.ok(full.rotatedEllipseSearch.evaluatedCandidates <= 214);
   assert.equal(full.rotatedEllipseSearch.centerWindowPixels, 3);
   assert.equal(full.rotatedEllipseSearch.semiAxisWindowPixels, 3);
   assert.equal(full.rotatedEllipseSearch.orientationWindowDegrees, 4);
@@ -126,6 +126,41 @@ test("rotated ellipse refinement abstains on weak and competing orientation evid
   assert.equal(competing.displacementPixels.maximum, 0);
   assert.equal(competing.sourceTruth, false);
   assert.equal(competing.coreRun, false);
+});
+
+test("rotated ellipse refinement keeps separated center candidates in ambiguity evidence", () => {
+  const primitive = {
+    kind: "ellipse",
+    center: { x: 40, y: 30 },
+    radiusX: 8,
+    radiusY: 4,
+    rotationDegrees: 30,
+  };
+  const raster = renderAdditiveEllipseRaster({
+    width: 80,
+    height: 60,
+    background: 0.07,
+    increment: 0.43,
+    ellipses: [
+      { ...primitive, center: { x: 37, y: 30 } },
+      { ...primitive, center: { x: 43, y: 30 } },
+    ],
+  });
+  const input = { raster, primitive, maxDisplacementPixels: 4 };
+  const snapshot = structuredClone(input);
+  const first = refinePersonalVisualHarmonyPrimitivePixelsV1(input);
+  const second = refinePersonalVisualHarmonyPrimitivePixelsV1(input);
+
+  assert.deepEqual(input, snapshot);
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assert.equal(first.status, "abstained");
+  assert.equal(first.reason, "ambiguous_edge_support");
+  assert.equal(first.proposedGeometry, null);
+  assert.equal(first.evidence.ambiguityMargin, 0);
+  assert.ok(first.evidence.proposedEdgeSupport > first.evidence.originalEdgeSupport);
+  assert.ok(first.rotatedEllipseSearch.evaluatedCandidates <= 214);
+  assert.equal(first.sourceTruth, false);
+  assert.equal(first.coreRun, false);
 });
 
 test("rotated ellipse canonicalization is equivalent under angle wrapping and axis swaps", () => {
@@ -721,6 +756,27 @@ function renderRaster(fixture) {
       }
     } else {
       throw new Error(`Unsupported fixture shape: ${shape.kind}`);
+    }
+  }
+  return { width, height, luminance };
+}
+
+function renderAdditiveEllipseRaster({ width, height, background, increment, ellipses }) {
+  const luminance = Array.from({ length: width * height }, () => background);
+  for (const ellipse of ellipses) {
+    const rotationRadians = ellipse.rotationDegrees * Math.PI / 180;
+    const cos = Math.cos(rotationRadians);
+    const sin = Math.sin(rotationRadians);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const dx = x + 0.5 - ellipse.center.x;
+        const dy = y + 0.5 - ellipse.center.y;
+        const localX = (cos * dx + sin * dy) / ellipse.radiusX;
+        const localY = (-sin * dx + cos * dy) / ellipse.radiusY;
+        if (localX * localX + localY * localY <= 1) {
+          luminance[y * width + x] = Math.min(1, luminance[y * width + x] + increment);
+        }
+      }
     }
   }
   return { width, height, luminance };
