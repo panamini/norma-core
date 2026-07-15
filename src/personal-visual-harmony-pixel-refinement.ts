@@ -254,12 +254,18 @@ export function refinePersonalVisualHarmonyCandidatePixelCropV1(input: {
   }
   validateLuminanceBytes(input.luminanceBytes, crop.rasterWidth * crop.rasterHeight);
   const workingPrimitive = primitiveToWorkingCrop(input.primitive, input, crop);
+  const workingRaster = {
+    width: crop.rasterWidth,
+    height: crop.rasterHeight,
+    luminance: input.luminanceBytes.map((value) => value / 255),
+  };
+  try {
+    validatePrimitive(workingPrimitive, workingRaster);
+  } catch {
+    return pixelCropAbstention(input, originalGeometry, crop, "invalid_refined_geometry");
+  }
   const kernelResult = refinePersonalVisualHarmonyPrimitivePixelsV1({
-    raster: {
-      width: crop.rasterWidth,
-      height: crop.rasterHeight,
-      luminance: input.luminanceBytes.map((value) => value / 255),
-    },
+    raster: workingRaster,
     primitive: workingPrimitive,
     maxDisplacementPixels: crop.maxDisplacementRasterPixels,
   });
@@ -987,15 +993,17 @@ function pixelCropAbstention(
   input: PixelCropProposalInputV1,
   originalGeometry: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
   crop: PersonalVisualHarmonyPixelCropPlanV1,
-  reason: "bounded_crop_exceeded" | "pixel_read_unavailable",
+  reason: "bounded_crop_exceeded" | "pixel_read_unavailable" | "invalid_refined_geometry",
 ): PersonalVisualHarmonyPixelRefinementProposalV1 {
-  const diagnostic: PersonalVisualHarmonyPixelRefinementDiagnosticV1 = {
-    code: `pixel_refinement.${reason}`,
-    severity: "warning",
-    message: reason === "bounded_crop_exceeded"
-      ? "The candidate-local crop would exceed the fixed pixel or source-scale limit, so refinement abstained."
-      : "The widget could not read a bounded luminance crop from the hydrated image, so refinement abstained.",
-  };
+  const diagnostic = reason === "invalid_refined_geometry"
+    ? diagnosticFor(reason)
+    : {
+        code: `pixel_refinement.${reason}`,
+        severity: "warning" as const,
+        message: reason === "bounded_crop_exceeded"
+          ? "The candidate-local crop would exceed the fixed pixel or source-scale limit, so refinement abstained."
+          : "The widget could not read a bounded luminance crop from the hydrated image, so refinement abstained.",
+      };
   const resultWithoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -1122,8 +1130,14 @@ function primitiveToWorkingCrop(
   const xExtent = input.sourcePixelWidth;
   const yExtent = input.sourcePixelHeight;
   const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
-    x: (value.x * xExtent - crop.originX) / crop.scaleX,
-    y: (value.y * yExtent - crop.originY) / crop.scaleY,
+    x: Math.max(0, Math.min(
+      crop.rasterWidth - 1,
+      (value.x * xExtent - crop.originX) / crop.scaleX,
+    )),
+    y: Math.max(0, Math.min(
+      crop.rasterHeight - 1,
+      (value.y * yExtent - crop.originY) / crop.scaleY,
+    )),
   });
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
@@ -1139,11 +1153,32 @@ function primitiveToWorkingCrop(
       ],
     };
   }
+  const ellipsePoint = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: Math.max(CONTRAST_SAMPLE_OFFSET_PIXELS, Math.min(
+      crop.rasterWidth - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS,
+      (value.x * xExtent - crop.originX) / crop.scaleX,
+    )),
+    y: Math.max(CONTRAST_SAMPLE_OFFSET_PIXELS, Math.min(
+      crop.rasterHeight - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS,
+      (value.y * yExtent - crop.originY) / crop.scaleY,
+    )),
+  });
+  const minimum = ellipsePoint({
+    x: primitive.center.x - primitive.radiusX,
+    y: primitive.center.y - primitive.radiusY,
+  });
+  const maximum = ellipsePoint({
+    x: primitive.center.x + primitive.radiusX,
+    y: primitive.center.y + primitive.radiusY,
+  });
   return {
     kind: "ellipse",
-    center: point(primitive.center),
-    radiusX: primitive.radiusX * xExtent / crop.scaleX,
-    radiusY: primitive.radiusY * yExtent / crop.scaleY,
+    center: {
+      x: (minimum.x + maximum.x) / 2,
+      y: (minimum.y + maximum.y) / 2,
+    },
+    radiusX: (maximum.x - minimum.x) / 2,
+    radiusY: (maximum.y - minimum.y) / 2,
   };
 }
 

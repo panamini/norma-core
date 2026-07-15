@@ -388,6 +388,7 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
   };
   let persisted = 0;
   let confirmed = 0;
+  let proposalUiUpdates = 0;
   const applyPixelProposal = widgetScriptFunction(
     "applyPixelProposal",
     "function disablePixelRefinement",
@@ -396,6 +397,7 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updatePixelProposalUi() { proposalUiUpdates += 1; },
       persistReviewState() { persisted += 1; },
       updateConfirm() { confirmed += 1; },
       statusNode: { textContent: "" },
@@ -411,11 +413,84 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
   assert.equal(proposal.coreRun, false);
   assert.equal(persisted, 1);
   assert.equal(confirmed, 1);
+  assert.equal(proposalUiUpdates, 1);
 
   applyPixelProposal("trapezoid");
   assert.deepEqual(state.reviewedCandidates[0].primitive, originalGeometry);
   assert.equal(state.adoptedPixelRefinements.size, 0);
   assert.equal(persisted, 2);
+  assert.equal(proposalUiUpdates, 2);
+});
+
+test("widget adoption synchronizes ellipse overlay geometry before confirmation", () => {
+  const attributes = new Map();
+  const shape = {
+    setAttribute(name, value) { attributes.set(name, value); },
+  };
+  const group = {
+    querySelector(selector) {
+      return selector === "[data-candidate-shape]" ? shape : null;
+    },
+  };
+  const state = {
+    reviewedCandidates: [{
+      id: "ellipse",
+      x: 0.2,
+      y: 0.3,
+      width: 0.4,
+      height: 0.2,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.4, y: 0.4 },
+        radiusX: 0.2,
+        radiusY: 0.1,
+      },
+    }],
+  };
+  const syncOverlayGeometry = widgetScriptFunction(
+    "syncOverlayGeometry",
+    "function syncOverlaySelection",
+    {
+      state,
+      overlay: { querySelector: () => group },
+      CSS: { escape: (value) => value },
+      primitiveKind: (item) => item.primitive.kind,
+      supportingLineEndpoints() { throw new Error("line branch must remain unused"); },
+      syncPixelProposalOverlay() {},
+    },
+  );
+
+  syncOverlayGeometry();
+  assert.deepEqual(Object.fromEntries(attributes), {
+    cx: "400",
+    cy: "400",
+    rx: "200",
+    ry: "100",
+  });
+});
+
+test("widget blocks geometry edits while pixel proposals are in flight", () => {
+  const state = { pixelRefinementRunning: false };
+  const blockPixelRefinementEdit = widgetScriptFunction(
+    "blockPixelRefinementEdit",
+    "overlay.addEventListener(\"keydown\",blockPixelRefinementEdit)",
+    { state },
+  );
+  let prevented = 0;
+  let stopped = 0;
+  const event = {
+    preventDefault() { prevented += 1; },
+    stopImmediatePropagation() { stopped += 1; },
+  };
+
+  blockPixelRefinementEdit(event);
+  assert.equal(prevented, 0);
+  assert.equal(stopped, 0);
+
+  state.pixelRefinementRunning = true;
+  blockPixelRefinementEdit(event);
+  assert.equal(prevented, 1);
+  assert.equal(stopped, 1);
 });
 
 test("widget hydration never requests pixel proposals while refinement is disabled", async () => {
@@ -1074,6 +1149,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
+    assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
+    assert.match(resource.contents[0].text, /kind==="ellipse"&&item\.primitive&&shape/u);
+    assert.match(resource.contents[0].text, /shape\.setAttribute\("rx",String\(item\.primitive\.radiusX\*1000\)\)/u);
+    assert.match(resource.contents[0].text, /function blockPixelRefinementEdit\(event\)/u);
+    assert.match(resource.contents[0].text, /window\.addEventListener\("pointermove",blockPixelRefinementEdit,\{capture:true\}\)/u);
     assert.match(resource.contents[0].text, /function invalidatePixelAdoptionFor\(candidateId\)/u);
     assert.match(resource.contents[0].text, /data-pixel-refinement-overlay/u);
     assert.match(resource.contents[0].text, /pixelRefinementState=pixelRefinementSnapshot\(\)/u);

@@ -137,6 +137,84 @@ test("bounded crop planning uses the confirmed image-width coordinate scale", ()
   assert.equal(plan.sourceHeight, 57);
 });
 
+test("crop integration projects image-border guides onto the last readable raster pixel", () => {
+  const primitives = [
+    {
+      kind: "segment",
+      start: { x: 1, y: 0.2 },
+      end: { x: 1, y: 0.8 },
+    },
+    {
+      kind: "axis",
+      start: { x: 0.2, y: 1 },
+      end: { x: 0.8, y: 1 },
+    },
+    {
+      kind: "quadrilateral",
+      vertices: [
+        { x: 0.7, y: 0.7 },
+        { x: 1, y: 0.7 },
+        { x: 1, y: 1 },
+        { x: 0.7, y: 1 },
+      ],
+    },
+    {
+      kind: "ellipse",
+      center: { x: 0.9, y: 0.8 },
+      radiusX: 0.1,
+      radiusY: 0.2,
+    },
+  ];
+
+  for (const [index, primitive] of primitives.entries()) {
+    const base = {
+      candidateSetIdentity: `sha256:${"d".repeat(64)}`,
+      candidateId: `border-${index}`,
+      primitive,
+      sourcePixelWidth: 100,
+      sourcePixelHeight: 80,
+    };
+    const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+    assert.equal(plan.status, "ready");
+    const result = refinePersonalVisualHarmonyCandidatePixelCropV1({
+      ...base,
+      luminanceBytes: new Array(plan.rasterWidth * plan.rasterHeight).fill(128),
+    });
+    assert.equal(result.status, "abstained");
+    assert.notEqual(result.reason, "invalid_refined_geometry");
+    assert.equal(result.coreRun, false);
+    assert.deepEqual(result.originalGeometry, primitive);
+  }
+});
+
+test("crop integration abstains when mapping yields a kernel-invalid primitive", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"e".repeat(64)}`,
+    candidateId: "subpixel-segment",
+    primitive: {
+      kind: "segment",
+      start: { x: 0.5, y: 0.5 },
+      end: { x: 0.501, y: 0.5 },
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+
+  const result = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: new Array(plan.rasterWidth * plan.rasterHeight).fill(128),
+  });
+
+  assert.equal(result.status, "abstained");
+  assert.equal(result.reason, "invalid_refined_geometry");
+  assert.equal(result.proposedGeometry, null);
+  assert.equal(result.evidence, null);
+  assert.equal(result.coreRun, false);
+  assert.match(result.contentIdentity, /^sha256:[0-9a-f]{64}$/u);
+});
+
 test("crop integration fails closed for unavailable, weak, oversized, and authority-bearing evidence", () => {
   const weakFixture = corpus.cases.find((entry) => entry.id === "weak-ambiguous-negative");
   assert.ok(weakFixture);
