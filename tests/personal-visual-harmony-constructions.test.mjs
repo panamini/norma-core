@@ -156,7 +156,7 @@ test("near-boundary intersections use the declared tolerance without escaping th
 
 test("construction identities are stable, inputs are immutable, and no package-root export is added", () => {
   const input = {
-    enabledLayers: ["format-diagonals", "support-line-extensions"],
+    enabledLayers: ["format-diagonals", "junction-angles", "support-line-extensions"],
     sourcePixelWidth: 1600,
     sourcePixelHeight: 900,
     frame: structuredClone(FRAME),
@@ -166,7 +166,7 @@ test("construction identities are stable, inputs are immutable, and no package-r
   const first = analyzePersonalVisualHarmonyConstructionsV1(input);
   const second = analyzePersonalVisualHarmonyConstructionsV1({
     ...input,
-    enabledLayers: ["support-line-extensions", "format-diagonals"],
+    enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
   });
 
   assert.deepEqual(input, before);
@@ -178,6 +178,7 @@ test("construction identities are stable, inputs are immutable, and no package-r
   assert.equal(first.automaticAcceptance, false);
   assert.equal(first.explicitUserConfirmationRequired, true);
   assert.equal(first.coreRun, false);
+  assert.ok(first.junctionAngles.length > 0);
   assert.deepEqual(first.limits, {
     imagePlaneOnly: true,
     noWorldSpaceMetricClaim: true,
@@ -196,5 +197,149 @@ test("disabled construction layers produce no derived objects", () => {
   assert.deepEqual(result.supportLineExtensions, []);
   assert.deepEqual(result.formatDiagonals, []);
   assert.deepEqual(result.relations, []);
+  assert.equal(Object.hasOwn(result, "junctionAngles"), false);
   assert.equal(result.coreRun, false);
+});
+
+test("junction output is absent until explicitly enabled and leaves prior constructions unchanged", () => {
+  const baseline = analyze();
+  const enabled = analyze({
+    enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
+  });
+
+  assert.equal(Object.hasOwn(baseline, "junctionAngles"), false);
+  assert.ok(enabled.junctionAngles.length > 0);
+  assert.deepEqual(enabled.observedLines, baseline.observedLines);
+  assert.deepEqual(enabled.supportLineExtensions, baseline.supportLineExtensions);
+  assert.deepEqual(enabled.formatDiagonals, baseline.formatDiagonals);
+  assert.deepEqual(enabled.relations, baseline.relations);
+});
+
+test("junction angles require support lines and preserve observed versus derived provenance", () => {
+  assert.throws(
+    () => analyze({ enabledLayers: ["junction-angles"] }),
+    /Junction angles require the support-line extension layer/u,
+  );
+
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "junction-angles"],
+    observedLines: [
+      observedLine("horizontal", { x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }),
+      observedLine("vertical", { x: 0.5, y: 0.2 }, { x: 0.5, y: 0.8 }, "axis"),
+    ],
+  });
+  const crossing = result.junctionAngles.find(({ junctionKind }) => (
+    junctionKind === "support-line-support-line"
+  ));
+
+  assert.ok(crossing);
+  assert.deepEqual(crossing.intersection, { x: 0.5, y: 0.5 });
+  assert.equal(crossing.smallerAngleDegrees, 90);
+  assert.equal(crossing.supplementaryAngleDegrees, 90);
+  assert.equal(crossing.angleConvention, "projected_image_plane_smaller_and_supplementary");
+  assert.equal(crossing.firstParticipant.provenance, "derived-construction");
+  assert.equal(crossing.secondParticipant.provenance, "derived-construction");
+  assert.equal(crossing.firstParticipant.intersectionWithinObservedExtent, true);
+  assert.equal(crossing.secondParticipant.intersectionWithinObservedExtent, true);
+  assert.match(crossing.firstParticipant.sourceObservedLineId, /^observed-line:/u);
+  assert.equal(crossing.provenance, "derived-measurement");
+  assert.equal(crossing.sourceTruth, false);
+  assert.equal(crossing.coreAuthority, false);
+});
+
+test("junction angles use pixel-scaled directions without ratio snapping", () => {
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "junction-angles"],
+    sourcePixelWidth: 2_000,
+    sourcePixelHeight: 1_000,
+    observedLines: [
+      observedLine("horizontal", { x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }),
+      observedLine("oblique", { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.8 }),
+    ],
+  });
+  const crossing = result.junctionAngles.find(({ junctionKind }) => (
+    junctionKind === "support-line-support-line"
+  ));
+
+  assert.ok(crossing);
+  assert.equal(crossing.smallerAngleDegrees, 26.565051177078);
+  assert.equal(crossing.supplementaryAngleDegrees, 153.434948822922);
+  assert.notEqual(crossing.smallerAngleDegrees, 30);
+  assert.notEqual(crossing.smallerAngleDegrees, 45);
+});
+
+test("format diagonals and frame contacts produce distinct bounded junction evidence", () => {
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
+    observedLines: [
+      observedLine("horizontal", { x: 0.2, y: 0.25 }, { x: 0.7, y: 0.25 }),
+    ],
+  });
+  const diagonalCrossing = result.junctionAngles.find(({ junctionKind }) => (
+    junctionKind === "format-diagonal-format-diagonal"
+  ));
+  const frameContact = result.junctionAngles.find(({ junctionKind }) => (
+    junctionKind === "support-line-frame-edge"
+  ));
+
+  assert.ok(diagonalCrossing);
+  assert.deepEqual(diagonalCrossing.intersection, { x: 0.5, y: 0.5 });
+  assert.equal(diagonalCrossing.smallerAngleDegrees, 90);
+  assert.ok(frameContact);
+  const frameParticipant = [frameContact.firstParticipant, frameContact.secondParticipant]
+    .find(({ kind }) => kind === "frame-edge");
+  const supportParticipant = [frameContact.firstParticipant, frameContact.secondParticipant]
+    .find(({ kind }) => kind === "support-line-extension");
+  assert.equal(frameParticipant.provenance, "user-confirmed-frame");
+  assert.equal(frameParticipant.sourceObservedLineId, null);
+  assert.equal(frameParticipant.intersectionWithinObservedExtent, null);
+  assert.equal(supportParticipant.intersectionWithinObservedExtent, false);
+  assert.ok(result.junctionAngles.every(({ intersection }) => (
+    intersection.x >= 0 && intersection.x <= 1 && intersection.y >= 0 && intersection.y <= 1
+  )));
+});
+
+test("parallel and coincident support lines do not invent discrete junction angles", () => {
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "junction-angles"],
+    observedLines: [
+      observedLine("horizontal-a", { x: 0.1, y: 0.2 }, { x: 0.9, y: 0.2 }),
+      observedLine("horizontal-b", { x: 0.1, y: 0.7 }, { x: 0.9, y: 0.7 }),
+      observedLine("coincident", { x: 0.3, y: 0.2 }, { x: 0.6, y: 0.2 }),
+    ],
+  });
+
+  assert.equal(
+    result.junctionAngles.filter(({ junctionKind }) => (
+      junctionKind === "support-line-support-line"
+    )).length,
+    0,
+  );
+  assert.ok(result.junctionAngles.every(({ smallerAngleDegrees }) => smallerAngleDegrees > 0));
+});
+
+test("junction enumeration stays bounded at the maximum observed-line input", () => {
+  const observedLines = Array.from({ length: 48 }, (_, index) => {
+    const angle = (index / 48) * Math.PI;
+    const deltaX = Math.cos(angle) * 0.4;
+    const deltaY = Math.sin(angle) * 0.4;
+    return observedLine(
+      `radial-${String(index)}`,
+      { x: 0.5 - deltaX, y: 0.5 - deltaY },
+      { x: 0.5 + deltaX, y: 0.5 + deltaY },
+    );
+  });
+  const result = analyze({
+    enabledLayers: ["support-line-extensions", "junction-angles"],
+    observedLines,
+  });
+
+  assert.equal(result.supportLineExtensions.length, 48);
+  assert.equal(
+    result.junctionAngles.filter(({ junctionKind }) => (
+      junctionKind === "support-line-support-line"
+    )).length,
+    (48 * 47) / 2,
+  );
+  assert.ok(result.junctionAngles.length <= 2_048);
 });

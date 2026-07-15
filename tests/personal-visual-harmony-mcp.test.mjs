@@ -238,7 +238,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     geometrySnapshot: () => reviewedCandidateGeometry,
     constructionLayerSnapshot: () => ({
       candidateSetIdentity,
-      layers: ["support-line-extensions", "format-diagonals"].filter((layer) => (
+      layers: ["support-line-extensions", "format-diagonals", "junction-angles"].filter((layer) => (
         state.constructionLayers.has(layer)
       )),
     }),
@@ -248,7 +248,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     publicWidgetState: () => ({}),
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
-    CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals"],
+    CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles"],
     updateConstructionControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
@@ -270,6 +270,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
           enabledLayers: ["support-line-extensions"],
           supportLineExtensions: [],
           formatDiagonals: [],
+          junctionAngles: [],
         },
       },
       overlaySvg: "",
@@ -331,7 +332,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const storedConstructionGuideStateFor = widgetScriptFunction(
     "storedConstructionGuideStateFor",
     "function updateConstructionControls",
-    { CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals"] },
+    { CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles"] },
   );
   const completedConstructionGuideStateFor = widgetScriptFunction(
     "completedConstructionGuideStateFor",
@@ -419,11 +420,12 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="supportLineToggle"[^>]*aria-pressed="false"/u);
   assert.match(html, /id="formatDiagonalToggle"[^>]*aria-pressed="false"/u);
-  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals"\]/u);
+  assert.match(html, /id="junctionAngleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
+  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles"\]/u);
   assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
   assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
 
-  const layers = ["support-line-extensions", "format-diagonals"];
+  const layers = ["support-line-extensions", "format-diagonals", "junction-angles"];
   const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
   const state = {
     completed: false,
@@ -446,10 +448,24 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     },
   );
 
+  toggleConstructionLayer("junction-angles");
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.equal(persisted, 0);
+
   toggleConstructionLayer("support-line-extensions");
   assert.deepEqual([...state.constructionLayers], ["support-line-extensions"]);
   assert.equal(persisted, 1);
   assert.equal(visibilitySyncs, 1);
+  assert.equal(appToolCalls, 0);
+
+  toggleConstructionLayer("junction-angles");
+  assert.deepEqual([...state.constructionLayers], ["support-line-extensions", "junction-angles"]);
+  toggleConstructionLayer("support-line-extensions");
+  assert.deepEqual([...state.constructionLayers], []);
+  toggleConstructionLayer("support-line-extensions");
+  toggleConstructionLayer("format-diagonals");
+  toggleConstructionLayer("junction-angles");
+  assert.deepEqual([...state.constructionLayers], layers);
   assert.equal(appToolCalls, 0);
 
   const storedConstructionGuideStateFor = widgetScriptFunction(
@@ -460,7 +476,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   let saved = {
     constructionGuideState: {
       candidateSetIdentity,
-      layers: ["format-diagonals", "support-line-extensions"],
+      layers: ["junction-angles", "format-diagonals", "support-line-extensions"],
     },
   };
   const restoreState = {
@@ -478,6 +494,14 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   );
   restoreConstructionGuideState({ candidateSetIdentity });
   assert.deepEqual([...restoreState.constructionLayers], layers);
+  saved = {
+    constructionGuideState: {
+      candidateSetIdentity,
+      layers: ["junction-angles"],
+    },
+  };
+  restoreConstructionGuideState({ candidateSetIdentity });
+  assert.deepEqual([...restoreState.constructionLayers], []);
   restoreConstructionGuideState({ candidateSetIdentity: `sha256:${"b".repeat(64)}` });
   assert.deepEqual([...restoreState.constructionLayers], []);
 
@@ -1223,6 +1247,13 @@ test("session confirmation rejects duplicate construction layers before idempote
     }),
     /Construction layers must be unique supported values/u,
   );
+  assert.throws(
+    () => service.confirm({
+      ...baseConfirmation,
+      constructionLayers: ["junction-angles"],
+    }),
+    /Junction angles require the support-line extension layer/u,
+  );
 });
 
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
@@ -1298,11 +1329,12 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
     const constructionLayerInput = confirmTool.inputSchema.properties.constructionLayers;
     assert.equal(constructionLayerInput.type, "array");
-    assert.equal(constructionLayerInput.maxItems, 2);
+    assert.equal(constructionLayerInput.maxItems, 3);
     assert.deepEqual(constructionLayerInput.default, []);
     assert.deepEqual(constructionLayerInput.items.enum, [
       "support-line-extensions",
       "format-diagonals",
+      "junction-angles",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
     const imagePlaneOutput = confirmTool.outputSchema.properties.imagePlaneGuideAnalysis;
@@ -1345,6 +1377,20 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(constructionOutput.properties.automaticAcceptance.const, false);
     assert.equal(constructionOutput.properties.explicitUserConfirmationRequired.const, true);
     assert.equal(constructionOutput.properties.coreRun.const, false);
+    const junctionOutput = constructionOutput.properties.junctionAngles.items;
+    assert.equal(junctionOutput.additionalProperties, false);
+    assert.equal(junctionOutput.properties.kind.const, "junction-angle");
+    assert.equal(junctionOutput.properties.provenance.const, "derived-measurement");
+    assert.equal(junctionOutput.properties.sourceTruth.const, false);
+    assert.equal(junctionOutput.properties.coreAuthority.const, false);
+    assert.equal(constructionOutput.required.includes("junctionAngles"), false);
+    assert.deepEqual(junctionOutput.properties.junctionKind.enum, [
+      "support-line-support-line",
+      "support-line-format-diagonal",
+      "format-diagonal-format-diagonal",
+      "support-line-frame-edge",
+      "format-diagonal-frame-edge",
+    ]);
     const quadrilateralOutput = imagePlaneOutput.properties.quadrilateralMeasurements.items;
     assert.equal(imagePlaneOutput.required.includes("quadrilateralMeasurements"), false);
     assert.equal(quadrilateralOutput.additionalProperties, false);
@@ -2129,7 +2175,7 @@ test("mixed structural primitives stay visible while only rectangles cross the C
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         selectedCandidateIds: ["major", "minor"],
         confirmedVisualGuideCandidateIds: ["diagonal", "central-axis", "main-ellipse"],
-        constructionLayers: ["format-diagonals", "support-line-extensions"],
+        constructionLayers: ["junction-angles", "format-diagonals", "support-line-extensions"],
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
@@ -2162,16 +2208,19 @@ test("mixed structural primitives stay visible while only rectangles cross the C
     assert.deepEqual(constructions.enabledLayers, [
       "support-line-extensions",
       "format-diagonals",
+      "junction-angles",
     ]);
     assert.equal(constructions.observedLines.length, 2);
     assert.equal(constructions.supportLineExtensions.length, 2);
     assert.equal(constructions.formatDiagonals.length, 2);
     assert.equal(constructions.relations.length, 4);
+    assert.ok(constructions.junctionAngles.length > 0);
     assert.equal(constructions.sourceTruth, false);
     assert.equal(constructions.coreRun, false);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="axis"/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-image-plane-relation-id=/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-format-diagonal=/u);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-junction-angle-id=/u);
   } finally {
     await connected.close();
   }

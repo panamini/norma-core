@@ -606,7 +606,7 @@ test("guide confirmation is separate from Core identity and rejects rectangle or
   );
 });
 
-test("support-line extensions and format diagonals are opt-in derived constructions outside Core authority", () => {
+test("support lines, format diagonals, and junction angles are opt-in constructions outside Core authority", () => {
   const prepared = prepare([
     ...ellipseLineRelationCandidates(),
     {
@@ -637,7 +637,7 @@ test("support-line extensions and format diagonals are opt-in derived constructi
   });
   const enabled = confirm(prepared, {
     confirmedVisualGuideCandidateIds,
-    constructionLayers: ["format-diagonals", "support-line-extensions"],
+    constructionLayers: ["junction-angles", "format-diagonals", "support-line-extensions"],
     sourcePixelHeight: 1000,
   });
 
@@ -656,11 +656,16 @@ test("support-line extensions and format diagonals are opt-in derived constructi
   assert.deepEqual(constructions.enabledLayers, [
     "support-line-extensions",
     "format-diagonals",
+    "junction-angles",
   ]);
   assert.equal(constructions.observedLines.length, 3);
   assert.equal(constructions.supportLineExtensions.length, 3);
   assert.equal(constructions.formatDiagonals.length, 2);
   assert.equal(constructions.relations.length, 6);
+  assert.ok(constructions.junctionAngles.length > 0);
+  assert.ok(constructions.junctionAngles.every(({ provenance, sourceTruth, coreAuthority }) => (
+    provenance === "derived-measurement" && sourceTruth === false && coreAuthority === false
+  )));
   assert.ok(constructions.observedLines.every(({ provenance, confirmation, coreAuthority }) => (
     provenance === "observed" && confirmation === "user-confirmed" && coreAuthority === false
   )));
@@ -675,6 +680,8 @@ test("support-line extensions and format diagonals are opt-in derived constructi
   assert.equal(constructions.coreRun, false);
   assert.match(enabled.overlaySvg, /data-construction-layer="support-line-extensions"/u);
   assert.match(enabled.overlaySvg, /data-construction-layer="format-diagonals"/u);
+  assert.match(enabled.overlaySvg, /data-construction-layer="junction-angles"/u);
+  assert.match(enabled.overlaySvg, /data-provenance="derived-measurement"/u);
   assert.match(enabled.overlaySvg, /data-provenance="derived-construction"/u);
   assert.match(enabled.overlaySvg, /data-candidate-shape data-provenance="observed"/u);
   const unconfirmedMarkup = enabled.overlaySvg.match(
@@ -718,7 +725,7 @@ test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior mea
   });
   const enabled = confirm(prepared, {
     confirmedVisualGuideCandidateIds,
-    constructionLayers: ["support-line-extensions", "format-diagonals"],
+    constructionLayers: ["support-line-extensions", "format-diagonals", "junction-angles"],
     sourcePixelHeight: 1000,
   });
 
@@ -735,6 +742,10 @@ test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior mea
   assert.equal(constructions.observedLines[0].candidateId, "trapezoid-oblique");
   assert.equal(constructions.supportLineExtensions[0].angleDegrees, 80.537677791974);
   assert.equal(constructions.formatDiagonals.length, 2);
+  assert.ok(constructions.junctionAngles.some(({ firstParticipant, secondParticipant }) => (
+    firstParticipant.sourceObservedLineId !== null
+      || secondParticipant.sourceObservedLineId !== null
+  )));
 });
 
 test("ellipse-line evidence distinguishes the observed segment from its deterministic extension", () => {

@@ -1241,6 +1241,28 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     `<line data-format-diagonal="vertex-1-to-3" x1="1000" y1="0" x2="0" y2="1000"/>`,
   ].join("");
   const formatDiagonalGroup = `<g data-construction-layer="format-diagonals" data-provenance="derived-construction" pointer-events="none" stroke="#22d3ee" stroke-width="3" stroke-dasharray="22 10 4 10" stroke-opacity="0.72"${enabledConstructionLayers.has("format-diagonals") ? "" : ` style="display:none"`}>${formatDiagonalMarkup}</g>`;
+  const renderedJunctionKeys = new Set<string>();
+  const junctionAngleMarkup = (input.imagePlaneGuideAnalysis?.constructionAnalysis?.junctionAngles ?? [])
+    .filter((junction) => {
+      const key = `${junction.intersection.x.toFixed(9)}:${junction.intersection.y.toFixed(9)}:${junction.smallerAngleDegrees.toFixed(9)}`;
+      if (renderedJunctionKeys.has(key)) return false;
+      renderedJunctionKeys.add(key);
+      return true;
+    })
+    .slice(0, 24)
+    .map((junction, index) => {
+      const x = junction.intersection.x * 1000;
+      const y = junction.intersection.y * 1000;
+      const labelOffset = 22 + ((index % 3) * 30);
+      const angleLabel = `${String(Number(junction.smallerAngleDegrees.toFixed(1)))}°`;
+      return [
+        `<g data-junction-angle-id="${escapeXml(junction.junctionId)}" data-construction-layer="junction-angles" data-provenance="derived-measurement" pointer-events="none"${enabledConstructionLayers.has("junction-angles") ? "" : ` style="display:none"`}>`,
+        `<circle cx="${numberAttr(x)}" cy="${numberAttr(y)}" r="9" fill="#facc15" stroke="#020617" stroke-width="4"/>`,
+        `<text x="${numberAttr(x + 14)}" y="${numberAttr(y - labelOffset)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="800" fill="#fef08a" stroke="#020617" stroke-width="4" paint-order="stroke">${escapeXml(angleLabel)}</text>`,
+        "</g>",
+      ].join("");
+    })
+    .join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1250,6 +1272,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     formatDiagonalGroup,
     candidateMarkup,
     imagePlaneRelationMarkup,
+    junctionAngleMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
