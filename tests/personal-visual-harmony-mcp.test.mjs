@@ -276,7 +276,10 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const completedPixelRefinementStateFor = widgetScriptFunction(
     "completedPixelRefinementStateFor",
     "function isStoredMatch",
-    { storedPixelRefinementStateFor },
+    {
+      storedPixelRefinementStateFor,
+      preparedWithReviewedCandidates: (prepared) => prepared,
+    },
   );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
     "completedWidgetStateFor",
@@ -446,13 +449,212 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   assert.equal(refinementCalls, 1);
 });
 
+test("widget sends reviewed geometry directly for pixel proposals and stops on confirmation", async () => {
+  const original = {
+    id: "oblique",
+    primitive: { kind: "segment", start: { x: 0.1, y: 0.2 }, end: { x: 0.7, y: 0.8 } },
+  };
+  const reviewed = {
+    id: "oblique",
+    primitive: { kind: "segment", start: { x: 0.12, y: 0.18 }, end: { x: 0.72, y: 0.78 } },
+  };
+  const oldPayload = {
+    prepared: { candidateSetIdentity: "old-set", candidates: [original] },
+  };
+  const state = {
+    payload: oldPayload,
+    activePayloadIdentity: "payload-id",
+    proposalCandidateSetIdentity: "old-set",
+    proposalCandidates: [original],
+    reviewedCandidates: [reviewed],
+    pixelRefinementEnabled: true,
+    pixelRefinementRunning: false,
+    pixelRefinementGeneration: 0,
+    pixelRefinementProposals: new Map(),
+    adoptedPixelRefinements: new Map(),
+    completed: false,
+    confirming: false,
+    imageReady: true,
+    dimensions: { width: 100, height: 80 },
+  };
+  const requestedCandidates = [];
+  const refreshPixelRefinements = widgetScriptFunction(
+    "refreshPixelRefinements",
+    "function applyPixelProposal",
+    {
+      state,
+      updatePixelProposalUi() {},
+      updateConfirm() {},
+      pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
+      createPixelCropPlan: () => ({ status: "ready" }),
+      requestPixelProposal: async (_payload, candidate) => {
+        requestedCandidates.push(structuredClone(candidate));
+        return { candidateId: candidate.id, status: "abstained", contentIdentity: "proposal" };
+      },
+      document: { documentElement: { setAttribute() {} } },
+      samePixelProposalPrimitive: () => false,
+      candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
+      clonePrimitive: structuredClone,
+      syncOverlayGeometry() {},
+      persistReviewState() {},
+      statusNode: { textContent: "" },
+    },
+  );
+
+  await refreshPixelRefinements(oldPayload, "payload-id");
+  assert.deepEqual(requestedCandidates, [reviewed]);
+  assert.equal(state.proposalCandidateSetIdentity, "old-set");
+  assert.deepEqual(state.proposalCandidates, [original]);
+  assert.equal(state.pixelRefinementProposals.get("oblique")?.contentIdentity, "proposal");
+  assert.equal(state.pixelRefinementRunning, false);
+
+  const previousProposals = state.pixelRefinementProposals;
+  state.payload = oldPayload;
+  state.confirming = false;
+  const raceRefresh = widgetScriptFunction(
+    "refreshPixelRefinements",
+    "function applyPixelProposal",
+    {
+      state,
+      updatePixelProposalUi() {},
+      updateConfirm() {},
+      pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
+      createPixelCropPlan: () => ({ status: "ready" }),
+      requestPixelProposal: async () => {
+        state.confirming = true;
+        return { candidateId: "oblique", status: "refined", contentIdentity: "late-proposal" };
+      },
+      document: { documentElement: { setAttribute() {} } },
+      samePixelProposalPrimitive: () => false,
+      candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
+      clonePrimitive: structuredClone,
+      syncOverlayGeometry() {},
+      persistReviewState() { throw new Error("late proposal must not persist"); },
+      statusNode: { textContent: "" },
+    },
+  );
+
+  await raceRefresh(oldPayload, "payload-id");
+  assert.equal(state.pixelRefinementProposals, previousProposals);
+  assert.equal(state.pixelRefinementProposals.has("late-proposal"), false);
+  assert.equal(state.pixelRefinementRunning, false);
+});
+
+test("widget canonicalizes adopted quadrilaterals before refresh and revert comparisons", () => {
+  const originalGeometry = {
+    kind: "quadrilateral",
+    vertices: [
+      { x: 0.1, y: 0.1 },
+      { x: 0.8, y: 0.1 },
+      { x: 0.7, y: 0.8 },
+      { x: 0.2, y: 0.7 },
+    ],
+  };
+  const proposedGeometry = {
+    kind: "quadrilateral",
+    vertices: [
+      { x: 0.79, y: 0.11 },
+      { x: 0.69, y: 0.79 },
+      { x: 0.21, y: 0.69 },
+      { x: 0.11, y: 0.11 },
+    ],
+  };
+  const canonicalVertices = (vertices) => {
+    const start = vertices.reduce((best, point, index) => (
+      point.y < vertices[best].y || (point.y === vertices[best].y && point.x < vertices[best].x)
+        ? index
+        : best
+    ), 0);
+    return vertices.map((_point, offset) => structuredClone(vertices[(start + offset) % vertices.length]));
+  };
+  const candidateWithPrimitive = (candidate, primitive) => ({
+    ...candidate,
+    primitive: primitive.kind === "quadrilateral"
+      ? { ...structuredClone(primitive), vertices: canonicalVertices(primitive.vertices) }
+      : structuredClone(primitive),
+  });
+  const canonicalPixelProposalPrimitive = widgetScriptFunction(
+    "canonicalPixelProposalPrimitive",
+    "function samePixelProposalPrimitive",
+    { candidateWithPrimitive, clonePrimitive: structuredClone },
+  );
+  const samePixelProposalPrimitive = widgetScriptFunction(
+    "samePixelProposalPrimitive",
+    "function pixelRefinementCandidateSnapshot",
+    { canonicalPixelProposalPrimitive },
+  );
+  const proposalIdentity = `sha256:${"f".repeat(64)}`;
+  const candidate = candidateWithPrimitive({ id: "trapezoid" }, proposedGeometry);
+  const proposal = {
+    candidateId: candidate.id,
+    status: "refined",
+    contentIdentity: proposalIdentity,
+    originalGeometry,
+    proposedGeometry,
+  };
+  const state = {
+    reviewedCandidates: [candidate],
+    pixelRefinementProposals: new Map([[candidate.id, proposal]]),
+    adoptedPixelRefinements: new Map([[candidate.id, proposalIdentity]]),
+    pixelRefinementGeneration: 0,
+    pixelRefinementEnabled: true,
+    pixelRefinementRunning: false,
+  };
+  const pixelRefinementCandidateSnapshot = widgetScriptFunction(
+    "pixelRefinementCandidateSnapshot",
+    "function reconcileStoredPixelAdoptions",
+    {
+      state,
+      primitiveKind: (item) => item.primitive?.kind ?? "rectangle",
+      samePixelProposalPrimitive,
+      candidateWithPrimitive,
+      clonePrimitive: structuredClone,
+    },
+  );
+  assert.deepEqual(pixelRefinementCandidateSnapshot()[0].primitive, originalGeometry);
+
+  const disablePixelRefinement = widgetScriptFunction(
+    "disablePixelRefinement",
+    "pixelToggle.addEventListener",
+    {
+      state,
+      samePixelProposalPrimitive,
+      candidateWithPrimitive,
+      clonePrimitive: structuredClone,
+      document: { documentElement: { setAttribute() {} } },
+      syncOverlayGeometry() {},
+      persistReviewState() {},
+      updatePixelProposalUi() {},
+      updateConfirm() {},
+      statusNode: { textContent: "" },
+    },
+  );
+  disablePixelRefinement();
+  assert.deepEqual(state.reviewedCandidates[0].primitive, originalGeometry);
+  assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
 test("widget pixel proposal and adoption state round-trip without image bytes", () => {
   const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
   const proposalContentIdentity = `sha256:${"b".repeat(64)}`;
+  const originalGeometry = {
+    kind: "segment",
+    start: { x: 0.1, y: 0.2 },
+    end: { x: 0.8, y: 0.7 },
+  };
+  const proposedGeometry = {
+    kind: "segment",
+    start: { x: 0.11, y: 0.19 },
+    end: { x: 0.79, y: 0.71 },
+  };
   const proposal = {
     candidateId: "guide",
     contentIdentity: proposalContentIdentity,
     status: "refined",
+    originalGeometry,
+    proposedGeometry,
   };
   const state = {
     pixelRefinementEnabled: true,
@@ -474,15 +676,28 @@ test("widget pixel proposal and adoption state round-trip without image bytes", 
   });
   assert.doesNotMatch(JSON.stringify(snapshot), /luminance|base64|download_url/u);
 
+  let validatedOriginalGeometry;
+  const preparedWithReviewedCandidates = (prepared, reviewedCandidates) => ({
+    ...prepared,
+    candidates: reviewedCandidates,
+  });
   const storedPixelRefinementStateFor = widgetScriptFunction(
     "storedPixelRefinementStateFor",
     "function restorePixelRefinementState",
     {
-      validPixelProposal: () => true,
+      validPixelProposal: (_proposal, prepared) => {
+        validatedOriginalGeometry = structuredClone(prepared.candidates[0].primitive);
+        return true;
+      },
       isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      samePixelProposalPrimitive: (_candidate, left, right) => JSON.stringify(left) === JSON.stringify(right),
+      candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
+      clonePrimitive: structuredClone,
+      preparedWithReviewedCandidates,
     },
   );
   const restoredState = {
+    reviewedCandidates: [{ id: "guide", primitive: structuredClone(proposedGeometry) }],
     pixelRefinementEnabled: false,
     pixelRefinementProposals: new Map(),
     adoptedPixelRefinements: new Map(),
@@ -494,17 +709,22 @@ test("widget pixel proposal and adoption state round-trip without image bytes", 
     {
       publicWidgetState: () => ({ pixelRefinementState: structuredClone(snapshot) }),
       storedPixelRefinementStateFor,
+      preparedWithReviewedCandidates,
       state: restoredState,
       pixelToggle,
     },
   );
-  restorePixelRefinementState({ candidateSetIdentity, candidates: [] });
+  restorePixelRefinementState({
+    candidateSetIdentity,
+    candidates: [{ id: "guide", primitive: structuredClone(originalGeometry) }],
+  });
   assert.equal(restoredState.pixelRefinementEnabled, true);
   assert.deepEqual([...restoredState.pixelRefinementProposals], [["guide", proposal]]);
   assert.deepEqual(
     [...restoredState.adoptedPixelRefinements],
     [["guide", proposalContentIdentity]],
   );
+  assert.deepEqual(validatedOriginalGeometry, originalGeometry);
 });
 
 test("widget luminance extraction is bounded and byte-deterministic", () => {
@@ -715,7 +935,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
-    assert.equal(refinePixelsTool.annotations.readOnlyHint, true);
+    assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
+    assert.equal(refinePixelsTool.annotations.idempotentHint, false);
+    assert.equal(refinePixelsTool.inputSchema.required.includes("reviewedPrimitive"), true);
     assert.equal(refinePixelsTool.inputSchema.properties.luminanceBase64.maxLength, 196_608);
     assert.equal(refinePixelsTool.inputSchema.required.includes("luminanceBase64"), false);
     const proposalOutput = refinePixelsTool.outputSchema.properties.proposal;
@@ -847,6 +1069,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /id="pixelToggle"[^>]*aria-pressed="false"/u);
     assert.match(resource.contents[0].text, /pixelRefinementEnabled:false/u);
     assert.match(resource.contents[0].text, /callAppTool\(REFINE_PIXELS_TOOL,args\)/u);
+    assert.match(resource.contents[0].text, /reviewedPrimitive:candidate\.primitive/u);
     assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
@@ -954,7 +1177,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity=state\.proposalCandidateSetIdentity\|\|state\.payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
-    assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.payload/u);
+    assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot\)/u);
@@ -1294,12 +1517,18 @@ test("app-only bounded pixel proposals abstain without adopting geometry or runn
       sourceImageMediaType: "image/png",
       candidates: proposedCandidates,
     };
+    const reviewedDiagonalPrimitive = {
+      ...structuredClone(diagonal.primitive),
+      start: { x: diagonal.primitive.start.x + 0.01, y: diagonal.primitive.start.y },
+      end: { x: diagonal.primitive.end.x + 0.01, y: diagonal.primitive.end.y },
+    };
     const unavailable = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
       arguments: {
         sessionId: payload.sessionId,
         candidateSetIdentity: payload.prepared.candidateSetIdentity,
         candidateId: "diagonal",
+        reviewedPrimitive: reviewedDiagonalPrimitive,
         sourcePixelWidth: 64,
         sourcePixelHeight: 64,
         recovery,
@@ -1308,6 +1537,11 @@ test("app-only bounded pixel proposals abstain without adopting geometry or runn
     assert.equal(unavailable.isError, undefined);
     assert.equal(unavailable.structuredContent.proposal.status, "abstained");
     assert.equal(unavailable.structuredContent.proposal.reason, "pixel_read_unavailable");
+    assert.deepEqual(unavailable.structuredContent.proposal.originalGeometry, reviewedDiagonalPrimitive);
+    assert.equal(
+      unavailable.structuredContent.proposal.candidateSetIdentity,
+      payload.prepared.candidateSetIdentity,
+    );
     assert.equal(unavailable.structuredContent.proposal.proposalAdopted, false);
     assert.equal(unavailable.structuredContent.proposal.coreRun, false);
 
@@ -1318,6 +1552,7 @@ test("app-only bounded pixel proposals abstain without adopting geometry or runn
         sessionId: payload.sessionId,
         candidateSetIdentity: payload.prepared.candidateSetIdentity,
         candidateId: "diagonal",
+        reviewedPrimitive: diagonal.primitive,
         sourcePixelWidth: 64,
         sourcePixelHeight: 64,
         luminanceBase64: weakBytes.toString("base64"),

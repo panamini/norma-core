@@ -152,8 +152,8 @@ export function createPersonalVisualHarmonyPixelCropPlanV1(input: {
   if (primitive === null || typeof primitive !== "object" || Array.isArray(primitive)) {
     throw new Error("Pixel crop planning requires a supported primitive.");
   }
-  const xExtent = sourceWidth - 1;
-  const yExtent = sourceHeight - 1;
+  const xExtent = sourceWidth;
+  const yExtent = sourceHeight;
   let points: Array<{ x: number; y: number }>;
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     points = [primitive.start, primitive.end].map((point) => ({
@@ -1119,8 +1119,8 @@ function primitiveToWorkingCrop(
   input: Pick<PixelCropProposalInputV1, "sourcePixelWidth" | "sourcePixelHeight">,
   crop: Extract<PersonalVisualHarmonyPixelCropPlanV1, { readonly status: "ready" }>,
 ): PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
-  const xExtent = input.sourcePixelWidth - 1;
-  const yExtent = input.sourcePixelHeight - 1;
+  const xExtent = input.sourcePixelWidth;
+  const yExtent = input.sourcePixelHeight;
   const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
     x: (value.x * xExtent - crop.originX) / crop.scaleX,
     y: (value.y * yExtent - crop.originY) / crop.scaleY,
@@ -1152,8 +1152,8 @@ function primitiveFromWorkingCrop(
   input: Pick<PixelCropProposalInputV1, "sourcePixelWidth" | "sourcePixelHeight">,
   crop: Extract<PersonalVisualHarmonyPixelCropPlanV1, { readonly status: "ready" }>,
 ): PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
-  const xExtent = input.sourcePixelWidth - 1;
-  const yExtent = input.sourcePixelHeight - 1;
+  const xExtent = input.sourcePixelWidth;
+  const yExtent = input.sourcePixelHeight;
   const unit = (value: number): number => canonicalNumber(Math.max(0, Math.min(1, value)));
   const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
     x: unit((crop.originX + value.x * crop.scaleX) / xExtent),
@@ -1187,8 +1187,8 @@ function normalizedPrimitiveDisplacementPixels(
   sourcePixelWidth: number,
   sourcePixelHeight: number,
 ): { readonly maximum: number; readonly mean: number } {
-  const xExtent = sourcePixelWidth - 1;
-  const yExtent = sourcePixelHeight - 1;
+  const xExtent = sourcePixelWidth;
+  const yExtent = sourcePixelHeight;
   const distance = (first: PersonalVisualHarmonyPointV1, second: PersonalVisualHarmonyPointV1): number => (
     Math.hypot((first.x - second.x) * xExtent, (first.y - second.y) * yExtent)
   );

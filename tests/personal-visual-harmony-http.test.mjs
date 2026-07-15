@@ -131,6 +131,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
       sessionId: widgetPayload.sessionId,
       candidateSetIdentity: widgetPayload.prepared.candidateSetIdentity,
       candidateId: oblique.id,
+      reviewedPrimitive: oblique.primitive,
       sourcePixelWidth: 1_000,
       sourcePixelHeight: 618,
       luminanceBase64: Buffer.alloc(cropPlan.rasterWidth * cropPlan.rasterHeight, 128).toString("base64"),

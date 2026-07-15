@@ -119,6 +119,24 @@ test("bounded crop integration deterministically keeps original and proposed geo
   assert.match(first.kernelContentIdentity, /^sha256:[0-9a-f]{64}$/u);
 });
 
+test("bounded crop planning uses the confirmed image-width coordinate scale", () => {
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1({
+    primitive: {
+      kind: "segment",
+      start: { x: 0.5, y: 0.25 },
+      end: { x: 0.5, y: 0.75 },
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 80,
+  });
+
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 42);
+  assert.equal(plan.originY, 12);
+  assert.equal(plan.sourceWidth, 17);
+  assert.equal(plan.sourceHeight, 57);
+});
+
 test("crop integration fails closed for unavailable, weak, oversized, and authority-bearing evidence", () => {
   const weakFixture = corpus.cases.find((entry) => entry.id === "weak-ambiguous-negative");
   assert.ok(weakFixture);
@@ -425,8 +443,8 @@ function refinementInput(fixture) {
 }
 
 function normalizePrimitive(primitive, width, height) {
-  const xExtent = width - 1;
-  const yExtent = height - 1;
+  const xExtent = width;
+  const yExtent = height;
   const point = (value) => ({ x: value.x / xExtent, y: value.y / yExtent });
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
