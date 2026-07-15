@@ -207,7 +207,12 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     completed: false,
     payload: { prepared: { candidateSetIdentity } },
     proposalCandidateSetIdentity: candidateSetIdentity,
+    constructionLayers: new Set(["support-line-extensions"]),
     dimensions: { width: 1_000, height: 800 },
+  };
+  const constructionGuideState = {
+    candidateSetIdentity,
+    layers: ["support-line-extensions"],
   };
   const pixelRefinementState = {
     enabled: false,
@@ -226,15 +231,25 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     renderFacts() {},
     appendQuadrilateralMeasurements() {},
     appendImagePlaneRelations() {},
+    appendConstructionAnalysis() {},
     safeSvg: () => "",
     syncFamilyVisibility() {},
+    syncConstructionVisibility() {},
     geometrySnapshot: () => reviewedCandidateGeometry,
+    constructionLayerSnapshot: () => ({
+      candidateSetIdentity,
+      layers: ["support-line-extensions", "format-diagonals"].filter((layer) => (
+        state.constructionLayers.has(layer)
+      )),
+    }),
     pixelRefinementSnapshot: () => pixelRefinementState,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
     publicWidgetState: () => ({}),
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals"],
+    updateConstructionControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
   });
@@ -247,18 +262,46 @@ test("completed widget cache round-trips related candidates and rejects legacy o
         mappedGeometryContentIdentity: identity("d"),
         explanations: [match],
       },
+      imagePlaneGuideAnalysis: {
+        confirmedVisualGuideCandidateIds: [],
+        relationships: [],
+        quadrilateralMeasurements: [],
+        constructionAnalysis: {
+          enabledLayers: ["support-line-extensions"],
+          supportLineExtensions: [],
+          formatDiagonals: [],
+        },
+      },
       overlaySvg: "",
     },
     { ratioPackRefs: ["norma.geometry-harmonies@0.1.0"], presentation },
   );
 
   const persisted = persistedStates.at(-1);
+  assert.deepEqual(persisted.constructionGuideState, constructionGuideState);
+  assert.deepEqual(persisted.completedVisualHarmony.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.pixelRefinementState, pixelRefinementState);
   assert.deepEqual(persisted.completedVisualHarmony.pixelRefinementState, pixelRefinementState);
   assert.deepEqual(
     persisted.completedVisualHarmony.matches[0].relatedCandidateIds,
     ["minor"],
   );
+
+  renderResult(
+    {
+      result: {
+        headline: "Analyse sans construction",
+        contentIdentity: identity("e"),
+        confirmedSelectionIdentity: identity("f"),
+        mappedGeometryContentIdentity: identity("0"),
+        explanations: [match],
+      },
+      overlaySvg: "",
+    },
+    { ratioPackRefs: ["norma.geometry-harmonies@0.1.0"], presentation },
+  );
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.deepEqual(persistedStates.at(-1).constructionGuideState.layers, []);
 
   const isStoredMatch = widgetScriptFunction(
     "isStoredMatch",
@@ -285,6 +328,16 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       isStoredGeometrySnapshot,
     },
   );
+  const storedConstructionGuideStateFor = widgetScriptFunction(
+    "storedConstructionGuideStateFor",
+    "function updateConstructionControls",
+    { CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals"] },
+  );
+  const completedConstructionGuideStateFor = widgetScriptFunction(
+    "completedConstructionGuideStateFor",
+    "function isStoredMatch",
+    { storedConstructionGuideStateFor },
+  );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
     "completedWidgetStateFor",
     "function payloadIdentity",
@@ -300,6 +353,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       isStoredGeometrySnapshot,
       sameGeometrySnapshots: (left, right) => JSON.stringify(left) === JSON.stringify(right),
       completedPixelRefinementStateFor,
+      completedConstructionGuideStateFor,
       isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
       isStoredMatch,
       isStoredPresentation: () => true,
@@ -321,6 +375,13 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     enabled: true,
   };
   assert.equal(completedWidgetStateFor(() => mismatchedPixelCache)(payload), null);
+
+  const mismatchedConstructionCache = structuredClone(persisted);
+  mismatchedConstructionCache.constructionGuideState = {
+    ...mismatchedConstructionCache.constructionGuideState,
+    layers: ["format-diagonals"],
+  };
+  assert.equal(completedWidgetStateFor(() => mismatchedConstructionCache)(payload), null);
 
   for (const corruptTarget of ["saved", "completed"]) {
     const corruptedGeometryCache = structuredClone(persisted);
@@ -352,6 +413,100 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const legacy = structuredClone(persisted);
   delete legacy.completedVisualHarmony.matches[0].relatedCandidateIds;
   assert.equal(completedWidgetStateFor(() => legacy)(payload), null);
+});
+
+test("widget construction controls are distinct, payload-safe, and cannot run Core before confirmation", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="supportLineToggle"[^>]*aria-pressed="false"/u);
+  assert.match(html, /id="formatDiagonalToggle"[^>]*aria-pressed="false"/u);
+  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals"\]/u);
+  assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
+  assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
+
+  const layers = ["support-line-extensions", "format-diagonals"];
+  const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const state = {
+    completed: false,
+    confirming: false,
+    proposalCandidateSetIdentity: candidateSetIdentity,
+    constructionLayers: new Set(),
+  };
+  let persisted = 0;
+  let visibilitySyncs = 0;
+  let appToolCalls = 0;
+  const toggleConstructionLayer = widgetScriptFunction(
+    "toggleConstructionLayer",
+    "function syncFamilyVisibility",
+    {
+      state,
+      CONSTRUCTION_LAYERS: layers,
+      syncConstructionVisibility() { visibilitySyncs += 1; },
+      persistReviewState() { persisted += 1; },
+      statusNode: { textContent: "" },
+    },
+  );
+
+  toggleConstructionLayer("support-line-extensions");
+  assert.deepEqual([...state.constructionLayers], ["support-line-extensions"]);
+  assert.equal(persisted, 1);
+  assert.equal(visibilitySyncs, 1);
+  assert.equal(appToolCalls, 0);
+
+  const storedConstructionGuideStateFor = widgetScriptFunction(
+    "storedConstructionGuideStateFor",
+    "function updateConstructionControls",
+    { CONSTRUCTION_LAYERS: layers },
+  );
+  let saved = {
+    constructionGuideState: {
+      candidateSetIdentity,
+      layers: ["format-diagonals", "support-line-extensions"],
+    },
+  };
+  const restoreState = {
+    constructionLayers: new Set(),
+  };
+  const restoreConstructionGuideState = widgetScriptFunction(
+    "restoreConstructionGuideState",
+    "function toggleConstructionLayer",
+    {
+      publicWidgetState: () => saved,
+      storedConstructionGuideStateFor,
+      state: restoreState,
+      syncConstructionVisibility() {},
+    },
+  );
+  restoreConstructionGuideState({ candidateSetIdentity });
+  assert.deepEqual([...restoreState.constructionLayers], layers);
+  restoreConstructionGuideState({ candidateSetIdentity: `sha256:${"b".repeat(64)}` });
+  assert.deepEqual([...restoreState.constructionLayers], []);
+
+  const callConfirmation = widgetScriptFunction(
+    "callConfirmation",
+    "function finishConfirmingPayload",
+    {
+      CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      callAppTool: async (_name, args) => {
+        appToolCalls += 1;
+        return args;
+      },
+    },
+  );
+  const args = await callConfirmation(
+    {
+      sessionId: "session:test",
+      fileId: "file-test",
+      sourceImageMediaType: "image/png",
+      prepared: { candidateSetIdentity, candidates: [] },
+    },
+    ["core-rectangle"],
+    ["observed-oblique"],
+    layers,
+    { width: 1200, height: 800 },
+  );
+  assert.deepEqual(args.constructionLayers, layers);
+  assert.equal(args.confirmClientReviewedSelection, true);
+  assert.equal(appToolCalls, 1);
 });
 
 test("widget pixel proposals remain separate until an explicit adoption click", () => {
@@ -469,6 +624,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       primitiveKind: (item) => item.primitive.kind,
       supportingLineEndpoints() { throw new Error("line branch must remain unused"); },
       syncPixelProposalOverlay() {},
+      syncConstructionVisibility() {},
     },
   );
 
@@ -1038,6 +1194,37 @@ function recoveryInput(fileId = "file-private-opaque-id", candidateValues = cand
   };
 }
 
+test("session confirmation rejects duplicate construction layers before idempotent cache lookup", () => {
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-13T15:00:00.000Z"),
+    createSessionId: () => "session:construction-layer-uniqueness",
+  });
+  const prepared = service.prepare({
+    fileId: "file-construction-layer-uniqueness",
+    mediaType: "image/png",
+    candidates: mixedPrimitiveCandidates(),
+  });
+  const baseConfirmation = {
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    selectedCandidateIds: ["major", "minor"],
+    confirmedVisualGuideCandidateIds: ["diagonal"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  service.confirm({
+    ...baseConfirmation,
+    constructionLayers: ["support-line-extensions"],
+  });
+  assert.throws(
+    () => service.confirm({
+      ...baseConfirmation,
+      constructionLayers: ["support-line-extensions", "support-line-extensions"],
+    }),
+    /Construction layers must be unique supported values/u,
+  );
+});
+
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
     createSessionId: () => "session:test-personal-visual-harmony",
@@ -1109,6 +1296,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(guideConfirmationInput.items.type, "string");
     assert.match(guideConfirmationInput.items.pattern, /A-Za-z0-9/u);
     assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
+    const constructionLayerInput = confirmTool.inputSchema.properties.constructionLayers;
+    assert.equal(constructionLayerInput.type, "array");
+    assert.equal(constructionLayerInput.maxItems, 2);
+    assert.deepEqual(constructionLayerInput.default, []);
+    assert.deepEqual(constructionLayerInput.items.enum, [
+      "support-line-extensions",
+      "format-diagonals",
+    ]);
+    assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
     const imagePlaneOutput = confirmTool.outputSchema.properties.imagePlaneGuideAnalysis;
     assert.equal(imagePlaneOutput.type, "object");
     assert.equal(imagePlaneOutput.additionalProperties, false);
@@ -1141,6 +1337,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "quadrilateral-side",
     ]);
     assert.equal(relationshipOutput.required.includes("quadrilateralSideIndex"), false);
+    assert.equal(imagePlaneOutput.required.includes("constructionAnalysis"), false);
+    const constructionOutput = imagePlaneOutput.properties.constructionAnalysis;
+    assert.equal(constructionOutput.additionalProperties, false);
+    assert.equal(constructionOutput.properties.candidateEvidenceOnly.const, true);
+    assert.equal(constructionOutput.properties.sourceTruth.const, false);
+    assert.equal(constructionOutput.properties.automaticAcceptance.const, false);
+    assert.equal(constructionOutput.properties.explicitUserConfirmationRequired.const, true);
+    assert.equal(constructionOutput.properties.coreRun.const, false);
     const quadrilateralOutput = imagePlaneOutput.properties.quadrilateralMeasurements.items;
     assert.equal(imagePlaneOutput.required.includes("quadrilateralMeasurements"), false);
     assert.equal(quadrilateralOutput.additionalProperties, false);
@@ -1335,7 +1539,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
-    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot\)/u);
     assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
@@ -1925,6 +2129,7 @@ test("mixed structural primitives stay visible while only rectangles cross the C
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         selectedCandidateIds: ["major", "minor"],
         confirmedVisualGuideCandidateIds: ["diagonal", "central-axis", "main-ellipse"],
+        constructionLayers: ["format-diagonals", "support-line-extensions"],
         sourcePixelWidth: 1000,
         sourcePixelHeight: 618,
         confirmClientReviewedSelection: true,
@@ -1953,8 +2158,20 @@ test("mixed structural primitives stay visible while only rectangles cross the C
     assert.ok(confirmed.structuredContent.imagePlaneGuideAnalysis.relationships.every(({ classification }) => (
       classification === "intersection"
     )));
+    const constructions = confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis;
+    assert.deepEqual(constructions.enabledLayers, [
+      "support-line-extensions",
+      "format-diagonals",
+    ]);
+    assert.equal(constructions.observedLines.length, 2);
+    assert.equal(constructions.supportLineExtensions.length, 2);
+    assert.equal(constructions.formatDiagonals.length, 2);
+    assert.equal(constructions.relations.length, 4);
+    assert.equal(constructions.sourceTruth, false);
+    assert.equal(constructions.coreRun, false);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="axis"/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-image-plane-relation-id=/u);
+    assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-format-diagonal=/u);
   } finally {
     await connected.close();
   }

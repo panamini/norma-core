@@ -606,6 +606,112 @@ test("guide confirmation is separate from Core identity and rejects rectangle or
   );
 });
 
+test("support-line extensions and format diagonals are opt-in derived constructions outside Core authority", () => {
+  const prepared = prepare(ellipseLineRelationCandidates());
+  const confirmedVisualGuideCandidateIds = [
+    "ellipse",
+    "vertical-near-tangent",
+    "oblique-tangent",
+    "vertical-secant",
+  ];
+  const baseline = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    sourcePixelHeight: 1000,
+  });
+  const enabled = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    constructionLayers: ["format-diagonals", "support-line-extensions"],
+    sourcePixelHeight: 1000,
+  });
+
+  assert.equal(Object.hasOwn(baseline.imagePlaneGuideAnalysis, "constructionAnalysis"), false);
+  assert.equal(enabled.result.contentIdentity, baseline.result.contentIdentity);
+  assert.equal(enabled.acceptedGeometryContentIdentity, baseline.acceptedGeometryContentIdentity);
+  assert.equal(enabled.mappingResultContentIdentity, baseline.mappingResultContentIdentity);
+  assert.deepEqual(
+    enabled.imagePlaneGuideAnalysis.relationships,
+    baseline.imagePlaneGuideAnalysis.relationships,
+  );
+  assert.deepEqual(enabled.imagePlaneGuideAnalysis.quadrilateralMeasurements, undefined);
+
+  const constructions = enabled.imagePlaneGuideAnalysis.constructionAnalysis;
+  assert.ok(constructions);
+  assert.deepEqual(constructions.enabledLayers, [
+    "support-line-extensions",
+    "format-diagonals",
+  ]);
+  assert.equal(constructions.observedLines.length, 3);
+  assert.equal(constructions.supportLineExtensions.length, 3);
+  assert.equal(constructions.formatDiagonals.length, 2);
+  assert.equal(constructions.relations.length, 6);
+  assert.ok(constructions.observedLines.every(({ provenance, confirmation, coreAuthority }) => (
+    provenance === "observed" && confirmation === "user-confirmed" && coreAuthority === false
+  )));
+  assert.ok(constructions.supportLineExtensions.every(({ provenance, clipping, coreAuthority }) => (
+    provenance === "derived-construction"
+      && clipping === "confirmed_frame_only"
+      && coreAuthority === false
+  )));
+  assert.ok(constructions.formatDiagonals.every(({ provenance, sourceTruth }) => (
+    provenance === "derived-construction" && sourceTruth === false
+  )));
+  assert.equal(constructions.coreRun, false);
+  assert.match(enabled.overlaySvg, /data-construction-layer="support-line-extensions"/u);
+  assert.match(enabled.overlaySvg, /data-construction-layer="format-diagonals"/u);
+  assert.match(enabled.overlaySvg, /data-provenance="derived-construction"/u);
+  assert.match(enabled.overlaySvg, /data-candidate-shape data-provenance="observed"/u);
+});
+
+test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior measurements unchanged", () => {
+  const candidates = [
+    ...quadrilateralCandidates({ includeEllipse: true }),
+    {
+      id: "trapezoid-oblique",
+      label: "Oblique du trapèze",
+      role: "structural-region",
+      reason: "Segment oblique visible confirmé séparément du quadrilatère",
+      x: 0.2,
+      y: 0.2,
+      width: 0.1,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.2, y: 0.2 },
+        end: { x: 0.3, y: 0.8 },
+      },
+    },
+  ];
+  const prepared = prepare(candidates);
+  const confirmedVisualGuideCandidateIds = [
+    "right-trapezoid",
+    "quad-ellipse",
+    "trapezoid-oblique",
+  ];
+  const baseline = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    sourcePixelHeight: 1000,
+  });
+  const enabled = confirm(prepared, {
+    confirmedVisualGuideCandidateIds,
+    constructionLayers: ["support-line-extensions", "format-diagonals"],
+    sourcePixelHeight: 1000,
+  });
+
+  assert.deepEqual(
+    enabled.imagePlaneGuideAnalysis.quadrilateralMeasurements,
+    baseline.imagePlaneGuideAnalysis.quadrilateralMeasurements,
+  );
+  assert.deepEqual(
+    enabled.imagePlaneGuideAnalysis.relationships,
+    baseline.imagePlaneGuideAnalysis.relationships,
+  );
+  const constructions = enabled.imagePlaneGuideAnalysis.constructionAnalysis;
+  assert.equal(constructions.observedLines.length, 1);
+  assert.equal(constructions.observedLines[0].candidateId, "trapezoid-oblique");
+  assert.equal(constructions.supportLineExtensions[0].angleDegrees, 80.537677791974);
+  assert.equal(constructions.formatDiagonals.length, 2);
+});
+
 test("ellipse-line evidence distinguishes the observed segment from its deterministic extension", () => {
   const candidateValues = ellipseLineRelationCandidates().map((candidate) => {
     if (candidate.id !== "vertical-near-tangent") return candidate;

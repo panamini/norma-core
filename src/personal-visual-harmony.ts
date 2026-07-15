@@ -35,6 +35,11 @@ import {
   DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY,
   serializeCanonicalJson,
 } from "./serialization.js";
+import {
+  analyzePersonalVisualHarmonyConstructionsV1,
+  type PersonalVisualHarmonyConstructionAnalysisV1,
+  type PersonalVisualHarmonyConstructionLayerV1,
+} from "./personal-visual-harmony-constructions.js";
 
 export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@1" as const;
@@ -268,6 +273,7 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly shallowIntersectionAngleToleranceDegrees: number;
   readonly relationships: readonly PersonalVisualHarmonyImagePlaneRelationV1[];
   readonly quadrilateralMeasurements?: readonly PersonalVisualHarmonyQuadrilateralMeasurementV1[];
+  readonly constructionAnalysis?: PersonalVisualHarmonyConstructionAnalysisV1;
   readonly limits: {
     readonly imagePlaneOnly: true;
     readonly axisAlignedEllipseOnly: true;
@@ -343,6 +349,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   readonly expectedCandidateSetIdentity: string;
   readonly selectedCandidateIds: readonly string[];
   readonly confirmedVisualGuideCandidateIds?: readonly string[];
+  readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
   readonly acceptedAt: string;
@@ -452,6 +459,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   const imagePlaneGuideAnalysis = analyzePersonalVisualHarmonyImagePlaneRelationsV1({
     preparedCandidateSet: prepared,
     confirmedVisualGuideCandidateIds,
+    constructionLayers: input.constructionLayers ?? [],
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
   });
@@ -471,6 +479,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
 export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly confirmedVisualGuideCandidateIds: readonly string[];
+  readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
 }): PersonalVisualHarmonyImagePlaneRelationsV1 {
@@ -487,6 +496,7 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   ));
   const confirmedGuides = prepared.candidates.filter((candidate) => confirmed.has(candidate.id));
   const lines = confirmedGuides.flatMap(imagePlaneLineEvidenceForCandidate);
+  const constructionLayers = input.constructionLayers ?? [];
   const quadrilateralMeasurements = confirmedGuides.flatMap((candidate) => {
     const measurement = createQuadrilateralMeasurement(
       candidate,
@@ -517,6 +527,31 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     }
     return stableStringCompare(first.relationshipId, second.relationshipId);
   });
+  const constructionAnalysis = constructionLayers.length === 0
+    ? null
+    : analyzePersonalVisualHarmonyConstructionsV1({
+      enabledLayers: constructionLayers,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+      frame: {
+        frameId: "frame:image-boundary",
+        kind: "confirmed-image-boundary",
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ],
+      },
+      observedLines: lines.filter(({ primitiveKind }) => primitiveKind !== "quadrilateral-side")
+        .map((line) => ({
+          candidateId: line.candidateId,
+          label: line.label,
+          primitiveKind: line.primitiveKind,
+          start: line.start,
+          end: line.end,
+        })),
+    });
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -539,6 +574,7 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
       IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES,
     relationships,
     ...(quadrilateralMeasurements.length === 0 ? {} : { quadrilateralMeasurements }),
+    ...(constructionAnalysis === null ? {} : { constructionAnalysis }),
     limits: {
       imagePlaneOnly: true as const,
       axisAlignedEllipseOnly: true as const,
@@ -1133,6 +1169,9 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     ...(input.result?.selectedCandidateIds ?? input.selectedCandidateIds ?? []),
     ...(input.imagePlaneGuideAnalysis?.confirmedVisualGuideCandidateIds ?? []),
   ]);
+  const enabledConstructionLayers = new Set(
+    input.imagePlaneGuideAnalysis?.constructionAnalysis?.enabledLayers ?? [],
+  );
   const palette = ["#f97316", "#0ea5e9", "#8b5cf6", "#10b981", "#e11d48", "#eab308"];
   const guides = input.result?.harmonicAnalysis.relationships
     .filter((relationship) => relationship.guide !== null)
@@ -1160,7 +1199,12 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     const editHandles = editable ? candidateEditHandlesMarkup(candidateValue) : "";
     return [
       `<g data-candidate-id="${escapeXml(candidateValue.id)}" data-primitive-kind="${primitiveKind}"${editable ? ` tabindex="0" role="group" aria-label="Ajuster ${escapeXml(candidateValue.label)}"` : ` role="img" aria-label="${escapeXml(candidateValue.label)} · guide ${primitiveKind}"`} >`,
-      visualPrimitiveMarkup(candidateValue, color, selected),
+      visualPrimitiveMarkup(
+        candidateValue,
+        color,
+        selected,
+        enabledConstructionLayers.has("support-line-extensions"),
+      ),
       `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
       `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
       editHandles,
@@ -1192,12 +1236,18 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ].join("");
     })
     .join("");
+  const formatDiagonalMarkup = [
+    `<line data-format-diagonal="vertex-0-to-2" x1="0" y1="0" x2="1000" y2="1000"/>`,
+    `<line data-format-diagonal="vertex-1-to-3" x1="1000" y1="0" x2="0" y2="1000"/>`,
+  ].join("");
+  const formatDiagonalGroup = `<g data-construction-layer="format-diagonals" data-provenance="derived-construction" pointer-events="none" stroke="#22d3ee" stroke-width="3" stroke-dasharray="22 10 4 10" stroke-opacity="0.72"${enabledConstructionLayers.has("format-diagonals") ? "" : ` style="display:none"`}>${formatDiagonalMarkup}</g>`;
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
   return [
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1000 1000\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"Norma visual harmony overlay\">",
     guideMarkup,
+    formatDiagonalGroup,
     candidateMarkup,
     imagePlaneRelationMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
@@ -1738,6 +1788,7 @@ function visualPrimitiveMarkup(
   candidate: PersonalVisualHarmonyCandidateInputV1,
   color: string,
   selected: boolean,
+  showSupportLineExtensions: boolean,
 ): string {
   const primitive = candidate.primitive;
   const strokeWidth = selected ? "7" : "4";
@@ -1745,8 +1796,8 @@ function visualPrimitiveMarkup(
     const support = extendLineToUnitSquare(primitive.start, primitive.end);
     const dash = primitive.kind === "axis" ? "20 12" : "none";
     return [
-      `<line data-supporting-line x1="${numberAttr(support.start.x * 1000)}" y1="${numberAttr(support.start.y * 1000)}" x2="${numberAttr(support.end.x * 1000)}" y2="${numberAttr(support.end.y * 1000)}" stroke="${color}" stroke-width="3" stroke-dasharray="10 14" stroke-opacity="0.58"/>`,
-      `<line data-candidate-shape x1="${numberAttr(primitive.start.x * 1000)}" y1="${numberAttr(primitive.start.y * 1000)}" x2="${numberAttr(primitive.end.x * 1000)}" y2="${numberAttr(primitive.end.y * 1000)}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round"/>`,
+      `<line data-supporting-line data-construction-layer="support-line-extensions" data-provenance="derived-construction" x1="${numberAttr(support.start.x * 1000)}" y1="${numberAttr(support.start.y * 1000)}" x2="${numberAttr(support.end.x * 1000)}" y2="${numberAttr(support.end.y * 1000)}" stroke="${color}" stroke-width="3" stroke-dasharray="10 14" stroke-opacity="0.58"${showSupportLineExtensions ? "" : ` style="display:none"`}/>`,
+      `<line data-candidate-shape data-provenance="observed" x1="${numberAttr(primitive.start.x * 1000)}" y1="${numberAttr(primitive.start.y * 1000)}" x2="${numberAttr(primitive.end.x * 1000)}" y2="${numberAttr(primitive.end.y * 1000)}" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round"/>`,
     ].join("");
   }
   if (primitive?.kind === "quadrilateral") {
