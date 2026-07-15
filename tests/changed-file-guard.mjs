@@ -217,6 +217,7 @@ export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-pixel-refinement.test.mjs",
 ].sort());
 
+// Reused for bounded personal visual-harmony evidence updates, including A/B gate truth syncs.
 export const personalVisualHarmonyTruthSyncChangedFiles = Object.freeze([
   "docs/examples/personal-chatgpt-visual-harmony-demo.md",
   "tests/changed-file-guard.test.mjs",
