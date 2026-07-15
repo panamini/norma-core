@@ -22,8 +22,31 @@ the same opt-in proposal lane to explicitly oriented ellipses: it maps the
 canonical ellipse through the candidate crop's exact affine scale, reports
 bounded center/axis/orientation evidence, and renders original and proposed
 orientations separately. Near-circular or ambiguous orientation evidence keeps
-the prior orientation or abstains. Live ChatGPT write-path proof and controlled
-A/B validation remain required.
+the prior orientation or abstains.
+
+A controlled exact-main local A/B at
+`9d49d15286d9be854243dc7cb4ca350d10073695` now validates that integration on
+the same annotated luminance rasters and starting candidates. With refinement
+disabled and before confirmation, no proposal or Core call is produced. With
+refinement enabled, the strong full-perimeter case reduces mean annotated
+perimeter error from
+`1.657733384665 px` to `0 px` and raises edge support from `0.486165660084` to
+`0.831046138518`; the nearby tangent/crossing-line case reduces the same error
+from `1.657733384665 px` to `0 px` and raises edge support from `0.470385665047`
+to `0.783118773663`. The weak-contour case deterministically abstains with
+`weak_edge_support`, and the competing-orientation case abstains with
+`ambiguous_edge_support`. Repeated runs are byte-identical and input-immutable.
+The desktop/mobile widget smoke also proves original/proposal separation,
+explicit adoption, a separate confirmation action, zero Core calls before
+confirmation, no horizontal overflow, and no console/runtime error. This is
+`LOCAL_UI_AB_PASS`, not live ChatGPT evidence.
+
+The current private-app path can create and connect a temporary ChatGPT app to
+the exact-main MCP server. The same-image live A/B remains **UNVERIFIED** because
+the available Chrome automation session cannot upload the synthetic fixture
+until the user enables file-URL access for the ChatGPT Chrome extension. No
+model/provider API call was made. The roadmap therefore keeps triangle medians
+deferred until the write-enabled live same-image A/B is non-regressive.
 
 The derived-construction rail is extended by PR226
 (`f333c9a3ee6e7034b59b03401362a2aec6ffe5ad`) for observed support-line
@@ -42,8 +65,8 @@ The pre-enhancement exact-main gate recorded in PR224 is green: its build,
 focused personal visual harmony tests (39/39), full repository suite
 (1608/1608), and static widget harness all passed. The opt-in integration gate
 also passes its build, focused MCP/HTTP/kernel/widget checks, exact changed-file
-guard, and the expanded full repository suite (1624/1624). A bounded ChatGPT
-audit also created a temporary
+guard, and the expanded full repository suite (1624/1624). A previous bounded
+ChatGPT audit also created a temporary
 private development app and reached the current app-management UI, but the
 submitted image prompt stayed in `Analyse de l’image en cours`, produced no
 request at the exact-main HTTP server, and never reached the widget,
@@ -52,7 +75,8 @@ proof is **UNVERIFIED**, not a live pass. The temporary app and tunnel were
 removed after the attempt; the original `parser.dasti.ai -> 127.0.0.1:8001`
 configuration and Docker health were restored. The integration is locally and
 deterministically tested only. A later live smoke must repeat the same matrix
-before any claim that refinement improves the live overlay.
+before any claim that refinement improves the live ChatGPT overlay. The newer
+local controlled A/B above narrows that remaining gate without replacing it.
 
 ## What the demo proves
 
@@ -141,7 +165,7 @@ rectification or calibration.
 | Junction angles | Implemented locally; live proof required | Disabled by default and dependent on support-line extensions; deterministic crossings among confirmed support lines, enabled format diagonals, and confirmed frame edges; pixel-scaled smaller/supplementary angles; observed-extent flags and derived-measurement provenance; no Core authority |
 | Quadrilaterals and trapezoids | Implemented locally; live proof required | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
 | Explicit triangle constructions | Implemented locally; live proof required | Disabled by default; one bounded explicit request per triangle; exactly three stable observed-endpoint or admitted-junction parents; deterministic canonical winding, identity, area, sides, and interior angles; fail closed; no Core authority |
-| Medians, bisectors, and triangle centers | Deferred, separate slice | May derive only from an explicitly admitted triangle under a new bounded contract; not part of the triangle layer |
+| Medians, bisectors, and triangle centers | Deferred; live rotated-ellipse A/B gate remains | May derive only from an explicitly admitted triangle under a new bounded contract; the local A/B is non-regressive but does not replace the canonical write-enabled live gate |
 | Rotated-ellipse pixel refinement | Implemented locally; live A/B required | Hard-bounded center, semi-axis, and ±4° orientation search; exact affine crop mapping; stable canonical identity; near-circle preservation and weak/competing-orientation abstention; no automatic adoption, confirmation, or Core authority |
 | Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |
 | Repetition and rhythm | Later | First measure count, spacing, orientation, scale progression, alternation, and symmetry in a confirmed family; keep `rhythm` interpretive |

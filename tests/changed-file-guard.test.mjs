@@ -333,6 +333,42 @@ test("shared exact changed-file guard accepts only the personal visual harmony p
   }
 });
 
+test("shared exact changed-file guard accepts only the rotated ellipse A/B truth-sync set", () => {
+  assert.equal(personalVisualHarmonyTruthSyncChangedFiles.length, 10);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyTruthSyncChangedFiles),
+    personalVisualHarmonyTruthSyncChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyTruthSyncChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyTruthSyncChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of [
+    "src/mcp/personal-visual-harmony-app.ts",
+    "src/personal-visual-harmony-pixel-refinement.ts",
+    "package.json",
+    "package-lock.json",
+    "tests/fixtures/personal-visual-harmony-pixel-refinement/user-image.png",
+    "render.yaml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyTruthSyncChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
 test("shared exact changed-file guard accepts only the rotated ellipse pixel integration set", () => {
   assert.equal(personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles.length, 15);
   assert.deepEqual(
