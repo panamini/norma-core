@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_CONTRACT_ID,
+  PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID,
+  createPersonalVisualHarmonyPixelCropPlanV1,
+  refinePersonalVisualHarmonyCandidatePixelCropV1,
   refinePersonalVisualHarmonyPrimitivePixelsV1,
 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
 import * as packageRoot from "../dist/src/index.js";
@@ -66,6 +69,108 @@ test("positive annotations deterministically improve pixel error without gaining
 test("shadow refiner is not exported from the public package root", () => {
   assert.equal("refinePersonalVisualHarmonyPrimitivePixelsV1" in packageRoot, false);
   assert.equal("PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_CONTRACT_ID" in packageRoot, false);
+  assert.equal("refinePersonalVisualHarmonyCandidatePixelCropV1" in packageRoot, false);
+  assert.equal("createPersonalVisualHarmonyPixelCropPlanV1" in packageRoot, false);
+});
+
+test("bounded crop integration deterministically keeps original and proposed geometry separate", () => {
+  const fixture = corpus.cases.find((entry) => entry.id === "trapezoid-strong-oblique");
+  assert.ok(fixture);
+  const raster = renderRaster(fixture);
+  const primitive = normalizePrimitive(fixture.primitive, fixture.raster.width, fixture.raster.height);
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1({
+    primitive,
+    sourcePixelWidth: fixture.raster.width,
+    sourcePixelHeight: fixture.raster.height,
+  });
+  assert.equal(plan.status, "ready");
+  assert.ok(plan.rasterWidth <= 384);
+  assert.ok(plan.rasterHeight <= 384);
+  assert.ok(plan.rasterWidth * plan.rasterHeight <= 147_456);
+  const input = {
+    candidateSetIdentity: `sha256:${"a".repeat(64)}`,
+    candidateId: "trapezoid",
+    primitive,
+    sourcePixelWidth: fixture.raster.width,
+    sourcePixelHeight: fixture.raster.height,
+    luminanceBytes: cropLuminanceBytes(raster, plan),
+  };
+  const snapshot = structuredClone(input);
+  const first = refinePersonalVisualHarmonyCandidatePixelCropV1(input);
+  const second = refinePersonalVisualHarmonyCandidatePixelCropV1(input);
+
+  assert.deepEqual(input, snapshot);
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assert.equal(first.contentIdentity, second.contentIdentity);
+  assert.equal(first.contractId, PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID);
+  assert.equal(first.status, "refined");
+  assert.deepEqual(first.originalGeometry, primitive);
+  assert.notEqual(first.proposedGeometry, null);
+  assert.notDeepEqual(first.proposedGeometry, first.originalGeometry);
+  assert.equal(first.candidateEvidenceOnly, true);
+  assert.equal(first.sourceTruth, false);
+  assert.equal(first.automaticAcceptance, false);
+  assert.equal(first.explicitProposalAdoptionRequired, true);
+  assert.equal(first.proposalAdopted, false);
+  assert.equal(first.explicitUserConfirmationRequired, true);
+  assert.equal(first.coreRun, false);
+  assert.ok(first.displacementPixels.maximum <= 6);
+  assert.match(first.pixelRasterContentIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(first.kernelContentIdentity, /^sha256:[0-9a-f]{64}$/u);
+});
+
+test("crop integration fails closed for unavailable, weak, oversized, and authority-bearing evidence", () => {
+  const weakFixture = corpus.cases.find((entry) => entry.id === "weak-ambiguous-negative");
+  assert.ok(weakFixture);
+  const primitive = normalizePrimitive(
+    weakFixture.primitive,
+    weakFixture.raster.width,
+    weakFixture.raster.height,
+  );
+  const base = {
+    candidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    candidateId: "weak",
+    primitive,
+    sourcePixelWidth: weakFixture.raster.width,
+    sourcePixelHeight: weakFixture.raster.height,
+  };
+  const unavailable = refinePersonalVisualHarmonyCandidatePixelCropV1(base);
+  assert.equal(unavailable.status, "abstained");
+  assert.equal(unavailable.reason, "pixel_read_unavailable");
+  assert.equal(unavailable.proposedGeometry, null);
+  assert.equal(unavailable.pixelRasterContentIdentity, null);
+  assert.equal(unavailable.coreRun, false);
+
+  const weakPlan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(weakPlan.status, "ready");
+  const weak = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: cropLuminanceBytes(renderRaster(weakFixture), weakPlan),
+  });
+  assert.equal(weak.status, "abstained");
+  assert.equal(weak.proposedGeometry, null);
+
+  const oversizedBase = {
+    candidateSetIdentity: `sha256:${"c".repeat(64)}`,
+    candidateId: "full-diagonal",
+    primitive: { kind: "segment", start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
+    sourcePixelWidth: 4_096,
+    sourcePixelHeight: 4_096,
+  };
+  const oversized = refinePersonalVisualHarmonyCandidatePixelCropV1(oversizedBase);
+  assert.equal(oversized.status, "abstained");
+  assert.equal(oversized.reason, "bounded_crop_exceeded");
+  assert.throws(
+    () => refinePersonalVisualHarmonyCandidatePixelCropV1({ ...oversizedBase, luminanceBytes: [] }),
+    /must not receive luminance bytes/u,
+  );
+  assert.throws(
+    () => refinePersonalVisualHarmonyCandidatePixelCropV1({
+      ...base,
+      primitive: { ...primitive, sourceTruth: true },
+    }),
+    /must use exact fields/u,
+  );
 });
 
 test("segment and axis refinement follow the trapezoid's annotated oblique edge", () => {
@@ -317,6 +422,43 @@ function refinementInput(fixture) {
     primitive: structuredClone(fixture.primitive),
     maxDisplacementPixels: fixture.maxDisplacementPixels,
   };
+}
+
+function normalizePrimitive(primitive, width, height) {
+  const xExtent = width - 1;
+  const yExtent = height - 1;
+  const point = (value) => ({ x: value.x / xExtent, y: value.y / yExtent });
+  if (primitive.kind === "segment" || primitive.kind === "axis") {
+    return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
+  }
+  if (primitive.kind === "quadrilateral") {
+    return { kind: "quadrilateral", vertices: primitive.vertices.map(point) };
+  }
+  return {
+    kind: "ellipse",
+    center: point(primitive.center),
+    radiusX: primitive.radiusX / xExtent,
+    radiusY: primitive.radiusY / yExtent,
+  };
+}
+
+function cropLuminanceBytes(raster, plan) {
+  assert.equal(plan.status, "ready");
+  const bytes = [];
+  for (let y = 0; y < plan.rasterHeight; y += 1) {
+    const sourceY = Math.min(
+      raster.height - 1,
+      Math.floor(plan.originY + (y + 0.5) * plan.scaleY),
+    );
+    for (let x = 0; x < plan.rasterWidth; x += 1) {
+      const sourceX = Math.min(
+        raster.width - 1,
+        Math.floor(plan.originX + (x + 0.5) * plan.scaleX),
+      );
+      bytes.push(Math.round((raster.luminance[sourceY * raster.width + sourceX] ?? 0) * 255));
+    }
+  }
+  return bytes;
 }
 
 function renderRaster(fixture) {

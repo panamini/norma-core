@@ -10,6 +10,8 @@ import {
 
 export const PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_CONTRACT_ID =
   "norma.personal-visual-harmony-pixel-refinement-shadow@1" as const;
+export const PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID =
+  "norma.personal-visual-harmony-pixel-refinement-proposal@1" as const;
 
 export type PersonalVisualHarmonyPixelRefinementPrimitiveV1 =
   | Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "segment" }>
@@ -64,6 +66,253 @@ export interface PersonalVisualHarmonyPixelRefinementResultV1 {
   readonly reason: PersonalVisualHarmonyPixelRefinementReasonV1;
   readonly diagnostics: readonly PersonalVisualHarmonyPixelRefinementDiagnosticV1[];
   readonly contentIdentity: string;
+}
+
+export type PersonalVisualHarmonyPixelCropPlanV1 =
+  | {
+      readonly status: "ready";
+      readonly originX: number;
+      readonly originY: number;
+      readonly sourceWidth: number;
+      readonly sourceHeight: number;
+      readonly rasterWidth: number;
+      readonly rasterHeight: number;
+      readonly scaleX: number;
+      readonly scaleY: number;
+      readonly maxDisplacementRasterPixels: number;
+      readonly maxDisplacementSourcePixels: 6;
+      readonly maxRasterDimension: 384;
+      readonly maxRasterPixels: 147_456;
+    }
+  | {
+      readonly status: "abstained";
+      readonly reason: "bounded_crop_exceeded";
+      readonly maxDisplacementSourcePixels: 6;
+      readonly maxRasterDimension: 384;
+      readonly maxRasterPixels: 147_456;
+    };
+
+export type PersonalVisualHarmonyPixelRefinementProposalReasonV1 =
+  | PersonalVisualHarmonyPixelRefinementReasonV1
+  | "bounded_crop_exceeded"
+  | "pixel_read_unavailable";
+
+export interface PersonalVisualHarmonyPixelRefinementProposalV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "refined" | "abstained";
+  readonly candidateSetIdentity: string;
+  readonly candidateId: string;
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly automaticAcceptance: false;
+  readonly explicitProposalAdoptionRequired: true;
+  readonly proposalAdopted: false;
+  readonly explicitUserConfirmationRequired: true;
+  readonly coreRun: false;
+  readonly coordinateSpace: "normalized-image";
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly crop: PersonalVisualHarmonyPixelCropPlanV1;
+  readonly pixelRasterContentIdentity: string | null;
+  readonly kernelContentIdentity: string | null;
+  readonly originalGeometry: PersonalVisualHarmonyPixelRefinementPrimitiveV1;
+  readonly proposedGeometry: PersonalVisualHarmonyPixelRefinementPrimitiveV1 | null;
+  readonly evidence: PersonalVisualHarmonyPixelRefinementResultV1["evidence"] | null;
+  readonly displacementPixels: {
+    readonly bound: 6;
+    readonly maximum: number;
+    readonly mean: number;
+  };
+  readonly reason: PersonalVisualHarmonyPixelRefinementProposalReasonV1;
+  readonly diagnostics: readonly PersonalVisualHarmonyPixelRefinementDiagnosticV1[];
+  readonly contentIdentity: string;
+}
+
+/**
+ * Builds the exact bounded crop plan shared by the widget and server. Keep this
+ * function self-contained so the widget can embed its compiled implementation.
+ */
+export function createPersonalVisualHarmonyPixelCropPlanV1(input: {
+  readonly primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): PersonalVisualHarmonyPixelCropPlanV1 {
+  const maxRasterDimension = 384 as const;
+  const maxRasterPixels = 147_456 as const;
+  const maxDisplacementSourcePixels = 6 as const;
+  const cropMarginSourcePixels = 8;
+  const sourceWidth = input?.sourcePixelWidth;
+  const sourceHeight = input?.sourcePixelHeight;
+  if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight)
+    || sourceWidth < 8 || sourceHeight < 8 || sourceWidth > 100_000 || sourceHeight > 100_000) {
+    throw new Error("Pixel crop planning requires bounded integer source dimensions.");
+  }
+  const primitive = input?.primitive;
+  if (primitive === null || typeof primitive !== "object" || Array.isArray(primitive)) {
+    throw new Error("Pixel crop planning requires a supported primitive.");
+  }
+  const xExtent = sourceWidth - 1;
+  const yExtent = sourceHeight - 1;
+  let points: Array<{ x: number; y: number }>;
+  if (primitive.kind === "segment" || primitive.kind === "axis") {
+    points = [primitive.start, primitive.end].map((point) => ({
+      x: point.x * xExtent,
+      y: point.y * yExtent,
+    }));
+  } else if (primitive.kind === "quadrilateral") {
+    points = primitive.vertices.map((point) => ({ x: point.x * xExtent, y: point.y * yExtent }));
+  } else if (primitive.kind === "ellipse") {
+    const center = { x: primitive.center.x * xExtent, y: primitive.center.y * yExtent };
+    const radiusX = primitive.radiusX * xExtent;
+    const radiusY = primitive.radiusY * yExtent;
+    points = [
+      { x: center.x - radiusX, y: center.y - radiusY },
+      { x: center.x + radiusX, y: center.y + radiusY },
+    ];
+  } else {
+    throw new Error("Pixel crop planning requires a supported primitive kind.");
+  }
+  if (points.length < 2 || points.some((point) => (
+    !Number.isFinite(point.x) || !Number.isFinite(point.y)
+    || point.x < 0 || point.x > xExtent || point.y < 0 || point.y > yExtent
+  ))) {
+    throw new Error("Pixel crop planning requires in-image primitive coordinates.");
+  }
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  let originX = Math.max(0, Math.floor(Math.min(...xs) - cropMarginSourcePixels));
+  let originY = Math.max(0, Math.floor(Math.min(...ys) - cropMarginSourcePixels));
+  let endX = Math.min(sourceWidth, Math.ceil(Math.max(...xs) + cropMarginSourcePixels) + 1);
+  let endY = Math.min(sourceHeight, Math.ceil(Math.max(...ys) + cropMarginSourcePixels) + 1);
+  if (endX - originX < 8) {
+    const centerX = (originX + endX) / 2;
+    originX = Math.max(0, Math.min(sourceWidth - 8, Math.floor(centerX - 4)));
+    endX = originX + 8;
+  }
+  if (endY - originY < 8) {
+    const centerY = (originY + endY) / 2;
+    originY = Math.max(0, Math.min(sourceHeight - 8, Math.floor(centerY - 4)));
+    endY = originY + 8;
+  }
+  const cropWidth = endX - originX;
+  const cropHeight = endY - originY;
+  const rasterWidth = Math.min(maxRasterDimension, cropWidth);
+  const rasterHeight = Math.min(maxRasterDimension, cropHeight);
+  const scaleX = cropWidth / rasterWidth;
+  const scaleY = cropHeight / rasterHeight;
+  const maximumScale = Math.max(scaleX, scaleY);
+  if (maximumScale > maxDisplacementSourcePixels || rasterWidth * rasterHeight > maxRasterPixels) {
+    return {
+      status: "abstained",
+      reason: "bounded_crop_exceeded",
+      maxDisplacementSourcePixels,
+      maxRasterDimension,
+      maxRasterPixels,
+    };
+  }
+  return {
+    status: "ready",
+    originX,
+    originY,
+    sourceWidth: cropWidth,
+    sourceHeight: cropHeight,
+    rasterWidth,
+    rasterHeight,
+    scaleX,
+    scaleY,
+    maxDisplacementRasterPixels: Math.max(1, Math.floor(maxDisplacementSourcePixels / maximumScale)),
+    maxDisplacementSourcePixels,
+    maxRasterDimension,
+    maxRasterPixels,
+  };
+}
+
+/**
+ * Reuses the deterministic kernel on one candidate-local crop and returns a
+ * separate, non-adopted normalized proposal. Core is never invoked here.
+ */
+export function refinePersonalVisualHarmonyCandidatePixelCropV1(input: {
+  readonly candidateSetIdentity: string;
+  readonly candidateId: string;
+  readonly primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly luminanceBytes?: readonly number[];
+}): PersonalVisualHarmonyPixelRefinementProposalV1 {
+  validatePixelCropProposalInput(input);
+  const originalGeometry = clonePrimitive(input.primitive);
+  const crop = createPersonalVisualHarmonyPixelCropPlanV1(input);
+  if (crop.status === "abstained") {
+    if (input.luminanceBytes !== undefined) {
+      throw new Error("Abstained pixel crop plans must not receive luminance bytes.");
+    }
+    return pixelCropAbstention(input, originalGeometry, crop, "bounded_crop_exceeded");
+  }
+  if (input.luminanceBytes === undefined) {
+    return pixelCropAbstention(input, originalGeometry, crop, "pixel_read_unavailable");
+  }
+  validateLuminanceBytes(input.luminanceBytes, crop.rasterWidth * crop.rasterHeight);
+  const workingPrimitive = primitiveToWorkingCrop(input.primitive, input, crop);
+  const kernelResult = refinePersonalVisualHarmonyPrimitivePixelsV1({
+    raster: {
+      width: crop.rasterWidth,
+      height: crop.rasterHeight,
+      luminance: input.luminanceBytes.map((value) => value / 255),
+    },
+    primitive: workingPrimitive,
+    maxDisplacementPixels: crop.maxDisplacementRasterPixels,
+  });
+  const mappedProposal = kernelResult.proposedGeometry === null
+    ? null
+    : primitiveFromWorkingCrop(kernelResult.proposedGeometry, input, crop);
+  const sourceDisplacement = mappedProposal === null
+    ? { maximum: 0, mean: 0 }
+    : normalizedPrimitiveDisplacementPixels(
+        input.primitive,
+        mappedProposal,
+        input.sourcePixelWidth,
+        input.sourcePixelHeight,
+      );
+  const withinSourceBound = sourceDisplacement.maximum <= crop.maxDisplacementSourcePixels + EPSILON;
+  const status = kernelResult.status === "refined" && mappedProposal !== null && withinSourceBound
+    ? "refined" as const
+    : "abstained" as const;
+  const reason = withinSourceBound ? kernelResult.reason : "invalid_refined_geometry";
+  const diagnostics = withinSourceBound
+    ? kernelResult.diagnostics
+    : Object.freeze([diagnosticFor("invalid_refined_geometry")]);
+  const resultWithoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status,
+    candidateSetIdentity: input.candidateSetIdentity,
+    candidateId: input.candidateId,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    automaticAcceptance: false as const,
+    explicitProposalAdoptionRequired: true as const,
+    proposalAdopted: false as const,
+    explicitUserConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateSpace: "normalized-image" as const,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+    crop,
+    pixelRasterContentIdentity: kernelResult.rasterContentIdentity,
+    kernelContentIdentity: kernelResult.contentIdentity,
+    originalGeometry,
+    proposedGeometry: status === "refined" ? mappedProposal : null,
+    evidence: kernelResult.evidence,
+    displacementPixels: {
+      bound: crop.maxDisplacementSourcePixels,
+      maximum: canonicalNumber(Math.min(crop.maxDisplacementSourcePixels, sourceDisplacement.maximum)),
+      mean: canonicalNumber(Math.min(crop.maxDisplacementSourcePixels, sourceDisplacement.mean)),
+    },
+    reason,
+    diagnostics,
+  };
+  return { ...resultWithoutIdentity, contentIdentity: contentIdentityFor(resultWithoutIdentity) };
 }
 
 interface ScoredGeometry<TGeometry extends PersonalVisualHarmonyPixelRefinementPrimitiveV1> {
@@ -722,6 +971,254 @@ function diagnosticFor(
     code: `pixel_refinement.${reason}`,
     severity: reason === "improved_edge_support" ? "info" : "warning",
     message: messages[reason],
+  };
+}
+
+type PixelCropProposalInputV1 = {
+  readonly candidateSetIdentity: string;
+  readonly candidateId: string;
+  readonly primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly luminanceBytes?: readonly number[];
+};
+
+function pixelCropAbstention(
+  input: PixelCropProposalInputV1,
+  originalGeometry: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
+  crop: PersonalVisualHarmonyPixelCropPlanV1,
+  reason: "bounded_crop_exceeded" | "pixel_read_unavailable",
+): PersonalVisualHarmonyPixelRefinementProposalV1 {
+  const diagnostic: PersonalVisualHarmonyPixelRefinementDiagnosticV1 = {
+    code: `pixel_refinement.${reason}`,
+    severity: "warning",
+    message: reason === "bounded_crop_exceeded"
+      ? "The candidate-local crop would exceed the fixed pixel or source-scale limit, so refinement abstained."
+      : "The widget could not read a bounded luminance crop from the hydrated image, so refinement abstained.",
+  };
+  const resultWithoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_PIXEL_REFINEMENT_PROPOSAL_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "abstained" as const,
+    candidateSetIdentity: input.candidateSetIdentity,
+    candidateId: input.candidateId,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    automaticAcceptance: false as const,
+    explicitProposalAdoptionRequired: true as const,
+    proposalAdopted: false as const,
+    explicitUserConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateSpace: "normalized-image" as const,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+    crop,
+    pixelRasterContentIdentity: null,
+    kernelContentIdentity: null,
+    originalGeometry,
+    proposedGeometry: null,
+    evidence: null,
+    displacementPixels: { bound: 6 as const, maximum: 0, mean: 0 },
+    reason,
+    diagnostics: Object.freeze([diagnostic]),
+  };
+  return { ...resultWithoutIdentity, contentIdentity: contentIdentityFor(resultWithoutIdentity) };
+}
+
+function validatePixelCropProposalInput(input: unknown): asserts input is PixelCropProposalInputV1 {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Pixel crop proposal input must use exact fields.");
+  }
+  const fields = Object.prototype.hasOwnProperty.call(input, "luminanceBytes")
+    ? ["candidateId", "candidateSetIdentity", "luminanceBytes", "primitive", "sourcePixelHeight", "sourcePixelWidth"]
+    : ["candidateId", "candidateSetIdentity", "primitive", "sourcePixelHeight", "sourcePixelWidth"];
+  requireExactFields(input, fields, "Pixel crop proposal input");
+  const value = input as Record<string, unknown>;
+  if (typeof value.candidateSetIdentity !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(value.candidateSetIdentity)) {
+    throw new Error("Pixel crop proposals require a canonical candidate-set identity.");
+  }
+  if (typeof value.candidateId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u.test(value.candidateId)) {
+    throw new Error("Pixel crop proposals require a bounded candidate identifier.");
+  }
+  if (!Number.isInteger(value.sourcePixelWidth) || !Number.isInteger(value.sourcePixelHeight)
+    || (value.sourcePixelWidth as number) < 8 || (value.sourcePixelHeight as number) < 8
+    || (value.sourcePixelWidth as number) > 100_000 || (value.sourcePixelHeight as number) > 100_000) {
+    throw new Error("Pixel crop proposals require bounded integer source dimensions.");
+  }
+  validateNormalizedRefinementPrimitive(value.primitive);
+  if (Object.prototype.hasOwnProperty.call(value, "luminanceBytes") && !Array.isArray(value.luminanceBytes)) {
+    throw new Error("Pixel crop luminance bytes must be an array when supplied.");
+  }
+}
+
+function validateNormalizedRefinementPrimitive(
+  value: unknown,
+): asserts value is PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Pixel crop proposals require a supported primitive object.");
+  }
+  const primitive = value as PersonalVisualHarmonyPixelRefinementPrimitiveV1;
+  const validateNormalizedPoint = (point: PersonalVisualHarmonyPointV1): void => {
+    requireExactFields(point, ["x", "y"], "Normalized primitive points");
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)
+      || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) {
+      throw new Error("Normalized primitive points must stay inside the image.");
+    }
+  };
+  if (primitive.kind === "segment" || primitive.kind === "axis") {
+    requireExactFields(primitive, ["end", "kind", "start"], "Normalized line primitives");
+    validateNormalizedPoint(primitive.start);
+    validateNormalizedPoint(primitive.end);
+    if (primitive.start.x === primitive.end.x && primitive.start.y === primitive.end.y) {
+      throw new Error("Normalized line primitives require distinct endpoints.");
+    }
+    return;
+  }
+  if (primitive.kind === "quadrilateral") {
+    requireExactFields(primitive, ["kind", "vertices"], "Normalized quadrilateral primitives");
+    if (!Array.isArray(primitive.vertices) || primitive.vertices.length !== 4) {
+      throw new Error("Normalized quadrilateral primitives require four vertices.");
+    }
+    for (const point of primitive.vertices) validateNormalizedPoint(point);
+    const crosses = primitive.vertices.map((point, index) => {
+      const next = primitive.vertices[(index + 1) % 4]!;
+      const after = primitive.vertices[(index + 2) % 4]!;
+      return (next.x - point.x) * (after.y - next.y) - (next.y - point.y) * (after.x - next.x);
+    });
+    if (!(crosses.every((cross) => cross > EPSILON) || crosses.every((cross) => cross < -EPSILON))) {
+      throw new Error("Normalized quadrilateral primitives must be strictly convex.");
+    }
+    return;
+  }
+  if (primitive.kind !== "ellipse") {
+    throw new Error("Pixel crop proposals require a supported primitive kind.");
+  }
+  requireExactFields(primitive, ["center", "kind", "radiusX", "radiusY"], "Normalized ellipse primitives");
+  validateNormalizedPoint(primitive.center);
+  if (!Number.isFinite(primitive.radiusX) || !Number.isFinite(primitive.radiusY)
+    || primitive.radiusX <= 0 || primitive.radiusY <= 0
+    || primitive.center.x - primitive.radiusX < 0 || primitive.center.x + primitive.radiusX > 1
+    || primitive.center.y - primitive.radiusY < 0 || primitive.center.y + primitive.radiusY > 1) {
+    throw new Error("Normalized ellipses must have positive in-image radii.");
+  }
+}
+
+function validateLuminanceBytes(value: readonly number[], expectedLength: number): void {
+  if (value.length !== expectedLength) {
+    throw new Error("Pixel crop luminance byte length must match the canonical crop plan.");
+  }
+  for (const byte of value) {
+    if (!Number.isInteger(byte) || byte < 0 || byte > 255) {
+      throw new Error("Pixel crop luminance bytes must be integers from 0 to 255.");
+    }
+  }
+}
+
+function primitiveToWorkingCrop(
+  primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
+  input: Pick<PixelCropProposalInputV1, "sourcePixelWidth" | "sourcePixelHeight">,
+  crop: Extract<PersonalVisualHarmonyPixelCropPlanV1, { readonly status: "ready" }>,
+): PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
+  const xExtent = input.sourcePixelWidth - 1;
+  const yExtent = input.sourcePixelHeight - 1;
+  const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: (value.x * xExtent - crop.originX) / crop.scaleX,
+    y: (value.y * yExtent - crop.originY) / crop.scaleY,
+  });
+  if (primitive.kind === "segment" || primitive.kind === "axis") {
+    return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
+  }
+  if (primitive.kind === "quadrilateral") {
+    return {
+      kind: "quadrilateral",
+      vertices: [
+        point(primitive.vertices[0]),
+        point(primitive.vertices[1]),
+        point(primitive.vertices[2]),
+        point(primitive.vertices[3]),
+      ],
+    };
+  }
+  return {
+    kind: "ellipse",
+    center: point(primitive.center),
+    radiusX: primitive.radiusX * xExtent / crop.scaleX,
+    radiusY: primitive.radiusY * yExtent / crop.scaleY,
+  };
+}
+
+function primitiveFromWorkingCrop(
+  primitive: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
+  input: Pick<PixelCropProposalInputV1, "sourcePixelWidth" | "sourcePixelHeight">,
+  crop: Extract<PersonalVisualHarmonyPixelCropPlanV1, { readonly status: "ready" }>,
+): PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
+  const xExtent = input.sourcePixelWidth - 1;
+  const yExtent = input.sourcePixelHeight - 1;
+  const unit = (value: number): number => canonicalNumber(Math.max(0, Math.min(1, value)));
+  const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: unit((crop.originX + value.x * crop.scaleX) / xExtent),
+    y: unit((crop.originY + value.y * crop.scaleY) / yExtent),
+  });
+  if (primitive.kind === "segment" || primitive.kind === "axis") {
+    return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
+  }
+  if (primitive.kind === "quadrilateral") {
+    return {
+      kind: "quadrilateral",
+      vertices: [
+        point(primitive.vertices[0]),
+        point(primitive.vertices[1]),
+        point(primitive.vertices[2]),
+        point(primitive.vertices[3]),
+      ],
+    };
+  }
+  return {
+    kind: "ellipse",
+    center: point(primitive.center),
+    radiusX: unit(primitive.radiusX * crop.scaleX / xExtent),
+    radiusY: unit(primitive.radiusY * crop.scaleY / yExtent),
+  };
+}
+
+function normalizedPrimitiveDisplacementPixels(
+  original: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
+  proposed: PersonalVisualHarmonyPixelRefinementPrimitiveV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): { readonly maximum: number; readonly mean: number } {
+  const xExtent = sourcePixelWidth - 1;
+  const yExtent = sourcePixelHeight - 1;
+  const distance = (first: PersonalVisualHarmonyPointV1, second: PersonalVisualHarmonyPointV1): number => (
+    Math.hypot((first.x - second.x) * xExtent, (first.y - second.y) * yExtent)
+  );
+  let distances: number[];
+  if ((original.kind === "segment" || original.kind === "axis") && proposed.kind === original.kind) {
+    distances = [distance(original.start, proposed.start), distance(original.end, proposed.end)];
+  } else if (original.kind === "quadrilateral" && proposed.kind === "quadrilateral") {
+    distances = original.vertices.map((point, index) => distance(point, proposed.vertices[index]!));
+  } else if (original.kind === "ellipse" && proposed.kind === "ellipse") {
+    distances = Array.from({ length: ELLIPSE_DISPLACEMENT_SAMPLE_COUNT }, (_, index) => {
+      const radians = index * Math.PI * 2 / ELLIPSE_DISPLACEMENT_SAMPLE_COUNT;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      return distance(
+        {
+          x: original.center.x + original.radiusX * cos,
+          y: original.center.y + original.radiusY * sin,
+        },
+        {
+          x: proposed.center.x + proposed.radiusX * cos,
+          y: proposed.center.y + proposed.radiusY * sin,
+        },
+      );
+    });
+  } else {
+    return { maximum: Number.POSITIVE_INFINITY, mean: Number.POSITIVE_INFINITY };
+  }
+  return {
+    maximum: Math.max(...distances),
+    mean: distances.reduce((sum, value) => sum + value, 0) / distances.length,
   };
 }
 

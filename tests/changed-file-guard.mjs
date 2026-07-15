@@ -259,6 +259,24 @@ export const personalVisualHarmonyPixelRefinementShadowChangedFiles = Object.fre
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyPixelRefinementIntegrationChangedFiles = Object.freeze([
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-pixel-refinement.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-pixel-refinement.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const statelessRemoteMcpCommercialBetaContractChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/MCP_REMOTE_APPROVAL_DECISION.md",
@@ -1319,6 +1337,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTruthSyncChangedFiles,
+  personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,

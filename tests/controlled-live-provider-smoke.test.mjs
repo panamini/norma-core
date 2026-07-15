@@ -50,6 +50,7 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
+  personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
@@ -1591,6 +1592,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalChatGptVisualHarmonyDemoChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevChatGptMcpVisualPilotGateChangedFiles)) return;

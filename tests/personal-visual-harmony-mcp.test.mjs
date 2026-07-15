@@ -12,11 +12,13 @@ import {
   createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+  PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
   PERSONAL_VISUAL_HARMONY_WIDGET_URI,
   PersonalVisualHarmonySessionServiceV1,
   runPersonalVisualHarmonyImageHydrationV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
+import { createPersonalVisualHarmonyPixelCropPlanV1 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
 const GOLDEN_MAJOR = 0.6180339887498949;
@@ -207,6 +209,12 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     proposalCandidateSetIdentity: candidateSetIdentity,
     dimensions: { width: 1_000, height: 800 },
   };
+  const pixelRefinementState = {
+    enabled: false,
+    candidateSetIdentity,
+    proposals: [],
+    adopted: [],
+  };
   const classList = { add() {}, remove() {} };
   const renderResult = widgetScriptFunction("renderResult", "function renderCachedResult", {
     state,
@@ -221,11 +229,13 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     safeSvg: () => "",
     syncFamilyVisibility() {},
     geometrySnapshot: () => reviewedCandidateGeometry,
+    pixelRefinementSnapshot: () => pixelRefinementState,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
     publicWidgetState: () => ({}),
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    updatePixelProposalUi() {},
     updateConfirm() {},
   });
   renderResult(
@@ -243,6 +253,8 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   );
 
   const persisted = persistedStates.at(-1);
+  assert.deepEqual(persisted.pixelRefinementState, pixelRefinementState);
+  assert.deepEqual(persisted.completedVisualHarmony.pixelRefinementState, pixelRefinementState);
   assert.deepEqual(
     persisted.completedVisualHarmony.matches[0].relatedCandidateIds,
     ["minor"],
@@ -252,6 +264,19 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     "isStoredMatch",
     "function isStoredPresentationSubject",
     {},
+  );
+  const storedPixelRefinementStateFor = widgetScriptFunction(
+    "storedPixelRefinementStateFor",
+    "function restorePixelRefinementState",
+    {
+      validPixelProposal: () => true,
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+    },
+  );
+  const completedPixelRefinementStateFor = widgetScriptFunction(
+    "completedPixelRefinementStateFor",
+    "function isStoredMatch",
+    { storedPixelRefinementStateFor },
   );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
     "completedWidgetStateFor",
@@ -267,6 +292,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       ),
       isStoredGeometrySnapshot: () => true,
       sameGeometrySnapshots: (left, right) => JSON.stringify(left) === JSON.stringify(right),
+      completedPixelRefinementStateFor,
       isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
       isStoredMatch,
       isStoredPresentation: () => true,
@@ -281,6 +307,13 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   };
   const acceptPersisted = completedWidgetStateFor(() => persisted);
   assert.deepEqual(acceptPersisted(payload)?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const mismatchedPixelCache = structuredClone(persisted);
+  mismatchedPixelCache.pixelRefinementState = {
+    ...mismatchedPixelCache.pixelRefinementState,
+    enabled: true,
+  };
+  assert.equal(completedWidgetStateFor(() => mismatchedPixelCache)(payload), null);
 
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
   const hydrationState = widgetHydrationState();
@@ -304,6 +337,228 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const legacy = structuredClone(persisted);
   delete legacy.completedVisualHarmony.matches[0].relatedCandidateIds;
   assert.equal(completedWidgetStateFor(() => legacy)(payload), null);
+});
+
+test("widget pixel proposals remain separate until an explicit adoption click", () => {
+  const originalGeometry = {
+    kind: "quadrilateral",
+    vertices: [
+      { x: 0.1, y: 0.1 },
+      { x: 0.8, y: 0.12 },
+      { x: 0.72, y: 0.8 },
+      { x: 0.18, y: 0.76 },
+    ],
+  };
+  const proposedGeometry = {
+    kind: "quadrilateral",
+    vertices: [
+      { x: 0.101, y: 0.099 },
+      { x: 0.802, y: 0.121 },
+      { x: 0.719, y: 0.801 },
+      { x: 0.179, y: 0.759 },
+    ],
+  };
+  const proposalIdentity = `sha256:${"e".repeat(64)}`;
+  const proposal = {
+    candidateId: "trapezoid",
+    status: "refined",
+    contentIdentity: proposalIdentity,
+    originalGeometry,
+    proposedGeometry,
+    proposalAdopted: false,
+    automaticAcceptance: false,
+    explicitProposalAdoptionRequired: true,
+    explicitUserConfirmationRequired: true,
+    coreRun: false,
+  };
+  const reviewedCandidate = {
+    id: "trapezoid",
+    primitive: structuredClone(originalGeometry),
+  };
+  const state = {
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    reviewedCandidates: [reviewedCandidate],
+    pixelRefinementProposals: new Map([[proposal.candidateId, proposal]]),
+    adoptedPixelRefinements: new Map(),
+  };
+  let persisted = 0;
+  let confirmed = 0;
+  const applyPixelProposal = widgetScriptFunction(
+    "applyPixelProposal",
+    "function disablePixelRefinement",
+    {
+      state,
+      candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
+      clonePrimitive: structuredClone,
+      syncOverlayGeometry() {},
+      persistReviewState() { persisted += 1; },
+      updateConfirm() { confirmed += 1; },
+      statusNode: { textContent: "" },
+    },
+  );
+
+  assert.deepEqual(state.reviewedCandidates[0].primitive, originalGeometry);
+  assert.equal(state.adoptedPixelRefinements.size, 0);
+  applyPixelProposal("trapezoid");
+  assert.deepEqual(state.reviewedCandidates[0].primitive, proposedGeometry);
+  assert.equal(state.adoptedPixelRefinements.get("trapezoid"), proposalIdentity);
+  assert.equal(proposal.proposalAdopted, false);
+  assert.equal(proposal.coreRun, false);
+  assert.equal(persisted, 1);
+  assert.equal(confirmed, 1);
+
+  applyPixelProposal("trapezoid");
+  assert.deepEqual(state.reviewedCandidates[0].primitive, originalGeometry);
+  assert.equal(state.adoptedPixelRefinements.size, 0);
+  assert.equal(persisted, 2);
+});
+
+test("widget hydration never requests pixel proposals while refinement is disabled", async () => {
+  const state = widgetHydrationState({ pixelRefinementEnabled: false });
+  let refinementCalls = 0;
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => true,
+    refreshPixelRefinements: async () => { refinementCalls += 1; },
+    completedWidgetStateFor: () => null,
+    revalidateCompleted() {},
+    renderResult() { throw new Error("confirmation payload must not render a result"); },
+  });
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-pixel-gate",
+    prepared: { candidateSetIdentity: "sha256:pixel-gate", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+
+  await hydrate(payload);
+  assert.equal(refinementCalls, 0);
+  state.pixelRefinementEnabled = true;
+  await hydrate(payload);
+  assert.equal(refinementCalls, 1);
+});
+
+test("widget pixel proposal and adoption state round-trip without image bytes", () => {
+  const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const proposalContentIdentity = `sha256:${"b".repeat(64)}`;
+  const proposal = {
+    candidateId: "guide",
+    contentIdentity: proposalContentIdentity,
+    status: "refined",
+  };
+  const state = {
+    pixelRefinementEnabled: true,
+    proposalCandidateSetIdentity: candidateSetIdentity,
+    pixelRefinementProposals: new Map([[proposal.candidateId, proposal]]),
+    adoptedPixelRefinements: new Map([[proposal.candidateId, proposalContentIdentity]]),
+  };
+  const pixelRefinementSnapshot = widgetScriptFunction(
+    "pixelRefinementSnapshot",
+    "function validPixelProposal",
+    { state },
+  );
+  const snapshot = pixelRefinementSnapshot();
+  assert.deepEqual(snapshot, {
+    enabled: true,
+    candidateSetIdentity,
+    proposals: [proposal],
+    adopted: [{ candidateId: "guide", proposalContentIdentity }],
+  });
+  assert.doesNotMatch(JSON.stringify(snapshot), /luminance|base64|download_url/u);
+
+  const storedPixelRefinementStateFor = widgetScriptFunction(
+    "storedPixelRefinementStateFor",
+    "function restorePixelRefinementState",
+    {
+      validPixelProposal: () => true,
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+    },
+  );
+  const restoredState = {
+    pixelRefinementEnabled: false,
+    pixelRefinementProposals: new Map(),
+    adoptedPixelRefinements: new Map(),
+  };
+  const pixelToggle = { setAttribute() {}, textContent: "" };
+  const restorePixelRefinementState = widgetScriptFunction(
+    "restorePixelRefinementState",
+    "function reviewedCandidateSnapshot",
+    {
+      publicWidgetState: () => ({ pixelRefinementState: structuredClone(snapshot) }),
+      storedPixelRefinementStateFor,
+      state: restoredState,
+      pixelToggle,
+    },
+  );
+  restorePixelRefinementState({ candidateSetIdentity, candidates: [] });
+  assert.equal(restoredState.pixelRefinementEnabled, true);
+  assert.deepEqual([...restoredState.pixelRefinementProposals], [["guide", proposal]]);
+  assert.deepEqual(
+    [...restoredState.adoptedPixelRefinements],
+    [["guide", proposalContentIdentity]],
+  );
+});
+
+test("widget luminance extraction is bounded and byte-deterministic", () => {
+  const rgba = new Uint8ClampedArray(8 * 8 * 4);
+  for (let pixel = 0; pixel < 64; pixel += 1) {
+    rgba[pixel * 4] = pixel;
+    rgba[pixel * 4 + 1] = 255 - pixel;
+    rgba[pixel * 4 + 2] = pixel * 2;
+    rgba[pixel * 4 + 3] = 255;
+  }
+  const drawCalls = [];
+  const context = {
+    imageSmoothingEnabled: true,
+    drawImage(...args) { drawCalls.push(args); },
+    getImageData: () => ({ data: rgba }),
+  };
+  const canvases = [];
+  const document = {
+    createElement: () => {
+      const canvas = { width: 0, height: 0, getContext: () => context };
+      canvases.push(canvas);
+      return canvas;
+    },
+  };
+  const source = { id: "hydrated-image" };
+  const luminanceBase64ForCrop = widgetScriptFunction(
+    "luminanceBase64ForCrop",
+    "function pixelRecovery",
+    { document, source },
+  );
+  const plan = {
+    status: "ready",
+    originX: 12,
+    originY: 15,
+    sourceWidth: 32,
+    sourceHeight: 40,
+    rasterWidth: 8,
+    rasterHeight: 8,
+  };
+  const first = luminanceBase64ForCrop(plan);
+  const second = luminanceBase64ForCrop(plan);
+  assert.equal(first, second);
+  const bytes = Buffer.from(first, "base64");
+  assert.equal(bytes.length, 64);
+  assert.equal(bytes[0], (54 * 0 + 183 * 255 + 19 * 0 + 128) >> 8);
+  assert.equal(context.imageSmoothingEnabled, false);
+  assert.deepEqual(
+    drawCalls[0],
+    [source, 12, 15, 32, 40, 0, 0, 8, 8],
+  );
+  assert.deepEqual(
+    canvases.map(({ width, height }) => ({ width, height })),
+    [{ width: 8, height: 8 }, { width: 8, height: 8 }],
+  );
 });
 
 function candidates() {
@@ -446,16 +701,30 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.deepEqual(listed.tools.map(({ name }) => name).sort(), [
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
     ].sort());
 
     const prepareTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
     const confirmTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL);
+    const refinePixelsTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL);
     assert.ok(prepareTool);
     assert.ok(confirmTool);
+    assert.ok(refinePixelsTool);
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
     assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
+    assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
+    assert.equal(refinePixelsTool.annotations.readOnlyHint, true);
+    assert.equal(refinePixelsTool.inputSchema.properties.luminanceBase64.maxLength, 196_608);
+    assert.equal(refinePixelsTool.inputSchema.required.includes("luminanceBase64"), false);
+    const proposalOutput = refinePixelsTool.outputSchema.properties.proposal;
+    assert.equal(proposalOutput.properties.candidateEvidenceOnly.const, true);
+    assert.equal(proposalOutput.properties.sourceTruth.const, false);
+    assert.equal(proposalOutput.properties.automaticAcceptance.const, false);
+    assert.equal(proposalOutput.properties.explicitProposalAdoptionRequired.const, true);
+    assert.equal(proposalOutput.properties.proposalAdopted.const, false);
+    assert.equal(proposalOutput.properties.coreRun.const, false);
     assert.deepEqual(prepareTool.inputSchema.properties.image.required.sort(), ["download_url", "file_id"]);
     assert.deepEqual(Object.keys(prepareTool.inputSchema.properties.image.properties).sort(), [
       "download_url",
@@ -575,6 +844,17 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
     assert.match(resource.contents[0].text, /window\.openai\?\.setWidgetState/u);
     assert.match(resource.contents[0].text, /completedVisualHarmony/u);
+    assert.match(resource.contents[0].text, /id="pixelToggle"[^>]*aria-pressed="false"/u);
+    assert.match(resource.contents[0].text, /pixelRefinementEnabled:false/u);
+    assert.match(resource.contents[0].text, /callAppTool\(REFINE_PIXELS_TOOL,args\)/u);
+    assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
+    assert.match(resource.contents[0].text, /Adopter cette proposition/u);
+    assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
+    assert.match(resource.contents[0].text, /function invalidatePixelAdoptionFor\(candidateId\)/u);
+    assert.match(resource.contents[0].text, /data-pixel-refinement-overlay/u);
+    assert.match(resource.contents[0].text, /pixelRefinementState=pixelRefinementSnapshot\(\)/u);
+    assert.match(resource.contents[0].text, /maxRasterDimension = 384/u);
+    assert.match(resource.contents[0].text, /maxRasterPixels = 147_456/u);
     assert.match(resource.contents[0].text, /presentation:\s*structured\?\.presentation/u);
     assert.match(resource.contents[0].text, /La séparation principale suit presque φ/u);
     assert.match(resource.contents[0].text, /Résume d’abord presentation/u);
@@ -982,6 +1262,80 @@ test("image hydration discards a stale response before loading it", async () => 
 
   assert.deepEqual(result, { status: "stale", attemptCount: 1 });
   assert.equal(loadCount, 0);
+});
+
+test("app-only bounded pixel proposals abstain without adopting geometry or running Core", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const proposedCandidates = mixedPrimitiveCandidates();
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/bounded-pixel-proposal",
+          file_id: "file-pixel-proposal",
+          mime_type: "image/png",
+        },
+        candidates: proposedCandidates,
+      },
+    });
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    const diagonal = proposedCandidates.find(({ id }) => id === "diagonal");
+    assert.ok(diagonal?.primitive);
+    const plan = createPersonalVisualHarmonyPixelCropPlanV1({
+      primitive: diagonal.primitive,
+      sourcePixelWidth: 64,
+      sourcePixelHeight: 64,
+    });
+    assert.equal(plan.status, "ready");
+    const recovery = {
+      fileId: "file-pixel-proposal",
+      sourceImageMediaType: "image/png",
+      candidates: proposedCandidates,
+    };
+    const unavailable = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        candidateId: "diagonal",
+        sourcePixelWidth: 64,
+        sourcePixelHeight: 64,
+        recovery,
+      },
+    });
+    assert.equal(unavailable.isError, undefined);
+    assert.equal(unavailable.structuredContent.proposal.status, "abstained");
+    assert.equal(unavailable.structuredContent.proposal.reason, "pixel_read_unavailable");
+    assert.equal(unavailable.structuredContent.proposal.proposalAdopted, false);
+    assert.equal(unavailable.structuredContent.proposal.coreRun, false);
+
+    const weakBytes = Buffer.alloc(plan.rasterWidth * plan.rasterHeight, 128);
+    const weak = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        candidateId: "diagonal",
+        sourcePixelWidth: 64,
+        sourcePixelHeight: 64,
+        luminanceBase64: weakBytes.toString("base64"),
+        recovery,
+      },
+    });
+    assert.equal(weak.isError, undefined);
+    assert.equal(weak.structuredContent.proposal.status, "abstained");
+    assert.equal(weak.structuredContent.proposal.proposedGeometry, null);
+    assert.equal(weak.structuredContent.proposal.sourceTruth, false);
+    assert.equal(weak.structuredContent.proposal.automaticAcceptance, false);
+    assert.equal(weak.structuredContent.proposal.coreRun, false);
+    assert.notEqual(
+      weak.structuredContent.proposal.contentIdentity,
+      unavailable.structuredContent.proposal.contentIdentity,
+    );
+  } finally {
+    await connected.close();
+  }
 });
 
 test("prepare keeps Core stopped and confirm runs deterministic Core only after the literal widget gate", async () => {
@@ -1420,6 +1774,7 @@ test("STDIO entrypoint is disabled by default and initializes the personal app w
     assert.deepEqual(tools.tools.map(({ name }) => name).sort(), [
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
     ].sort());
     const resources = await client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);

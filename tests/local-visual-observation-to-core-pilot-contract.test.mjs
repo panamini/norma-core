@@ -16,6 +16,7 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
+  personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
@@ -1114,6 +1115,7 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
