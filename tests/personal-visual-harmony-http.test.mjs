@@ -11,8 +11,10 @@ import {
 import {
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+  PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PersonalVisualHarmonySessionServiceV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
+import { createPersonalVisualHarmonyPixelCropPlanV1 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
 
 const ACCESS_TOKEN = "A".repeat(43);
 const PROTOCOL_VERSION = "2025-11-25";
@@ -89,7 +91,11 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   const listed = await client.listTools();
   assert.deepEqual(
     listed.tools.map(({ name }) => name),
-    [PERSONAL_VISUAL_HARMONY_PREPARE_TOOL, PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL],
+    [
+      PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    ],
   );
 
   const prepared = await client.callTool({
@@ -111,6 +117,35 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   const widgetPayload = prepared._meta.normaPersonalVisualHarmony;
   assert.equal(widgetPayload.sessionId, "session:test-personal-http-demo");
   assert.equal(widgetPayload.fileId, "file-private-http-demo");
+
+  const oblique = goldenCandidates().find(({ id }) => id === "oblique");
+  const cropPlan = createPersonalVisualHarmonyPixelCropPlanV1({
+    primitive: oblique.primitive,
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  });
+  assert.equal(cropPlan.status, "ready");
+  const refined = await client.callTool({
+    name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+    arguments: {
+      sessionId: widgetPayload.sessionId,
+      candidateSetIdentity: widgetPayload.prepared.candidateSetIdentity,
+      candidateId: oblique.id,
+      reviewedPrimitive: oblique.primitive,
+      sourcePixelWidth: 1_000,
+      sourcePixelHeight: 618,
+      luminanceBase64: Buffer.alloc(cropPlan.rasterWidth * cropPlan.rasterHeight, 128).toString("base64"),
+      recovery: {
+        fileId: widgetPayload.fileId,
+        sourceImageMediaType: "image/png",
+        candidates: goldenCandidates(),
+      },
+    },
+  });
+  assert.equal(refined.structuredContent.proposal.status, "abstained");
+  assert.equal(refined.structuredContent.proposal.proposalAdopted, false);
+  assert.equal(refined.structuredContent.proposal.automaticAcceptance, false);
+  assert.equal(refined.structuredContent.proposal.coreRun, false);
 
   const confirmed = await client.callTool({
     name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
@@ -185,6 +220,21 @@ function goldenCandidates() {
       y: 0,
       width: 0.381966,
       height: 1,
+    },
+    {
+      id: "oblique",
+      label: "Oblique observée",
+      role: "structural-region",
+      reason: "Segment oblique visible mesuré sans cible harmonique.",
+      x: 0.12,
+      y: 0.18,
+      width: 0.7,
+      height: 0.64,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.12, y: 0.82 },
+        end: { x: 0.82, y: 0.18 },
+      },
     },
   ];
 }

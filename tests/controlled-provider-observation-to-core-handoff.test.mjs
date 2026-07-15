@@ -34,6 +34,7 @@ import {
   privateDevChatGptMcpCompleteLiveProofChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
+  personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
@@ -652,6 +653,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpVisualPilotGateChangedFiles)) return;
