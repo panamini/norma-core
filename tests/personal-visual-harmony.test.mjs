@@ -607,7 +607,24 @@ test("guide confirmation is separate from Core identity and rejects rectangle or
 });
 
 test("support-line extensions and format diagonals are opt-in derived constructions outside Core authority", () => {
-  const prepared = prepare(ellipseLineRelationCandidates());
+  const prepared = prepare([
+    ...ellipseLineRelationCandidates(),
+    {
+      id: "unconfirmed-oblique",
+      label: "Oblique non confirmée",
+      role: "structural-region",
+      reason: "Candidat laissé hors de la sélection utilisateur",
+      x: 0.1,
+      y: 0.2,
+      width: 0.8,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1, y: 0.8 },
+        end: { x: 0.9, y: 0.2 },
+      },
+    },
+  ]);
   const confirmedVisualGuideCandidateIds = [
     "ellipse",
     "vertical-near-tangent",
@@ -660,6 +677,14 @@ test("support-line extensions and format diagonals are opt-in derived constructi
   assert.match(enabled.overlaySvg, /data-construction-layer="format-diagonals"/u);
   assert.match(enabled.overlaySvg, /data-provenance="derived-construction"/u);
   assert.match(enabled.overlaySvg, /data-candidate-shape data-provenance="observed"/u);
+  const unconfirmedMarkup = enabled.overlaySvg.match(
+    /<g data-candidate-id="unconfirmed-oblique"[\s\S]*?<\/g>/u,
+  )?.[0];
+  assert.ok(unconfirmedMarkup);
+  assert.match(
+    unconfirmedMarkup,
+    /data-supporting-line[^>]+style="display:none"/u,
+  );
 });
 
 test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior measurements unchanged", () => {

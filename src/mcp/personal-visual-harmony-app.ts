@@ -515,7 +515,7 @@ const ConstructionAnalysisSchema = z.object({
     kind: z.literal("support-line-format-diagonal-relation"),
     supportLineConstructionId: z.string(),
     formatDiagonalConstructionId: z.string(),
-    status: z.enum(["intersection_within_frame", "no_intersection_within_frame", "parallel"]),
+    status: z.enum(["intersection_within_frame", "no_intersection_within_frame", "coincident", "parallel"]),
     intersection: NormalizedPointSchema.nullable(),
     normalizedSupportLinePosition: z.number().min(0).max(1).nullable(),
     normalizedFormatDiagonalPosition: z.number().min(0).max(1).nullable(),

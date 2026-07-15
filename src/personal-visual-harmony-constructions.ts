@@ -97,7 +97,7 @@ export interface PersonalVisualHarmonySupportLineDiagonalRelationV1 {
   readonly kind: "support-line-format-diagonal-relation";
   readonly supportLineConstructionId: string;
   readonly formatDiagonalConstructionId: string;
-  readonly status: "intersection_within_frame" | "no_intersection_within_frame" | "parallel";
+  readonly status: "intersection_within_frame" | "no_intersection_within_frame" | "coincident" | "parallel";
   readonly intersection: PersonalVisualHarmonyConstructionPointV1 | null;
   readonly normalizedSupportLinePosition: number | null;
   readonly normalizedFormatDiagonalPosition: number | null;
@@ -483,7 +483,12 @@ function createSupportLineDiagonalRelation(
   let normalizedSupportLinePosition: number | null = null;
   let normalizedFormatDiagonalPosition: number | null = null;
   if (Math.abs(denominator) <= BOUNDARY_TOLERANCE_NORMALIZED) {
-    status = "parallel";
+    status = Math.abs(cross(
+      subtract(diagonal.start, supportLine.clippedStart),
+      supportVector,
+    )) <= BOUNDARY_TOLERANCE_NORMALIZED
+      ? "coincident"
+      : "parallel";
   } else {
     const offset = subtract(diagonal.start, supportLine.clippedStart);
     const supportScale = cross(offset, diagonalVector) / denominator;

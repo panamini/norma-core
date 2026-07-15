@@ -123,6 +123,13 @@ test("parallel and out-of-frame diagonal relations fail closed without invented 
   assert.equal(parallel.relations[0].intersection, null);
   assert.equal(parallel.relations[0].normalizedSupportLinePosition, null);
 
+  const coincident = analyze({
+    observedLines: [observedLine("coincident", { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.8 })],
+  });
+  assert.equal(coincident.relations[0].status, "coincident");
+  assert.equal(coincident.relations[0].intersection, null);
+  assert.equal(coincident.relations[0].normalizedSupportLinePosition, null);
+
   const corner = analyze({
     observedLines: [observedLine("corner", { x: 0, y: 0.08 }, { x: 0.16, y: 0 })],
   });

@@ -1203,7 +1203,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
         candidateValue,
         color,
         selected,
-        enabledConstructionLayers.has("support-line-extensions"),
+        selected && enabledConstructionLayers.has("support-line-extensions"),
       ),
       `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
       `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
