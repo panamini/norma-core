@@ -30,6 +30,7 @@ import {
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyJunctionAnglesChangedFiles,
+  personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
@@ -472,6 +473,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsesChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;

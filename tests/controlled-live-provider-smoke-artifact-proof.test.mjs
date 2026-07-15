@@ -29,6 +29,7 @@ import {
   personalChatGptVisualHarmonyDemoChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyJunctionAnglesChangedFiles,
+  personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
@@ -314,6 +315,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsesChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
