@@ -28,6 +28,7 @@ import {
   personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
+  personalVisualHarmonyTruthSyncChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
@@ -2573,6 +2574,10 @@ test("shared exact changed-file guard rejects forbidden extras in the PR124 obse
 test("shared exact changed-file guard recognizes active controlled provider observation proof branches", () => {
   const changedFiles = activeControlledProviderObservationProofChangedFiles();
   const isCleanBase = isCleanBaseValidationContext();
+  const isPersonalVisualHarmonyTruthSyncSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonyTruthSyncChangedFiles,
+  );
   const isPersonalVisualHarmonyImageHydrationSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyImageHydrationChangedFiles,
@@ -2621,7 +2626,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -2629,7 +2634,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   }
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPersonalVisualHarmonyPixelRefinementShadowSet
+    isPersonalVisualHarmonyTruthSyncSet
+      ? personalVisualHarmonyTruthSyncChangedFiles
+      : isPersonalVisualHarmonyPixelRefinementShadowSet
       ? personalVisualHarmonyPixelRefinementShadowChangedFiles
       : isPersonalVisualHarmonyImageHydrationSet
       ? personalVisualHarmonyImageHydrationChangedFiles

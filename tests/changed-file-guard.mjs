@@ -217,6 +217,19 @@ export const personalChatGptVisualHarmonyDemoChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-pixel-refinement.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyTruthSyncChangedFiles = Object.freeze([
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+  "tests/changed-file-guard.mjs",
+].sort());
+
 export const personalVisualHarmonyImageHydrationChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
@@ -1305,6 +1318,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  personalVisualHarmonyTruthSyncChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyImageHydrationChangedFiles,
   personalChatGptVisualHarmonyDemoChangedFiles,
