@@ -2225,17 +2225,25 @@ test("displayed image load is the hydration proof for single-use temporary URLs"
     { state },
   );
   const assignedUrls = [];
+  const assignmentOrder = [];
   let currentSrc = "";
+  let currentCrossOrigin = "";
   const source = {
     naturalWidth: 900,
     naturalHeight: 600,
     onload: null,
     onerror: null,
     referrerPolicy: "",
+    get crossOrigin() { return currentCrossOrigin; },
+    set crossOrigin(value) {
+      currentCrossOrigin = value;
+      assignmentOrder.push(`crossOrigin:${value}`);
+    },
     get src() { return currentSrc; },
     set src(value) {
       currentSrc = value;
       assignedUrls.push(value);
+      assignmentOrder.push(`src:${value}`);
       queueMicrotask(() => this.onload?.());
     },
   };
@@ -2254,6 +2262,11 @@ test("displayed image load is the hydration proof for single-use temporary URLs"
 
   assert.deepEqual(result, { width: 900, height: 600 });
   assert.deepEqual(assignedUrls, ["https://files.example/single-use"]);
+  assert.deepEqual(assignmentOrder, [
+    "crossOrigin:anonymous",
+    "src:https://files.example/single-use",
+  ]);
+  assert.equal(source.crossOrigin, "anonymous");
   assert.equal(source.referrerPolicy, "no-referrer");
 });
 

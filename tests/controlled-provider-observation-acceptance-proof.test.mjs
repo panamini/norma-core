@@ -471,7 +471,13 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
-  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyImageHydrationChangedFiles)) {
+    assert.deepEqual(
+      sharedExactApprovedChangedFiles(changedFiles),
+      personalVisualHarmonyImageHydrationChangedFiles,
+    );
+    return;
+  }
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsesChangedFiles)) return;

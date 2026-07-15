@@ -1121,7 +1121,13 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   if (isExactChangedFileSet(activeChangedFiles, statelessRemoteMcpCommercialBetaContractChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevChatGptMcpCompleteLiveProofChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalChatGptVisualHarmonyDemoChangedFiles)) return;
-  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyImageHydrationChangedFiles)) return;
+  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyImageHydrationChangedFiles)) {
+    assert.deepEqual(
+      sharedExactApprovedChangedFiles(activeChangedFiles),
+      personalVisualHarmonyImageHydrationChangedFiles,
+    );
+    return;
+  }
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPixelRefinementIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyJunctionAnglesChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyRotatedEllipsesChangedFiles)) return;
