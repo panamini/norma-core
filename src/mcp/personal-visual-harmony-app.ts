@@ -437,6 +437,14 @@ const QuadrilateralMeasurementSchema = z.object({
   explanation: z.string(),
 }).strict();
 
+const JunctionParticipantSchema = z.object({
+  constructionId: z.string(),
+  kind: z.enum(["support-line-extension", "format-diagonal", "frame-edge"]),
+  provenance: z.enum(["derived-construction", "user-confirmed-frame"]),
+  sourceObservedLineId: z.string().nullable(),
+  intersectionWithinObservedExtent: z.boolean().nullable(),
+}).strict();
+
 const ConstructionAnalysisSchema = z.object({
   contractId: z.literal("norma.personal-visual-harmony-construction-analysis@1"),
   contractVersion: z.literal(1),
@@ -523,6 +531,26 @@ const ConstructionAnalysisSchema = z.object({
     sourceTruth: z.literal(false),
     coreAuthority: z.literal(false),
   }).strict()).max(96),
+  junctionAngles: z.array(z.object({
+    junctionId: z.string(),
+    kind: z.literal("junction-angle"),
+    junctionKind: z.enum([
+      "support-line-support-line",
+      "support-line-format-diagonal",
+      "format-diagonal-format-diagonal",
+      "support-line-frame-edge",
+      "format-diagonal-frame-edge",
+    ]),
+    intersection: NormalizedPointSchema,
+    firstParticipant: JunctionParticipantSchema,
+    secondParticipant: JunctionParticipantSchema,
+    smallerAngleDegrees: z.number().gt(0).max(90),
+    supplementaryAngleDegrees: z.number().min(90).lt(180),
+    angleConvention: z.literal("projected_image_plane_smaller_and_supplementary"),
+    provenance: z.literal("derived-measurement"),
+    sourceTruth: z.literal(false),
+    coreAuthority: z.literal(false),
+  }).strict()).max(2_048).optional(),
   boundaryToleranceNormalized: z.number().gt(0),
   candidateEvidenceOnly: z.literal(true),
   sourceTruth: z.literal(false),
@@ -727,6 +755,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
       || new Set(constructionLayers).size !== constructionLayers.length
       || constructionLayers.some((layer) => !PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.includes(layer))) {
       throw new Error("Construction layers must be unique supported values.");
+    }
+    if (constructionLayers.includes("junction-angles")
+      && !constructionLayers.includes("support-line-extensions")) {
+      throw new Error("Junction angles require the support-line extension layer.");
     }
     const confirmationKey = stableConfirmationKey(input);
     if (session.confirmation !== undefined) {
@@ -1270,7 +1302,7 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
     <aside class="side">
       <div class="flow"><span>ChatGPT<br>voit</span><span class="arrow">→</span><span>Vous<br>confirmez</span><span class="arrow">→</span><span>Core<br>mesure</span></div>
       <div id="familyFilters" class="family-filters" aria-label="Afficher ou masquer les familles géométriques"></div>
-      <div class="construction-controls" aria-label="Constructions dérivées optionnelles"><button id="supportLineToggle" class="construction-toggle" type="button" aria-pressed="false">Prolongements · masqués</button><button id="formatDiagonalToggle" class="construction-toggle" type="button" aria-pressed="false">Diagonales format · masquées</button></div>
+      <div class="construction-controls" aria-label="Constructions dérivées optionnelles"><button id="supportLineToggle" class="construction-toggle" type="button" aria-pressed="false">Prolongements · masqués</button><button id="formatDiagonalToggle" class="construction-toggle" type="button" aria-pressed="false">Diagonales format · masquées</button><button id="junctionAngleToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Angles jonction · masqués</button></div>
       <button id="pixelToggle" class="pixel-toggle" type="button" aria-pressed="false">Propositions pixels · désactivées</button>
       <div id="candidateList" class="candidate-list"></div>
       <button id="confirm" class="confirm" type="button" disabled>Confirmer et analyser avec Norma Core</button>
@@ -1297,22 +1329,23 @@ const pendingRequests=new Map();
 function rpcNotify(method,params){window.parent.postMessage({jsonrpc:"2.0",method,params},"*")}
 function rpcRequest(method,params){return new Promise((resolve,reject)=>{const id=++rpcId;pendingRequests.set(id,{resolve,reject});window.parent.postMessage({jsonrpc:"2.0",id,method,params},"*")})}
 async function initializeBridge(){await rpcRequest("ui/initialize",{appInfo:{name:"norma-personal-visual-harmony",version:"0.1.0"},appCapabilities:{},protocolVersion:"2026-01-26"});rpcNotify("ui/notifications/initialized",{});document.documentElement.setAttribute("data-norma-bridge","ready")}
-const visual=document.getElementById("visual"),source=document.getElementById("source"),loading=document.getElementById("loading"),overlay=document.getElementById("overlay"),familyFilters=document.getElementById("familyFilters"),supportLineToggle=document.getElementById("supportLineToggle"),formatDiagonalToggle=document.getElementById("formatDiagonalToggle"),pixelToggle=document.getElementById("pixelToggle"),candidateList=document.getElementById("candidateList"),confirmButton=document.getElementById("confirm"),statusNode=document.getElementById("status"),stageNode=document.getElementById("stage"),resultNode=document.getElementById("result"),headlineNode=document.getElementById("headline"),matchesNode=document.getElementById("matches"),identityNode=document.getElementById("identity");
+const visual=document.getElementById("visual"),source=document.getElementById("source"),loading=document.getElementById("loading"),overlay=document.getElementById("overlay"),familyFilters=document.getElementById("familyFilters"),supportLineToggle=document.getElementById("supportLineToggle"),formatDiagonalToggle=document.getElementById("formatDiagonalToggle"),junctionAngleToggle=document.getElementById("junctionAngleToggle"),pixelToggle=document.getElementById("pixelToggle"),candidateList=document.getElementById("candidateList"),confirmButton=document.getElementById("confirm"),statusNode=document.getElementById("status"),stageNode=document.getElementById("stage"),resultNode=document.getElementById("result"),headlineNode=document.getElementById("headline"),matchesNode=document.getElementById("matches"),identityNode=document.getElementById("identity");
 function primitiveKind(item){return item?.primitive?.kind||"rectangle"}
 function primitiveLabel(kind){return{rectangle:"Rectangles · Core",quadrilateral:"Quadrilatères · guide",segment:"Segments · guide",axis:"Axes · guide",ellipse:"Ellipses · guide"}[kind]||kind}
 function coreSelectedIds(){return state.reviewedCandidates.filter(item=>primitiveKind(item)==="rectangle"&&state.selected.has(item.id)).map(item=>item.id)}
 function confirmedGuideIds(){return state.reviewedCandidates.filter(item=>primitiveKind(item)!=="rectangle"&&state.selectedGuides.has(item.id)).map(item=>item.id)}
-const CONSTRUCTION_LAYERS=["support-line-extensions","format-diagonals"];
+const CONSTRUCTION_LAYERS=["support-line-extensions","format-diagonals","junction-angles"];
 function constructionLayerSnapshot(){return{candidateSetIdentity:state.proposalCandidateSetIdentity,layers:CONSTRUCTION_LAYERS.filter(layer=>state.constructionLayers.has(layer))}}
-function storedConstructionGuideStateFor(value,prepared){if(!value||typeof value!=="object"||Object.keys(value).sort().join("|")!=="candidateSetIdentity|layers"||value.candidateSetIdentity!==prepared.candidateSetIdentity||!Array.isArray(value.layers)||value.layers.length>CONSTRUCTION_LAYERS.length||new Set(value.layers).size!==value.layers.length||!value.layers.every(layer=>CONSTRUCTION_LAYERS.includes(layer)))return null;return{candidateSetIdentity:value.candidateSetIdentity,layers:CONSTRUCTION_LAYERS.filter(layer=>value.layers.includes(layer))}}
-function updateConstructionControls(){const support=state.constructionLayers.has("support-line-extensions"),diagonals=state.constructionLayers.has("format-diagonals");supportLineToggle.setAttribute("aria-pressed",String(support));supportLineToggle.textContent=support?"Prolongements · affichés":"Prolongements · masqués";formatDiagonalToggle.setAttribute("aria-pressed",String(diagonals));formatDiagonalToggle.textContent=diagonals?"Diagonales format · affichées":"Diagonales format · masquées";const disabled=state.completed||state.confirming;supportLineToggle.disabled=disabled;formatDiagonalToggle.disabled=disabled}
+function storedConstructionGuideStateFor(value,prepared){if(!value||typeof value!=="object"||Object.keys(value).sort().join("|")!=="candidateSetIdentity|layers"||value.candidateSetIdentity!==prepared.candidateSetIdentity||!Array.isArray(value.layers)||value.layers.length>CONSTRUCTION_LAYERS.length||new Set(value.layers).size!==value.layers.length||!value.layers.every(layer=>CONSTRUCTION_LAYERS.includes(layer))||(value.layers.includes("junction-angles")&&!value.layers.includes("support-line-extensions")))return null;return{candidateSetIdentity:value.candidateSetIdentity,layers:CONSTRUCTION_LAYERS.filter(layer=>value.layers.includes(layer))}}
+function updateConstructionControls(){const support=state.constructionLayers.has("support-line-extensions"),diagonals=state.constructionLayers.has("format-diagonals"),junctions=state.constructionLayers.has("junction-angles");supportLineToggle.setAttribute("aria-pressed",String(support));supportLineToggle.textContent=support?"Prolongements · affichés":"Prolongements · masqués";formatDiagonalToggle.setAttribute("aria-pressed",String(diagonals));formatDiagonalToggle.textContent=diagonals?"Diagonales format · affichées":"Diagonales format · masquées";junctionAngleToggle.setAttribute("aria-pressed",String(junctions));junctionAngleToggle.textContent=junctions?"Angles jonction · affichés":"Angles jonction · masqués";const disabled=state.completed||state.confirming;supportLineToggle.disabled=disabled;formatDiagonalToggle.disabled=disabled;junctionAngleToggle.disabled=disabled||!support}
 function syncConstructionVisibility(){for(const node of overlay.querySelectorAll("[data-construction-layer]"))node.style.display=state.constructionLayers.has(node.getAttribute("data-construction-layer"))?"":"none";updateConstructionControls()}
 function restoreConstructionGuideState(prepared){const stored=storedConstructionGuideStateFor(publicWidgetState().constructionGuideState,prepared);state.constructionLayers=new Set(stored?.layers||[]);syncConstructionVisibility()}
-function toggleConstructionLayer(layer){if(state.completed||state.confirming||!CONSTRUCTION_LAYERS.includes(layer))return;if(state.constructionLayers.has(layer))state.constructionLayers.delete(layer);else state.constructionLayers.add(layer);syncConstructionVisibility();persistReviewState();statusNode.textContent=state.constructionLayers.has(layer)?"Construction dérivée affichée. Elle reste séparée des segments observés et hors du Core.":"Construction dérivée masquée. La géométrie observée reste inchangée."}
+function toggleConstructionLayer(layer){if(state.completed||state.confirming||!CONSTRUCTION_LAYERS.includes(layer)||(layer==="junction-angles"&&!state.constructionLayers.has("support-line-extensions")))return;if(state.constructionLayers.has(layer)){state.constructionLayers.delete(layer);if(layer==="support-line-extensions")state.constructionLayers.delete("junction-angles")}else state.constructionLayers.add(layer);syncConstructionVisibility();persistReviewState();statusNode.textContent=state.constructionLayers.has(layer)?"Construction dérivée affichée. Elle reste séparée des segments observés et hors du Core.":"Construction dérivée masquée. La géométrie observée reste inchangée."}
 function syncFamilyVisibility(){for(const node of [...overlay.querySelectorAll("[data-primitive-kind]"),...candidateList.querySelectorAll("[data-primitive-kind]")])node.style.display=state.visibleKinds.has(node.getAttribute("data-primitive-kind"))?"":"none"}
 function renderFamilyFilters(prepared){familyFilters.replaceChildren();const kinds=[...new Set(prepared.candidates.map(primitiveKind))];for(const kind of kinds){const button=document.createElement("button");button.type="button";button.className="family-filter";button.textContent=primitiveLabel(kind);button.setAttribute("aria-pressed",String(state.visibleKinds.has(kind)));button.addEventListener("click",()=>{if(state.visibleKinds.has(kind))state.visibleKinds.delete(kind);else state.visibleKinds.add(kind);button.setAttribute("aria-pressed",String(state.visibleKinds.has(kind)));syncFamilyVisibility()});familyFilters.append(button)}}
 supportLineToggle.addEventListener("click",()=>toggleConstructionLayer("support-line-extensions"));
 formatDiagonalToggle.addEventListener("click",()=>toggleConstructionLayer("format-diagonals"));
+junctionAngleToggle.addEventListener("click",()=>toggleConstructionLayer("junction-angles"));
 function findPayload(value,depth=0){if(depth>7||value===null||typeof value!=="object")return null;if(value.normaPersonalVisualHarmony&&typeof value.normaPersonalVisualHarmony==="object")return value.normaPersonalVisualHarmony;for(const entry of Object.values(value)){const found=findPayload(entry,depth+1);if(found)return found}return null}
 function findCompletedResult(value,depth=0){if(depth>7||value===null||typeof value!=="object")return null;if(value.status==="completed"&&value.coreRun===true&&isStoredIdentity(value.canonicalResultIdentity))return value;for(const entry of Object.values(value)){const found=findCompletedResult(entry,depth+1);if(found)return found}return null}
 function currentPayload(){return findPayload(window.openai?.toolResponseMetadata)||findPayload(window.openai?.toolOutput)||null}

@@ -10,6 +10,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID =
 export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "support-line-extensions",
   "format-diagonals",
+  "junction-angles",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -106,6 +107,34 @@ export interface PersonalVisualHarmonySupportLineDiagonalRelationV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyJunctionParticipantV1 {
+  readonly constructionId: string;
+  readonly kind: "support-line-extension" | "format-diagonal" | "frame-edge";
+  readonly provenance: "derived-construction" | "user-confirmed-frame";
+  readonly sourceObservedLineId: string | null;
+  readonly intersectionWithinObservedExtent: boolean | null;
+}
+
+export interface PersonalVisualHarmonyJunctionAngleV1 {
+  readonly junctionId: string;
+  readonly kind: "junction-angle";
+  readonly junctionKind:
+    | "support-line-support-line"
+    | "support-line-format-diagonal"
+    | "format-diagonal-format-diagonal"
+    | "support-line-frame-edge"
+    | "format-diagonal-frame-edge";
+  readonly intersection: PersonalVisualHarmonyConstructionPointV1;
+  readonly firstParticipant: PersonalVisualHarmonyJunctionParticipantV1;
+  readonly secondParticipant: PersonalVisualHarmonyJunctionParticipantV1;
+  readonly smallerAngleDegrees: number;
+  readonly supplementaryAngleDegrees: number;
+  readonly angleConvention: "projected_image_plane_smaller_and_supplementary";
+  readonly provenance: "derived-measurement";
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -123,6 +152,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly supportLineExtensions: readonly PersonalVisualHarmonySupportLineExtensionV1[];
   readonly formatDiagonals: readonly PersonalVisualHarmonyFormatDiagonalV1[];
   readonly relations: readonly PersonalVisualHarmonySupportLineDiagonalRelationV1[];
+  readonly junctionAngles?: readonly PersonalVisualHarmonyJunctionAngleV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -146,6 +176,24 @@ interface ClippedContact {
   readonly point: PersonalVisualHarmonyConstructionPointV1;
   readonly scale: number;
   readonly frameEdgeIndices: readonly number[];
+}
+
+interface BoundedConstructionLine {
+  readonly constructionId: string;
+  readonly kind: PersonalVisualHarmonyJunctionParticipantV1["kind"];
+  readonly start: PersonalVisualHarmonyConstructionPointV1;
+  readonly end: PersonalVisualHarmonyConstructionPointV1;
+  readonly provenance: PersonalVisualHarmonyJunctionParticipantV1["provenance"];
+  readonly sourceObservedLineId: string | null;
+  readonly observedStart: PersonalVisualHarmonyConstructionPointV1 | null;
+  readonly observedEnd: PersonalVisualHarmonyConstructionPointV1 | null;
+}
+
+interface BoundedLineIntersection {
+  readonly status: "intersection" | "no_intersection" | "coincident" | "parallel";
+  readonly intersection: PersonalVisualHarmonyConstructionPointV1 | null;
+  readonly firstPosition: number | null;
+  readonly secondPosition: number | null;
 }
 
 /**
@@ -181,6 +229,17 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
   const relations = supportLineExtensions.flatMap((supportLine) => formatDiagonals.map((diagonal) => (
     createSupportLineDiagonalRelation(supportLine, diagonal)
   )));
+  const junctionLayerEnabled = enabledLayers.includes("junction-angles");
+  const junctionAngles = junctionLayerEnabled
+    ? createJunctionAngles(
+      observedLines,
+      supportLineExtensions,
+      formatDiagonals,
+      frame,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    )
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -199,6 +258,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     supportLineExtensions,
     formatDiagonals,
     relations,
+    ...(junctionLayerEnabled ? { junctionAngles } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -231,6 +291,9 @@ function normalizeLayers(
       throw new Error("Construction layers must be unique supported values.");
     }
     unique.add(value);
+  }
+  if (unique.has("junction-angles") && !unique.has("support-line-extensions")) {
+    throw new Error("Junction angles require the support-line extension layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -475,39 +538,20 @@ function createSupportLineDiagonalRelation(
   supportLine: PersonalVisualHarmonySupportLineExtensionV1,
   diagonal: PersonalVisualHarmonyFormatDiagonalV1,
 ): PersonalVisualHarmonySupportLineDiagonalRelationV1 {
-  const supportVector = subtract(supportLine.clippedEnd, supportLine.clippedStart);
-  const diagonalVector = subtract(diagonal.end, diagonal.start);
-  const denominator = cross(supportVector, diagonalVector);
+  const boundedIntersection = intersectBoundedLines(
+    supportLine.clippedStart,
+    supportLine.clippedEnd,
+    diagonal.start,
+    diagonal.end,
+  );
   let status: PersonalVisualHarmonySupportLineDiagonalRelationV1["status"];
-  let intersection: PersonalVisualHarmonyConstructionPointV1 | null = null;
-  let normalizedSupportLinePosition: number | null = null;
-  let normalizedFormatDiagonalPosition: number | null = null;
-  if (Math.abs(denominator) <= BOUNDARY_TOLERANCE_NORMALIZED) {
-    status = Math.abs(cross(
-      subtract(diagonal.start, supportLine.clippedStart),
-      supportVector,
-    )) <= BOUNDARY_TOLERANCE_NORMALIZED
-      ? "coincident"
-      : "parallel";
-  } else {
-    const offset = subtract(diagonal.start, supportLine.clippedStart);
-    const supportScale = cross(offset, diagonalVector) / denominator;
-    const diagonalScale = cross(offset, supportVector) / denominator;
-    if (supportScale >= -BOUNDARY_TOLERANCE_NORMALIZED
-      && supportScale <= 1 + BOUNDARY_TOLERANCE_NORMALIZED
-      && diagonalScale >= -BOUNDARY_TOLERANCE_NORMALIZED
-      && diagonalScale <= 1 + BOUNDARY_TOLERANCE_NORMALIZED) {
-      status = "intersection_within_frame";
-      intersection = canonicalPoint(add(
-        supportLine.clippedStart,
-        multiply(supportVector, supportScale),
-      ));
-      normalizedSupportLinePosition = canonicalNumber(clampUnit(supportScale));
-      normalizedFormatDiagonalPosition = canonicalNumber(clampUnit(diagonalScale));
-    } else {
-      status = "no_intersection_within_frame";
-    }
-  }
+  if (boundedIntersection.status === "intersection") status = "intersection_within_frame";
+  else if (boundedIntersection.status === "coincident") status = "coincident";
+  else if (boundedIntersection.status === "parallel") status = "parallel";
+  else status = "no_intersection_within_frame";
+  const intersection = boundedIntersection.intersection;
+  const normalizedSupportLinePosition = boundedIntersection.firstPosition;
+  const normalizedFormatDiagonalPosition = boundedIntersection.secondPosition;
   const identity = contentIdentityFor({
     kind: "support-line-format-diagonal-relation",
     supportLineConstructionId: supportLine.constructionId,
@@ -530,6 +574,228 @@ function createSupportLineDiagonalRelation(
     sourceTruth: false,
     coreAuthority: false,
   };
+}
+
+function createJunctionAngles(
+  observedLines: readonly PersonalVisualHarmonyObservedLineV1[],
+  supportLines: readonly PersonalVisualHarmonySupportLineExtensionV1[],
+  formatDiagonals: readonly PersonalVisualHarmonyFormatDiagonalV1[],
+  frame: PersonalVisualHarmonyConstructionFrameV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): readonly PersonalVisualHarmonyJunctionAngleV1[] {
+  const observedById = new Map(observedLines.map((line) => [line.observedLineId, line]));
+  const supportParticipants = supportLines.map((line): BoundedConstructionLine => {
+    const observed = observedById.get(line.observedLineId);
+    if (observed === undefined) {
+      throw new Error("Support-line junction evidence requires its observed source line.");
+    }
+    return {
+      constructionId: line.constructionId,
+      kind: "support-line-extension",
+      start: line.clippedStart,
+      end: line.clippedEnd,
+      provenance: "derived-construction",
+      sourceObservedLineId: line.observedLineId,
+      observedStart: observed.start,
+      observedEnd: observed.end,
+    };
+  });
+  const diagonalParticipants = formatDiagonals.map((line): BoundedConstructionLine => ({
+    constructionId: line.constructionId,
+    kind: "format-diagonal",
+    start: line.start,
+    end: line.end,
+    provenance: "derived-construction",
+    sourceObservedLineId: null,
+    observedStart: null,
+    observedEnd: null,
+  }));
+  const frameParticipants = frame.vertices.map((start, frameEdgeIndex): BoundedConstructionLine => {
+    const end = frame.vertices[(frameEdgeIndex + 1) % frame.vertices.length]!;
+    const identity = contentIdentityFor({
+      kind: "frame-edge",
+      frameId: frame.frameId,
+      frameEdgeIndex,
+      start,
+      end,
+    });
+    return {
+      constructionId: `construction:frame-edge:${identityToken(identity)}`,
+      kind: "frame-edge",
+      start,
+      end,
+      provenance: "user-confirmed-frame",
+      sourceObservedLineId: null,
+      observedStart: null,
+      observedEnd: null,
+    };
+  });
+  const participants = [
+    ...supportParticipants,
+    ...diagonalParticipants,
+    ...frameParticipants,
+  ].sort((first, second) => stringCompare(first.constructionId, second.constructionId));
+  const junctions: PersonalVisualHarmonyJunctionAngleV1[] = [];
+  for (let firstIndex = 0; firstIndex < participants.length; firstIndex += 1) {
+    const first = participants[firstIndex]!;
+    for (let secondIndex = firstIndex + 1; secondIndex < participants.length; secondIndex += 1) {
+      const second = participants[secondIndex]!;
+      if (first.kind === "frame-edge" && second.kind === "frame-edge") continue;
+      const boundedIntersection = intersectBoundedLines(
+        first.start,
+        first.end,
+        second.start,
+        second.end,
+      );
+      if (boundedIntersection.status !== "intersection"
+        || boundedIntersection.intersection === null) continue;
+      const intersection = boundedIntersection.intersection;
+      const smallerAngleDegrees = pixelUndirectedAngleDistanceDegrees(
+        first.start,
+        first.end,
+        second.start,
+        second.end,
+        sourcePixelWidth,
+        sourcePixelHeight,
+      );
+      if (smallerAngleDegrees === 0) continue;
+      const supplementaryAngleDegrees = canonicalNumber(180 - smallerAngleDegrees);
+      const firstParticipant = createJunctionParticipant(first, intersection);
+      const secondParticipant = createJunctionParticipant(second, intersection);
+      const junctionKind = junctionKindFor(first.kind, second.kind);
+      const identity = contentIdentityFor({
+        kind: "junction-angle",
+        junctionKind,
+        intersection,
+        firstParticipant,
+        secondParticipant,
+        smallerAngleDegrees,
+        supplementaryAngleDegrees,
+        sourcePixelWidth,
+        sourcePixelHeight,
+      });
+      junctions.push({
+        junctionId: `junction:angle:${identityToken(identity)}`,
+        kind: "junction-angle",
+        junctionKind,
+        intersection,
+        firstParticipant,
+        secondParticipant,
+        smallerAngleDegrees,
+        supplementaryAngleDegrees,
+        angleConvention: "projected_image_plane_smaller_and_supplementary",
+        provenance: "derived-measurement",
+        sourceTruth: false,
+        coreAuthority: false,
+      });
+    }
+  }
+  return junctions.sort((first, second) => stringCompare(first.junctionId, second.junctionId));
+}
+
+function createJunctionParticipant(
+  line: BoundedConstructionLine,
+  intersection: PersonalVisualHarmonyConstructionPointV1,
+): PersonalVisualHarmonyJunctionParticipantV1 {
+  return {
+    constructionId: line.constructionId,
+    kind: line.kind,
+    provenance: line.provenance,
+    sourceObservedLineId: line.sourceObservedLineId,
+    intersectionWithinObservedExtent: line.observedStart === null || line.observedEnd === null
+      ? null
+      : pointWithinObservedExtent(intersection, line.observedStart, line.observedEnd),
+  };
+}
+
+function junctionKindFor(
+  first: PersonalVisualHarmonyJunctionParticipantV1["kind"],
+  second: PersonalVisualHarmonyJunctionParticipantV1["kind"],
+): PersonalVisualHarmonyJunctionAngleV1["junctionKind"] {
+  const kinds = [first, second].sort().join("|");
+  if (kinds === "support-line-extension|support-line-extension") {
+    return "support-line-support-line";
+  }
+  if (kinds === "format-diagonal|support-line-extension") {
+    return "support-line-format-diagonal";
+  }
+  if (kinds === "format-diagonal|format-diagonal") {
+    return "format-diagonal-format-diagonal";
+  }
+  if (kinds === "frame-edge|support-line-extension") {
+    return "support-line-frame-edge";
+  }
+  if (kinds === "format-diagonal|frame-edge") {
+    return "format-diagonal-frame-edge";
+  }
+  throw new Error("Unsupported junction participant pair.");
+}
+
+function intersectBoundedLines(
+  firstStart: PersonalVisualHarmonyConstructionPointV1,
+  firstEnd: PersonalVisualHarmonyConstructionPointV1,
+  secondStart: PersonalVisualHarmonyConstructionPointV1,
+  secondEnd: PersonalVisualHarmonyConstructionPointV1,
+): BoundedLineIntersection {
+  const firstVector = subtract(firstEnd, firstStart);
+  const secondVector = subtract(secondEnd, secondStart);
+  const denominator = cross(firstVector, secondVector);
+  if (Math.abs(denominator) <= BOUNDARY_TOLERANCE_NORMALIZED) {
+    return {
+      status: Math.abs(cross(subtract(secondStart, firstStart), firstVector))
+        <= BOUNDARY_TOLERANCE_NORMALIZED
+        ? "coincident"
+        : "parallel",
+      intersection: null,
+      firstPosition: null,
+      secondPosition: null,
+    };
+  }
+  const offset = subtract(secondStart, firstStart);
+  const firstPosition = cross(offset, secondVector) / denominator;
+  const secondPosition = cross(offset, firstVector) / denominator;
+  if (firstPosition < -BOUNDARY_TOLERANCE_NORMALIZED
+    || firstPosition > 1 + BOUNDARY_TOLERANCE_NORMALIZED
+    || secondPosition < -BOUNDARY_TOLERANCE_NORMALIZED
+    || secondPosition > 1 + BOUNDARY_TOLERANCE_NORMALIZED) {
+    return {
+      status: "no_intersection",
+      intersection: null,
+      firstPosition: null,
+      secondPosition: null,
+    };
+  }
+  return {
+    status: "intersection",
+    intersection: canonicalPoint(add(firstStart, multiply(firstVector, firstPosition))),
+    firstPosition: canonicalNumber(clampUnit(firstPosition)),
+    secondPosition: canonicalNumber(clampUnit(secondPosition)),
+  };
+}
+
+function pointWithinObservedExtent(
+  point: PersonalVisualHarmonyConstructionPointV1,
+  start: PersonalVisualHarmonyConstructionPointV1,
+  end: PersonalVisualHarmonyConstructionPointV1,
+): boolean {
+  const position = projectionScale(point, start, subtract(end, start));
+  return position >= -BOUNDARY_TOLERANCE_NORMALIZED
+    && position <= 1 + BOUNDARY_TOLERANCE_NORMALIZED;
+}
+
+function pixelUndirectedAngleDistanceDegrees(
+  firstStart: PersonalVisualHarmonyConstructionPointV1,
+  firstEnd: PersonalVisualHarmonyConstructionPointV1,
+  secondStart: PersonalVisualHarmonyConstructionPointV1,
+  secondEnd: PersonalVisualHarmonyConstructionPointV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): number {
+  const firstAngle = pixelAngleDegrees(firstStart, firstEnd, sourcePixelWidth, sourcePixelHeight);
+  const secondAngle = pixelAngleDegrees(secondStart, secondEnd, sourcePixelWidth, sourcePixelHeight);
+  const absolute = Math.abs(firstAngle - secondAngle) % 180;
+  return canonicalNumber(Math.min(absolute, 180 - absolute));
 }
 
 function validatePoint(value: unknown, field: string): PersonalVisualHarmonyConstructionPointV1 {
@@ -628,6 +894,10 @@ function clampUnit(value: number): number {
 
 function numberCompare(first: number, second: number): number {
   return first - second;
+}
+
+function stringCompare(first: string, second: string): number {
+  return first < second ? -1 : first > second ? 1 : 0;
 }
 
 function contentIdentityFor(value: unknown): string {
