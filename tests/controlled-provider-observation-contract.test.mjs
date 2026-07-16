@@ -40,6 +40,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -426,7 +427,8 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorsChangedFiles)
-    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)) return;
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -436,6 +438,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isPerpendicularBisectorRegressionFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles);
+  const isPerpendicularBisectorGeometryFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
@@ -470,12 +473,12 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
         ? controlledProviderObservationAcceptanceProofChangedFiles
         : controlledProviderObservationContractChangedFiles;
 
-  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
+  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationContractChangedFiles),
     controlledProviderObservationContractChangedFiles,
   );
-  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), isPerpendicularBisectorRegressionFixSet ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles : isPerpendicularBisectorsSet ? personalVisualHarmonyPerpendicularBisectorsChangedFiles : isCleanBase ? null : expectedChangedFiles);
+  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), isPerpendicularBisectorGeometryFixSet ? personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles : isPerpendicularBisectorRegressionFixSet ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles : isPerpendicularBisectorsSet ? personalVisualHarmonyPerpendicularBisectorsChangedFiles : isCleanBase ? null : expectedChangedFiles);
   for (const forbiddenPrefix of [
     "bin/",
     "tests/fixtures/",
