@@ -473,7 +473,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   assert.match(html, /id="junctionAngleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
   assert.match(html, /id="triangleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
   assert.match(html, /id="triangleMedianToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
-  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles","triangle-medians"\]/u);
+  assert.match(html, /id="trianglePerpendicularBisectorToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
+  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles","triangle-medians","triangle-perpendicular-bisectors"\]/u);
   assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
   assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
   assert.match(
@@ -625,8 +626,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     },
   );
   restoreConstructionGuideState(prepared);
-  assert.deepEqual([...restoreState.constructionLayers], layers);
-  assert.deepEqual([...restoreState.visibleConstructionLayers], layers);
+  assert.deepEqual([...restoreState.constructionLayers], layers.slice(0, 5));
+  assert.deepEqual([...restoreState.visibleConstructionLayers], layers.slice(0, 5));
   saved = {
     constructionGuideState: {
       candidateSetIdentity,
@@ -1855,7 +1856,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
     const constructionLayerInput = confirmTool.inputSchema.properties.constructionLayers;
     assert.equal(constructionLayerInput.type, "array");
-    assert.equal(constructionLayerInput.maxItems, 5);
+    assert.equal(constructionLayerInput.maxItems, 6);
     assert.deepEqual(constructionLayerInput.default, []);
     assert.deepEqual(constructionLayerInput.items.enum, [
       "support-line-extensions",
@@ -1863,6 +1864,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "junction-angles",
       "triangles",
       "triangle-medians",
+      "triangle-perpendicular-bisectors",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
     const triangleRequestInput = prepareTool.inputSchema.properties.triangleConstructionRequests;

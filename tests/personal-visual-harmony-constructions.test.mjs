@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
   constructPersonalVisualHarmonyTriangleMediansV1,
+  constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1,
   constructPersonalVisualHarmonyTrianglesV1,
   PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED,
 } from "../dist/src/personal-visual-harmony-constructions.js";
@@ -793,4 +794,34 @@ test("triangle medians remain absent by default and require the triangle layer",
     /require the triangle construction layer/u,
   );
   assert.equal("constructPersonalVisualHarmonyTriangleMediansV1" in packageRoot, false);
+});
+
+test("triangle perpendicular bisectors are exactly three canonical, clipped, non-authoritative guides", () => {
+  const result = analyzeObservedTriangle([
+    { x: 0.2, y: 0.2 },
+    { x: 0.8, y: 0.2 },
+    { x: 0.2, y: 0.8 },
+  ], { enabledLayers: ["support-line-extensions", "triangles", "triangle-perpendicular-bisectors"] });
+  assert.equal(result.trianglePerpendicularBisectors.length, 3);
+  assert.deepEqual(result.trianglePerpendicularBisectors.map(({ sideIndex }) => sideIndex), [0, 1, 2]);
+  for (const bisector of result.trianglePerpendicularBisectors) {
+    assert.equal(bisector.sourceTruth, false);
+    assert.equal(bisector.coreAuthority, false);
+    assert.equal(bisector.provenance, "derived-construction");
+    assert.ok(bisector.clippedStart.x >= 0 && bisector.clippedStart.x <= 1);
+    assert.ok(bisector.clippedEnd.y >= 0 && bisector.clippedEnd.y <= 1);
+    const side = bisector.sideVertices;
+    const dx = (side[1].x - side[0].x) * 1000;
+    const dy = (side[1].y - side[0].y) * 1000;
+    const bx = (bisector.supportLineEnd.x - bisector.supportLineStart.x) * 1000;
+    const by = (bisector.supportLineEnd.y - bisector.supportLineStart.y) * 1000;
+    assert.ok(Math.abs((dx * bx) + (dy * by)) < 1e-9);
+  }
+  const disabled = analyzeObservedTriangle([
+    { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 },
+  ]);
+  assert.equal(Object.hasOwn(disabled, "trianglePerpendicularBisectors"), false);
+  assert.throws(() => constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1({
+    triangles: [], frame: FRAME, sourcePixelWidth: 1000, sourcePixelHeight: 1000,
+  }), /exactly one current canonical triangle parent/u);
 });
