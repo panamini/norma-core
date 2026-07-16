@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
   constructPersonalVisualHarmonyTriangleAngleBisectorsV1,
+  constructPersonalVisualHarmonyTriangleAltitudesV1,
   constructPersonalVisualHarmonyTriangleMediansV1,
   constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1,
   constructPersonalVisualHarmonyTrianglesV1,
@@ -940,4 +941,188 @@ test("triangle angle bisectors abstain after canonical rounding amplifies a near
     }),
     /numerically unstable after canonical rounding/u,
   );
+});
+
+test("triangle altitudes derive exactly three pixel-perpendicular support lines for acute, right, and obtuse triangles", () => {
+  const cases = [
+    {
+      name: "acute",
+      points: [{ x: 0.2, y: 0.15 }, { x: 0.82, y: 0.22 }, { x: 0.45, y: 0.78 }],
+      expectedExteriorFeet: 0,
+    },
+    {
+      name: "right",
+      points: [{ x: 0.15, y: 0.15 }, { x: 0.85, y: 0.15 }, { x: 0.15, y: 0.82 }],
+      expectedExteriorFeet: 0,
+    },
+    {
+      name: "obtuse",
+      points: [{ x: 0.08, y: 0.15 }, { x: 0.92, y: 0.2 }, { x: 0.28, y: 0.32 }],
+      expectedExteriorFeet: 2,
+    },
+  ];
+  const sourcePixelWidth = 1_200;
+  const sourcePixelHeight = 800;
+
+  for (const entry of cases) {
+    const result = analyzeObservedTriangle(entry.points, {
+      enabledLayers: ["support-line-extensions", "triangles", "triangle-altitudes"],
+      sourcePixelWidth,
+      sourcePixelHeight,
+    });
+    assert.deepEqual(result.enabledLayers, [
+      "support-line-extensions",
+      "triangles",
+      "triangle-altitudes",
+    ]);
+    assert.equal(result.triangleAltitudes.length, 3, entry.name);
+    assert.deepEqual(result.triangleAltitudes.map(({ vertexIndex }) => vertexIndex), [0, 1, 2]);
+    const triangle = result.triangles[0];
+    for (const altitude of result.triangleAltitudes) {
+      const [firstIndex, secondIndex] = altitude.oppositeSideVertexIndices;
+      const first = triangle.vertices[firstIndex];
+      const second = triangle.vertices[secondIndex];
+      const side = {
+        x: (second.point.x - first.point.x) * sourcePixelWidth,
+        y: (second.point.y - first.point.y) * sourcePixelHeight,
+      };
+      const support = {
+        x: (altitude.supportLineEnd.x - altitude.supportLineStart.x) * sourcePixelWidth,
+        y: (altitude.supportLineEnd.y - altitude.supportLineStart.y) * sourcePixelHeight,
+      };
+      const vertexToFoot = {
+        x: (altitude.foot.x - altitude.vertex.x) * sourcePixelWidth,
+        y: (altitude.foot.y - altitude.vertex.y) * sourcePixelHeight,
+      };
+      const firstToFoot = {
+        x: (altitude.foot.x - first.point.x) * sourcePixelWidth,
+        y: (altitude.foot.y - first.point.y) * sourcePixelHeight,
+      };
+      assert.ok(Math.abs((side.x * support.x) + (side.y * support.y)) < 1e-6, entry.name);
+      assert.ok(Math.abs((side.x * vertexToFoot.x) + (side.y * vertexToFoot.y)) < 1e-6, entry.name);
+      assert.ok(Math.abs((side.x * firstToFoot.y) - (side.y * firstToFoot.x)) < 1e-6, entry.name);
+      assert.equal(altitude.triangleId, triangle.triangleId);
+      assert.deepEqual(altitude.vertex, triangle.vertices[altitude.vertexIndex].point);
+      assert.deepEqual(altitude.vertexParent, triangle.vertices[altitude.vertexIndex].parent);
+      assert.deepEqual(altitude.oppositeSideVertices, [first.point, second.point]);
+      assert.deepEqual(altitude.oppositeSideParents, [first.parent, second.parent]);
+      assert.equal(
+        altitude.footWithinOppositeSideSegment,
+        altitude.footPositionOnOppositeSideSupport >= -1e-9
+          && altitude.footPositionOnOppositeSideSupport <= 1 + 1e-9,
+      );
+      for (const point of [altitude.clippedStart, altitude.clippedEnd]) {
+        assert.ok(point.x >= 0 && point.x <= 1, entry.name);
+        assert.ok(point.y >= 0 && point.y <= 1, entry.name);
+      }
+      assert.ok(Number.isFinite(altitude.foot.x) && Number.isFinite(altitude.foot.y));
+      assert.ok(altitude.lengthPixels > 0);
+      assert.match(altitude.altitudeId, /^construction:triangle-altitude:[0-9a-f]{64}$/u);
+      assert.equal(altitude.provenance, "derived-construction");
+      assert.equal(altitude.clipping, "confirmed_frame_only");
+      assert.equal(altitude.candidateEvidenceOnly, true);
+      assert.equal(altitude.sourceTruth, false);
+      assert.equal(altitude.coreAuthority, false);
+      assert.equal("orthocenter" in altitude, false);
+    }
+    assert.equal(
+      result.triangleAltitudes.filter(({ footWithinOppositeSideSegment }) => (
+        !footWithinOppositeSideSegment
+      )).length,
+      entry.expectedExteriorFeet,
+      entry.name,
+    );
+    assert.ok(result.triangleAltitudes.some((altitude) => (
+      JSON.stringify([altitude.supportLineStart, altitude.supportLineEnd])
+        !== JSON.stringify([altitude.clippedStart, altitude.clippedEnd])
+    )), entry.name);
+  }
+});
+
+test("triangle altitudes preserve a deterministic point clip when one altitude is tangent to the frame", () => {
+  const points = [{ x: 0, y: 0 }, { x: 0.2, y: 0.3 }, { x: 0.8, y: 0.9 }];
+  const before = structuredClone(points);
+  const first = analyzeObservedTriangle(points, {
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-altitudes"],
+  });
+  const second = analyzeObservedTriangle(points, {
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-altitudes"],
+  });
+
+  assert.deepEqual(points, before);
+  assert.equal(first.triangleAltitudes.length, 3);
+  assert.equal(JSON.stringify(first.triangleAltitudes), JSON.stringify(second.triangleAltitudes));
+  const tangentAltitude = first.triangleAltitudes.find(({ vertex }) => (
+    vertex.x === 0 && vertex.y === 0
+  ));
+  assert.ok(tangentAltitude);
+  assert.deepEqual(tangentAltitude.clippedStart, { x: 0, y: 0 });
+  assert.deepEqual(tangentAltitude.clippedEnd, { x: 0, y: 0 });
+  assert.notDeepEqual(tangentAltitude.supportLineStart, tangentAltitude.supportLineEnd);
+  assert.deepEqual(tangentAltitude.foot, { x: -0.05, y: 0.05 });
+  assert.ok(tangentAltitude.footPositionOnOppositeSideSupport < 0
+    || tangentAltitude.footPositionOnOppositeSideSupport > 1);
+  assert.equal(tangentAltitude.footWithinOppositeSideSegment, false);
+  assert.ok(first.triangleAltitudes.every(({ sourceTruth, coreAuthority }) => (
+    sourceTruth === false && coreAuthority === false
+  )));
+});
+
+test("triangle altitudes are byte-stable across permutations and preserve current parent inputs", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.24 }, { x: 0.3, y: 0.78 }];
+  const entries = points.map((point, index) => ({ candidateId: `altitude-line-${String(index)}`, point }));
+  const observedLines = entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point));
+  const outputs = permutations(entries).map((vertices) => analyze({
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-altitudes"],
+    observedLines,
+    triangleRequests: [observedTriangleRequest("altitude-permutation-request", vertices)],
+  }).triangleAltitudes);
+  assert.ok(outputs.every((altitudes) => JSON.stringify(altitudes) === JSON.stringify(outputs[0])));
+
+  const triangle = analyzeObservedTriangle(points).triangles[0];
+  const input = {
+    triangles: [structuredClone(triangle)],
+    frame: structuredClone(FRAME),
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 1000,
+  };
+  const before = structuredClone(input);
+  assert.equal(constructPersonalVisualHarmonyTriangleAltitudesV1(input).length, 3);
+  assert.deepEqual(input, before);
+
+  const stale = structuredClone(triangle);
+  stale.vertices[0].point.x += 0.01;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAltitudesV1({ ...input, triangles: [stale] }),
+    /geometry or deterministic measurements are stale/u,
+  );
+  const nonFinite = structuredClone(triangle);
+  nonFinite.vertices[0].point.x = Number.NaN;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAltitudesV1({ ...input, triangles: [nonFinite] }),
+    /finite and inside/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAltitudesV1({ ...input, triangles: [] }),
+    /exactly one current canonical triangle parent/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAltitudesV1({
+      ...input,
+      triangles: [triangle, triangle],
+    }),
+    /exactly one current canonical triangle parent/u,
+  );
+});
+
+test("triangle altitudes are absent by default and require the explicit triangle layer", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }];
+  assert.equal(Object.hasOwn(analyzeObservedTriangle(points), "triangleAltitudes"), false);
+  assert.throws(
+    () => analyzeObservedTriangle(points, {
+      enabledLayers: ["support-line-extensions", "triangle-altitudes"],
+    }),
+    /require the triangle construction layer/u,
+  );
+  assert.equal("constructPersonalVisualHarmonyTriangleAltitudesV1" in packageRoot, false);
 });
