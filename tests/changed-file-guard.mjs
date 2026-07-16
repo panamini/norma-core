@@ -406,13 +406,6 @@ export const personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
   "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
   "tests/personal-visual-harmony-constructions.test.mjs",
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
-  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
-  "tests/controlled-live-provider-smoke.test.mjs",
-  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
-  "tests/controlled-provider-observation-contract.test.mjs",
-  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
-  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
-  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
 export const personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles = Object.freeze([
@@ -421,6 +414,7 @@ export const personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles =
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
   "tests/controlled-provider-observation-acceptance-proof.test.mjs",
   "tests/controlled-provider-observation-contract.test.mjs",
   "tests/controlled-provider-observation-to-core-handoff.test.mjs",

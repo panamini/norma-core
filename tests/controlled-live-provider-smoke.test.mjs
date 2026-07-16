@@ -58,6 +58,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -1616,7 +1617,8 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorsChangedFiles)
-    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)) return;
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -1626,7 +1628,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
 
   assert.equal(
-    isCleanBase || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles) || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles) || [
+    isCleanBase || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles) || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles) || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles) || [
       localVisualCandidateReviewProductSurfaceChangedFiles,
       cleanMainValidationAndPr129OperatorProofChangedFiles,
       controlledLocalLiveVisualCandidateObservationDemoChangedFiles,
