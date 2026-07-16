@@ -13,6 +13,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "junction-angles",
   "triangles",
   "triangle-medians",
+  "triangle-perpendicular-bisectors",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -247,6 +248,28 @@ export interface PersonalVisualHarmonyTriangleMedianV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyTrianglePerpendicularBisectorV1 {
+  readonly bisectorId: string;
+  readonly kind: "triangle-perpendicular-bisector";
+  readonly triangleId: string;
+  readonly sideIndex: 0 | 1 | 2;
+  readonly sideVertexIndices: readonly [0 | 1 | 2, 0 | 1 | 2];
+  readonly sideVertices: readonly [PersonalVisualHarmonyConstructionPointV1, PersonalVisualHarmonyConstructionPointV1];
+  readonly sideParents: readonly [PersonalVisualHarmonyTriangleVertexParentV1, PersonalVisualHarmonyTriangleVertexParentV1];
+  readonly midpoint: PersonalVisualHarmonyConstructionPointV1;
+  readonly supportLineStart: PersonalVisualHarmonyConstructionPointV1;
+  readonly supportLineEnd: PersonalVisualHarmonyConstructionPointV1;
+  readonly clippedStart: PersonalVisualHarmonyConstructionPointV1;
+  readonly clippedEnd: PersonalVisualHarmonyConstructionPointV1;
+  readonly angleDegrees: number;
+  readonly provenance: "derived-construction";
+  readonly derivation: "canonical_triangle_side_perpendicular_bisector";
+  readonly clipping: "confirmed_frame_only";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -267,6 +290,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly junctionAngles?: readonly PersonalVisualHarmonyJunctionAngleV1[];
   readonly triangles?: readonly PersonalVisualHarmonyTriangleConstructionV1[];
   readonly triangleMedians?: readonly PersonalVisualHarmonyTriangleMedianV1[];
+  readonly trianglePerpendicularBisectors?: readonly PersonalVisualHarmonyTrianglePerpendicularBisectorV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -381,6 +405,15 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
       sourcePixelHeight: input.sourcePixelHeight,
     })
     : [];
+  const trianglePerpendicularBisectorLayerEnabled = enabledLayers.includes("triangle-perpendicular-bisectors");
+  const trianglePerpendicularBisectors = trianglePerpendicularBisectorLayerEnabled
+    ? constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1({
+      triangles,
+      frame,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+    })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -402,6 +435,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     ...(junctionLayerEnabled ? { junctionAngles } : {}),
     ...(triangleLayerEnabled ? { triangles } : {}),
     ...(triangleMedianLayerEnabled ? { triangleMedians } : {}),
+    ...(trianglePerpendicularBisectorLayerEnabled ? { trianglePerpendicularBisectors } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -443,6 +477,9 @@ function normalizeLayers(
   }
   if (unique.has("triangle-medians") && !unique.has("triangles")) {
     throw new Error("Triangle medians require the triangle construction layer.");
+  }
+  if (unique.has("triangle-perpendicular-bisectors") && !unique.has("triangles")) {
+    throw new Error("Triangle perpendicular bisectors require the triangle construction layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -1199,6 +1236,80 @@ export function constructPersonalVisualHarmonyTriangleMediansV1(input: {
         ...withoutIdentity,
       };
     });
+  });
+}
+
+export function constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1(input: {
+  readonly triangles: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly frame: PersonalVisualHarmonyConstructionFrameV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): readonly PersonalVisualHarmonyTrianglePerpendicularBisectorV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const frame = validateFrame(input.frame);
+  if (!Array.isArray(input.triangles) || input.triangles.length !== 1) {
+    throw new Error("Triangle perpendicular bisectors require exactly one current canonical triangle parent.");
+  }
+  const triangle = validateTriangleMedianParent(
+    input.triangles[0],
+    0,
+    input.sourcePixelWidth,
+    input.sourcePixelHeight,
+  );
+  const sides = [
+    [1, 2],
+    [0, 2],
+    [0, 1],
+  ] as const;
+  return sides.map((sideVertexIndices, sideIndex) => {
+    const first = triangle.vertices[sideVertexIndices[0]]!;
+    const second = triangle.vertices[sideVertexIndices[1]]!;
+    const dxPixels = (second.point.x - first.point.x) * input.sourcePixelWidth;
+    const dyPixels = (second.point.y - first.point.y) * input.sourcePixelHeight;
+    const lengthPixels = Math.hypot(dxPixels, dyPixels);
+    if (!Number.isFinite(lengthPixels) || lengthPixels <= BOUNDARY_TOLERANCE_NORMALIZED) {
+      throw new Error("Triangle perpendicular bisector side is degenerate.");
+    }
+    const midpoint = validateTrianglePoint(canonicalPoint({
+      x: (first.point.x + second.point.x) / 2,
+      y: (first.point.y + second.point.y) / 2,
+    }), "triangle perpendicular bisector midpoint");
+    const supportDirection = {
+      x: (-dyPixels / lengthPixels) / input.sourcePixelWidth,
+      y: (dxPixels / lengthPixels) / input.sourcePixelHeight,
+    };
+    const supportLineStart = canonicalPoint({
+      x: midpoint.x - supportDirection.x,
+      y: midpoint.y - supportDirection.y,
+    });
+    const supportLineEnd = canonicalPoint({
+      x: midpoint.x + supportDirection.x,
+      y: midpoint.y + supportDirection.y,
+    });
+    const contacts = clipInfiniteLineToFrame(supportLineStart, supportLineEnd, frame.vertices);
+    const withoutIdentity = {
+      kind: "triangle-perpendicular-bisector" as const,
+      triangleId: triangle.triangleId,
+      sideIndex: sideIndex as 0 | 1 | 2,
+      sideVertexIndices,
+      sideVertices: [{ ...first.point }, { ...second.point }] as const,
+      sideParents: [cloneTriangleVertexParent(first.parent), cloneTriangleVertexParent(second.parent)] as const,
+      midpoint,
+      supportLineStart,
+      supportLineEnd,
+      clippedStart: contacts[0].point,
+      clippedEnd: contacts[1].point,
+      angleDegrees: pixelAngleDegrees(supportLineStart, supportLineEnd, input.sourcePixelWidth, input.sourcePixelHeight),
+      provenance: "derived-construction" as const,
+      derivation: "canonical_triangle_side_perpendicular_bisector" as const,
+      clipping: "confirmed_frame_only" as const,
+      candidateEvidenceOnly: true as const,
+      sourceTruth: false as const,
+      coreAuthority: false as const,
+    };
+    const identity = contentIdentityFor(withoutIdentity);
+    return { bisectorId: `construction:triangle-perpendicular-bisector:${identityToken(identity)}`, ...withoutIdentity };
   });
 }
 

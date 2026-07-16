@@ -36,6 +36,7 @@ import {
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -371,7 +372,8 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
-  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -379,6 +381,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr111Set = isExactChangedFileSet(changedFiles, syntheticExternalEvidenceAcceptanceProofChangedFiles);
@@ -433,7 +436,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
 
   assert.equal(
-    isCleanBase ||
+    isCleanBase || isPerpendicularBisectorsSet ||
       isPr131Set ||
       isPr130Set ||
       isPr111Set ||

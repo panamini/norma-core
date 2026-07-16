@@ -40,6 +40,7 @@ import {
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -673,7 +674,8 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
-  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleMediansChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleMediansChangedFiles)
+    || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -681,6 +683,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   if (isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr128Set = isExactChangedFileSet(changedFiles, explicitAcceptedObservationToCoreHandoffChangedFiles);
@@ -705,12 +708,12 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
     ? localVisualObservationToCorePilotContractChangedFiles
     : controlledProviderObservationToCoreHandoffChangedFiles;
 
-  assert.equal(isCleanBase || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
+  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationToCoreHandoffChangedFiles),
     controlledProviderObservationToCoreHandoffChangedFiles,
   );
-  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), isCleanBase ? null : expectedChangedFiles);
+  assert.deepEqual(sharedExactApprovedChangedFiles(changedFiles), isPerpendicularBisectorsSet ? personalVisualHarmonyPerpendicularBisectorsChangedFiles : isCleanBase ? null : expectedChangedFiles);
 
   for (const forbiddenPrefix of [
     "bin/",

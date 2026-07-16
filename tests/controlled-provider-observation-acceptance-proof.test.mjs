@@ -35,6 +35,7 @@ import {
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -485,7 +486,8 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
-  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleMediansChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleMediansChangedFiles)
+    || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -493,6 +495,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, pr132ValidationHardeningCheckpointChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
+  const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
   const isPr125Set = isExactChangedFileSet(
@@ -523,14 +526,14 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
       ? controlledProviderObservationToCoreHandoffChangedFiles
       : controlledProviderObservationAcceptanceProofChangedFiles;
 
-  assert.equal(isCleanBase || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
+  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(controlledProviderObservationAcceptanceProofChangedFiles),
     controlledProviderObservationAcceptanceProofChangedFiles,
   );
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isCleanBase ? null : expectedChangedFiles,
+    isPerpendicularBisectorsSet ? personalVisualHarmonyPerpendicularBisectorsChangedFiles : isCleanBase ? null : expectedChangedFiles,
   );
 
   for (const forbiddenFile of [
