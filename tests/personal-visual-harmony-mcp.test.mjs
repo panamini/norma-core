@@ -474,7 +474,11 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   assert.match(html, /id="triangleToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
   assert.match(html, /id="triangleMedianToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
   assert.match(html, /id="trianglePerpendicularBisectorToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
-  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles","triangle-medians","triangle-perpendicular-bisectors"\]/u);
+  assert.match(html, /id="triangleAngleBisectorToggle"[^>]*aria-pressed="false"[^>]*disabled/u);
+  assert.match(html, /CONSTRUCTION_LAYERS=\["support-line-extensions","format-diagonals","junction-angles","triangles","triangle-medians","triangle-perpendicular-bisectors","triangle-angle-bisectors"\]/u);
+  assert.match(html, /triangleAngleBisectors:\(analysis\.constructionAnalysis\.triangleAngleBisectors\|\|\[\]\)\.slice\(0,12\)/u);
+  assert.match(html, /BISSECTRICES DÉRIVÉES/u);
+  assert.match(html, /constructionAnalysis\?\.triangleAngleBisectors\?\.length\|\|0/u);
   assert.match(html, /overlay\.querySelectorAll\("\[data-construction-layer\]"\)/u);
   assert.match(html, /completedConstructionLayers=.*:\[\];state\.constructionLayers=new Set\(completedConstructionLayers\)/u);
   assert.match(
@@ -482,7 +486,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     /invalidateTriangleConstruction\(\);updateConstructionControls\(\);syncOverlaySelection\(\)/u,
   );
 
-  const layers = ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians"];
+  const layers = ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians", "triangle-perpendicular-bisectors", "triangle-angle-bisectors"];
   const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
   const prepared = {
     candidateSetIdentity,
@@ -555,6 +559,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
       CONSTRUCTION_LAYERS: layers,
       triangleLayerReady,
       triangleMedianLayerReady,
+      trianglePerpendicularBisectorLayerReady: triangleMedianLayerReady,
+      triangleAngleBisectorLayerReady: triangleMedianLayerReady,
       syncConstructionVisibility() { visibilitySyncs += 1; },
       persistReviewState() { persisted += 1; },
       statusNode: { textContent: "" },
@@ -569,6 +575,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   assert.equal(persisted, 0);
   toggleConstructionLayer("triangle-medians");
   assert.deepEqual([...state.constructionLayers], []);
+  toggleConstructionLayer("triangle-angle-bisectors");
+  assert.deepEqual([...state.constructionLayers], []);
   assert.equal(persisted, 0);
 
   toggleConstructionLayer("support-line-extensions");
@@ -582,11 +590,15 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   toggleConstructionLayer("triangles");
   assert.deepEqual([...state.constructionLayers], ["support-line-extensions", "junction-angles", "triangles"]);
   toggleConstructionLayer("triangle-medians");
+  toggleConstructionLayer("triangle-perpendicular-bisectors");
+  toggleConstructionLayer("triangle-angle-bisectors");
   assert.deepEqual([...state.constructionLayers], [
     "support-line-extensions",
     "junction-angles",
     "triangles",
     "triangle-medians",
+    "triangle-perpendicular-bisectors",
+    "triangle-angle-bisectors",
   ]);
   toggleConstructionLayer("support-line-extensions");
   assert.deepEqual([...state.constructionLayers], []);
@@ -595,6 +607,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   toggleConstructionLayer("junction-angles");
   toggleConstructionLayer("triangles");
   toggleConstructionLayer("triangle-medians");
+  toggleConstructionLayer("triangle-perpendicular-bisectors");
+  toggleConstructionLayer("triangle-angle-bisectors");
   assert.deepEqual([...state.constructionLayers], layers);
   assert.deepEqual([...state.visibleConstructionLayers], layers);
   assert.equal(appToolCalls, 0);
@@ -607,7 +621,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   let saved = {
     constructionGuideState: {
       candidateSetIdentity,
-      layers: ["triangle-medians", "triangles", "junction-angles", "format-diagonals", "support-line-extensions"],
+      layers: ["triangle-angle-bisectors", "triangle-perpendicular-bisectors", "triangle-medians", "triangles", "junction-angles", "format-diagonals", "support-line-extensions"],
     },
   };
   const restoreState = {
@@ -626,8 +640,8 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     },
   );
   restoreConstructionGuideState(prepared);
-  assert.deepEqual([...restoreState.constructionLayers], layers.slice(0, 5));
-  assert.deepEqual([...restoreState.visibleConstructionLayers], layers.slice(0, 5));
+  assert.deepEqual([...restoreState.constructionLayers], layers);
+  assert.deepEqual([...restoreState.visibleConstructionLayers], layers);
   saved = {
     constructionGuideState: {
       candidateSetIdentity,
@@ -678,11 +692,11 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
   state.visibleConstructionLayers = new Set(layers);
   toggleConstructionLayer("triangle-medians");
   assert.deepEqual([...state.constructionLayers], layers);
-  assert.deepEqual([...state.visibleConstructionLayers], layers.slice(0, -1));
+  assert.deepEqual([...state.visibleConstructionLayers], layers.filter((layer) => layer !== "triangle-medians"));
   assert.equal(persisted, persistedBeforeCompletedToggle);
   assert.equal(appToolCalls, 1);
   toggleConstructionLayer("triangle-medians");
-  assert.deepEqual([...state.visibleConstructionLayers], layers);
+  assert.deepEqual([...state.visibleConstructionLayers].sort(), [...layers].sort());
   assert.equal(persisted, persistedBeforeCompletedToggle);
 });
 
@@ -1856,7 +1870,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(confirmTool.inputSchema.required.includes("confirmedVisualGuideCandidateIds"), false);
     const constructionLayerInput = confirmTool.inputSchema.properties.constructionLayers;
     assert.equal(constructionLayerInput.type, "array");
-    assert.equal(constructionLayerInput.maxItems, 6);
+    assert.equal(constructionLayerInput.maxItems, 7);
     assert.deepEqual(constructionLayerInput.default, []);
     assert.deepEqual(constructionLayerInput.items.enum, [
       "support-line-extensions",
@@ -1865,6 +1879,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "triangles",
       "triangle-medians",
       "triangle-perpendicular-bisectors",
+      "triangle-angle-bisectors",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
     const triangleRequestInput = prepareTool.inputSchema.properties.triangleConstructionRequests;
@@ -3003,6 +3018,7 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
           "junction-angles",
           "triangles",
           "triangle-medians",
+          "triangle-angle-bisectors",
         ],
         sourcePixelWidth: 1_000,
         sourcePixelHeight: 618,
@@ -3059,6 +3075,7 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
           "junction-angles",
           "triangles",
           "triangle-medians",
+          "triangle-angle-bisectors",
         ],
         sourcePixelWidth: 1_000,
         sourcePixelHeight: 618,
@@ -3080,6 +3097,7 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
       "junction-angles",
       "triangles",
       "triangle-medians",
+      "triangle-angle-bisectors",
     ]);
     assert.equal(constructions.triangles.length, 1);
     const triangle = constructions.triangles[0];
@@ -3100,6 +3118,18 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
       && median.coreAuthority === false
       && !("centroid" in median)
     )));
+    assert.equal(constructions.triangleAngleBisectors.length, 3);
+    assert.deepEqual(
+      constructions.triangleAngleBisectors.map(({ vertexIndex }) => vertexIndex),
+      [0, 1, 2],
+    );
+    assert.ok(constructions.triangleAngleBisectors.every((bisector) => (
+      bisector.triangleId === triangle.triangleId
+      && bisector.provenance === "derived-construction"
+      && bisector.sourceTruth === false
+      && bisector.coreAuthority === false
+      && !("incenter" in bisector)
+    )));
     assert.equal(constructions.coreRun, false);
     assert.match(triangle.triangleId, /^construction:triangle:[0-9a-f]{64}$/u);
     assert.match(
@@ -3118,6 +3148,11 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
       confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
       /data-triangle-median-id=/u,
     );
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-construction-layer="triangle-angle-bisectors"/u,
+    );
+    assert.match(confirmed.content[0].text, /3 bissectrice\(s\)/u);
     assert.match(
       confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
       /data-parent-provenance="derived-junction-intersection"/u,

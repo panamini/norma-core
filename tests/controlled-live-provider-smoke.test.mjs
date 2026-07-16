@@ -56,6 +56,7 @@ import {
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
+  personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -1616,6 +1617,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyAngleBisectorsChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorsChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;

@@ -34,6 +34,7 @@ import {
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
+  personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -331,6 +332,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleMediansChangedFiles)
+    || isExactChangedFileSet(changedFiles, personalVisualHarmonyAngleBisectorsChangedFiles)
     || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles)
     || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
     || isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;
@@ -342,6 +344,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   if (isExactChangedFileSet(changedFiles, localVisualCandidateReviewChangedFiles)) return;
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
+  const isAngleBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyAngleBisectorsChangedFiles);
   const isPerpendicularBisectorRegressionFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles);
   const isPerpendicularBisectorGeometryFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
@@ -378,7 +381,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isCleanBase || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set,
+    isCleanBase || isAngleBisectorsSet || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set,
     true,
     changedFiles.join("\n"),
   );
@@ -386,6 +389,8 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     sharedExactApprovedChangedFiles(changedFiles),
     isPerpendicularBisectorGeometryFixSet
       ? personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles
+      : isAngleBisectorsSet
+      ? personalVisualHarmonyAngleBisectorsChangedFiles
       : isPerpendicularBisectorRegressionFixSet
       ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
       : isPerpendicularBisectorsSet

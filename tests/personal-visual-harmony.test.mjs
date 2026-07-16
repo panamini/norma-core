@@ -978,7 +978,7 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   const baseline = confirm(prepared, { confirmedVisualGuideCandidateIds, sourcePixelHeight: 1000 });
   const enabled = confirm(prepared, {
     confirmedVisualGuideCandidateIds,
-    constructionLayers: ["triangle-medians", "triangles", "support-line-extensions"],
+    constructionLayers: ["triangle-angle-bisectors", "triangle-medians", "triangles", "support-line-extensions"],
     sourcePixelHeight: 1000,
   });
 
@@ -993,6 +993,7 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
     "support-line-extensions",
     "triangles",
     "triangle-medians",
+    "triangle-angle-bisectors",
   ]);
   assert.equal(constructions.triangles.length, 1);
   assert.equal(constructions.triangles[0].requestId, request.requestId);
@@ -1006,6 +1007,14 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   assert.ok(constructions.triangleMedians.every(({ sourceTruth, coreAuthority }) => (
     sourceTruth === false && coreAuthority === false
   )));
+  assert.equal(constructions.triangleAngleBisectors.length, 3);
+  assert.deepEqual(
+    constructions.triangleAngleBisectors.map(({ vertexIndex }) => vertexIndex),
+    [0, 1, 2],
+  );
+  assert.ok(constructions.triangleAngleBisectors.every(({ sourceTruth, coreAuthority }) => (
+    sourceTruth === false && coreAuthority === false
+  )));
   assert.match(enabled.overlaySvg, /data-construction-layer="triangles"/u);
   assert.match(enabled.overlaySvg, /data-triangle-construction-id=/u);
   assert.match(enabled.overlaySvg, /data-parent-provenance="user-confirmed-observed-endpoint"/u);
@@ -1014,6 +1023,8 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   assert.match(enabled.overlaySvg, /data-parent-kind="observed-line-endpoint"/u);
   assert.match(enabled.overlaySvg, /data-construction-layer="triangle-medians"/u);
   assert.match(enabled.overlaySvg, /data-triangle-median-id=/u);
+  assert.match(enabled.overlaySvg, /data-construction-layer="triangle-angle-bisectors"/u);
+  assert.match(enabled.overlaySvg, /data-triangle-angle-bisector-id=/u);
 });
 
 test("the trapezoid, strong-oblique, and ellipse-line regression keeps prior measurements unchanged", () => {

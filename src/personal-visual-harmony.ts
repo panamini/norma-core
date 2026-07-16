@@ -1469,6 +1469,15 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     `<text x="${numberAttr((bisector.midpoint.x * 1000) + 12)}" y="${numberAttr((bisector.midpoint.y * 1000) + 24)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="800" fill="#e9d5ff" stroke="#020617" stroke-width="4" paint-order="stroke">B${String(bisector.sideIndex + 1)}</text>`,
     "</g>",
   ].join("")).join("");
+  const triangleAngleBisectorMarkup = (
+    input.imagePlaneGuideAnalysis?.constructionAnalysis?.triangleAngleBisectors ?? []
+  ).map((bisector) => [
+    `<g data-triangle-angle-bisector-id="${escapeXml(bisector.bisectorId)}" data-parent-triangle-id="${escapeXml(bisector.triangleId)}" data-construction-layer="triangle-angle-bisectors" data-provenance="derived-construction" pointer-events="none"${enabledConstructionLayers.has("triangle-angle-bisectors") ? "" : ` style="display:none"`}>`,
+    `<line x1="${numberAttr(bisector.vertex.x * 1000)}" y1="${numberAttr(bisector.vertex.y * 1000)}" x2="${numberAttr(bisector.oppositeSideIntersection.x * 1000)}" y2="${numberAttr(bisector.oppositeSideIntersection.y * 1000)}" stroke="#fb923c" stroke-width="4" stroke-dasharray="12 7" stroke-linecap="round"/>`,
+    `<circle cx="${numberAttr(bisector.oppositeSideIntersection.x * 1000)}" cy="${numberAttr(bisector.oppositeSideIntersection.y * 1000)}" r="7" fill="#fb923c" stroke="#020617" stroke-width="3"/>`,
+    `<text x="${numberAttr((bisector.oppositeSideIntersection.x * 1000) + 12)}" y="${numberAttr((bisector.oppositeSideIntersection.y * 1000) - 12)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="800" fill="#fed7aa" stroke="#020617" stroke-width="4" paint-order="stroke">A${String(bisector.vertexIndex + 1)}</text>`,
+    "</g>",
+  ].join("")).join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1482,6 +1491,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     triangleMarkup,
     triangleMedianMarkup,
     trianglePerpendicularBisectorMarkup,
+    triangleAngleBisectorMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -1736,6 +1746,13 @@ function validateTriangleConstructionConfirmation(
   }
   if (constructionLayers.includes("triangle-perpendicular-bisectors") && requests.length !== 1) {
     throw new Error("Triangle perpendicular bisectors require exactly one explicit current triangle request.");
+  }
+  if (constructionLayers.includes("triangle-angle-bisectors")
+    && !constructionLayers.includes("triangles")) {
+    throw new Error("Triangle angle bisectors require the triangle construction layer.");
+  }
+  if (constructionLayers.includes("triangle-angle-bisectors") && requests.length !== 1) {
+    throw new Error("Triangle angle bisectors require exactly one explicit current triangle request.");
   }
   if (!constructionLayers.includes("triangles")) return;
   if (!constructionLayers.includes("support-line-extensions")) {
