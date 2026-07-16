@@ -329,6 +329,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
 }
 
 const BOUNDARY_TOLERANCE_NORMALIZED = 1e-9;
+const TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES = 1e-7;
 export const PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED = 1e-9;
 export const PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS = 4;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
@@ -1368,6 +1369,35 @@ export function constructPersonalVisualHarmonyTriangleAngleBisectorsV1(input: {
       x: ((secondLength * first.point.x) + (firstLength * second.point.x)) / total,
       y: ((secondLength * first.point.y) + (firstLength * second.point.y)) / total,
     }), "triangle angle bisector opposite-side intersection");
+    const lengthPixels = pixelDistance(
+      vertex.point,
+      oppositeSideIntersection,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const firstRayAngle = pixelUndirectedAngleDistanceDegrees(
+      vertex.point,
+      oppositeSideIntersection,
+      vertex.point,
+      first.point,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const secondRayAngle = pixelUndirectedAngleDistanceDegrees(
+      vertex.point,
+      oppositeSideIntersection,
+      vertex.point,
+      second.point,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const angleErrorDegrees = canonicalNumber(Math.abs(firstRayAngle - secondRayAngle));
+    if (!Number.isFinite(lengthPixels)
+      || lengthPixels <= BOUNDARY_TOLERANCE_NORMALIZED
+      || !Number.isFinite(angleErrorDegrees)
+      || angleErrorDegrees > TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES) {
+      throw new Error("Triangle angle bisector is numerically unstable after canonical rounding.");
+    }
     const withoutIdentity = {
       kind: "triangle-angle-bisector" as const,
       triangleId: triangle.triangleId,
@@ -1377,8 +1407,8 @@ export function constructPersonalVisualHarmonyTriangleAngleBisectorsV1(input: {
       oppositeSideVertexIndices,
       oppositeSideParents: [cloneTriangleVertexParent(first.parent), cloneTriangleVertexParent(second.parent)] as const,
       oppositeSideIntersection,
-      lengthPixels: pixelDistance(vertex.point, oppositeSideIntersection, input.sourcePixelWidth, input.sourcePixelHeight),
-      angleToleranceDegrees: 1e-7,
+      lengthPixels,
+      angleToleranceDegrees: TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES,
       provenance: "derived-construction" as const,
       derivation: "canonical_triangle_internal_angle_bisector" as const,
       candidateEvidenceOnly: true as const,

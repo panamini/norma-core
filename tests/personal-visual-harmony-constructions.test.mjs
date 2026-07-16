@@ -926,3 +926,18 @@ test("triangle angle bisectors are off by default and require the explicit trian
   );
   assert.equal("constructPersonalVisualHarmonyTriangleAngleBisectorsV1" in packageRoot, false);
 });
+
+test("triangle angle bisectors abstain after canonical rounding amplifies a near-degenerate angle", () => {
+  assert.throws(
+    () => analyzeObservedTriangle([
+      { x: 0.13776082282771038, y: 0.632525372576605 },
+      { x: 0.8887200932668918, y: 0.25213107291097236 },
+      { x: 0.2591253315775377, y: 0.5707315295298122 },
+    ], {
+      enabledLayers: ["support-line-extensions", "triangles", "triangle-angle-bisectors"],
+      sourcePixelWidth: 100_000,
+      sourcePixelHeight: 100_000,
+    }),
+    /numerically unstable after canonical rounding/u,
+  );
+});
