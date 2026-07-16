@@ -1280,12 +1280,12 @@ export function constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1(i
       y: (dxPixels / lengthPixels) / input.sourcePixelHeight,
     };
     const supportLineStart = canonicalPoint({
-      x: Math.max(0, Math.min(1, midpoint.x - supportDirection.x)),
-      y: Math.max(0, Math.min(1, midpoint.y - supportDirection.y)),
+      x: midpoint.x - supportDirection.x,
+      y: midpoint.y - supportDirection.y,
     });
     const supportLineEnd = canonicalPoint({
-      x: Math.max(0, Math.min(1, midpoint.x + supportDirection.x)),
-      y: Math.max(0, Math.min(1, midpoint.y + supportDirection.y)),
+      x: midpoint.x + supportDirection.x,
+      y: midpoint.y + supportDirection.y,
     });
     const contacts = clipInfiniteLineToFrame(supportLineStart, supportLineEnd, frame.vertices);
     const withoutIdentity = {

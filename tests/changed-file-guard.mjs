@@ -409,6 +409,14 @@ export const personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-constructions.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-constructions.test.mjs",
+].sort());
+
 export const personalVisualHarmonyRotatedEllipsesChangedFiles = Object.freeze([
   "docs/examples/personal-chatgpt-visual-harmony-demo.md",
   "src/mcp/personal-visual-harmony-app.ts",
@@ -1506,6 +1514,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles,
   personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
