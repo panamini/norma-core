@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
+  constructPersonalVisualHarmonyTriangleAngleBisectorsV1,
   constructPersonalVisualHarmonyTriangleMediansV1,
   constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1,
   constructPersonalVisualHarmonyTrianglesV1,
@@ -833,4 +834,110 @@ test("triangle perpendicular bisectors are exactly three canonical, clipped, non
       assert.ok(point.y >= 0 && point.y <= 1);
     }
   }
+});
+
+test("triangle angle bisectors derive exactly three equiangular vertex-to-opposite-side guides", () => {
+  const cases = [
+    [{ x: 0.2, y: 0.15 }, { x: 0.82, y: 0.22 }, { x: 0.45, y: 0.78 }],
+    [{ x: 0.15, y: 0.15 }, { x: 0.85, y: 0.15 }, { x: 0.15, y: 0.82 }],
+    [{ x: 0.08, y: 0.15 }, { x: 0.92, y: 0.2 }, { x: 0.28, y: 0.32 }],
+  ];
+  for (const points of cases) {
+    const result = analyzeObservedTriangle(points, {
+      enabledLayers: ["support-line-extensions", "triangles", "triangle-angle-bisectors"],
+      sourcePixelWidth: 1200,
+      sourcePixelHeight: 800,
+    });
+    assert.equal(result.triangleAngleBisectors.length, 3);
+    assert.deepEqual(result.triangleAngleBisectors.map(({ vertexIndex }) => vertexIndex), [0, 1, 2]);
+    const triangle = result.triangles[0];
+    for (const bisector of result.triangleAngleBisectors) {
+      const vertex = triangle.vertices[bisector.vertexIndex].point;
+      const [firstIndex, secondIndex] = bisector.oppositeSideVertexIndices;
+      const first = triangle.vertices[firstIndex].point;
+      const second = triangle.vertices[secondIndex].point;
+      const toPixels = (point) => ({ x: point.x * 1200, y: point.y * 800 });
+      const pixelVertex = toPixels(vertex);
+      const vector = (point) => {
+        const pixelPoint = toPixels(point);
+        const x = pixelPoint.x - pixelVertex.x;
+        const y = pixelPoint.y - pixelVertex.y;
+        const length = Math.hypot(x, y);
+        return { x: x / length, y: y / length };
+      };
+      const firstDirection = vector(first);
+      const secondDirection = vector(second);
+      const bisectorDirection = vector(bisector.oppositeSideIntersection);
+      assert.ok(Math.abs(
+        (firstDirection.x * bisectorDirection.x) + (firstDirection.y * bisectorDirection.y)
+        - (secondDirection.x * bisectorDirection.x) - (secondDirection.y * bisectorDirection.y)
+      ) < 1e-10);
+      const sideDx = second.x - first.x;
+      const sideDy = second.y - first.y;
+      const parameter = Math.abs(sideDx) >= Math.abs(sideDy)
+        ? (bisector.oppositeSideIntersection.x - first.x) / sideDx
+        : (bisector.oppositeSideIntersection.y - first.y) / sideDy;
+      assert.ok(parameter > 0 && parameter < 1);
+      assert.equal(bisector.provenance, "derived-construction");
+      assert.equal(bisector.candidateEvidenceOnly, true);
+      assert.equal(bisector.sourceTruth, false);
+      assert.equal(bisector.coreAuthority, false);
+      assert.equal("incenter" in bisector, false);
+    }
+  }
+});
+
+test("triangle angle bisectors are byte-stable across permutations and preserve their inputs", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.24 }, { x: 0.3, y: 0.78 }];
+  const entries = points.map((point, index) => ({ candidateId: `angle-line-${String(index)}`, point }));
+  const observedLines = entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point));
+  const outputs = permutations(entries).map((vertices) => analyze({
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-angle-bisectors"],
+    observedLines,
+    triangleRequests: [observedTriangleRequest("angle-permutation-request", vertices)],
+  }).triangleAngleBisectors);
+  assert.ok(outputs.every((bisectors) => JSON.stringify(bisectors) === JSON.stringify(outputs[0])));
+
+  const triangle = analyzeObservedTriangle(points).triangles[0];
+  const input = { triangles: [structuredClone(triangle)], sourcePixelWidth: 1000, sourcePixelHeight: 1000 };
+  const before = structuredClone(input);
+  assert.equal(constructPersonalVisualHarmonyTriangleAngleBisectorsV1(input).length, 3);
+  assert.deepEqual(input, before);
+  const stale = structuredClone(triangle);
+  stale.vertices[0].point.x += 0.01;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAngleBisectorsV1({ ...input, triangles: [stale] }),
+    /geometry or deterministic measurements are stale/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleAngleBisectorsV1({ ...input, triangles: [] }),
+    /exactly one current canonical triangle parent/u,
+  );
+});
+
+test("triangle angle bisectors are off by default and require the explicit triangle layer", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }];
+  assert.equal(Object.hasOwn(analyzeObservedTriangle(points), "triangleAngleBisectors"), false);
+  assert.throws(
+    () => analyzeObservedTriangle(points, {
+      enabledLayers: ["support-line-extensions", "triangle-angle-bisectors"],
+    }),
+    /require the triangle construction layer/u,
+  );
+  assert.equal("constructPersonalVisualHarmonyTriangleAngleBisectorsV1" in packageRoot, false);
+});
+
+test("triangle angle bisectors abstain after canonical rounding amplifies a near-degenerate angle", () => {
+  assert.throws(
+    () => analyzeObservedTriangle([
+      { x: 0.13776082282771038, y: 0.632525372576605 },
+      { x: 0.8887200932668918, y: 0.25213107291097236 },
+      { x: 0.2591253315775377, y: 0.5707315295298122 },
+    ], {
+      enabledLayers: ["support-line-extensions", "triangles", "triangle-angle-bisectors"],
+      sourcePixelWidth: 100_000,
+      sourcePixelHeight: 100_000,
+    }),
+    /numerically unstable after canonical rounding/u,
+  );
 });

@@ -14,6 +14,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "triangles",
   "triangle-medians",
   "triangle-perpendicular-bisectors",
+  "triangle-angle-bisectors",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -270,6 +271,25 @@ export interface PersonalVisualHarmonyTrianglePerpendicularBisectorV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyTriangleAngleBisectorV1 {
+  readonly bisectorId: string;
+  readonly kind: "triangle-angle-bisector";
+  readonly triangleId: string;
+  readonly vertexIndex: 0 | 1 | 2;
+  readonly vertex: PersonalVisualHarmonyConstructionPointV1;
+  readonly vertexParent: PersonalVisualHarmonyTriangleVertexParentV1;
+  readonly oppositeSideVertexIndices: readonly [0 | 1 | 2, 0 | 1 | 2];
+  readonly oppositeSideParents: readonly [PersonalVisualHarmonyTriangleVertexParentV1, PersonalVisualHarmonyTriangleVertexParentV1];
+  readonly oppositeSideIntersection: PersonalVisualHarmonyConstructionPointV1;
+  readonly lengthPixels: number;
+  readonly angleToleranceDegrees: number;
+  readonly provenance: "derived-construction";
+  readonly derivation: "canonical_triangle_internal_angle_bisector";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -291,6 +311,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly triangles?: readonly PersonalVisualHarmonyTriangleConstructionV1[];
   readonly triangleMedians?: readonly PersonalVisualHarmonyTriangleMedianV1[];
   readonly trianglePerpendicularBisectors?: readonly PersonalVisualHarmonyTrianglePerpendicularBisectorV1[];
+  readonly triangleAngleBisectors?: readonly PersonalVisualHarmonyTriangleAngleBisectorV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -308,6 +329,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
 }
 
 const BOUNDARY_TOLERANCE_NORMALIZED = 1e-9;
+const TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES = 1e-7;
 export const PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED = 1e-9;
 export const PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS = 4;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
@@ -414,6 +436,10 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
       sourcePixelHeight: input.sourcePixelHeight,
     })
     : [];
+  const triangleAngleBisectorLayerEnabled = enabledLayers.includes("triangle-angle-bisectors");
+  const triangleAngleBisectors = triangleAngleBisectorLayerEnabled
+    ? constructPersonalVisualHarmonyTriangleAngleBisectorsV1({ triangles, sourcePixelWidth: input.sourcePixelWidth, sourcePixelHeight: input.sourcePixelHeight })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -436,6 +462,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     ...(triangleLayerEnabled ? { triangles } : {}),
     ...(triangleMedianLayerEnabled ? { triangleMedians } : {}),
     ...(trianglePerpendicularBisectorLayerEnabled ? { trianglePerpendicularBisectors } : {}),
+    ...(triangleAngleBisectorLayerEnabled ? { triangleAngleBisectors } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -480,6 +507,9 @@ function normalizeLayers(
   }
   if (unique.has("triangle-perpendicular-bisectors") && !unique.has("triangles")) {
     throw new Error("Triangle perpendicular bisectors require the triangle construction layer.");
+  }
+  if (unique.has("triangle-angle-bisectors") && !unique.has("triangles")) {
+    throw new Error("Triangle angle bisectors require the triangle construction layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -1310,6 +1340,83 @@ export function constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1(i
     };
     const identity = contentIdentityFor(withoutIdentity);
     return { bisectorId: `construction:triangle-perpendicular-bisector:${identityToken(identity)}`, ...withoutIdentity };
+  });
+}
+
+export function constructPersonalVisualHarmonyTriangleAngleBisectorsV1(input: {
+  readonly triangles: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): readonly PersonalVisualHarmonyTriangleAngleBisectorV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (!Array.isArray(input.triangles) || input.triangles.length !== 1) {
+    throw new Error("Triangle angle bisectors require exactly one current canonical triangle parent.");
+  }
+  const triangle = validateTriangleMedianParent(input.triangles[0], 0, input.sourcePixelWidth, input.sourcePixelHeight);
+  const oppositeSides = [[1, 2], [0, 2], [0, 1]] as const;
+  return oppositeSides.map((oppositeSideVertexIndices, vertexIndex) => {
+    const vertex = triangle.vertices[vertexIndex]!;
+    const first = triangle.vertices[oppositeSideVertexIndices[0]]!;
+    const second = triangle.vertices[oppositeSideVertexIndices[1]]!;
+    const firstLength = pixelDistance(vertex.point, first.point, input.sourcePixelWidth, input.sourcePixelHeight);
+    const secondLength = pixelDistance(vertex.point, second.point, input.sourcePixelWidth, input.sourcePixelHeight);
+    const total = firstLength + secondLength;
+    if (!Number.isFinite(total) || firstLength <= BOUNDARY_TOLERANCE_NORMALIZED || secondLength <= BOUNDARY_TOLERANCE_NORMALIZED) {
+      throw new Error("Triangle angle bisector side is degenerate.");
+    }
+    const oppositeSideIntersection = validateTrianglePoint(canonicalPoint({
+      x: ((secondLength * first.point.x) + (firstLength * second.point.x)) / total,
+      y: ((secondLength * first.point.y) + (firstLength * second.point.y)) / total,
+    }), "triangle angle bisector opposite-side intersection");
+    const lengthPixels = pixelDistance(
+      vertex.point,
+      oppositeSideIntersection,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const firstRayAngle = pixelUndirectedAngleDistanceDegrees(
+      vertex.point,
+      oppositeSideIntersection,
+      vertex.point,
+      first.point,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const secondRayAngle = pixelUndirectedAngleDistanceDegrees(
+      vertex.point,
+      oppositeSideIntersection,
+      vertex.point,
+      second.point,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    const angleErrorDegrees = canonicalNumber(Math.abs(firstRayAngle - secondRayAngle));
+    if (!Number.isFinite(lengthPixels)
+      || lengthPixels <= BOUNDARY_TOLERANCE_NORMALIZED
+      || !Number.isFinite(angleErrorDegrees)
+      || angleErrorDegrees > TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES) {
+      throw new Error("Triangle angle bisector is numerically unstable after canonical rounding.");
+    }
+    const withoutIdentity = {
+      kind: "triangle-angle-bisector" as const,
+      triangleId: triangle.triangleId,
+      vertexIndex: vertexIndex as 0 | 1 | 2,
+      vertex: { ...vertex.point },
+      vertexParent: cloneTriangleVertexParent(vertex.parent),
+      oppositeSideVertexIndices,
+      oppositeSideParents: [cloneTriangleVertexParent(first.parent), cloneTriangleVertexParent(second.parent)] as const,
+      oppositeSideIntersection,
+      lengthPixels,
+      angleToleranceDegrees: TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES,
+      provenance: "derived-construction" as const,
+      derivation: "canonical_triangle_internal_angle_bisector" as const,
+      candidateEvidenceOnly: true as const,
+      sourceTruth: false as const,
+      coreAuthority: false as const,
+    };
+    const identity = contentIdentityFor(withoutIdentity);
+    return { bisectorId: `construction:triangle-angle-bisector:${identityToken(identity)}`, ...withoutIdentity };
   });
 }
 
