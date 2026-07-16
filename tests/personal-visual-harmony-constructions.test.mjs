@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   analyzePersonalVisualHarmonyConstructionsV1,
+  constructPersonalVisualHarmonyTriangleMediansV1,
   constructPersonalVisualHarmonyTrianglesV1,
   PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED,
 } from "../dist/src/personal-visual-harmony-constructions.js";
@@ -632,4 +633,164 @@ test("explicit junction parents build a triangle from support-line and format-di
     }),
     /unique stable ids|ambiguous/u,
   );
+});
+
+test("opt-in triangle medians derive exactly three stable vertex-to-opposite-midpoint segments", () => {
+  const cases = [
+    [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.5, y: 0.72 }],
+    [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.2, y: 0.8 }],
+    [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.3, y: 0.2 }],
+  ];
+
+  for (const points of cases) {
+    const result = analyzeObservedTriangle(points, {
+      enabledLayers: ["support-line-extensions", "triangles", "triangle-medians"],
+      sourcePixelWidth: 1200,
+      sourcePixelHeight: 800,
+    });
+    assert.deepEqual(result.enabledLayers, [
+      "support-line-extensions",
+      "triangles",
+      "triangle-medians",
+    ]);
+    assert.equal(result.triangleMedians.length, 3);
+    const triangle = result.triangles[0];
+    const concurrencyPoints = [];
+    for (const [index, median] of result.triangleMedians.entries()) {
+      const oppositeIndices = [[1, 2], [0, 2], [0, 1]][index];
+      const first = triangle.vertices[oppositeIndices[0]];
+      const second = triangle.vertices[oppositeIndices[1]];
+      assert.equal(median.kind, "triangle-median");
+      assert.equal(median.triangleId, triangle.triangleId);
+      assert.equal(median.vertexIndex, index);
+      assert.deepEqual(median.vertex, triangle.vertices[index].point);
+      assert.deepEqual(median.vertexParent, triangle.vertices[index].parent);
+      assert.deepEqual(median.oppositeSideVertexIndices, oppositeIndices);
+      assert.deepEqual(median.oppositeSideVertices, [first.point, second.point]);
+      assert.deepEqual(median.oppositeSideParents, [first.parent, second.parent]);
+      assert.deepEqual(median.midpoint, {
+        x: Number(((first.point.x + second.point.x) / 2).toFixed(12)),
+        y: Number(((first.point.y + second.point.y) / 2).toFixed(12)),
+      });
+      const expectedLength = Number(Math.hypot(
+        (median.midpoint.x - median.vertex.x) * 1200,
+        (median.midpoint.y - median.vertex.y) * 800,
+      ).toFixed(12));
+      assert.equal(median.lengthPixels, expectedLength);
+      concurrencyPoints.push({
+        x: Number((median.vertex.x + ((median.midpoint.x - median.vertex.x) * (2 / 3))).toFixed(9)),
+        y: Number((median.vertex.y + ((median.midpoint.y - median.vertex.y) * (2 / 3))).toFixed(9)),
+      });
+      assert.match(median.medianId, /^construction:triangle-median:[0-9a-f]{64}$/u);
+      assert.equal(median.provenance, "derived-construction");
+      assert.equal(median.candidateEvidenceOnly, true);
+      assert.equal(median.sourceTruth, false);
+      assert.equal(median.coreAuthority, false);
+      assert.equal("centroid" in median, false);
+    }
+    assert.deepEqual(concurrencyPoints, [concurrencyPoints[0], concurrencyPoints[0], concurrencyPoints[0]]);
+  }
+});
+
+test("triangle median output is byte-stable across all equivalent vertex permutations", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.25, y: 0.75 }];
+  const entries = points.map((point, index) => ({ candidateId: `median-line-${String(index)}`, point }));
+  const observedLines = entries.map(({ candidateId, point }) => triangleObservedLine(candidateId, point));
+  const outputs = permutations(entries).map((vertices) => analyze({
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-medians"],
+    observedLines,
+    triangleRequests: [observedTriangleRequest("median-permutation-request", vertices)],
+  }).triangleMedians);
+
+  assert.ok(outputs.every((medians) => JSON.stringify(medians) === JSON.stringify(outputs[0])));
+  assert.deepEqual(outputs[0].map(({ vertexIndex }) => vertexIndex), [0, 1, 2]);
+});
+
+test("triangle median derivation preserves inputs and fails closed for stale or invalid parents", () => {
+  const result = analyzeObservedTriangle([
+    { x: 0.2, y: 0.2 },
+    { x: 0.8, y: 0.2 },
+    { x: 0.2, y: 0.8 },
+  ]);
+  const triangle = result.triangles[0];
+  const input = {
+    triangles: [structuredClone(triangle)],
+    sourcePixelWidth: 1000,
+    sourcePixelHeight: 1000,
+  };
+  const before = structuredClone(input);
+  const medians = constructPersonalVisualHarmonyTriangleMediansV1(input);
+  assert.deepEqual(input, before);
+  assert.equal(medians.length, 3);
+
+  const tamperedIdentity = structuredClone(triangle);
+  tamperedIdentity.triangleId = `${tamperedIdentity.triangleId.slice(0, -1)}${
+    tamperedIdentity.triangleId.endsWith("0") ? "1" : "0"
+  }`;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [tamperedIdentity] }),
+    /identity is missing, stale/u,
+  );
+  const stalePoint = structuredClone(triangle);
+  stalePoint.vertices[0].point.x += 0.01;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [stalePoint] }),
+    /geometry or deterministic measurements are stale/u,
+  );
+  const missingParent = structuredClone(triangle);
+  delete missingParent.vertices[0].parent.parentId;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [missingParent] }),
+    /missing or stale/u,
+  );
+  const duplicateParent = structuredClone(triangle);
+  duplicateParent.vertices[1].parent = structuredClone(duplicateParent.vertices[0].parent);
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [duplicateParent] }),
+    /distinct stable parent/u,
+  );
+  const nonFinite = structuredClone(triangle);
+  nonFinite.vertices[0].point.x = Number.NaN;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [nonFinite] }),
+    /finite and inside/u,
+  );
+  const outOfBounds = structuredClone(triangle);
+  outOfBounds.vertices[0].point.x = -0.01;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [outOfBounds] }),
+    /finite and inside/u,
+  );
+  const degenerate = structuredClone(triangle);
+  degenerate.vertices[2].point = structuredClone(degenerate.vertices[1].point);
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [degenerate] }),
+    /vertices must be distinct/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [triangle, triangle] }),
+    /exactly one current canonical triangle parent/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleMediansV1({ ...input, triangles: [] }),
+    /exactly one current canonical triangle parent/u,
+  );
+});
+
+test("triangle medians remain absent by default and require the triangle layer", () => {
+  const disabled = analyzeObservedTriangle([
+    { x: 0.2, y: 0.2 },
+    { x: 0.8, y: 0.2 },
+    { x: 0.2, y: 0.8 },
+  ]);
+  assert.equal(Object.hasOwn(disabled, "triangleMedians"), false);
+  assert.throws(
+    () => analyzeObservedTriangle([
+      { x: 0.2, y: 0.2 },
+      { x: 0.8, y: 0.2 },
+      { x: 0.2, y: 0.8 },
+    ], { enabledLayers: ["support-line-extensions", "triangle-medians"] }),
+    /require the triangle construction layer/u,
+  );
+  assert.equal("constructPersonalVisualHarmonyTriangleMediansV1" in packageRoot, false);
 });

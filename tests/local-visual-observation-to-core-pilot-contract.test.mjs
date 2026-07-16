@@ -21,6 +21,7 @@ import {
   personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
+  personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -1134,6 +1135,7 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
+  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleMediansChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;

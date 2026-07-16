@@ -55,6 +55,7 @@ import {
   personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles,
   personalVisualHarmonyRotatedEllipsesChangedFiles,
   personalVisualHarmonyTriangleConstructionsChangedFiles,
+  personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -1611,6 +1612,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelRefinementKernelChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyRotatedEllipsePixelIntegrationChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), privateDevLocalVisualMcpOrchestrationChangedFiles)) return;

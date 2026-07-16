@@ -1451,6 +1451,15 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       ].join("");
     })
     .join("");
+  const triangleMedianMarkup = (
+    input.imagePlaneGuideAnalysis?.constructionAnalysis?.triangleMedians ?? []
+  ).map((median) => [
+    `<g data-triangle-median-id="${escapeXml(median.medianId)}" data-parent-triangle-id="${escapeXml(median.triangleId)}" data-construction-layer="triangle-medians" data-provenance="derived-construction" pointer-events="none"${enabledConstructionLayers.has("triangle-medians") ? "" : ` style="display:none"`}>`,
+    `<line x1="${numberAttr(median.vertex.x * 1000)}" y1="${numberAttr(median.vertex.y * 1000)}" x2="${numberAttr(median.midpoint.x * 1000)}" y2="${numberAttr(median.midpoint.y * 1000)}" stroke="#34d399" stroke-width="4" stroke-dasharray="8 7" stroke-linecap="round"/>`,
+    `<circle cx="${numberAttr(median.midpoint.x * 1000)}" cy="${numberAttr(median.midpoint.y * 1000)}" r="8" fill="#34d399" stroke="#020617" stroke-width="3"/>`,
+    `<text x="${numberAttr((median.midpoint.x * 1000) + 12)}" y="${numberAttr((median.midpoint.y * 1000) - 12)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="800" fill="#a7f3d0" stroke="#020617" stroke-width="4" paint-order="stroke">M${String(median.vertexIndex + 1)}</text>`,
+    "</g>",
+  ].join("")).join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1462,6 +1471,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     imagePlaneRelationMarkup,
     junctionAngleMarkup,
     triangleMarkup,
+    triangleMedianMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -1703,6 +1713,13 @@ function validateTriangleConstructionConfirmation(
   confirmedVisualGuideCandidateIds: readonly string[],
   constructionLayers: readonly PersonalVisualHarmonyConstructionLayerV1[],
 ): void {
+  if (constructionLayers.includes("triangle-medians")
+    && !constructionLayers.includes("triangles")) {
+    throw new Error("Triangle medians require the triangle construction layer.");
+  }
+  if (constructionLayers.includes("triangle-medians") && requests.length !== 1) {
+    throw new Error("Triangle medians require exactly one explicit current triangle request.");
+  }
   if (!constructionLayers.includes("triangles")) return;
   if (!constructionLayers.includes("support-line-extensions")) {
     throw new Error("Triangles require the support-line extension layer.");

@@ -12,6 +12,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "format-diagonals",
   "junction-angles",
   "triangles",
+  "triangle-medians",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -221,6 +222,31 @@ export interface PersonalVisualHarmonyTriangleConstructionV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyTriangleMedianV1 {
+  readonly medianId: string;
+  readonly kind: "triangle-median";
+  readonly triangleId: string;
+  readonly vertexIndex: 0 | 1 | 2;
+  readonly vertex: PersonalVisualHarmonyConstructionPointV1;
+  readonly vertexParent: PersonalVisualHarmonyTriangleVertexParentV1;
+  readonly oppositeSideVertexIndices: readonly [0 | 1 | 2, 0 | 1 | 2];
+  readonly oppositeSideVertices: readonly [
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+  ];
+  readonly oppositeSideParents: readonly [
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+  ];
+  readonly midpoint: PersonalVisualHarmonyConstructionPointV1;
+  readonly lengthPixels: number;
+  readonly provenance: "derived-construction";
+  readonly derivation: "canonical_triangle_vertex_to_opposite_side_midpoint";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -240,6 +266,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly relations: readonly PersonalVisualHarmonySupportLineDiagonalRelationV1[];
   readonly junctionAngles?: readonly PersonalVisualHarmonyJunctionAngleV1[];
   readonly triangles?: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly triangleMedians?: readonly PersonalVisualHarmonyTriangleMedianV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -346,6 +373,14 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
       junctionAngles,
     })
     : [];
+  const triangleMedianLayerEnabled = enabledLayers.includes("triangle-medians");
+  const triangleMedians = triangleMedianLayerEnabled
+    ? constructPersonalVisualHarmonyTriangleMediansV1({
+      triangles,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+    })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -366,6 +401,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     relations,
     ...(junctionLayerEnabled ? { junctionAngles } : {}),
     ...(triangleLayerEnabled ? { triangles } : {}),
+    ...(triangleMedianLayerEnabled ? { triangleMedians } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -404,6 +440,9 @@ function normalizeLayers(
   }
   if (unique.has("triangles") && !unique.has("support-line-extensions")) {
     throw new Error("Triangles require the support-line extension layer.");
+  }
+  if (unique.has("triangle-medians") && !unique.has("triangles")) {
+    throw new Error("Triangle medians require the triangle construction layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -1091,6 +1130,239 @@ export function constructPersonalVisualHarmonyTrianglesV1(input: {
     };
   });
   return triangles.sort((first, second) => stringCompare(first.triangleId, second.triangleId));
+}
+
+export function constructPersonalVisualHarmonyTriangleMediansV1(input: {
+  readonly triangles: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): readonly PersonalVisualHarmonyTriangleMedianV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (!Array.isArray(input.triangles) || input.triangles.length !== 1) {
+    throw new Error("Triangle medians require exactly one current canonical triangle parent.");
+  }
+  const currentTriangles = input.triangles.map((triangle, triangleIndex) => {
+    return validateTriangleMedianParent(
+      triangle,
+      triangleIndex,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+  });
+  return currentTriangles.flatMap((current) => {
+    const oppositeSideIndices = [
+      [1, 2],
+      [0, 2],
+      [0, 1],
+    ] as const;
+    return oppositeSideIndices.map((oppositeSideVertexIndices, vertexIndex) => {
+      const canonicalVertexIndex = vertexIndex as 0 | 1 | 2;
+      const vertex = current.vertices[canonicalVertexIndex]!;
+      const firstOpposite = current.vertices[oppositeSideVertexIndices[0]]!;
+      const secondOpposite = current.vertices[oppositeSideVertexIndices[1]]!;
+      const midpoint = validateTrianglePoint(canonicalPoint({
+        x: (firstOpposite.point.x + secondOpposite.point.x) / 2,
+        y: (firstOpposite.point.y + secondOpposite.point.y) / 2,
+      }), "triangle median midpoint");
+      const withoutIdentity = {
+        kind: "triangle-median" as const,
+        triangleId: current.triangleId,
+        vertexIndex: canonicalVertexIndex,
+        vertex: { ...vertex.point },
+        vertexParent: cloneTriangleVertexParent(vertex.parent),
+        oppositeSideVertexIndices,
+        oppositeSideVertices: [
+          { ...firstOpposite.point },
+          { ...secondOpposite.point },
+        ] as const,
+        oppositeSideParents: [
+          cloneTriangleVertexParent(firstOpposite.parent),
+          cloneTriangleVertexParent(secondOpposite.parent),
+        ] as const,
+        midpoint,
+        lengthPixels: pixelDistance(
+          vertex.point,
+          midpoint,
+          input.sourcePixelWidth,
+          input.sourcePixelHeight,
+        ),
+        provenance: "derived-construction" as const,
+        derivation: "canonical_triangle_vertex_to_opposite_side_midpoint" as const,
+        candidateEvidenceOnly: true as const,
+        sourceTruth: false as const,
+        coreAuthority: false as const,
+      };
+      const identity = contentIdentityFor(withoutIdentity);
+      return {
+        medianId: `construction:triangle-median:${identityToken(identity)}`,
+        ...withoutIdentity,
+      };
+    });
+  });
+}
+
+function validateTriangleMedianParent(
+  value: unknown,
+  triangleIndex: number,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyTriangleConstructionV1 {
+  if (value === null || typeof value !== "object"
+    || Object.keys(value).sort().join("|") !== [
+      "absoluteNormalizedArea",
+      "angleConvention",
+      "areaToleranceNormalized",
+      "candidateEvidenceOnly",
+      "coreAuthority",
+      "derivation",
+      "interiorAnglesDegrees",
+      "kind",
+      "provenance",
+      "requestId",
+      "sideLengthsPixels",
+      "signedNormalizedArea",
+      "sourceTruth",
+      "triangleId",
+      "vertices",
+      "winding",
+    ].join("|")) {
+    throw new Error(`Triangle median parent ${String(triangleIndex)} has an invalid contract shape.`);
+  }
+  const triangle = value as PersonalVisualHarmonyTriangleConstructionV1;
+  if (typeof triangle.triangleId !== "string" || !ID_PATTERN.test(triangle.triangleId)
+    || typeof triangle.requestId !== "string" || !ID_PATTERN.test(triangle.requestId)
+    || triangle.kind !== "triangle-construction"
+    || triangle.winding !== "clockwise_image_plane"
+    || triangle.angleConvention !== "projected_image_plane_interior"
+    || triangle.provenance !== "derived-construction"
+    || triangle.derivation !== "three_explicit_parented_vertices"
+    || triangle.candidateEvidenceOnly !== true
+    || triangle.sourceTruth !== false
+    || triangle.coreAuthority !== false
+    || triangle.areaToleranceNormalized
+      !== PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED
+    || !Array.isArray(triangle.vertices)
+    || triangle.vertices.length !== 3) {
+    throw new Error("Triangle median parent must be a current non-authoritative triangle construction.");
+  }
+  const vertices = triangle.vertices.map((vertex, vertexIndex) => (
+    validateTriangleMedianVertex(vertex, triangleIndex, vertexIndex)
+  )) as unknown as PersonalVisualHarmonyTriangleConstructionV1["vertices"];
+  const parentKeys = vertices.map(({ parent }) => triangleResolvedParentKey(parent));
+  if (new Set(parentKeys).size !== 3) {
+    throw new Error("Triangle median parent vertices require distinct stable parent references.");
+  }
+  for (let firstIndex = 0; firstIndex < vertices.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < vertices.length; secondIndex += 1) {
+      if (pointsEqual(vertices[firstIndex]!.point, vertices[secondIndex]!.point)) {
+        throw new Error("Triangle median parent vertices must be distinct.");
+      }
+    }
+  }
+  const signedNormalizedArea = canonicalNumber(triangleSignedNormalizedArea(vertices));
+  const absoluteNormalizedArea = canonicalNumber(Math.abs(signedNormalizedArea));
+  const sideLengthsPixels = triangleSideLengthsPixels(vertices, sourcePixelWidth, sourcePixelHeight);
+  const interiorAnglesDegrees = triangleInteriorAnglesDegrees(
+    vertices,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
+  if (absoluteNormalizedArea <= PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED
+    || triangle.signedNormalizedArea !== signedNormalizedArea
+    || triangle.absoluteNormalizedArea !== absoluteNormalizedArea
+    || !numberTupleEquals(triangle.sideLengthsPixels, sideLengthsPixels)
+    || !numberTupleEquals(triangle.interiorAnglesDegrees, interiorAnglesDegrees)) {
+    throw new Error("Triangle median parent geometry or deterministic measurements are stale.");
+  }
+  const withoutIdentity = {
+    kind: triangle.kind,
+    requestId: triangle.requestId,
+    vertices,
+    winding: triangle.winding,
+    signedNormalizedArea,
+    absoluteNormalizedArea,
+    areaToleranceNormalized: triangle.areaToleranceNormalized,
+    sideLengthsPixels,
+    interiorAnglesDegrees,
+    angleConvention: triangle.angleConvention,
+    provenance: triangle.provenance,
+    derivation: triangle.derivation,
+    candidateEvidenceOnly: triangle.candidateEvidenceOnly,
+    sourceTruth: triangle.sourceTruth,
+    coreAuthority: triangle.coreAuthority,
+  };
+  const expectedTriangleId = `construction:triangle:${identityToken(contentIdentityFor(withoutIdentity))}`;
+  if (triangle.triangleId !== expectedTriangleId) {
+    throw new Error("Triangle median parent identity is missing, stale, or does not match its geometry.");
+  }
+  return { triangleId: expectedTriangleId, ...withoutIdentity };
+}
+
+function validateTriangleMedianVertex(
+  value: unknown,
+  triangleIndex: number,
+  vertexIndex: number,
+): PersonalVisualHarmonyTriangleVertexV1 {
+  if (value === null || typeof value !== "object"
+    || Object.keys(value).sort().join("|") !== "parent|point") {
+    throw new Error(`Triangle median parent ${String(triangleIndex)} vertex ${String(vertexIndex)} is invalid.`);
+  }
+  const vertex = value as PersonalVisualHarmonyTriangleVertexV1;
+  return {
+    point: validateTrianglePoint(vertex.point, "triangle median parent vertex point"),
+    parent: cloneTriangleVertexParent(vertex.parent),
+  };
+}
+
+function cloneTriangleVertexParent(
+  value: PersonalVisualHarmonyTriangleVertexParentV1,
+): PersonalVisualHarmonyTriangleVertexParentV1 {
+  if (value === null || typeof value !== "object") {
+    throw new Error("Triangle median vertex parent is missing or invalid.");
+  }
+  if (value.kind === "observed-line-endpoint") {
+    if (Object.keys(value).sort().join("|") !== "candidateId|endpoint|kind|parentId|provenance"
+      || typeof value.parentId !== "string" || !ID_PATTERN.test(value.parentId)
+      || typeof value.candidateId !== "string" || !ID_PATTERN.test(value.candidateId)
+      || !["start", "end"].includes(value.endpoint)
+      || value.provenance !== "user-confirmed-observed-endpoint") {
+      throw new Error("Triangle median observed endpoint parent is missing or stale.");
+    }
+    return { ...value };
+  }
+  if (value.kind === "junction-intersection") {
+    if (Object.keys(value).sort().join("|")
+        !== "kind|parentId|participantConstructionIds|provenance"
+      || typeof value.parentId !== "string" || !ID_PATTERN.test(value.parentId)
+      || !Array.isArray(value.participantConstructionIds)
+      || value.participantConstructionIds.length !== 2
+      || value.participantConstructionIds.some((id) => (
+        typeof id !== "string" || !ID_PATTERN.test(id)
+      ))
+      || value.participantConstructionIds[0] === value.participantConstructionIds[1]
+      || stringCompare(
+        value.participantConstructionIds[0],
+        value.participantConstructionIds[1],
+      ) >= 0
+      || value.provenance !== "derived-junction-intersection") {
+      throw new Error("Triangle median junction parent is missing, stale, or ambiguous.");
+    }
+    return {
+      ...value,
+      participantConstructionIds: [...value.participantConstructionIds] as [string, string],
+    };
+  }
+  throw new Error("Triangle median vertex parent kind is unsupported.");
+}
+
+function numberTupleEquals(
+  first: readonly number[],
+  second: readonly number[],
+): boolean {
+  return Array.isArray(first)
+    && first.length === second.length
+    && first.every((value, index) => Number.isFinite(value) && value === second[index]);
 }
 
 function resolveTriangleVertex(input: {
