@@ -828,7 +828,7 @@ test("triangle perpendicular bisectors are exactly three canonical, clipped, non
     { x: 0, y: 0.2 }, { x: 0, y: 0.8 }, { x: 0.72, y: 0.5 },
   ], { enabledLayers: ["support-line-extensions", "triangles", "triangle-perpendicular-bisectors"] });
   for (const bisector of edge.trianglePerpendicularBisectors) {
-    for (const point of [bisector.supportLineStart, bisector.supportLineEnd]) {
+    for (const point of [bisector.clippedStart, bisector.clippedEnd]) {
       assert.ok(point.x >= 0 && point.x <= 1);
       assert.ok(point.y >= 0 && point.y <= 1);
     }

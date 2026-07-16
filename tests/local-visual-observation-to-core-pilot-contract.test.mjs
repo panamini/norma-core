@@ -24,6 +24,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
+  personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyPixelRefinementIntegrationChangedFiles,
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
@@ -1139,7 +1140,8 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleMediansChangedFiles)
     || isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles)
-    || isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)) return;
+    || isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
+    || isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyObliqueFormatConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPixelRefinementShadowChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, privateDevLocalVisualMcpOrchestrationChangedFiles)) return;
@@ -1168,13 +1170,16 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   const isCleanBase = isCleanBaseValidationContext(repoRoot);
   const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isPerpendicularBisectorRegressionFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles);
+  const isPerpendicularBisectorGeometryFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
   const isPr129Set = isExactChangedFileSet(changedFiles, controlledLocalLiveVisualCandidateObservationDemoChangedFiles);
   const isPr130Set = isExactChangedFileSet(changedFiles, cleanMainValidationAndPr129OperatorProofChangedFiles);
-  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPr129Set || isPr130Set || isPr131Set, true);
+  assert.equal(isCleanBase || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isPr129Set || isPr130Set || isPr131Set, true);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(changedFiles),
-    isPerpendicularBisectorRegressionFixSet
+    isPerpendicularBisectorGeometryFixSet
+      ? personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles
+      : isPerpendicularBisectorRegressionFixSet
       ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
       : isPerpendicularBisectorsSet
       ? personalVisualHarmonyPerpendicularBisectorsChangedFiles

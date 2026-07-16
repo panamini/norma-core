@@ -55,6 +55,10 @@ const NormalizedPointSchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
 }).strict();
+const FiniteImagePlanePointSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+}).strict();
 
 const CandidatePrimitiveSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rectangle") }).strict(),
@@ -656,7 +660,7 @@ const TrianglePerpendicularBisectorOutputSchema = z.object({
   sideVertices: z.tuple([NormalizedPointSchema, NormalizedPointSchema]),
   sideParents: z.tuple([TriangleVertexParentOutputSchema, TriangleVertexParentOutputSchema]),
   midpoint: NormalizedPointSchema,
-  supportLineStart: NormalizedPointSchema, supportLineEnd: NormalizedPointSchema,
+  supportLineStart: FiniteImagePlanePointSchema, supportLineEnd: FiniteImagePlanePointSchema,
   clippedStart: NormalizedPointSchema, clippedEnd: NormalizedPointSchema,
   angleDegrees: z.number(), provenance: z.literal("derived-construction"),
   derivation: z.literal("canonical_triangle_side_perpendicular_bisector"),
