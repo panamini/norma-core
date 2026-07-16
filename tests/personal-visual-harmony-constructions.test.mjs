@@ -824,4 +824,13 @@ test("triangle perpendicular bisectors are exactly three canonical, clipped, non
   assert.throws(() => constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1({
     triangles: [], frame: FRAME, sourcePixelWidth: 1000, sourcePixelHeight: 1000,
   }), /exactly one current canonical triangle parent/u);
+  const edge = analyzeObservedTriangle([
+    { x: 0, y: 0.2 }, { x: 0, y: 0.8 }, { x: 0.72, y: 0.5 },
+  ], { enabledLayers: ["support-line-extensions", "triangles", "triangle-perpendicular-bisectors"] });
+  for (const bisector of edge.trianglePerpendicularBisectors) {
+    for (const point of [bisector.supportLineStart, bisector.supportLineEnd]) {
+      assert.ok(point.x >= 0 && point.x <= 1);
+      assert.ok(point.y >= 0 && point.y <= 1);
+    }
+  }
 });
