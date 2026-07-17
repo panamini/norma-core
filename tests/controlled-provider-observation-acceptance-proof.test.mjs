@@ -37,6 +37,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
+  personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -475,6 +476,7 @@ test("PR125 changed files stay exact and reject forbidden extras", () => {
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyPostPr240TruthClosureChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleCentroidChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;

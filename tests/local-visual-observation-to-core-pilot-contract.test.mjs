@@ -24,6 +24,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
+  personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -1123,6 +1124,7 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPostPr240TruthClosureChangedFiles)) return;
+  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleCentroidChangedFiles)) return;
   if ([
     permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
     remoteMcpRenderPrivateBetaDeploymentChangedFiles,

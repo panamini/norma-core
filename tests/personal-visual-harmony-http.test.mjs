@@ -164,6 +164,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
         "triangles",
         "triangle-medians",
         "triangle-altitudes",
+        "triangle-centroids",
       ],
       sourcePixelWidth: 1_000,
       sourcePixelHeight: 618,
@@ -218,6 +219,14 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
         && Number.isFinite(foot.x)
         && Number.isFinite(foot.y)
       )),
+  );
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.triangleCentroids.length,
+    1,
+  );
+  assert.equal(
+    confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.triangleCentroids[0].coreAuthority,
+    false,
   );
   assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis.coreRun, false);
   assert.ok(confirmed.structuredContent.matches.some(({ ratioLabel }) => ratioLabel === "φ major"));

@@ -5,6 +5,7 @@ import {
   analyzePersonalVisualHarmonyConstructionsV1,
   constructPersonalVisualHarmonyTriangleAngleBisectorsV1,
   constructPersonalVisualHarmonyTriangleAltitudesV1,
+  constructPersonalVisualHarmonyTriangleCentroidsV1,
   constructPersonalVisualHarmonyTriangleMediansV1,
   constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1,
   constructPersonalVisualHarmonyTrianglesV1,
@@ -693,6 +694,73 @@ test("opt-in triangle medians derive exactly three stable vertex-to-opposite-mid
     }
     assert.deepEqual(concurrencyPoints, [concurrencyPoints[0], concurrencyPoints[0], concurrencyPoints[0]]);
   }
+});
+
+test("opt-in triangle centroid derives the canonical arithmetic mean with stable provenance", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.25, y: 0.75 }];
+  const result = analyzeObservedTriangle(points, {
+    enabledLayers: ["support-line-extensions", "triangles", "triangle-centroids"],
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+  });
+  assert.deepEqual(result.enabledLayers, [
+    "support-line-extensions",
+    "triangles",
+    "triangle-centroids",
+  ]);
+  assert.equal(result.triangleCentroids.length, 1);
+  const [centroid] = result.triangleCentroids;
+  const triangle = result.triangles[0];
+  assert.equal(centroid.kind, "triangle-centroid");
+  assert.equal(centroid.triangleId, triangle.triangleId);
+  assert.deepEqual(centroid.vertexIndices, [0, 1, 2]);
+  assert.deepEqual(centroid.vertices, triangle.vertices.map(({ point }) => point));
+  assert.deepEqual(centroid.vertexParents, triangle.vertices.map(({ parent }) => parent));
+  assert.deepEqual(centroid.centroid, {
+    x: Number(((triangle.vertices[0].point.x + triangle.vertices[1].point.x + triangle.vertices[2].point.x) / 3).toFixed(12)),
+    y: Number(((triangle.vertices[0].point.y + triangle.vertices[1].point.y + triangle.vertices[2].point.y) / 3).toFixed(12)),
+  });
+  assert.match(centroid.centroidId, /^construction:triangle-centroid:[0-9a-f]{64}$/u);
+  assert.equal(centroid.provenance, "derived-construction");
+  assert.equal(centroid.derivation, "arithmetic_mean_of_canonical_triangle_vertices");
+  assert.equal(centroid.candidateEvidenceOnly, true);
+  assert.equal(centroid.sourceTruth, false);
+  assert.equal(centroid.coreAuthority, false);
+  assert.equal(result.coreRun, false);
+});
+
+test("triangle centroid is deterministic, opt-in, and fails closed for missing or multiple parents", () => {
+  const points = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.25, y: 0.75 }];
+  const result = analyzeObservedTriangle(points);
+  assert.equal(Object.hasOwn(result, "triangleCentroids"), false);
+  const triangle = result.triangles[0];
+  const input = {
+    triangles: [structuredClone(triangle)],
+    sourcePixelWidth: 1000,
+    sourcePixelHeight: 1000,
+  };
+  const before = structuredClone(input);
+  const first = constructPersonalVisualHarmonyTriangleCentroidsV1(input);
+  const second = constructPersonalVisualHarmonyTriangleCentroidsV1(input);
+  assert.deepEqual(input, before);
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleCentroidsV1({ ...input, triangles: [] }),
+    /exactly one current canonical triangle parent/u,
+  );
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleCentroidsV1({
+      ...input,
+      triangles: [structuredClone(triangle), structuredClone(triangle)],
+    }),
+    /exactly one current canonical triangle parent/u,
+  );
+  const stale = structuredClone(triangle);
+  stale.triangleId = `${stale.triangleId.slice(0, -1)}${stale.triangleId.endsWith("0") ? "1" : "0"}`;
+  assert.throws(
+    () => constructPersonalVisualHarmonyTriangleCentroidsV1({ ...input, triangles: [stale] }),
+    /identity is missing, stale/u,
+  );
 });
 
 test("triangle median output is byte-stable across all equivalent vertex permutations", () => {

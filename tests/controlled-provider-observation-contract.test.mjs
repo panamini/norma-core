@@ -40,6 +40,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
+  personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -412,6 +413,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPostPr240TruthClosureChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleCentroidChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
