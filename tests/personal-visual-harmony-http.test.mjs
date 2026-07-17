@@ -9,6 +9,7 @@ import {
   createPersonalVisualHarmonyHttpServerV1,
 } from "../dist/src/mcp/personal-visual-harmony-http-server.js";
 import {
+  createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
@@ -18,6 +19,25 @@ import { createPersonalVisualHarmonyPixelCropPlanV1 } from "../dist/src/personal
 
 const ACCESS_TOKEN = "A".repeat(43);
 const PROTOCOL_VERSION = "2025-11-25";
+
+function widgetScriptFunction(name, nextLinePrefix, bindings) {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const functionStart = script.indexOf(`function ${name}(`);
+  const asyncFunctionStart = script.indexOf(`async function ${name}(`);
+  const start = asyncFunctionStart !== -1 && asyncFunctionStart <= functionStart
+    ? asyncFunctionStart
+    : functionStart;
+  assert.notEqual(start, -1, `Missing widget function ${name}`);
+  const end = script.indexOf(`\n${nextLinePrefix}`, start);
+  assert.notEqual(end, -1, `Missing widget function boundary after ${name}`);
+  const source = script.slice(start, end);
+  const bindingNames = Object.keys(bindings);
+  return new Function(...bindingNames, `"use strict";${source};return ${name};`)(
+    ...bindingNames.map((bindingName) => bindings[bindingName]),
+  );
+}
 
 test("temporary personal HTTP MCP uses a capability path and keeps state across stateless requests", async (t) => {
   const service = new PersonalVisualHarmonySessionServiceV1({
@@ -233,6 +253,134 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
   assert.match(confirmed.structuredContent.canonicalResultIdentity, /^sha256:[0-9a-f]{64}$/u);
 });
 
+test("widget confirmation accepts one rounded explicit junction triangle with medians and centroid over HTTP", async (t) => {
+  let sessionCounter = 0;
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-17T17:00:00.000Z"),
+    createSessionId: () => `session:test-v5-rounded-triangle:${String(++sessionCounter)}`,
+  });
+  const { server, mcpPath } = createPersonalVisualHarmonyHttpServerV1({
+    accessToken: ACCESS_TOKEN,
+    service,
+  });
+  await listen(server);
+  t.after(() => close(server));
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+
+  const transport = new StreamableHTTPClientTransport(
+    new URL(`http://127.0.0.1:${address.port}${mcpPath}`),
+    { requestInit: { headers: { origin: "https://chatgpt.com" } } },
+  );
+  const client = new Client(
+    { name: "personal-visual-harmony-v5-regression", version: "1.0.0" },
+    { capabilities: {} },
+  );
+  await client.connect(transport);
+  t.after(() => client.close());
+
+  const candidates = v5Candidates();
+  const prepared = await client.callTool({
+    name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+    arguments: {
+      image: {
+        download_url: "https://files.example.test/v5-synthetic-fixture",
+        file_id: "file-v5-synthetic-fixture",
+        mime_type: "image/png",
+      },
+      candidates,
+      triangleConstructionRequests: v5RoundedTriangleConstructionRequests(),
+    },
+  });
+  assert.equal(
+    prepared.isError,
+    undefined,
+    `v5 preparation rejected: ${prepared.content?.[0]?.text ?? "missing connector error"}`,
+  );
+  assert.equal(prepared.structuredContent.triangleRequestCount, 1);
+  assert.equal(prepared.structuredContent.coreRun, false);
+
+  const widgetPayload = prepared._meta.normaPersonalVisualHarmony;
+  const pixelRecovery = widgetScriptFunction(
+    "pixelRecovery",
+    "async function requestPixelProposal",
+    {},
+  );
+  const callConfirmation = widgetScriptFunction(
+    "callConfirmation",
+    "function finishConfirmingPayload",
+    {
+      CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      pixelRecovery,
+      callAppTool: (name, args) => client.callTool({ name, arguments: args }),
+    },
+  );
+  const confirmed = await callConfirmation(
+    widgetPayload,
+    ["core-frame"],
+    ["parent-red", "parent-blue", "parent-vertical", "main-trapezoid", "main-ellipse"],
+    [
+      "support-line-extensions",
+      "junction-angles",
+      "triangles",
+      "triangle-medians",
+      "triangle-centroids",
+    ],
+    { width: 1_200, height: 800 },
+  );
+
+  assert.equal(
+    confirmed.isError,
+    undefined,
+    `v5 widget confirmation rejected: ${confirmed.content?.[0]?.text ?? "missing connector error"}`,
+  );
+  assert.equal(confirmed.structuredContent.status, "completed");
+  assert.equal(confirmed.structuredContent.coreRun, true);
+  const constructions = confirmed.structuredContent.imagePlaneGuideAnalysis.constructionAnalysis;
+  assert.equal(constructions.triangles.length, 1);
+  assert.equal(constructions.triangleMedians.length, 3);
+  assert.equal(constructions.triangleCentroids.length, 1);
+  assert.equal(constructions.triangleCentroids[0].candidateEvidenceOnly, true);
+  assert.equal(constructions.triangleCentroids[0].sourceTruth, false);
+  assert.equal(constructions.triangleCentroids[0].coreAuthority, false);
+  assert.equal(constructions.coreRun, false);
+
+  const mismatchedRequests = structuredClone(v5RoundedTriangleConstructionRequests());
+  mismatchedRequests[0].vertices[0].point.x = 0.51;
+  const mismatchedPrepared = await client.callTool({
+    name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+    arguments: {
+      image: {
+        download_url: "https://files.example.test/v5-synthetic-fixture-mismatch",
+        file_id: "file-v5-synthetic-fixture-mismatch",
+        mime_type: "image/png",
+      },
+      candidates,
+      triangleConstructionRequests: mismatchedRequests,
+    },
+  });
+  assert.equal(mismatchedPrepared.isError, undefined);
+  const mismatchedConfirmation = await callConfirmation(
+    mismatchedPrepared._meta.normaPersonalVisualHarmony,
+    ["core-frame"],
+    ["parent-red", "parent-blue", "parent-vertical"],
+    [
+      "support-line-extensions",
+      "junction-angles",
+      "triangles",
+      "triangle-medians",
+      "triangle-centroids",
+    ],
+    { width: 1_200, height: 800 },
+  );
+  assert.equal(mismatchedConfirmation.isError, true);
+  assert.equal(
+    mismatchedConfirmation.content[0].text,
+    "Triangle vertex point does not match its stable parent geometry.",
+  );
+});
+
 test("personal HTTP MCP rejects weak path tokens and oversized declared requests", async (t) => {
   assert.throws(
     () => createPersonalVisualHarmonyHttpServerV1({ accessToken: "too-short" }),
@@ -329,6 +477,140 @@ function goldenTriangleConstructionRequests() {
           participants: [
             { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
             { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+    ],
+  }];
+}
+
+function v5Candidates() {
+  return [
+    {
+      id: "core-frame",
+      label: "Cadre rectangulaire Core",
+      role: "structural-region",
+      reason: "Rectangle structurel visible dans la fixture synthétique.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    },
+    {
+      id: "parent-red",
+      label: "Parent A — diagonale rouge",
+      role: "structural-region",
+      reason: "Segment rouge stable mesuré sans ajustement harmonique.",
+      x: 0.12,
+      y: 0.19,
+      width: 0.74,
+      height: 0.63,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.12, y: 0.82 },
+        end: { x: 0.86, y: 0.19 },
+      },
+    },
+    {
+      id: "parent-blue",
+      label: "Parent B — diagonale bleue",
+      role: "structural-region",
+      reason: "Segment bleu stable mesuré sans ajustement harmonique.",
+      x: 0.1,
+      y: 0.18,
+      width: 0.78,
+      height: 0.59,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1, y: 0.18 },
+        end: { x: 0.88, y: 0.77 },
+      },
+    },
+    {
+      id: "parent-vertical",
+      label: "Parent C — axe vertical pointillé",
+      role: "structural-region",
+      reason: "Axe vertical stable mesuré sans ajustement harmonique.",
+      x: 0.53,
+      y: 0.08,
+      width: 0,
+      height: 0.84,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.53, y: 0.08 },
+        end: { x: 0.53, y: 0.92 },
+      },
+    },
+    {
+      id: "main-trapezoid",
+      label: "Trapèze principal",
+      role: "structural-region",
+      reason: "Quadrilatère visible conservé comme guide séparé.",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.25, y: 0.2 },
+          { x: 0.75, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.2, y: 0.8 },
+        ],
+      },
+    },
+    {
+      id: "main-ellipse",
+      label: "Ellipse oblique visible",
+      role: "structural-region",
+      reason: "Ellipse visible conservée comme guide séparé.",
+      x: 0.3,
+      y: 0.25,
+      width: 0.4,
+      height: 0.5,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 0.2,
+        radiusY: 0.25,
+        rotationDegrees: 18,
+      },
+    },
+  ];
+}
+
+function v5RoundedTriangleConstructionRequests() {
+  return [{
+    requestId: "v5-explicit-parent-triangle",
+    vertices: [
+      {
+        point: { x: 0.509, y: 0.489 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "parent-red" },
+            { kind: "support-line-extension", candidateId: "parent-blue" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.53, y: 0.471 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "parent-red" },
+            { kind: "support-line-extension", candidateId: "parent-vertical" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.53, y: 0.505 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "parent-blue" },
+            { kind: "support-line-extension", candidateId: "parent-vertical" },
           ],
         },
       },
