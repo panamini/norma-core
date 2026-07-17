@@ -13,6 +13,8 @@ export const HARMONIC_RELATIONSHIP_ANALYSIS_CONTRACT_ID =
 export const HARMONIC_RELATIONSHIP_ANALYSIS_OPERATION_ID =
   "core.harmonic-relationship-analysis.analyze" as const;
 export const HARMONIC_RELATIONSHIP_ANALYSIS_OPERATION_VERSION = "0.1.0-personal-demo" as const;
+export const DECLARED_LENGTH_PAIR_ANALYSIS_CONTRACT_ID =
+  "norma.declared-length-pair-analysis@1" as const;
 
 export type HarmonicRelationshipMetricV1 =
   | "horizontal-split-share"
@@ -87,6 +89,53 @@ export interface HarmonicRelationshipAnalysisInputV1 {
   readonly maxRelationships?: number;
 }
 
+export interface DeclaredLengthPairMeasurementV1 {
+  readonly measurementId: string;
+  readonly length: number;
+}
+
+export interface DeclaredLengthPairMatchV1 {
+  readonly quality: HarmonicRelationshipQualityV1;
+  readonly absoluteDelta: number;
+  readonly closeness: number;
+  readonly ratio: HarmonicRatioRefV1;
+}
+
+export interface DeclaredLengthPairAnalysisResultV1 {
+  readonly contractId: typeof DECLARED_LENGTH_PAIR_ANALYSIS_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "completed";
+  readonly deterministic: true;
+  readonly canonical: true;
+  readonly measurements: readonly [
+    DeclaredLengthPairMeasurementV1,
+    DeclaredLengthPairMeasurementV1,
+  ];
+  readonly dominantMeasurementId: string;
+  readonly observedDominantShare: number;
+  readonly matchTolerance: number;
+  readonly ratioPackRefs: readonly string[];
+  readonly relationshipCount: 0 | 1;
+  readonly match: DeclaredLengthPairMatchV1 | null;
+  readonly pairOnly: true;
+  readonly noUnrequestedComparisons: true;
+  readonly limits: {
+    readonly noBeautyClaims: true;
+    readonly noIntentInference: true;
+    readonly matchesMeanNearDeclaredRatiosOnly: true;
+  };
+  readonly contentIdentity: string;
+}
+
+export interface DeclaredLengthPairAnalysisInputV1 {
+  readonly measurements: readonly [
+    DeclaredLengthPairMeasurementV1,
+    DeclaredLengthPairMeasurementV1,
+  ];
+  readonly ratioPacks: readonly RatioPack[];
+  readonly matchTolerance: number;
+}
+
 interface CatalogRatio {
   readonly packId: string;
   readonly packVersion: string;
@@ -143,25 +192,109 @@ export function analyzeHarmonicRelationshipsV1(
   };
 }
 
+export function analyzeDeclaredLengthPairV1(
+  input: DeclaredLengthPairAnalysisInputV1,
+): DeclaredLengthPairAnalysisResultV1 {
+  requireDeclaredLengthPairInput(input);
+  const measurements = [...input.measurements]
+    .sort((first, second) => stableCompare(first.measurementId, second.measurementId)) as [
+      DeclaredLengthPairMeasurementV1,
+      DeclaredLengthPairMeasurementV1,
+    ];
+  const dominant = [...measurements].sort((first, second) => (
+    second.length - first.length || stableCompare(first.measurementId, second.measurementId)
+  ))[0];
+  if (dominant === undefined) throw new Error("Declared length-pair analysis requires exactly two measurements.");
+  const observedDominantShare = canonicalNumber(
+    dominant.length / (measurements[0].length + measurements[1].length),
+  );
+  const catalog = createRatioCatalog(input.ratioPacks);
+  const closest = closestRatio(observedDominantShare, catalog);
+  const delta = closest === null
+    ? Number.POSITIVE_INFINITY
+    : canonicalNumber(Math.abs(observedDominantShare - closest.ratio.normalizedValue));
+  const match: DeclaredLengthPairMatchV1 | null = closest === null || delta > input.matchTolerance
+    ? null
+    : {
+        quality: qualityFor(delta),
+        absoluteDelta: delta,
+        closeness: canonicalNumber(1 - (delta / input.matchTolerance)),
+        ratio: ratioRefFor(closest),
+      };
+  const resultWithoutIdentity = {
+    contractId: DECLARED_LENGTH_PAIR_ANALYSIS_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "completed" as const,
+    deterministic: true as const,
+    canonical: true as const,
+    measurements,
+    dominantMeasurementId: dominant.measurementId,
+    observedDominantShare,
+    matchTolerance: input.matchTolerance,
+    ratioPackRefs: input.ratioPacks.map((pack) => `${pack.id}@${pack.version}`),
+    relationshipCount: (match === null ? 0 : 1) as 0 | 1,
+    match,
+    pairOnly: true as const,
+    noUnrequestedComparisons: true as const,
+    limits: {
+      noBeautyClaims: true as const,
+      noIntentInference: true as const,
+      matchesMeanNearDeclaredRatiosOnly: true as const,
+    },
+  };
+  return {
+    ...resultWithoutIdentity,
+    contentIdentity: contentIdentityFor(resultWithoutIdentity),
+  };
+}
+
 function requireValidInput(input: HarmonicRelationshipAnalysisInputV1): void {
   const geometryValidation = validateGeometryV1(input.composition);
   if (geometryValidation.status !== "ok") {
     throw new Error("Harmonic relationship analysis requires valid Composition2D geometry.");
   }
-  if (!Array.isArray(input.ratioPacks) || input.ratioPacks.length === 0) {
-    throw new Error("Harmonic relationship analysis requires at least one explicit ratio pack.");
-  }
-  for (const pack of input.ratioPacks) {
-    const packValidation = validateRatioPackV1(pack);
-    if (packValidation.status !== "ok") {
-      throw new Error("Harmonic relationship analysis requires valid explicit ratio packs.");
-    }
-  }
+  requireValidRatioPacks(input.ratioPacks);
   requireUnitIntervalLimit(input.matchTolerance ?? DEFAULT_MATCH_TOLERANCE, "matchTolerance");
   requireUnitIntervalLimit(input.adjacencyTolerance ?? DEFAULT_ADJACENCY_TOLERANCE, "adjacencyTolerance");
   const maxRelationships = input.maxRelationships ?? DEFAULT_MAX_RELATIONSHIPS;
   if (!Number.isInteger(maxRelationships) || maxRelationships < 1 || maxRelationships > 64) {
     throw new Error("Harmonic relationship analysis maxRelationships must be an integer from 1 to 64.");
+  }
+}
+
+function requireDeclaredLengthPairInput(input: DeclaredLengthPairAnalysisInputV1): void {
+  if (!Array.isArray(input.measurements) || input.measurements.length !== 2) {
+    throw new Error("Declared length-pair analysis requires exactly two measurements.");
+  }
+  const [first, second] = input.measurements;
+  if (first === undefined || second === undefined
+    || !Number.isFinite(first.length) || first.length <= 0
+    || !Number.isFinite(second.length) || second.length <= 0) {
+    throw new Error("Declared length-pair analysis requires positive finite lengths.");
+  }
+  if (typeof first.measurementId !== "string" || first.measurementId.length === 0
+    || typeof second.measurementId !== "string" || second.measurementId.length === 0) {
+    throw new Error("Declared length-pair analysis requires bounded measurement identities.");
+  }
+  if (first.measurementId.length > 240 || second.measurementId.length > 240) {
+    throw new Error("Declared length-pair analysis requires bounded measurement identities.");
+  }
+  if (first.measurementId === second.measurementId) {
+    throw new Error("Declared length-pair analysis requires distinct measurement identities.");
+  }
+  requireValidRatioPacks(input.ratioPacks);
+  requireUnitIntervalLimit(input.matchTolerance, "matchTolerance");
+}
+
+function requireValidRatioPacks(ratioPacks: readonly RatioPack[]): void {
+  if (!Array.isArray(ratioPacks) || ratioPacks.length === 0) {
+    throw new Error("Harmonic relationship analysis requires at least one explicit ratio pack.");
+  }
+  for (const pack of ratioPacks) {
+    const packValidation = validateRatioPackV1(pack);
+    if (packValidation.status !== "ok") {
+      throw new Error("Harmonic relationship analysis requires valid explicit ratio packs.");
+    }
   }
 }
 
@@ -352,12 +485,7 @@ function selectRelationships(
       absoluteDelta: delta,
       closeness,
       ratio: {
-        packId: closest.packId,
-        packVersion: closest.packVersion,
-        ratioId: closest.ratio.id,
-        familyRef: closest.ratio.familyRef ?? null,
-        displayLabel: ratioDisplayLabel(closest.ratio.id),
-        targetValue: canonicalNumber(closest.ratio.normalizedValue),
+        ...ratioRefFor(closest),
       },
       anchor: {
         x: canonicalNumber(entry.anchor.x),
@@ -368,6 +496,17 @@ function selectRelationships(
         : { axis: entry.guide.axis, position: canonicalNumber(entry.guide.position) },
     };
   });
+}
+
+function ratioRefFor(entry: CatalogRatio): HarmonicRatioRefV1 {
+  return {
+    packId: entry.packId,
+    packVersion: entry.packVersion,
+    ratioId: entry.ratio.id,
+    familyRef: entry.ratio.familyRef ?? null,
+    displayLabel: ratioDisplayLabel(entry.ratio.id),
+    targetValue: canonicalNumber(entry.ratio.normalizedValue),
+  };
 }
 
 function closestRatio(value: number, catalog: readonly CatalogRatio[]): CatalogRatio | null {

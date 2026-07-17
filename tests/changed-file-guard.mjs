@@ -497,6 +497,17 @@ export const personalVisualHarmonyConfirmationValidationFixChangedFiles = Object
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const declaredImagePlaneMeasurementRatiosChangedFiles = Object.freeze([
+  "src/harmonic-relationship-analysis.ts",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony.test.mjs",
+].sort());
+
 export const personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-constructions.ts",
@@ -1619,6 +1630,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 ].sort());
 
 const sharedExactApprovedChangedFileSets = [
+  declaredImagePlaneMeasurementRatiosChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,

@@ -273,6 +273,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     appendQuadrilateralMeasurements() {},
     appendImagePlaneRelations() {},
     appendConstructionAnalysis() {},
+    appendDeclaredMeasurementRatioReport() {},
     safeSvg: () => "",
     syncFamilyVisibility() {},
     syncConstructionVisibility() {},
@@ -284,6 +285,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       )),
     }),
     pixelRefinementSnapshot: () => pixelRefinementState,
+    measurementRatioRequest: () => undefined,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
     publicWidgetState: () => ({}),
@@ -291,6 +293,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians"],
     updateConstructionControls() {},
+    updateMeasurementRatioControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
   });
@@ -1927,6 +1930,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "triangle-centroids",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
+    const measurementRatioInput = confirmTool.inputSchema.properties.measurementRatioRequest;
+    assert.equal(confirmTool.inputSchema.required.includes("measurementRatioRequest"), false);
+    assert.equal(measurementRatioInput.additionalProperties, false);
+    assert.equal(measurementRatioInput.properties.measurements.items.length, 2);
+    assert.deepEqual(measurementRatioInput.properties.ratioPackRefs.items.map(({ const: value }) => value), [
+      "norma.geometry-harmonies@0.1.0",
+      "norma.basic-proportions@0.1.0",
+    ]);
+    assert.equal(measurementRatioInput.properties.matchTolerance.const, 0.025);
     const triangleRequestInput = prepareTool.inputSchema.properties.triangleConstructionRequests;
     assert.equal(triangleRequestInput.type, "array");
     assert.equal(triangleRequestInput.maxItems, 4);
@@ -2056,6 +2068,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const imagePlaneLimitsSchema = JSON.stringify(imagePlaneOutput.properties.limits);
     assert.match(imagePlaneLimitsSchema, /axisAlignedEllipseOnly/u);
     assert.match(imagePlaneLimitsSchema, /explicit_normalized_image_plane_rotation/u);
+    const measurementRatioOutput = confirmTool.outputSchema.properties.declaredMeasurementRatioReport;
+    assert.equal(confirmTool.outputSchema.required.includes("declaredMeasurementRatioReport"), false);
+    assert.equal(measurementRatioOutput.additionalProperties, false);
+    assert.equal(measurementRatioOutput.properties.candidateEvidenceOnly.const, true);
+    assert.equal(measurementRatioOutput.properties.sourceTruth.const, false);
+    assert.equal(measurementRatioOutput.properties.coreAuthority.const, false);
+    assert.equal(measurementRatioOutput.properties.originalGeometryUnchanged.const, true);
+    assert.equal(measurementRatioOutput.properties.noUnrequestedComparisons.const, true);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
     assert.match(prepareTool.description, /major diagonals/u);
@@ -2168,7 +2188,12 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
+    assert.match(resource.contents[0].text, /Rapport de deux longueurs/u);
+    assert.match(resource.contents[0].text, /rapport opt-in séparé, sans autorité Core/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
     assert.match(resource.contents[0].text, /function syncOverlaySelection\(\).*syncPixelProposalOverlay\(\)/u);
     assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
@@ -2235,7 +2260,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
-    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot\)/u);
     assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
@@ -3400,6 +3425,18 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         selectedCandidateIds: ["major", "minor"],
         confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:mcp",
+          measurements: [
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
         sourcePixelWidth: 1000,
         sourcePixelHeight: 1000,
         confirmClientReviewedSelection: true,
@@ -3425,6 +3462,13 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
     assert.equal(measurement.rightAngleToleranceDegrees, 2);
     assert.equal(measurement.areaImageShare, 0.3);
     assert.match(measurement.explanation, /plan image/u);
+    const ratioReport = confirmed.structuredContent.declaredMeasurementRatioReport;
+    assert.equal(ratioReport.observedDominantShare, 0.6);
+    assert.equal(ratioReport.match.ratio.ratioId, "phi-major");
+    assert.equal(ratioReport.candidateEvidenceOnly, true);
+    assert.equal(ratioReport.sourceTruth, false);
+    assert.equal(ratioReport.coreAuthority, false);
+    assert.equal(ratioReport.noUnrequestedComparisons, true);
     assert.match(confirmed.content[0].text, /Mesures de quadrilatères dans le plan image/u);
     assert.match(confirmed.content[0].text, /ni des rapports harmoniques ni des mesures du monde réel/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="quadrilateral"/u);
