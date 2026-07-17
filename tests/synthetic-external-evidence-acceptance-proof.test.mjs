@@ -37,6 +37,7 @@ import {
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
+  personalVisualHarmonyTriangleAltitudesChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -377,6 +378,7 @@ test("PR111 package files lockfiles docs fixtures and metadata remain unchanged"
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleConstructionsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleMediansChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyAngleBisectorsChangedFiles)
+    || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleAltitudesChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorsChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles)
     || isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles)) return;

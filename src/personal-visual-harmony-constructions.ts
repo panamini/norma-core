@@ -15,6 +15,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "triangle-medians",
   "triangle-perpendicular-bisectors",
   "triangle-angle-bisectors",
+  "triangle-altitudes",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -290,6 +291,39 @@ export interface PersonalVisualHarmonyTriangleAngleBisectorV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyTriangleAltitudeV1 {
+  readonly altitudeId: string;
+  readonly kind: "triangle-altitude";
+  readonly triangleId: string;
+  readonly vertexIndex: 0 | 1 | 2;
+  readonly vertex: PersonalVisualHarmonyConstructionPointV1;
+  readonly vertexParent: PersonalVisualHarmonyTriangleVertexParentV1;
+  readonly oppositeSideVertexIndices: readonly [0 | 1 | 2, 0 | 1 | 2];
+  readonly oppositeSideVertices: readonly [
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+  ];
+  readonly oppositeSideParents: readonly [
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+  ];
+  readonly foot: PersonalVisualHarmonyConstructionPointV1;
+  readonly footPositionOnOppositeSideSupport: number;
+  readonly footWithinOppositeSideSegment: boolean;
+  readonly supportLineStart: PersonalVisualHarmonyConstructionPointV1;
+  readonly supportLineEnd: PersonalVisualHarmonyConstructionPointV1;
+  readonly clippedStart: PersonalVisualHarmonyConstructionPointV1;
+  readonly clippedEnd: PersonalVisualHarmonyConstructionPointV1;
+  readonly lengthPixels: number;
+  readonly angleDegrees: number;
+  readonly provenance: "derived-construction";
+  readonly derivation: "canonical_triangle_vertex_perpendicular_to_opposite_side_support";
+  readonly clipping: "confirmed_frame_only";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -312,6 +346,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly triangleMedians?: readonly PersonalVisualHarmonyTriangleMedianV1[];
   readonly trianglePerpendicularBisectors?: readonly PersonalVisualHarmonyTrianglePerpendicularBisectorV1[];
   readonly triangleAngleBisectors?: readonly PersonalVisualHarmonyTriangleAngleBisectorV1[];
+  readonly triangleAltitudes?: readonly PersonalVisualHarmonyTriangleAltitudeV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -440,6 +475,15 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
   const triangleAngleBisectors = triangleAngleBisectorLayerEnabled
     ? constructPersonalVisualHarmonyTriangleAngleBisectorsV1({ triangles, sourcePixelWidth: input.sourcePixelWidth, sourcePixelHeight: input.sourcePixelHeight })
     : [];
+  const triangleAltitudeLayerEnabled = enabledLayers.includes("triangle-altitudes");
+  const triangleAltitudes = triangleAltitudeLayerEnabled
+    ? constructPersonalVisualHarmonyTriangleAltitudesV1({
+      triangles,
+      frame,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+    })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -463,6 +507,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     ...(triangleMedianLayerEnabled ? { triangleMedians } : {}),
     ...(trianglePerpendicularBisectorLayerEnabled ? { trianglePerpendicularBisectors } : {}),
     ...(triangleAngleBisectorLayerEnabled ? { triangleAngleBisectors } : {}),
+    ...(triangleAltitudeLayerEnabled ? { triangleAltitudes } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -510,6 +555,9 @@ function normalizeLayers(
   }
   if (unique.has("triangle-angle-bisectors") && !unique.has("triangles")) {
     throw new Error("Triangle angle bisectors require the triangle construction layer.");
+  }
+  if (unique.has("triangle-altitudes") && !unique.has("triangles")) {
+    throw new Error("Triangle altitudes require the triangle construction layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -807,6 +855,7 @@ function clipInfiniteLineToFrame(
   start: PersonalVisualHarmonyConstructionPointV1,
   end: PersonalVisualHarmonyConstructionPointV1,
   vertices: PersonalVisualHarmonyConstructionFrameV1["vertices"],
+  contactPolicy: "crossing-only" | "allow-point-contact" = "crossing-only",
 ): readonly [ClippedContact, ClippedContact] {
   const direction = subtract(end, start);
   const contacts: Array<{
@@ -856,8 +905,18 @@ function clipInfiniteLineToFrame(
   const ordered = [...merged.values()].sort((first, second) => first.scale - second.scale);
   const first = ordered[0];
   const last = ordered.at(-1);
-  if (first === undefined || last === undefined || pointsEqual(first.point, last.point)) {
+  if (first === undefined || last === undefined) {
     throw new Error("Observed line does not cross the confirmed construction frame.");
+  }
+  if (pointsEqual(first.point, last.point)) {
+    if (contactPolicy !== "allow-point-contact") {
+      throw new Error("Observed line does not cross the confirmed construction frame.");
+    }
+    const frameEdgeIndices = [...first.edges].sort(numberCompare);
+    return [
+      { point: first.point, scale: first.scale, frameEdgeIndices },
+      { point: first.point, scale: first.scale, frameEdgeIndices: [...frameEdgeIndices] },
+    ];
   }
   return [
     { point: first.point, scale: first.scale, frameEdgeIndices: [...first.edges].sort(numberCompare) },
@@ -1420,6 +1479,123 @@ export function constructPersonalVisualHarmonyTriangleAngleBisectorsV1(input: {
   });
 }
 
+export function constructPersonalVisualHarmonyTriangleAltitudesV1(input: {
+  readonly triangles: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly frame: PersonalVisualHarmonyConstructionFrameV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): readonly PersonalVisualHarmonyTriangleAltitudeV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const frame = validateFrame(input.frame);
+  if (!Array.isArray(input.triangles) || input.triangles.length !== 1) {
+    throw new Error("Triangle altitudes require exactly one current canonical triangle parent.");
+  }
+  const triangle = validateTriangleMedianParent(
+    input.triangles[0],
+    0,
+    input.sourcePixelWidth,
+    input.sourcePixelHeight,
+  );
+  const oppositeSides = [
+    [1, 2],
+    [0, 2],
+    [0, 1],
+  ] as const;
+  return oppositeSides.map((oppositeSideVertexIndices, vertexIndex) => {
+    const canonicalVertexIndex = vertexIndex as 0 | 1 | 2;
+    const vertex = triangle.vertices[canonicalVertexIndex]!;
+    const first = triangle.vertices[oppositeSideVertexIndices[0]]!;
+    const second = triangle.vertices[oppositeSideVertexIndices[1]]!;
+    const sideDxPixels = (second.point.x - first.point.x) * input.sourcePixelWidth;
+    const sideDyPixels = (second.point.y - first.point.y) * input.sourcePixelHeight;
+    const sideLengthPixels = Math.hypot(sideDxPixels, sideDyPixels);
+    if (!Number.isFinite(sideLengthPixels)
+      || sideLengthPixels <= BOUNDARY_TOLERANCE_NORMALIZED) {
+      throw new Error("Triangle altitude opposite side is degenerate.");
+    }
+    const vertexDxPixels = (vertex.point.x - first.point.x) * input.sourcePixelWidth;
+    const vertexDyPixels = (vertex.point.y - first.point.y) * input.sourcePixelHeight;
+    const rawFootPosition = (
+      (vertexDxPixels * sideDxPixels) + (vertexDyPixels * sideDyPixels)
+    ) / (sideLengthPixels * sideLengthPixels);
+    if (!Number.isFinite(rawFootPosition)) {
+      throw new Error("Triangle altitude foot projection is non-finite.");
+    }
+    const footPositionOnOppositeSideSupport = canonicalNumber(rawFootPosition);
+    const foot = validateFiniteConstructionPoint(canonicalPoint({
+      x: first.point.x + ((second.point.x - first.point.x) * rawFootPosition),
+      y: first.point.y + ((second.point.y - first.point.y) * rawFootPosition),
+    }), "triangle altitude foot");
+    const supportDirection = {
+      x: (-sideDyPixels / sideLengthPixels) / input.sourcePixelWidth,
+      y: (sideDxPixels / sideLengthPixels) / input.sourcePixelHeight,
+    };
+    const supportLineStart = validateFiniteConstructionPoint(canonicalPoint({
+      x: vertex.point.x - supportDirection.x,
+      y: vertex.point.y - supportDirection.y,
+    }), "triangle altitude support-line start");
+    const supportLineEnd = validateFiniteConstructionPoint(canonicalPoint({
+      x: vertex.point.x + supportDirection.x,
+      y: vertex.point.y + supportDirection.y,
+    }), "triangle altitude support-line end");
+    const contacts = clipInfiniteLineToFrame(
+      supportLineStart,
+      supportLineEnd,
+      frame.vertices,
+      "allow-point-contact",
+    );
+    const lengthPixels = pixelDistance(
+      vertex.point,
+      foot,
+      input.sourcePixelWidth,
+      input.sourcePixelHeight,
+    );
+    if (!Number.isFinite(lengthPixels) || lengthPixels <= BOUNDARY_TOLERANCE_NORMALIZED) {
+      throw new Error("Triangle altitude is degenerate or numerically unstable.");
+    }
+    const withoutIdentity = {
+      kind: "triangle-altitude" as const,
+      triangleId: triangle.triangleId,
+      vertexIndex: canonicalVertexIndex,
+      vertex: { ...vertex.point },
+      vertexParent: cloneTriangleVertexParent(vertex.parent),
+      oppositeSideVertexIndices,
+      oppositeSideVertices: [{ ...first.point }, { ...second.point }] as const,
+      oppositeSideParents: [
+        cloneTriangleVertexParent(first.parent),
+        cloneTriangleVertexParent(second.parent),
+      ] as const,
+      foot,
+      footPositionOnOppositeSideSupport,
+      footWithinOppositeSideSegment: rawFootPosition >= -BOUNDARY_TOLERANCE_NORMALIZED
+        && rawFootPosition <= 1 + BOUNDARY_TOLERANCE_NORMALIZED,
+      supportLineStart,
+      supportLineEnd,
+      clippedStart: contacts[0].point,
+      clippedEnd: contacts[1].point,
+      lengthPixels,
+      angleDegrees: pixelAngleDegrees(
+        supportLineStart,
+        supportLineEnd,
+        input.sourcePixelWidth,
+        input.sourcePixelHeight,
+      ),
+      provenance: "derived-construction" as const,
+      derivation: "canonical_triangle_vertex_perpendicular_to_opposite_side_support" as const,
+      clipping: "confirmed_frame_only" as const,
+      candidateEvidenceOnly: true as const,
+      sourceTruth: false as const,
+      coreAuthority: false as const,
+    };
+    const identity = contentIdentityFor(withoutIdentity);
+    return {
+      altitudeId: `construction:triangle-altitude:${identityToken(identity)}`,
+      ...withoutIdentity,
+    };
+  });
+}
+
 function validateTriangleMedianParent(
   value: unknown,
   triangleIndex: number,
@@ -1908,6 +2084,22 @@ function validateTrianglePoint(
     throw new Error(`${field} must be finite and inside the normalized image tolerance.`);
   }
   return canonicalPoint({ x: clampUnit(point.x), y: clampUnit(point.y) });
+}
+
+function validateFiniteConstructionPoint(
+  value: unknown,
+  field: string,
+): PersonalVisualHarmonyConstructionPointV1 {
+  if (value === null || typeof value !== "object"
+    || Object.keys(value).sort().join("|") !== "x|y") {
+    throw new Error(`${field} must use exact x and y fields.`);
+  }
+  const point = value as { readonly x?: unknown; readonly y?: unknown };
+  if (typeof point.x !== "number" || typeof point.y !== "number"
+    || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new Error(`${field} must be finite.`);
+  }
+  return canonicalPoint({ x: point.x, y: point.y });
 }
 
 function pixelAngleDegrees(

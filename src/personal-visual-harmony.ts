@@ -1478,6 +1478,21 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     `<text x="${numberAttr((bisector.oppositeSideIntersection.x * 1000) + 12)}" y="${numberAttr((bisector.oppositeSideIntersection.y * 1000) - 12)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="800" fill="#fed7aa" stroke="#020617" stroke-width="4" paint-order="stroke">A${String(bisector.vertexIndex + 1)}</text>`,
     "</g>",
   ].join("")).join("");
+  const triangleAltitudeMarkup = (
+    input.imagePlaneGuideAnalysis?.constructionAnalysis?.triangleAltitudes ?? []
+  ).map((altitude) => {
+    const footInsideFrame = altitude.foot.x >= 0 && altitude.foot.x <= 1
+      && altitude.foot.y >= 0 && altitude.foot.y <= 1;
+    return [
+      `<g data-triangle-altitude-id="${escapeXml(altitude.altitudeId)}" data-parent-triangle-id="${escapeXml(altitude.triangleId)}" data-construction-layer="triangle-altitudes" data-provenance="derived-construction" pointer-events="none"${enabledConstructionLayers.has("triangle-altitudes") ? "" : ` style="display:none"`}>`,
+      `<line x1="${numberAttr(altitude.clippedStart.x * 1000)}" y1="${numberAttr(altitude.clippedStart.y * 1000)}" x2="${numberAttr(altitude.clippedEnd.x * 1000)}" y2="${numberAttr(altitude.clippedEnd.y * 1000)}" stroke="#60a5fa" stroke-width="4" stroke-dasharray="16 8 3 8" stroke-linecap="round"/>`,
+      footInsideFrame
+        ? `<circle cx="${numberAttr(altitude.foot.x * 1000)}" cy="${numberAttr(altitude.foot.y * 1000)}" r="7" fill="#60a5fa" stroke="#020617" stroke-width="3"/>`
+        : "",
+      `<text x="${numberAttr((altitude.vertex.x * 1000) + 12)}" y="${numberAttr((altitude.vertex.y * 1000) - 12)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="800" fill="#bfdbfe" stroke="#020617" stroke-width="4" paint-order="stroke">H${String(altitude.vertexIndex + 1)}</text>`,
+      "</g>",
+    ].join("");
+  }).join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1492,6 +1507,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     triangleMedianMarkup,
     trianglePerpendicularBisectorMarkup,
     triangleAngleBisectorMarkup,
+    triangleAltitudeMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -1753,6 +1769,13 @@ function validateTriangleConstructionConfirmation(
   }
   if (constructionLayers.includes("triangle-angle-bisectors") && requests.length !== 1) {
     throw new Error("Triangle angle bisectors require exactly one explicit current triangle request.");
+  }
+  if (constructionLayers.includes("triangle-altitudes")
+    && !constructionLayers.includes("triangles")) {
+    throw new Error("Triangle altitudes require the triangle construction layer.");
+  }
+  if (constructionLayers.includes("triangle-altitudes") && requests.length !== 1) {
+    throw new Error("Triangle altitudes require exactly one explicit current triangle request.");
   }
   if (!constructionLayers.includes("triangles")) return;
   if (!constructionLayers.includes("support-line-extensions")) {

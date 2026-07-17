@@ -37,6 +37,7 @@ import {
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
+  personalVisualHarmonyTriangleAltitudesChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -172,6 +173,28 @@ test("triangle angle-bisector allowlist is exact and fail-closed", () => {
   );
   assert.equal(
     sharedExactApprovedChangedFiles(["src/**", "tests/**"]),
+    null,
+  );
+});
+
+test("triangle altitude allowlist is exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyTriangleAltitudesChangedFiles),
+    personalVisualHarmonyTriangleAltitudesChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyTriangleAltitudesChangedFiles.slice(1)),
+    null,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles([
+      ...personalVisualHarmonyTriangleAltitudesChangedFiles,
+      "src/index.ts",
+    ]),
+    null,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(["src/personal-visual-harmony-constructions.ts"]),
     null,
   );
 });
@@ -447,15 +470,16 @@ test("shared exact changed-file guard accepts only the oblique and format constr
     personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   );
   for (const missingFile of personalVisualHarmonyObliqueFormatConstructionsChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonyObliqueFormatConstructionsChangedFiles.filter(
-          (file) => file !== missingFile,
-        ),
+    const approvedSubset = sharedExactApprovedChangedFiles(
+      personalVisualHarmonyObliqueFormatConstructionsChangedFiles.filter(
+        (file) => file !== missingFile,
       ),
-      null,
-      missingFile,
     );
+    if (missingFile === "docs/examples/personal-chatgpt-visual-harmony-demo.md") {
+      assert.deepEqual(approvedSubset, personalVisualHarmonyTriangleAltitudesChangedFiles);
+    } else {
+      assert.equal(approvedSubset, null, missingFile);
+    }
   }
   for (const extra of [
     "src/index.ts",
@@ -482,13 +506,14 @@ test("shared exact changed-file guard accepts only the junction-angle constructi
     personalVisualHarmonyJunctionAnglesChangedFiles,
   );
   for (const missingFile of personalVisualHarmonyJunctionAnglesChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonyJunctionAnglesChangedFiles.filter((file) => file !== missingFile),
-      ),
-      null,
-      missingFile,
+    const approvedSubset = sharedExactApprovedChangedFiles(
+      personalVisualHarmonyJunctionAnglesChangedFiles.filter((file) => file !== missingFile),
     );
+    if (missingFile === "docs/examples/personal-chatgpt-visual-harmony-demo.md") {
+      assert.deepEqual(approvedSubset, personalVisualHarmonyTriangleAltitudesChangedFiles);
+    } else {
+      assert.equal(approvedSubset, null, missingFile);
+    }
   }
   for (const extra of [
     "src/index.ts",
@@ -591,15 +616,16 @@ test("shared exact changed-file guard accepts only the triangle construction set
     personalVisualHarmonyTriangleConstructionsChangedFiles,
   );
   for (const missingFile of personalVisualHarmonyTriangleConstructionsChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonyTriangleConstructionsChangedFiles.filter(
-          (file) => file !== missingFile,
-        ),
+    const approvedSubset = sharedExactApprovedChangedFiles(
+      personalVisualHarmonyTriangleConstructionsChangedFiles.filter(
+        (file) => file !== missingFile,
       ),
-      null,
-      missingFile,
     );
+    if (missingFile === "docs/examples/personal-chatgpt-visual-harmony-demo.md") {
+      assert.deepEqual(approvedSubset, personalVisualHarmonyTriangleAltitudesChangedFiles);
+    } else {
+      assert.equal(approvedSubset, null, missingFile);
+    }
   }
   for (const extra of [
     "src/index.ts",
@@ -626,13 +652,14 @@ test("shared exact changed-file guard accepts only the triangle median set", () 
     personalVisualHarmonyTriangleMediansChangedFiles,
   );
   for (const missingFile of personalVisualHarmonyTriangleMediansChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonyTriangleMediansChangedFiles.filter((file) => file !== missingFile),
-      ),
-      null,
-      missingFile,
+    const approvedSubset = sharedExactApprovedChangedFiles(
+      personalVisualHarmonyTriangleMediansChangedFiles.filter((file) => file !== missingFile),
     );
+    if (missingFile === "docs/examples/personal-chatgpt-visual-harmony-demo.md") {
+      assert.deepEqual(approvedSubset, personalVisualHarmonyTriangleAltitudesChangedFiles);
+    } else {
+      assert.equal(approvedSubset, null, missingFile);
+    }
   }
   for (const extra of [
     "src/index.ts",
@@ -2952,6 +2979,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonyAngleBisectorsChangedFiles,
   );
+  const isPersonalVisualHarmonyTriangleAltitudesSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonyTriangleAltitudesChangedFiles,
+  );
   const isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
@@ -3032,7 +3063,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -3048,6 +3079,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? personalVisualHarmonyPerpendicularBisectorsChangedFiles
       : isPersonalVisualHarmonyAngleBisectorsSet
       ? personalVisualHarmonyAngleBisectorsChangedFiles
+      : isPersonalVisualHarmonyTriangleAltitudesSet
+      ? personalVisualHarmonyTriangleAltitudesChangedFiles
       : isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet
       ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
       : isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet
