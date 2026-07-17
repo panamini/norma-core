@@ -47,6 +47,7 @@ import {
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
+  personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -408,6 +409,7 @@ test("PR124 no live provider call fixtures package metadata lockfiles or package
   const changedFiles = await gitDiffNames();
   assert.equal(personalVisualHarmonyTruthSyncChangedFiles.includes("docs/examples/personal-chatgpt-visual-harmony-demo.md"), true);
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTruthSyncChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;

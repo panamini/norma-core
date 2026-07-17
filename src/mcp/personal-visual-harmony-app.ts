@@ -234,6 +234,7 @@ const PrepareOutputSchema = z.object({
   status: z.literal("confirmation_required"),
   candidateSetIdentity: z.string().regex(SHA256_PATTERN),
   candidateCount: z.number().int().min(1).max(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES),
+  triangleRequestCount: z.number().int().min(0).max(PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS),
   candidates: z.array(CandidateSchema).min(1).max(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES),
   triangleConstructionRequests: z.array(TriangleConstructionRequestSchema)
     .max(PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS)
@@ -1235,7 +1236,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       return {
         content: [{
           type: "text" as const,
-          text: `Norma a préparé ${String(structuredContent.candidateCount)} candidat${structuredContent.candidateCount === 1 ? "" : "s"} visuel${structuredContent.candidateCount === 1 ? "" : "s"}. Le Core n’a pas été lancé : la confirmation humaine se fait dans le visuel.`,
+          text: `Norma a préparé ${String(structuredContent.candidateCount)} candidat${structuredContent.candidateCount === 1 ? "" : "s"} visuel${structuredContent.candidateCount === 1 ? "" : "s"}. ${trianglePreparationDiagnosticText(prepared.prepared)} Le Core n’a pas été lancé : la confirmation humaine se fait dans le visuel.`,
         }],
         structuredContent,
         _meta: {
@@ -1828,11 +1829,44 @@ bootstrap();
 </html>`;
 }
 
+function trianglePreparationDiagnosticText(
+  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+): string {
+  const requests = prepared.triangleConstructionRequests ?? [];
+  const triangleRequestCount = requests.length;
+  if (triangleRequestCount === 0) {
+    return "Aucune demande explicite de triangle n’est présente ; les contrôles dérivés du triangle restent indisponibles.";
+  }
+  let requiresJunctionAngles = false;
+  let requiresFormatDiagonals = false;
+  for (const request of requests) {
+    for (const vertex of request.vertices) {
+      if (vertex.parent.kind !== "junction-intersection") continue;
+      requiresJunctionAngles = true;
+      requiresFormatDiagonals ||= vertex.parent.participants.some(
+        (participant) => participant.kind === "format-diagonal",
+      );
+    }
+  }
+  const activationSequence = [
+    "Prolongements",
+    ...(requiresFormatDiagonals ? ["Diagonales format"] : []),
+    ...(requiresJunctionAngles ? ["Angles jonction"] : []),
+    "Triangles",
+  ].join(", ");
+  if (triangleRequestCount === 1) {
+    return `Une demande explicite de triangle est présente. Avant confirmation, conservez les guides parents sélectionnés, puis activez ${activationSequence}, et enfin la famille dérivée souhaitée (Médianes, Médiatrices, Bissectrices ou Hauteurs). Cette séquence ne signifie pas que ces constructions sont déjà affichées ou mesurées.`;
+  }
+  return `${String(triangleRequestCount)} demandes explicites de triangle sont présentes. Avant confirmation, conservez les guides parents sélectionnés, puis activez ${activationSequence}. Les triangles peuvent alors être affichés, mais les familles dérivées (Médianes, Médiatrices, Bissectrices ou Hauteurs) restent indisponibles : elles exigent exactement une demande explicite de triangle. Cette séquence ne signifie pas que ces constructions sont déjà affichées ou mesurées.`;
+}
+
 function publicPrepareResult(prepared: PersonalVisualHarmonyPreparedCandidateSetV1) {
+  const triangleRequestCount = prepared.triangleConstructionRequests?.length ?? 0;
   return {
     status: prepared.status,
     candidateSetIdentity: prepared.candidateSetIdentity,
     candidateCount: prepared.candidates.length,
+    triangleRequestCount,
     candidates: prepared.candidates,
     ...(prepared.triangleConstructionRequests === undefined
       ? {}

@@ -49,6 +49,7 @@ import {
   personalVisualHarmonyObliqueFormatConstructionsChangedFiles,
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
+  personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -659,6 +660,7 @@ test("PR126 changed files stay exact and protected runtime surfaces do not drift
   const changedFiles = branchChangedFiles(repoRoot);
   assert.equal(personalVisualHarmonyTruthSyncChangedFiles.includes("docs/examples/personal-chatgpt-visual-harmony-demo.md"), true);
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
+  if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
