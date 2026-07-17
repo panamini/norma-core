@@ -346,6 +346,40 @@ test("widget confirmation accepts one rounded explicit junction triangle with me
   assert.equal(constructions.triangleCentroids[0].coreAuthority, false);
   assert.equal(constructions.coreRun, false);
 
+  const halfStepPrepared = await client.callTool({
+    name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+    arguments: {
+      image: {
+        download_url: "https://files.example.test/v5-synthetic-fixture-half-step",
+        file_id: "file-v5-synthetic-fixture-half-step",
+        mime_type: "image/png",
+      },
+      candidates: v5HalfStepCandidates(),
+      triangleConstructionRequests: v5HalfStepTriangleConstructionRequests(),
+    },
+  });
+  assert.equal(halfStepPrepared.isError, undefined);
+  const halfStepConfirmation = await callConfirmation(
+    halfStepPrepared._meta.normaPersonalVisualHarmony,
+    ["core-frame"],
+    ["half-horizontal", "half-vertical", "half-diagonal"],
+    ["support-line-extensions", "junction-angles", "triangles"],
+    { width: 1_200, height: 800 },
+  );
+  assert.equal(
+    halfStepConfirmation.isError,
+    undefined,
+    `valid half-step rounded triangle rejected: ${
+      halfStepConfirmation.content?.[0]?.text ?? "missing connector error"
+    }`,
+  );
+  assert.equal(halfStepConfirmation.structuredContent.status, "completed");
+  assert.equal(
+    halfStepConfirmation.structuredContent.imagePlaneGuideAnalysis
+      .constructionAnalysis.triangles[0].vertices[0].point.x,
+    0.1235,
+  );
+
   const mismatchedRequests = structuredClone(v5RoundedTriangleConstructionRequests());
   mismatchedRequests[0].vertices[0].point.x = 0.51;
   const mismatchedPrepared = await client.callTool({
@@ -611,6 +645,95 @@ function v5RoundedTriangleConstructionRequests() {
           participants: [
             { kind: "support-line-extension", candidateId: "parent-blue" },
             { kind: "support-line-extension", candidateId: "parent-vertical" },
+          ],
+        },
+      },
+    ],
+  }];
+}
+
+function v5HalfStepCandidates() {
+  return [
+    v5Candidates()[0],
+    {
+      id: "half-horizontal",
+      label: "Parent horizontal half-step",
+      role: "structural-region",
+      reason: "Stable horizontal parent for a three-decimal half-step.",
+      x: 0.1,
+      y: 0.2,
+      width: 0.8,
+      height: 0,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1, y: 0.2 },
+        end: { x: 0.9, y: 0.2 },
+      },
+    },
+    {
+      id: "half-vertical",
+      label: "Parent vertical half-step",
+      role: "structural-region",
+      reason: "Stable vertical parent at an exact three-decimal half-step.",
+      x: 0.1235,
+      y: 0.1,
+      width: 0,
+      height: 0.8,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1235, y: 0.1 },
+        end: { x: 0.1235, y: 0.9 },
+      },
+    },
+    {
+      id: "half-diagonal",
+      label: "Parent diagonal half-step",
+      role: "structural-region",
+      reason: "Stable diagonal parent completing the explicit triangle.",
+      x: 0.1235,
+      y: 0.2,
+      width: 0.6765,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1235, y: 0.8 },
+        end: { x: 0.8, y: 0.2 },
+      },
+    },
+  ];
+}
+
+function v5HalfStepTriangleConstructionRequests() {
+  return [{
+    requestId: "v5-half-step-rounded-triangle",
+    vertices: [
+      {
+        point: { x: 0.124, y: 0.2 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "half-horizontal" },
+            { kind: "support-line-extension", candidateId: "half-vertical" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.8, y: 0.2 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "half-horizontal" },
+            { kind: "support-line-extension", candidateId: "half-diagonal" },
+          ],
+        },
+      },
+      {
+        point: { x: 0.124, y: 0.8 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "support-line-extension", candidateId: "half-vertical" },
+            { kind: "support-line-extension", candidateId: "half-diagonal" },
           ],
         },
       },

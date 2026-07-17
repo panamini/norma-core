@@ -1909,8 +1909,10 @@ function requireMatchingTrianglePoint(
 ): void {
   // Tool-authored requests may serialize normalized observations to three decimal places.
   // The uniquely resolved stable parent remains authoritative and supplies the returned point.
-  if (Math.abs(requested.x - actual.x) > TRIANGLE_PARENT_POINT_SERIALIZATION_TOLERANCE_NORMALIZED
-    || Math.abs(requested.y - actual.y) > TRIANGLE_PARENT_POINT_SERIALIZATION_TOLERANCE_NORMALIZED) {
+  const serializationTolerance = TRIANGLE_PARENT_POINT_SERIALIZATION_TOLERANCE_NORMALIZED
+    + Number.EPSILON;
+  if (Math.abs(requested.x - actual.x) > serializationTolerance
+    || Math.abs(requested.y - actual.y) > serializationTolerance) {
     throw new Error("Triangle vertex point does not match its stable parent geometry.");
   }
 }
