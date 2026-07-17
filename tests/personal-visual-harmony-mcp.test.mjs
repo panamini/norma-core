@@ -3017,6 +3017,47 @@ test("MCP preparation reports an absent triangle request without implying a Core
   }
 });
 
+test("MCP preparation keeps derived triangle guidance unavailable for multiple requests", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-17T09:05:00.000Z"),
+    createSessionId: () => "session:multiple-triangle-requests",
+  }));
+  try {
+    const [triangleRequest] = explicitTriangleConstructionRequests();
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/multiple-triangle-requests",
+          file_id: "file-multiple-triangle-requests",
+          mime_type: "image/png",
+        },
+        candidates: mixedPrimitiveCandidates(),
+        triangleConstructionRequests: [
+          triangleRequest,
+          { ...structuredClone(triangleRequest), requestId: "explicit-oblique-triangle-2" },
+        ],
+      },
+    });
+
+    assert.equal(prepared.isError, undefined);
+    assert.equal(prepared.structuredContent.triangleRequestCount, 2);
+    assert.match(prepared.content[0].text, /2 demandes explicites de triangle sont présentes/u);
+    assert.match(
+      prepared.content[0].text,
+      /activez Prolongements, Diagonales format, Angles jonction, Triangles/u,
+    );
+    assert.match(
+      prepared.content[0].text,
+      /les familles dérivées .* restent indisponibles : elles exigent exactement une demande explicite de triangle/u,
+    );
+    assert.doesNotMatch(prepared.content[0].text, /et enfin la famille dérivée souhaitée/u);
+    assert.match(prepared.content[0].text, /Le Core n’a pas été lancé/u);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("MCP resolves only an explicit parented triangle after opt-in confirmation", async () => {
   let sequence = 0;
   const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
@@ -3046,7 +3087,7 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
     assert.match(prepared.content[0].text, /Une demande explicite de triangle est présente/u);
     assert.match(
       prepared.content[0].text,
-      /conservez les guides parents sélectionnés, puis activez Prolongements, Triangles, et enfin la famille dérivée souhaitée/u,
+      /conservez les guides parents sélectionnés, puis activez Prolongements, Diagonales format, Angles jonction, Triangles, et enfin la famille dérivée souhaitée/u,
     );
     assert.match(
       prepared.content[0].text,
