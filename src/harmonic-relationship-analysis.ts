@@ -205,8 +205,9 @@ export function analyzeDeclaredLengthPairV1(
     second.length - first.length || stableCompare(first.measurementId, second.measurementId)
   ))[0];
   if (dominant === undefined) throw new Error("Declared length-pair analysis requires exactly two measurements.");
-  const observedDominantShare = canonicalNumber(
-    dominant.length / (measurements[0].length + measurements[1].length),
+  const observedDominantShare = Math.min(
+    canonicalNumber(dominant.length / (measurements[0].length + measurements[1].length)),
+    1 - 1e-12,
   );
   const catalog = createRatioCatalog(input.ratioPacks);
   const closest = closestRatio(observedDominantShare, catalog);

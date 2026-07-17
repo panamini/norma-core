@@ -1439,6 +1439,16 @@ test("declared length-pair analysis reuses declared packs without enumerating un
   });
   assert.equal(outsideTolerance.match, null);
   assert.equal(outsideTolerance.relationshipCount, 0);
+  const extremeShare = analyzeDeclaredLengthPairV1({
+    measurements: [
+      { measurementId: "measurement:tiny", length: 1e-9 },
+      { measurementId: "measurement:large", length: 100_000 },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: 0.025,
+  });
+  assert.equal(extremeShare.observedDominantShare, 0.999999999999);
+  assert.ok(extremeShare.observedDominantShare < 1);
 
   assert.throws(
     () => analyzeDeclaredLengthPairV1({ ...input, measurements: [input.measurements[0], input.measurements[0]] }),
