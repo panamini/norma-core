@@ -1,0 +1,52 @@
+{
+  "$schema": "https://design-tokens.org/schema.json",
+  "name": "Norma measured modernism",
+  "version": "1.0.0",
+  "color": {
+    "ink": { "value": "#0A0A0A", "type": "color" },
+    "paper": { "value": "#F2F2F2", "type": "color" },
+    "paperHover": { "value": "#E5E5E5", "type": "color" },
+    "white": { "value": "#FFFFFF", "type": "color" },
+    "graphite": { "value": "#5A5A5A", "type": "color" },
+    "disabled": { "value": "#6F6F6F", "type": "color" },
+    "rule": { "value": "#C8C8C8", "type": "color" },
+    "verified": { "value": "#187257", "type": "color" },
+    "danger": { "value": "#A7342A", "type": "color" },
+    "overlay": {
+      "core": { "value": "#FFE600", "type": "color" },
+      "observed": { "value": "#00D7FF", "type": "color" },
+      "derived": { "value": "#FF4FCB", "type": "color" },
+      "proposal": { "value": "#FF6A3D", "type": "color" }
+    }
+  },
+  "font": {
+    "display": {
+      "value": "Archivo, sans-serif",
+      "type": "fontFamily"
+    },
+    "body": {
+      "value": "Geist, \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "type": "fontFamily"
+    },
+    "evidence": {
+      "value": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "type": "fontFamily"
+    }
+  },
+  "space": {
+    "1": { "value": "4px", "type": "dimension" },
+    "2": { "value": "8px", "type": "dimension" },
+    "3": { "value": "12px", "type": "dimension" },
+    "4": { "value": "16px", "type": "dimension" },
+    "5": { "value": "24px", "type": "dimension" },
+    "6": { "value": "32px", "type": "dimension" }
+  },
+  "radius": {
+    "control": { "value": "2px", "type": "dimension" },
+    "shell": { "value": "2px", "type": "dimension" }
+  },
+  "motion": {
+    "state": { "value": "140ms", "type": "duration" },
+    "easing": { "value": "cubic-bezier(0.2, 0.7, 0.2, 1)", "type": "cubicBezier" }
+  }
+}

@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Norma — measured modernism</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0a0a0a;
+      --paper: #f2f2f2;
+      --paper-hover: #e5e5e5;
+      --white: #fff;
+      --graphite: #5a5a5a;
+      --disabled: #6f6f6f;
+      --rule: #c8c8c8;
+      --desk: #121212;
+      --visual-dark: #202020;
+      --visual-deep: #4b4b4b;
+      --visual-light: #d8d8d8;
+      --visual-mid: #9d9d9d;
+      --visual-gray: #565656;
+      --visual-ring: #747474;
+      --visual-paper: #f2f2f2;
+      --visual-black: #111111;
+      --verified: #187257;
+      --danger: #a7342a;
+      --core: #ffe600;
+      --observed: #00d7ff;
+      --derived: #ff4fcb;
+      --proposal: #ff6a3d;
+      --display: Archivo, sans-serif;
+      --body: Geist, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --evidence: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--body);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: clamp(16px, 4vw, 52px);
+      background: var(--desk);
+      color: var(--paper);
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .page {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+    }
+
+    .context {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+    }
+
+    .context h1 {
+      max-width: 700px;
+      margin: 0;
+      color: var(--paper);
+      font-family: var(--display);
+      font-size: clamp(26px, 5vw, 58px);
+      font-stretch: condensed;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      line-height: .98;
+      font-variation-settings: "wdth" 90;
+    }
+
+    .context p {
+      max-width: 340px;
+      margin: 0;
+      color: var(--rule);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--ink);
+      border-radius: 2px;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: none;
+    }
+
+    .header {
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    #brandMark {
+      filter: brightness(0);
+    }
+
+
+    .brand {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mark {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+    }
+
+    .eyebrow {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 14px;
+      font-stretch: condensed;
+      font-weight: 800;
+      letter-spacing: .09em;
+      line-height: 1;
+      text-transform: uppercase;
+      font-variation-settings: "wdth" 85;
+    }
+
+    .sub {
+      margin: 5px 0 0;
+      color: var(--graphite);
+      font-size: 12px;
+    }
+
+    .stage {
+      border: 1px solid var(--ink);
+      border-radius: 1px;
+      padding: 7px 10px;
+      background: var(--ink);
+      color: var(--white);
+      font-family: var(--evidence);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .stage.done {
+      border-color: var(--verified);
+      background: var(--verified);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(300px, .72fr);
+      align-items: start;
+      background: var(--visual-dark);
+    }
+
+    .visual {
+      position: relative;
+      min-height: 540px;
+      overflow: hidden;
+      border-right: 1px solid var(--rule);
+      background: var(--visual-dark);
+    }
+
+    .visual > svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 540px;
+      background: var(--visual-dark);
+    }
+
+    .image-index {
+      position: absolute;
+      inset: 12px auto auto 12px;
+      border: 1px solid var(--white);
+      padding: 5px 7px;
+      background: var(--ink);
+      color: var(--white);
+      font-family: var(--evidence);
+      font-size: 10px;
+      letter-spacing: .06em;
+    }
+
+    .legend {
+      position: absolute;
+      inset: auto 12px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, .8);
+      background: rgba(10, 10, 10, .88);
+      color: var(--white);
+      font-family: var(--evidence);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding-right: 7px;
+    }
+
+    .legend i {
+      width: 13px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    .legend .core { color: var(--core); }
+    .legend .observed { color: var(--observed); }
+    .legend .derived { color: var(--derived); }
+
+    .side {
+      display: flex;
+      min-width: 0;
+      min-height: 0;
+      flex-direction: column;
+      background: var(--paper);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .flow div {
+      min-width: 0;
+      padding: 11px 9px 10px;
+      border-right: 1px solid var(--rule);
+    }
+
+    .flow div:last-child { border-right: 0; }
+
+    .flow b {
+      display: block;
+      margin-bottom: 5px;
+      font-family: var(--evidence);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .flow span {
+      display: block;
+      font-family: var(--body);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+    }
+
+    .panel {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .label {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--evidence);
+      font-size: 12px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .filters,
+    .construction-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+    }
+
+    .filters .control {
+      min-width: 0;
+      border: 0;
+      border-bottom: 1px solid var(--rule);
+      border-radius: 0;
+      padding: 7px 6px;
+      text-align: left;
+    }
+
+    .filters .control[aria-pressed="true"] {
+      border-color: var(--ink);
+      background: var(--ink);
+      box-shadow: none;
+      color: var(--white);
+    }
+
+    .filters .control:hover:not(:disabled),
+    .filters .control[aria-pressed="true"]:hover:not(:disabled) {
+      background: var(--paper-hover);
+      color: var(--ink);
+    }
+
+    .filters .control[aria-pressed="true"]:hover:not(:disabled) {
+      background: var(--ink);
+      color: var(--white);
+    }
+
+    .control {
+      min-height: 32px;
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      padding: 7px 9px;
+      background: var(--white);
+      color: var(--ink);
+      font-family: var(--body);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: normal;
+      text-transform: none;
+      cursor: pointer;
+      transition: background 120ms ease, color 120ms ease, border-color 120ms ease, transform 80ms ease;
+    }
+
+    .control[aria-pressed="true"] {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--white);
+      font-weight: 600;
+    }
+
+    .control:disabled {
+      border-color: var(--rule);
+      color: var(--disabled);
+      cursor: not-allowed;
+    }
+
+    .control:hover:not(:disabled) { background: var(--paper-hover); color: var(--ink); }
+    .control[aria-pressed="true"]:hover:not(:disabled) { background: var(--ink); color: var(--white); }
+    .control:active:not(:disabled) { transform: translateY(1px); }
+
+    .pixel {
+      width: 100%;
+      border-color: var(--rule);
+      text-align: left;
+    }
+
+    .candidates {
+      display: grid;
+      gap: 6px;
+    }
+
+    .candidate {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 9px;
+      align-items: start;
+      border: 1px solid var(--rule);
+      padding: 9px;
+      background: var(--white);
+      cursor: pointer;
+    }
+
+    .candidate:has(input:checked) {
+      border-color: var(--ink);
+      box-shadow: inset 3px 0 var(--ink);
+    }
+
+    .candidate input {
+      width: 16px;
+      height: 16px;
+      margin: 1px 0 0;
+      appearance: none;
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      background: var(--white);
+      cursor: pointer;
+    }
+
+    .candidate input:checked {
+      background-color: var(--ink);
+      background-image:
+        linear-gradient(45deg, transparent 0 42%, var(--white) 42% 58%, transparent 58%),
+        linear-gradient(-45deg, transparent 0 42%, var(--white) 42% 58%, transparent 58%);
+    }
+
+    .candidate strong {
+      display: block;
+      font-family: var(--body);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .candidate small {
+      display: block;
+      margin-top: 3px;
+      color: var(--graphite);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .candidate code {
+      color: var(--graphite);
+      font-family: var(--evidence);
+      font-size: 10px;
+    }
+
+    .actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 0;
+      padding: 14px;
+    }
+
+    .confirm {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--ink);
+      border-radius: 2px;
+      padding: 11px 13px;
+      background: var(--ink);
+      color: var(--white);
+      font-family: var(--body);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: normal;
+      text-transform: none;
+      cursor: pointer;
+    }
+
+    .confirm:hover {
+      background: var(--white);
+      color: var(--ink);
+    }
+
+    .status,
+    .limit {
+      margin: 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--rule);
+      color: var(--graphite);
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .result {
+      display: none;
+      border-top: 1px solid var(--rule);
+      padding-top: 11px;
+    }
+
+    .result.visible { display: grid; gap: 8px; }
+
+    .result h2 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+      text-transform: uppercase;
+      font-variation-settings: "wdth" 85;
+    }
+
+    .match {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      border-left: 4px solid var(--verified);
+      padding: 8px 0 8px 9px;
+      background: var(--white);
+      color: var(--ink);
+    }
+
+    .ratio {
+      color: var(--ink);
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      font-variation-settings: "wdth" 85;
+    }
+
+    .match strong { display: block; color: var(--ink); font-size: 12px; }
+    .match small { color: var(--graphite); font-size: 12px; }
+
+    :focus-visible {
+      outline: 3px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 760px) {
+      body { padding: 10px; }
+      .context { display: block; }
+      .context p { margin-top: 10px; }
+      .header { align-items: flex-start; padding: 12px; }
+      .sub { display: none; }
+      .content { grid-template-columns: minmax(0, 1fr); }
+      .visual { min-height: 0; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+      .visual > svg { min-height: 0; aspect-ratio: 4 / 3; }
+      .construction-controls { display: grid; grid-template-columns: 1fr 1fr; }
+      .control { min-width: 0; white-space: normal; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="context">
+      <h1>Voir la structure.<br>Garder le jugement.</h1>
+      <p>Prototype d’identité Norma. Le monochrome appartient à l’instrument&nbsp;; les couleurs appartiennent uniquement aux preuves superposées à l’image.</p>
+    </div>
+
+    <main class="shell">
+      <header class="header">
+        <div class="brand">
+          <img id="brandMark" class="mark" src="logos/norma-mark-gesture.svg" alt="">
+          <div>
+            <p class="eyebrow">NORMA.SCIENCE</p>
+            <p class="sub">Géométrie observée → confirmation → mesure déterministe</p>
+          </div>
+        </div>
+        <div id="stage" class="stage">À confirmer</div>
+      </header>
+
+      <section class="content">
+        <div class="visual">
+          <svg viewBox="0 0 960 720" role="img" aria-label="Composition architecturale abstraite avec guides géométriques">
+            <rect width="960" height="720" fill="var(--visual-dark)"/>
+            <path d="M0 0H608L392 720H0Z" fill="var(--visual-light)"/>
+            <path d="M608 0H960V720H392Z" fill="var(--visual-deep)"/>
+            <rect x="76" y="92" width="380" height="488" fill="var(--visual-paper)"/>
+            <rect x="130" y="144" width="272" height="378" fill="var(--visual-mid)"/>
+            <path d="M130 522L402 144M130 144L402 522" stroke="var(--visual-gray)" stroke-width="1"/>
+            <circle cx="684" cy="326" r="142" fill="var(--visual-black)"/>
+            <circle cx="684" cy="326" r="88" fill="var(--visual-ring)"/>
+            <path d="M0 612L960 146" stroke="#00d7ff" stroke-width="1"/>
+            <rect x="74" y="90" width="384" height="492" fill="none" stroke="#ffe600" stroke-width="1"/>
+            <path d="M76 392H456M311 92V580" stroke="#ffe600" stroke-width="1" stroke-dasharray="12 9"/>
+            <path d="M54 636L870 238M54 238L870 636" stroke="#ff4fcb" stroke-width="1" stroke-dasharray="10 8"/>
+            <g fill="var(--white)" stroke="var(--ink)" stroke-width="1">
+              <circle cx="76" cy="612" r="4"/>
+              <circle cx="456" cy="427" r="4"/>
+              <circle cx="684" cy="326" r="4"/>
+            </g>
+          </svg>
+          <div class="image-index">IMAGE 01 / 01 · PLAN NORMALISÉ</div>
+          <div class="legend">
+            <span class="core"><i></i>Core</span>
+            <span class="observed"><i></i>Observé</span>
+            <span class="derived"><i></i>Dérivé</span>
+          </div>
+        </div>
+
+        <aside class="side">
+          <div class="flow" aria-label="Séquence de vérification">
+            <div><b>01</b><span>Observer</span></div>
+            <div><b>02</b><span>Vérifier</span></div>
+            <div><b>03</b><span>Mesurer</span></div>
+          </div>
+
+          <section class="panel">
+            <p class="label">Familles visibles</p>
+            <div class="filters">
+              <button class="control" type="button" aria-pressed="true">Rectangles · Core</button>
+              <button class="control" type="button" aria-pressed="true">Segments · guide</button>
+              <button class="control" type="button" aria-pressed="false">Ellipses · guide</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <p class="label">Constructions dérivées</p>
+            <div class="construction-controls">
+              <button class="control" type="button" aria-pressed="true">Prolongements</button>
+              <button class="control" type="button" aria-pressed="false">Diagonales format</button>
+              <button class="control" type="button" aria-pressed="false">Triangles</button>
+              <button class="control" type="button" aria-pressed="false" disabled>Centroïde</button>
+            </div>
+            <button class="control pixel" type="button" aria-pressed="false">Propositions pixels · désactivées</button>
+          </section>
+
+          <section class="panel">
+            <p class="label">Éléments à confirmer</p>
+            <div class="candidates">
+              <label class="candidate">
+                <input type="checkbox" checked>
+                <span><strong>Cadre principal</strong><small>Rectangle structuré, admissible par le Core</small></span>
+                <code>R·01</code>
+              </label>
+              <label class="candidate">
+                <input type="checkbox" checked>
+                <span><strong>Oblique dominante</strong><small>Segment observé, guide image uniquement</small></span>
+                <code>S·02</code>
+              </label>
+            </div>
+          </section>
+
+          <div class="actions">
+            <button id="confirm" class="confirm" type="button">Confirmer et analyser</button>
+            <p id="status" class="status">Le Core reste arrêté tant que vous n’avez pas confirmé.</p>
+            <section id="result" class="result" aria-live="polite">
+              <h2>Mesures vérifiées</h2>
+              <div class="match">
+                <span class="ratio">1:1</span>
+                <span><strong>Cadre principal</strong><small>Écart mesuré 0,4 %</small></span>
+              </div>
+            </section>
+            <p class="limit">Norma mesure des proximités à des ratios déclarés. Aucun jugement esthétique ni intention n’est inféré.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    for (const button of document.querySelectorAll(".control:not(:disabled)")) {
+      button.addEventListener("click", () => {
+        button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+      });
+    }
+
+    document.getElementById("confirm").addEventListener("click", () => {
+      document.getElementById("stage").textContent = "Core vérifié";
+      document.getElementById("stage").classList.add("done");
+      document.getElementById("status").textContent = "La sélection confirmée a été mesurée par Norma Core.";
+      document.getElementById("result").classList.add("visible");
+    });
+  </script>
+</body>
+</html>
