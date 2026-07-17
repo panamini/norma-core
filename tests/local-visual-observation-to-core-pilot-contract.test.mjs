@@ -32,6 +32,7 @@ import {
   personalVisualHarmonyPixelRefinementShadowChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
+  personalVisualHarmonyPostPr240TruthClosureChangedFiles,
   privateDevChatGptMcpVisualPilotGateChangedFiles,
   privateDevLocalVisualMcpOrchestrationChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
@@ -1121,6 +1122,7 @@ test("PR127 changed-file guard accepts only the triggered docs tests and legacy 
   assert.equal(personalVisualHarmonyTruthSyncChangedFiles.includes("docs/examples/personal-chatgpt-visual-harmony-demo.md"), true);
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
+  if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyPostPr240TruthClosureChangedFiles)) return;
   if ([
     permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
     remoteMcpRenderPrivateBetaDeploymentChangedFiles,

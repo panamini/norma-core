@@ -72,15 +72,17 @@ interior angles are deterministic. Invalid, stale, ambiguous, out-of-frame, or
 degenerate requests fail closed. The resulting triangle remains a derived,
 non-source-truth, non-Core construction and is off by default.
 
-The triangle-derived rail is current through PR239, merged at
-`652574fb435c20233658c0c681a8f06f56ef80d1`. PR234 adds exactly three medians,
+The triangle-derived rail is current through PR240, merged at
+`1ecf1e4bc46c2292a688e5f0d06b7692e9a710fb`. PR234 adds exactly three medians,
 PR235 exactly three perpendicular bisectors, PR238 exactly three internal angle
 bisectors, and PR239 exactly three altitudes for one already-admitted canonical
-triangle. Each family is independently controlled, off by default, retains
-stable triangle and side or vertex provenance, and revalidates its parents
-fail-closed. These layers expose no centroid, circumcenter, incenter,
-orthocenter, ratio, harmonic claim, or Core authority. Selecting a layer cannot
-adopt geometry, confirm the selection, or run Core.
+triangle. PR240 adds the preparation diagnostic and `triangleRequestCount`
+without changing the construction geometry. Each family is independently
+controlled, off by default, retains stable triangle and side or vertex
+provenance, and revalidates its parents fail-closed. These layers expose no
+centroid, circumcenter, incenter, orthocenter, ratio, harmonic claim, or Core
+authority. Selecting a layer cannot adopt geometry, confirm the selection, or
+run Core.
 
 The pre-enhancement exact-main gate recorded in PR224 is green, as are the
 subsequent construction, rotated-ellipse, shadow-refinement, local A/B, and live
@@ -140,7 +142,7 @@ Expected sequence:
 3. Pixel proposals are off by default. If the user enables them, the widget extracts each bounded local luminance crop and calls `norma.refinePersonalVisualHarmonyPixelsV1`. It displays original and proposed geometry separately, including abstention or confidence, evidence gain, displacement, reason, and deterministic identity.
 4. A refined proposal changes nothing until the user clicks **Adopter cette proposition** for that candidate. Selecting a family, selecting a candidate, or confirming without that adoption click cannot silently adopt it.
 5. **Prolongements**, **Diagonales format**, **Angles jonction**, **Triangles**, **Médianes**, **Médiatrices**, **Bissectrices**, and **Hauteurs** are separate construction toggles and are off by default. A prolongation never changes the visible, observed segment: it renders the segment's derived infinite support line clipped to the confirmed image frame. The two format diagonals are deterministic corner-to-corner frame constructions. Junction angles require the prolongation layer, report whether each crossing falls within the original observed extent, and remain hidden when their prerequisite is disabled.
-6. The preparation result exposes `triangleRequestCount`. When it is `0`, triangle-derived controls remain unavailable. When an explicit valid request is present, the pre-confirmation dependency order is: keep the three parent guides selected, enable **Prolongements**, enable **Triangles**, then enable the requested triangle family. These controls select derived layers only; they never enable another family automatically, change a candidate, adopt a pixel proposal, confirm geometry, measure a construction, or run Core. Editing or refining a parent invalidates the request instead of silently retargeting it.
+6. The preparation result exposes `triangleRequestCount`. When it is `0`, triangle-derived controls remain unavailable. When an explicit valid request is present, the conditional pre-confirmation order is: keep its parent guides selected; enable **Prolongements**; if any vertex uses a format-diagonal parent, enable **Diagonales format**; if any vertex is a junction intersection, enable **Angles jonction**; enable **Triangles**; then enable the requested triangle family. The preparation diagnostic emits exactly those conditional prerequisites in that order. These controls select derived layers only; they never enable another family automatically, change a candidate, adopt a pixel proposal, confirm geometry, measure a construction, or run Core. Editing or refining a parent invalidates the request instead of silently retargeting it.
 7. Each enabled triangle family requires the enabled explicit triangle and derives exactly three constructions: vertex-to-opposite-midpoint medians, perpendicular bisectors of opposite-side support lines, internal angle bisectors, or vertex-to-opposite-support-line altitudes. Disabling or invalidating the triangle removes all dependent layers. No centroid, circumcenter, incenter, or orthocenter is exposed.
 8. Clicking **Confirmer et analyser avec Norma Core** calls the separate app-only confirmation tool. Only the construction layers that were explicitly enabled at that moment enter the optional image-plane construction analysis; toggling them alone never runs Core.
 9. Norma maps only selected rectangles into Core. In parallel it measures confirmed ellipse/line pairs against the infinite supporting line derived from the observed endpoints. An optional `rotationDegrees` is normalized modulo 180; equivalent axis swaps canonicalize to one stable representation, while legacy axis-aligned payloads keep their established shape and identity.
