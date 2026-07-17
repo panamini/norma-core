@@ -446,6 +446,21 @@ export const personalVisualHarmonyTriangleAltitudesChangedFiles = Object.freeze(
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyPostPr240TruthClosureChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-17-triangle-center-assessment.md",
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/personal-visual-harmony-docs.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 export const personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-constructions.ts",
@@ -1570,6 +1585,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTruthSyncChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
+  personalVisualHarmonyPostPr240TruthClosureChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
