@@ -231,6 +231,21 @@ export const personalVisualHarmonyTruthSyncChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
 ].sort());
 
+export const personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles = Object.freeze([
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/controlled-live-provider-smoke-artifact-proof.test.mjs",
+  "tests/controlled-live-provider-smoke.test.mjs",
+  "tests/controlled-provider-observation-acceptance-proof.test.mjs",
+  "tests/controlled-provider-observation-contract.test.mjs",
+  "tests/controlled-provider-observation-to-core-handoff.test.mjs",
+  "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
 // Reused for bounded ChatGPT-hosted image hydration repairs, including CORS-safe canvas reads.
 export const personalVisualHarmonyImageHydrationChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
@@ -1554,6 +1569,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTruthSyncChangedFiles,
+  personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,

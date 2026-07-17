@@ -2,7 +2,7 @@
 
 Status: local deterministic proof plus a private exact-main ChatGPT A/B. This rail does not use Render, Auth0, a vision provider API, or a commercial deployment.
 
-## Current truth gate (2026-07-15)
+## Current truth gate (2026-07-17)
 
 The geometry and hydration foundation is merged in PR221 (`6a061dbb`), the
 hydration/stale-payload protections are merged in PR222
@@ -72,14 +72,15 @@ interior angles are deterministic. Invalid, stale, ambiguous, out-of-frame, or
 degenerate requests fail closed. The resulting triangle remains a derived,
 non-source-truth, non-Core construction and is off by default.
 
-The current changeset adds a fifth, independently controlled
-`triangle-medians` layer. It accepts exactly one already-admitted canonical
-triangle and derives exactly three segments, each from one canonical vertex to
-the deterministic midpoint of the opposite side. Every segment retains its
-triangle, vertex, and opposite-side parent provenance. Parent identity and
-triangle metrics are revalidated fail-closed. The layer is off by default,
-surfaces no centroid, ratio, or harmonic claim, and cannot adopt, confirm, or
-run Core.
+The triangle-derived rail is current through PR239, merged at
+`652574fb435c20233658c0c681a8f06f56ef80d1`. PR234 adds exactly three medians,
+PR235 exactly three perpendicular bisectors, PR238 exactly three internal angle
+bisectors, and PR239 exactly three altitudes for one already-admitted canonical
+triangle. Each family is independently controlled, off by default, retains
+stable triangle and side or vertex provenance, and revalidates its parents
+fail-closed. These layers expose no centroid, circumcenter, incenter,
+orthocenter, ratio, harmonic claim, or Core authority. Selecting a layer cannot
+adopt geometry, confirm the selection, or run Core.
 
 The pre-enhancement exact-main gate recorded in PR224 is green, as are the
 subsequent construction, rotated-ellipse, shadow-refinement, local A/B, and live
@@ -88,7 +89,7 @@ boundaries only; they do not override the current exact-main live result above.
 
 ## What the demo proves
 
-The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, quadrilaterals, segments, axes, and ellipses with optional explicit image-plane orientation. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. Optional construction layers can show a confirmed segment together with its separately labelled, frame-clipped support-line extension, the two format diagonals, projected junction-angle markers, explicitly requested triangles derived from three stable parents, and three opt-in median segments for one admitted triangle. Those extensions, diagonals, angle measurements, triangles, and medians are derived constructions or measurements, not observed or Core-authoritative geometry. The widget returns the proof families with separate canonical identities plus a transparent overlay.
+The user gives ChatGPT an image. ChatGPT proposes normalized construction candidates from its own visual understanding: rectangles, quadrilaterals, segments, axes, and ellipses with optional explicit image-plane orientation. Norma displays those candidates over the exact ChatGPT file and keeps every calculation stopped until a selection is submitted from the widget. Confirmed rectangles enter the existing deterministic Core mapper; confirmed non-rectangle guides remain separate and may produce deterministic ellipse/supporting-line intersection, tangency, or proximity evidence in the image plane. Optional construction layers can show a confirmed segment together with its separately labelled, frame-clipped support-line extension, the two format diagonals, projected junction-angle markers, explicitly requested triangles derived from three stable parents, and exactly three opt-in medians, perpendicular bisectors, internal angle bisectors, or altitudes for one admitted triangle. Those extensions, diagonals, angle measurements, triangles, and triangle-derived families are derived constructions or measurements, not observed or Core-authoritative geometry. The widget returns the proof families with separate canonical identities plus a transparent overlay.
 
 The server records the confirmation honestly as `client_asserted_widget_interaction`; it does not claim server-verified human presence. Candidates remain non-authoritative evidence until that selection. The preparation server never downloads the attached image. The optional app-only refinement tool receives only a bounded candidate-local luminance crop, returns evidence without adoption authority, and never invokes Core. Core receives structured geometry only. An image-plane guide relation is not a harmonic ratio, a physical-world measurement, or evidence of artistic intent.
 
@@ -138,13 +139,13 @@ Expected sequence:
 2. The widget retrieves the exact file through the ChatGPT file API, aligns the candidate overlay to its natural aspect ratio, and lets the user include or exclude Core rectangles and image-plane guides independently. Family filters only control visibility.
 3. Pixel proposals are off by default. If the user enables them, the widget extracts each bounded local luminance crop and calls `norma.refinePersonalVisualHarmonyPixelsV1`. It displays original and proposed geometry separately, including abstention or confidence, evidence gain, displacement, reason, and deterministic identity.
 4. A refined proposal changes nothing until the user clicks **Adopter cette proposition** for that candidate. Selecting a family, selecting a candidate, or confirming without that adoption click cannot silently adopt it.
-5. **Prolongements**, **Diagonales format**, **Angles jonction**, **Triangles**, and **Médianes** are separate construction toggles and are off by default. A prolongation never changes the visible, observed segment: it renders the segment's derived infinite support line clipped to the confirmed image frame. The two format diagonals are deterministic corner-to-corner frame constructions. Junction angles require the prolongation layer, report whether each crossing falls within the original observed extent, and remain hidden when their prerequisite is disabled.
-6. A triangle control becomes available only when the prepared payload contains an explicit valid three-vertex request and its construction prerequisites are already enabled. The control never enables another family, changes a candidate, adopts a pixel proposal, confirms geometry, or runs Core. Editing or refining a parent invalidates the triangle request instead of silently retargeting it.
-7. The median control requires an enabled, explicit triangle. It derives exactly three distinctly styled vertex-to-opposite-midpoint segments. Disabling or invalidating the triangle also removes its median layer; no centroid is exposed.
+5. **Prolongements**, **Diagonales format**, **Angles jonction**, **Triangles**, **Médianes**, **Médiatrices**, **Bissectrices**, and **Hauteurs** are separate construction toggles and are off by default. A prolongation never changes the visible, observed segment: it renders the segment's derived infinite support line clipped to the confirmed image frame. The two format diagonals are deterministic corner-to-corner frame constructions. Junction angles require the prolongation layer, report whether each crossing falls within the original observed extent, and remain hidden when their prerequisite is disabled.
+6. The preparation result exposes `triangleRequestCount`. When it is `0`, triangle-derived controls remain unavailable. When an explicit valid request is present, the pre-confirmation dependency order is: keep the three parent guides selected, enable **Prolongements**, enable **Triangles**, then enable the requested triangle family. These controls select derived layers only; they never enable another family automatically, change a candidate, adopt a pixel proposal, confirm geometry, measure a construction, or run Core. Editing or refining a parent invalidates the request instead of silently retargeting it.
+7. Each enabled triangle family requires the enabled explicit triangle and derives exactly three constructions: vertex-to-opposite-midpoint medians, perpendicular bisectors of opposite-side support lines, internal angle bisectors, or vertex-to-opposite-support-line altitudes. Disabling or invalidating the triangle removes all dependent layers. No centroid, circumcenter, incenter, or orthocenter is exposed.
 8. Clicking **Confirmer et analyser avec Norma Core** calls the separate app-only confirmation tool. Only the construction layers that were explicitly enabled at that moment enter the optional image-plane construction analysis; toggling them alone never runs Core.
 9. Norma maps only selected rectangles into Core. In parallel it measures confirmed ellipse/line pairs against the infinite supporting line derived from the observed endpoints. An optional `rotationDegrees` is normalized modulo 180; equivalent axis swaps canonicalize to one stable representation, while legacy axis-aligned payloads keep their established shape and identity.
 10. For every ellipse/line pair, Norma solves actual intersections with the explicit normalized-image-plane orientation. Without an intersection it computes the exact support/contact point of the ellipse in the line-normal direction, rather than checking only the four cardinal extrema. It reports pixel gap, image-width-normalized gap, tangent angle delta, and whether the relation lies on the visible segment or only on its prolongation.
-11. When enabled, the construction analysis reports deterministic image-plane directions, frame-edge contacts, support-line/format-diagonal intersections, normalized positions, smaller/supplementary projected angles at bounded line junctions, metrics for explicitly parented triangles, and their three parented median segments. It never infers artistic intent, physical geometry, a vanishing point, or harmonic meaning.
+11. After confirmation, the construction analysis reports deterministic image-plane directions, frame-edge contacts, support-line/format-diagonal intersections, normalized positions, smaller/supplementary projected angles at bounded line junctions, metrics for explicitly parented triangles, and exactly three constructions for each enabled triangle family. Every construction remains `sourceTruth=false` with no Core authority. It never infers a triangle center, artistic intent, physical geometry, a vanishing point, or harmonic meaning.
 12. The widget replaces the preview with Core ratio matches and separate relation/construction cards, measured connectors, and canonical identities.
 
 An honest empty result is valid: it means the confirmed geometry was not within the declared tolerance of any ratio in the active packs.
@@ -174,8 +175,11 @@ rectification or calibration.
 | Junction angles | Implemented locally; live proof required | Disabled by default and dependent on support-line extensions; deterministic crossings among confirmed support lines, enabled format diagonals, and confirmed frame edges; pixel-scaled smaller/supplementary angles; observed-extent flags and derived-measurement provenance; no Core authority |
 | Quadrilaterals and trapezoids | Implemented locally; live proof required | Four ordered vertices; sides, diagonals, intersection, convexity, projected angles, and area; never replace silently with a bounding rectangle |
 | Explicit triangle constructions | Implemented locally; live proof required | Disabled by default; one bounded explicit request per triangle; exactly three stable observed-endpoint or admitted-junction parents; deterministic canonical winding, identity, area, sides, and interior angles; fail closed; no Core authority |
-| Triangle medians | Implemented locally after the private live A/B gate | Exactly three canonical vertex-to-opposite-midpoint segments for one admitted triangle; stable parent provenance and identity; off by default; no surfaced centroid or Core authority |
-| Bisectors and triangle centers | Deferred | Require separate bounded contracts after median evidence; no automatic enumeration or harmonic classification |
+| Triangle medians | Implemented and merged in PR234 | Exactly three canonical vertex-to-opposite-midpoint segments for one admitted triangle; stable parent provenance and identity; off by default; no surfaced centroid or Core authority |
+| Triangle perpendicular bisectors | Implemented and merged in PR235 | Exactly three perpendicular support-line constructions with separately clipped render segments; stable side provenance; off by default; no circumcenter or Core authority |
+| Triangle internal angle bisectors | Implemented and merged in PR238 | Exactly three canonical internal vertex-angle bisectors with stable side/vertex provenance; off by default; no incenter or Core authority |
+| Triangle altitudes | Implemented and merged in PR239; private live gate passed | Exactly three vertex-to-opposite-support-line perpendiculars; exterior feet remain valid; mathematical line/foot stays separate from the clipped overlay; no orthocenter or Core authority |
+| Triangle centers | Deferred | Require separate bounded contracts and evidence; no automatic enumeration, harmonic classification, or inference from line intersections |
 | Rotated-ellipse pixel refinement | Implemented; private live A/B passed | Hard-bounded center, semi-axis, and ±4° orientation search; exact affine crop mapping; stable canonical identity; near-circle preservation and weak/competing-orientation abstention; no automatic adoption, confirmation, or Core authority |
 | Rectified plane | Later dedicated contract | Homography or calibration with assumptions and separate provenance; no silent promotion to physical geometry |
 | Repetition and rhythm | Later | First measure count, spacing, orientation, scale progression, alternation, and symmetry in a confirmed family; keep `rhythm` interpretive |

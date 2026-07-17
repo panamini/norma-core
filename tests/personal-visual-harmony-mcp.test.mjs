@@ -1914,6 +1914,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(triangleRequestInput.items.additionalProperties, false);
     assert.equal(triangleRequestInput.items.properties.vertices.minItems, 3);
     assert.equal(triangleRequestInput.items.properties.vertices.maxItems, 3);
+    const triangleRequestCountOutput = prepareTool.outputSchema.properties.triangleRequestCount;
+    assert.equal(triangleRequestCountOutput.type, "integer");
+    assert.equal(triangleRequestCountOutput.minimum, 0);
+    assert.equal(triangleRequestCountOutput.maximum, 4);
+    assert.equal(prepareTool.outputSchema.required.includes("triangleRequestCount"), true);
     const imagePlaneOutput = confirmTool.outputSchema.properties.imagePlaneGuideAnalysis;
     assert.equal(imagePlaneOutput.type, "object");
     assert.equal(imagePlaneOutput.additionalProperties, false);
@@ -2980,6 +2985,38 @@ test("mixed structural primitives stay visible while only rectangles cross the C
   }
 });
 
+test("MCP preparation reports an absent triangle request without implying a Core run", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-17T09:00:00.000Z"),
+    createSessionId: () => "session:triangle-request-absent",
+  }));
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/triangle-request-absent",
+          file_id: "file-triangle-request-absent",
+          mime_type: "image/png",
+        },
+        candidates: mixedPrimitiveCandidates(),
+      },
+    });
+
+    assert.equal(prepared.isError, undefined);
+    assert.equal(prepared.structuredContent.triangleRequestCount, 0);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.prepared.triangleRequestCount, 0);
+    assert.equal(prepared.structuredContent.coreRun, false);
+    assert.match(
+      prepared.content[0].text,
+      /Aucune demande explicite de triangle n’est présente ; les contrôles dérivés du triangle restent indisponibles/u,
+    );
+    assert.match(prepared.content[0].text, /Le Core n’a pas été lancé/u);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("MCP resolves only an explicit parented triangle after opt-in confirmation", async () => {
   let sequence = 0;
   const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
@@ -3004,6 +3041,17 @@ test("MCP resolves only an explicit parented triangle after opt-in confirmation"
 
     assert.equal(prepared.isError, undefined);
     assert.equal(prepared.structuredContent.coreRun, false);
+    assert.equal(prepared.structuredContent.triangleRequestCount, 1);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.prepared.triangleRequestCount, 1);
+    assert.match(prepared.content[0].text, /Une demande explicite de triangle est présente/u);
+    assert.match(
+      prepared.content[0].text,
+      /conservez les guides parents sélectionnés, puis activez Prolongements, Triangles, et enfin la famille dérivée souhaitée/u,
+    );
+    assert.match(
+      prepared.content[0].text,
+      /ne signifie pas que ces constructions sont déjà affichées ou mesurées/u,
+    );
     const canonicalTriangleRequests = prepared.structuredContent.triangleConstructionRequests;
     assert.equal(canonicalTriangleRequests.length, 1);
     assert.equal(canonicalTriangleRequests[0].vertices.length, 3);
