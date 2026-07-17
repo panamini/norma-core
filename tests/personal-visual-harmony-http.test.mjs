@@ -328,6 +328,18 @@ test("widget confirmation accepts one rounded explicit junction triangle with me
       "triangle-centroids",
     ],
     { width: 1_200, height: 800 },
+    {
+      requestId: "declared-ratio:http",
+      measurements: [
+        { kind: "segment", candidateId: "parent-red" },
+        { kind: "quadrilateral-side", candidateId: "main-trapezoid", sideIndex: 0 },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
   );
 
   assert.equal(
@@ -343,6 +355,11 @@ test("widget confirmation accepts one rounded explicit junction triangle with me
   assert.equal(constructions.triangleCentroids.length, 1);
   assert.equal(constructions.triangleCentroids[0].candidateEvidenceOnly, true);
   assert.equal(constructions.triangleCentroids[0].sourceTruth, false);
+  const ratioReport = confirmed.structuredContent.declaredMeasurementRatioReport;
+  assert.equal(ratioReport.measurements.length, 2);
+  assert.equal(ratioReport.candidateEvidenceOnly, true);
+  assert.equal(ratioReport.sourceTruth, false);
+  assert.equal(ratioReport.coreAuthority, false);
   assert.equal(constructions.triangleCentroids[0].coreAuthority, false);
   assert.equal(constructions.coreRun, false);
 

@@ -6,7 +6,10 @@ import {
   createPersonalVisualHarmonyOverlaySvgV1,
   preparePersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
-import { analyzeHarmonicRelationshipsV1 } from "../dist/src/harmonic-relationship-analysis.js";
+import {
+  analyzeDeclaredLengthPairV1,
+  analyzeHarmonicRelationshipsV1,
+} from "../dist/src/harmonic-relationship-analysis.js";
 import {
   BASIC_PROPORTIONS_PACK,
   GEOMETRY_HARMONIES_PACK,
@@ -1385,6 +1388,220 @@ test("harmonic analysis supports halves and thirds and returns an honest empty r
   assert.equal(empty.status, "completed");
   assert.equal(empty.relationshipCount, 0);
   assert.deepEqual(empty.relationships, []);
+});
+
+test("declared length-pair analysis reuses declared packs without enumerating unrequested relationships", () => {
+  const input = {
+    measurements: [
+      { measurementId: "measurement:short", length: 381.9660112501051 },
+      { measurementId: "measurement:long", length: 618.0339887498949 },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: 0.025,
+  };
+  const first = analyzeDeclaredLengthPairV1(input);
+  const repeated = analyzeDeclaredLengthPairV1({
+    ...structuredClone(input),
+    measurements: [...structuredClone(input.measurements)].reverse(),
+  });
+
+  assert.equal(first.contractId, "norma.declared-length-pair-analysis@1");
+  assert.equal(first.observedDominantShare, Number(GOLDEN_MAJOR.toFixed(12)));
+  assert.equal(first.match?.ratio.ratioId, "phi-major");
+  assert.equal(first.match?.quality, "exact");
+  assert.equal(first.relationshipCount, 1);
+  assert.equal(first.pairOnly, true);
+  assert.equal(first.noUnrequestedComparisons, true);
+  assert.deepEqual(repeated, first);
+  assert.deepEqual(input.measurements, [
+    { measurementId: "measurement:short", length: 381.9660112501051 },
+    { measurementId: "measurement:long", length: 618.0339887498949 },
+  ]);
+
+  const tie = analyzeDeclaredLengthPairV1({
+    measurements: [
+      { measurementId: "measurement:z", length: 400 },
+      { measurementId: "measurement:a", length: 400 },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: 0.025,
+  });
+  assert.equal(tie.dominantMeasurementId, "measurement:a");
+  assert.equal(tie.match?.ratio.ratioId, "1/2");
+
+  const outsideTolerance = analyzeDeclaredLengthPairV1({
+    measurements: [
+      { measurementId: "measurement:45", length: 450 },
+      { measurementId: "measurement:55", length: 550 },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: 0.025,
+  });
+  assert.equal(outsideTolerance.match, null);
+  assert.equal(outsideTolerance.relationshipCount, 0);
+  const extremeShare = analyzeDeclaredLengthPairV1({
+    measurements: [
+      { measurementId: "measurement:tiny", length: 1e-9 },
+      { measurementId: "measurement:large", length: 100_000 },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: 0.025,
+  });
+  assert.equal(extremeShare.observedDominantShare, 0.999999999999);
+  assert.ok(extremeShare.observedDominantShare < 1);
+
+  assert.throws(
+    () => analyzeDeclaredLengthPairV1({ ...input, measurements: [input.measurements[0], input.measurements[0]] }),
+    /distinct measurement identities/u,
+  );
+  assert.throws(
+    () => analyzeDeclaredLengthPairV1({
+      ...input,
+      measurements: [{ measurementId: "measurement:zero", length: 0 }, input.measurements[1]],
+    }),
+    /positive finite lengths/u,
+  );
+  assert.throws(
+    () => analyzeDeclaredLengthPairV1({
+      ...input,
+      measurements: [{ measurementId: "measurement:nonfinite", length: Number.NaN }, input.measurements[1]],
+    }),
+    /positive finite lengths/u,
+  );
+});
+
+test("an explicit confirmed image-plane length pair produces one separate non-authoritative report", () => {
+  const candidates = [
+    ...goldenCandidates(),
+    {
+      id: "short-segment",
+      label: "Segment court",
+      role: "structural-region",
+      reason: "Segment visible confirmé",
+      x: 0.2,
+      y: 0.5,
+      width: 0.4,
+      height: 0,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.2, y: 0.5 },
+        end: { x: 0.6, y: 0.5 },
+      },
+    },
+    quadrilateralCandidates()[2],
+  ];
+  const prepared = prepare(candidates);
+  const measurementRatioRequest = {
+    requestId: "declared-ratio:one",
+    measurements: [
+      { kind: "segment", candidateId: "short-segment" },
+      { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+    ],
+    ratioPackRefs: [
+      "norma.geometry-harmonies@0.1.0",
+      "norma.basic-proportions@0.1.0",
+    ],
+    matchTolerance: 0.025,
+  };
+  const requestSnapshot = structuredClone(measurementRatioRequest);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+    measurementRatioRequest,
+    sourcePixelHeight: 1000,
+  });
+  const report = confirmation.declaredMeasurementRatioReport;
+
+  assert.ok(report);
+  assert.equal(report.requestId, "declared-ratio:one");
+  assert.equal(report.measurements.length, 2);
+  assert.deepEqual(report.measurements.map(({ lengthPixels }) => lengthPixels).sort((a, b) => a - b), [400, 600]);
+  assert.equal(report.observedDominantShare, 0.6);
+  assert.equal(report.match?.ratio.ratioId, "phi-major");
+  assert.equal(report.candidateEvidenceOnly, true);
+  assert.equal(report.sourceTruth, false);
+  assert.equal(report.coreAuthority, false);
+  assert.equal(report.originalGeometryUnchanged, true);
+  assert.equal(report.noUnrequestedComparisons, true);
+  assert.equal(confirmation.imagePlaneGuideAnalysis.limits.noHarmonicRatioClaim, true);
+  const reversed = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+    measurementRatioRequest: {
+      ...measurementRatioRequest,
+      measurements: [...measurementRatioRequest.measurements].reverse(),
+    },
+    sourcePixelHeight: 1000,
+  }).declaredMeasurementRatioReport;
+  assert.deepEqual(reversed, report);
+  assert.deepEqual(measurementRatioRequest, requestSnapshot);
+  const diagonalReport = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+    measurementRatioRequest: {
+      ...measurementRatioRequest,
+      requestId: "declared-ratio:diagonal",
+      measurements: [
+        measurementRatioRequest.measurements[0],
+        { kind: "quadrilateral-diagonal", candidateId: "right-trapezoid", diagonalIndex: 0 },
+      ],
+    },
+    sourcePixelHeight: 1000,
+  }).declaredMeasurementRatioReport;
+  assert.ok(diagonalReport);
+  assert.equal(
+    diagonalReport.measurements.some(({ reference }) => reference.kind === "quadrilateral-diagonal"),
+    true,
+  );
+  assert.equal(Object.hasOwn(confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+    sourcePixelHeight: 1000,
+  }), "declaredMeasurementRatioReport"), false);
+
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+      measurementRatioRequest: {
+        ...measurementRatioRequest,
+        requestId: 42,
+      },
+      sourcePixelHeight: 1000,
+    }),
+    /requestId must be a safe bounded id/u,
+  );
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+      measurementRatioRequest,
+      sourcePixelHeight: 1000,
+    }),
+    /confirmed visual guide/u,
+  );
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+      measurementRatioRequest: {
+        ...measurementRatioRequest,
+        measurements: [
+          measurementRatioRequest.measurements[0],
+          { kind: "quadrilateral-diagonal", candidateId: "missing", diagonalIndex: 0 },
+        ],
+      },
+      sourcePixelHeight: 1000,
+    }),
+    /missing or stale/u,
+  );
+  assert.throws(
+    () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+      measurementRatioRequest: {
+        ...measurementRatioRequest,
+        measurements: [
+          measurementRatioRequest.measurements[0],
+          { kind: "segment", candidateId: "right-trapezoid" },
+        ],
+      },
+      sourcePixelHeight: 1000,
+    }),
+    /does not match candidate geometry/u,
+  );
 });
 
 test("overlay is transparent, image-aligned, and escapes model-provided labels", () => {

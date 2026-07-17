@@ -67,6 +67,110 @@ function widgetHydrationState(overrides = {}) {
   };
 }
 
+test("measurement ratio controls remain usable to disable an incomplete enabled request", () => {
+  const state = {
+    completed: false,
+    confirming: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [
+      { kind: "segment", candidateId: "kept" },
+      { kind: "segment", candidateId: "removed" },
+    ],
+  };
+  const measurementRatioToggle = {
+    disabled: true,
+    setAttribute() {},
+    textContent: "",
+  };
+  const createSelect = () => ({
+    disabled: false,
+    value: "",
+    replaceChildren() {},
+    add() {},
+  });
+  const updateMeasurementRatioControls = widgetScriptFunction(
+    "updateMeasurementRatioControls",
+    "measurementRatioToggle.addEventListener",
+    {
+      state,
+      eligibleMeasurementReferences: () => [{
+        reference: { kind: "segment", candidateId: "kept" },
+        label: "Kept segment",
+      }],
+      measurementRefKey: (reference) => JSON.stringify(reference),
+      measurementRatioToggle,
+      measurementRatioFirst: createSelect(),
+      measurementRatioSecond: createSelect(),
+      Option: class Option {},
+      updateConfirm() {},
+    },
+  );
+
+  updateMeasurementRatioControls();
+
+  assert.equal(measurementRatioToggle.disabled, false);
+  assert.deepEqual(state.measurementRatioRefs, [
+    { kind: "segment", candidateId: "kept" },
+  ]);
+});
+
+test("quadrilateral measurement references preserve the selected visual edge through canonicalization", () => {
+  const canonicalQuadrilateralVerticesForWidget = widgetScriptFunction(
+    "canonicalQuadrilateralVerticesForWidget",
+    "function canonicalMeasurementReferenceForReviewedGeometry",
+    {
+      canonicalGeometryNumber: (value) => value,
+    },
+  );
+  const vertices = [
+    { x: 0.1, y: 0.8 },
+    { x: 0.1, y: 0.2 },
+    { x: 0.7, y: 0.3 },
+    { x: 0.8, y: 0.7 },
+  ];
+  const state = {
+    reviewedCandidates: [{
+      id: "edited-quadrilateral",
+      primitive: { kind: "quadrilateral", vertices },
+    }],
+  };
+  const canonicalMeasurementReferenceForReviewedGeometry = widgetScriptFunction(
+    "canonicalMeasurementReferenceForReviewedGeometry",
+    "function candidateWithPrimitive",
+    {
+      state,
+      canonicalQuadrilateralVerticesForWidget,
+      canonicalGeometryNumber: (value) => value,
+    },
+  );
+
+  const remapped = canonicalMeasurementReferenceForReviewedGeometry({
+    kind: "quadrilateral-side",
+    candidateId: "edited-quadrilateral",
+    sideIndex: 0,
+  });
+  const canonical = canonicalQuadrilateralVerticesForWidget(vertices);
+  const remappedEndpoints = [
+    canonical[remapped.sideIndex],
+    canonical[(remapped.sideIndex + 1) % 4],
+  ];
+
+  assert.deepEqual(
+    new Set(remappedEndpoints.map((point) => JSON.stringify(point))),
+    new Set([vertices[0], vertices[1]].map((point) => JSON.stringify(point))),
+  );
+  const remappedDiagonal = canonicalMeasurementReferenceForReviewedGeometry({
+    kind: "quadrilateral-diagonal",
+    candidateId: "edited-quadrilateral",
+    diagonalIndex: 0,
+  });
+  const diagonalIndexes = remappedDiagonal.diagonalIndex === 0 ? [0, 2] : [1, 3];
+  assert.deepEqual(
+    new Set(diagonalIndexes.map((index) => JSON.stringify(canonical[index]))),
+    new Set([vertices[0], vertices[2]].map((point) => JSON.stringify(point))),
+  );
+});
+
 test("presentation promotes the complementary phi split and collapses duplicate support", () => {
   const makeMatch = (overrides) => ({
     subjectCandidateId: "square",
@@ -273,6 +377,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     appendQuadrilateralMeasurements() {},
     appendImagePlaneRelations() {},
     appendConstructionAnalysis() {},
+    appendDeclaredMeasurementRatioReport() {},
     safeSvg: () => "",
     syncFamilyVisibility() {},
     syncConstructionVisibility() {},
@@ -284,6 +389,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       )),
     }),
     pixelRefinementSnapshot: () => pixelRefinementState,
+    measurementRatioRequest: () => undefined,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
     publicWidgetState: () => ({}),
@@ -291,6 +397,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians"],
     updateConstructionControls() {},
+    updateMeasurementRatioControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
   });
@@ -1840,6 +1947,85 @@ test("session confirmation rejects duplicate construction layers before idempote
   );
 });
 
+test("direct session confirmation idempotency ignores measurement property insertion order", () => {
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-13T15:00:00.000Z"),
+    createSessionId: () => "session:measurement-property-order",
+  });
+  const candidateValues = quadrilateralCandidates();
+  const prepared = service.prepare({
+    fileId: "file-measurement-property-order",
+    mediaType: "image/png",
+    candidates: candidateValues,
+  });
+  const baseConfirmation = {
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    selectedCandidateIds: ["major", "minor"],
+    confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 1_000,
+  };
+  const first = service.confirm({
+    ...baseConfirmation,
+    measurementRatioRequest: {
+      requestId: "declared-ratio:direct-order",
+      measurements: [
+        { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+        { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+  });
+  const replay = service.confirm({
+    ...baseConfirmation,
+    measurementRatioRequest: {
+      requestId: "declared-ratio:direct-order",
+      measurements: [
+        { sideIndex: 2, candidateId: "right-trapezoid", kind: "quadrilateral-side" },
+        { candidateId: "right-trapezoid", kind: "quadrilateral-side", sideIndex: 0 },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+  });
+
+  assert.equal(
+    replay.confirmation.canonicalResultIdentity,
+    first.confirmation.canonicalResultIdentity,
+  );
+  assert.throws(
+    () => service.confirm({
+      ...baseConfirmation,
+      measurementRatioRequest: {
+        requestId: "declared-ratio:direct-order",
+        measurements: [
+          {
+            kind: "quadrilateral-side",
+            candidateId: "right-trapezoid",
+            sideIndex: 0,
+            unexpected: true,
+          },
+          { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+        ],
+        ratioPackRefs: [
+          "norma.geometry-harmonies@0.1.0",
+          "norma.basic-proportions@0.1.0",
+        ],
+        matchTolerance: 0.025,
+      },
+    }),
+    /already confirmed with a different selection/u,
+  );
+});
+
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
     createSessionId: () => "session:test-personal-visual-harmony",
@@ -1927,6 +2113,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       "triangle-centroids",
     ]);
     assert.equal(confirmTool.inputSchema.required.includes("constructionLayers"), false);
+    const measurementRatioInput = confirmTool.inputSchema.properties.measurementRatioRequest;
+    assert.equal(confirmTool.inputSchema.required.includes("measurementRatioRequest"), false);
+    assert.equal(measurementRatioInput.additionalProperties, false);
+    assert.equal(measurementRatioInput.properties.measurements.items.length, 2);
+    assert.deepEqual(measurementRatioInput.properties.ratioPackRefs.items.map(({ const: value }) => value), [
+      "norma.geometry-harmonies@0.1.0",
+      "norma.basic-proportions@0.1.0",
+    ]);
+    assert.equal(measurementRatioInput.properties.matchTolerance.const, 0.025);
     const triangleRequestInput = prepareTool.inputSchema.properties.triangleConstructionRequests;
     assert.equal(triangleRequestInput.type, "array");
     assert.equal(triangleRequestInput.maxItems, 4);
@@ -2056,6 +2251,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const imagePlaneLimitsSchema = JSON.stringify(imagePlaneOutput.properties.limits);
     assert.match(imagePlaneLimitsSchema, /axisAlignedEllipseOnly/u);
     assert.match(imagePlaneLimitsSchema, /explicit_normalized_image_plane_rotation/u);
+    const measurementRatioOutput = confirmTool.outputSchema.properties.declaredMeasurementRatioReport;
+    assert.equal(confirmTool.outputSchema.required.includes("declaredMeasurementRatioReport"), false);
+    assert.equal(measurementRatioOutput.additionalProperties, false);
+    assert.equal(measurementRatioOutput.properties.candidateEvidenceOnly.const, true);
+    assert.equal(measurementRatioOutput.properties.sourceTruth.const, false);
+    assert.equal(measurementRatioOutput.properties.coreAuthority.const, false);
+    assert.equal(measurementRatioOutput.properties.originalGeometryUnchanged.const, true);
+    assert.equal(measurementRatioOutput.properties.noUnrequestedComparisons.const, true);
     assert.match(prepareTool.description, /never fit, snap, or round them to phi, halves, thirds/u);
     assert.match(prepareTool.description, /Check pixel-space aspect for claimed squares/u);
     assert.match(prepareTool.description, /major diagonals/u);
@@ -2168,7 +2371,12 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
+    assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
+    assert.match(resource.contents[0].text, /Rapport de deux longueurs/u);
+    assert.match(resource.contents[0].text, /rapport opt-in séparé, sans autorité Core/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
     assert.match(resource.contents[0].text, /function syncOverlaySelection\(\).*syncPixelProposalOverlay\(\)/u);
     assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
@@ -2235,7 +2443,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
-    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot\)/u);
     assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
@@ -3400,6 +3608,18 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
         candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
         selectedCandidateIds: ["major", "minor"],
         confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:mcp",
+          measurements: [
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
         sourcePixelWidth: 1000,
         sourcePixelHeight: 1000,
         confirmClientReviewedSelection: true,
@@ -3425,6 +3645,73 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
     assert.equal(measurement.rightAngleToleranceDegrees, 2);
     assert.equal(measurement.areaImageShare, 0.3);
     assert.match(measurement.explanation, /plan image/u);
+    const ratioReport = confirmed.structuredContent.declaredMeasurementRatioReport;
+    assert.equal(ratioReport.observedDominantShare, 0.6);
+    assert.equal(ratioReport.match.ratio.ratioId, "phi-major");
+    assert.equal(ratioReport.candidateEvidenceOnly, true);
+    assert.equal(ratioReport.sourceTruth, false);
+    assert.equal(ratioReport.coreAuthority, false);
+    assert.equal(ratioReport.noUnrequestedComparisons, true);
+    const replay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["minor", "major"],
+        confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:mcp",
+          measurements: [
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(replay.isError, undefined);
+    assert.equal(
+      replay.structuredContent.canonicalResultIdentity,
+      confirmed.structuredContent.canonicalResultIdentity,
+    );
+    const propertyOrderReplay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:mcp",
+          measurements: [
+            { candidateId: "right-trapezoid", sideIndex: 2, kind: "quadrilateral-side" },
+            { sideIndex: 0, candidateId: "right-trapezoid", kind: "quadrilateral-side" },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(propertyOrderReplay.isError, undefined);
+    assert.equal(
+      propertyOrderReplay.structuredContent.canonicalResultIdentity,
+      confirmed.structuredContent.canonicalResultIdentity,
+    );
     assert.match(confirmed.content[0].text, /Mesures de quadrilatères dans le plan image/u);
     assert.match(confirmed.content[0].text, /ni des rapports harmoniques ni des mesures du monde réel/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="quadrilateral"/u);

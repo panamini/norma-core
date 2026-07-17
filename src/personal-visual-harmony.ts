@@ -22,7 +22,9 @@ import {
   validateAcceptedGeometryV1,
 } from "./geometry-observation.js";
 import {
+  analyzeDeclaredLengthPairV1,
   analyzeHarmonicRelationshipsV1,
+  type DeclaredLengthPairMatchV1,
   type HarmonicRelationshipAnalysisResultV1,
   type HarmonicRelationshipMetricV1,
   type HarmonicRelationshipQualityV1,
@@ -49,7 +51,14 @@ export const PERSONAL_VISUAL_HARMONY_RESULT_CONTRACT_ID =
   "norma.personal-visual-harmony-result@1" as const;
 export const PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID =
   "norma.personal-visual-harmony-image-plane-relations@1" as const;
+export const PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_ID =
+  "norma.personal-visual-harmony-declared-measurement-ratio-report@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES = 12;
+export const PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS = [
+  "norma.geometry-harmonies@0.1.0",
+  "norma.basic-proportions@0.1.0",
+] as const;
+export const PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE = 0.025 as const;
 
 export type PersonalVisualHarmonyCandidateRoleV1 =
   | "primary-subject"
@@ -256,6 +265,72 @@ export interface PersonalVisualHarmonyQuadrilateralMeasurementV1 {
   readonly explanation: string;
 }
 
+export type PersonalVisualHarmonyMeasurementLengthReferenceV1 =
+  | {
+      readonly kind: "segment";
+      readonly candidateId: string;
+    }
+  | {
+      readonly kind: "quadrilateral-side";
+      readonly candidateId: string;
+      readonly sideIndex: 0 | 1 | 2 | 3;
+    }
+  | {
+      readonly kind: "quadrilateral-diagonal";
+      readonly candidateId: string;
+      readonly diagonalIndex: 0 | 1;
+    };
+
+export interface PersonalVisualHarmonyMeasurementRatioRequestV1 {
+  readonly requestId: string;
+  readonly measurements: readonly [
+    PersonalVisualHarmonyMeasurementLengthReferenceV1,
+    PersonalVisualHarmonyMeasurementLengthReferenceV1,
+  ];
+  readonly ratioPackRefs: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS;
+  readonly matchTolerance: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+}
+
+export interface PersonalVisualHarmonyMeasurementLengthEvidenceV1 {
+  readonly measurementIdentity: string;
+  readonly reference: PersonalVisualHarmonyMeasurementLengthReferenceV1;
+  readonly candidateLabel: string;
+  readonly lengthPixels: number;
+  readonly provenance: "explicit_confirmed_image_plane_length";
+}
+
+export interface PersonalVisualHarmonyDeclaredMeasurementRatioReportV1 {
+  readonly contractId:
+    typeof PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "completed";
+  readonly requestId: string;
+  readonly candidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly coordinateSpace: "image_plane_pixels_v1";
+  readonly normalization: "dominant_length_divided_by_pair_sum";
+  readonly measurements: readonly [
+    PersonalVisualHarmonyMeasurementLengthEvidenceV1,
+    PersonalVisualHarmonyMeasurementLengthEvidenceV1,
+  ];
+  readonly dominantMeasurementIdentity: string;
+  readonly observedDominantShare: number;
+  readonly ratioPackRefs: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS;
+  readonly matchTolerance: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+  readonly relationshipCount: 0 | 1;
+  readonly match: DeclaredLengthPairMatchV1 | null;
+  readonly pairOnly: true;
+  readonly noUnrequestedComparisons: true;
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+  readonly originalGeometryUnchanged: true;
+  readonly noIntentInference: true;
+  readonly contentIdentity: string;
+}
+
 export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -292,6 +367,7 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
 export interface PersonalVisualHarmonyConfirmationV1 {
   readonly result: PersonalVisualHarmonyResultV1;
   readonly imagePlaneGuideAnalysis: PersonalVisualHarmonyImagePlaneRelationsV1;
+  readonly declaredMeasurementRatioReport?: PersonalVisualHarmonyDeclaredMeasurementRatioReportV1;
   readonly overlaySvg: string;
   readonly acceptedGeometryContentIdentity: string;
   readonly mappingResultContentIdentity: string;
@@ -300,7 +376,7 @@ export interface PersonalVisualHarmonyConfirmationV1 {
 const CANDIDATE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
-const MATCH_TOLERANCE = 0.025;
+const MATCH_TOLERANCE = PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
 const IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE = 0.01;
 const IMAGE_PLANE_MAX_REPORTED_GAP_IMAGE_WIDTH_SHARE = 0.025;
 const IMAGE_PLANE_TANGENT_ANGLE_TOLERANCE_DEGREES = 5;
@@ -361,6 +437,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   readonly selectedCandidateIds: readonly string[];
   readonly confirmedVisualGuideCandidateIds?: readonly string[];
   readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
+  readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
   readonly acceptedAt: string;
@@ -474,9 +551,19 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
   });
+  const declaredMeasurementRatioReport = input.measurementRatioRequest === undefined
+    ? null
+    : createDeclaredMeasurementRatioReport(
+        prepared,
+        confirmedVisualGuideCandidateIds,
+        input.measurementRatioRequest,
+        input.sourcePixelWidth,
+        input.sourcePixelHeight,
+      );
   return {
     result,
     imagePlaneGuideAnalysis,
+    ...(declaredMeasurementRatioReport === null ? {} : { declaredMeasurementRatioReport }),
     overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({
       preparedCandidateSet: prepared,
       result,
@@ -484,6 +571,186 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     }),
     acceptedGeometryContentIdentity: acceptedGeometry.contentIdentity,
     mappingResultContentIdentity: mapping.resultContentIdentity,
+  };
+}
+
+function createDeclaredMeasurementRatioReport(
+  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+  confirmedVisualGuideCandidateIds: readonly string[],
+  request: PersonalVisualHarmonyMeasurementRatioRequestV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyDeclaredMeasurementRatioReportV1 {
+  validateMeasurementRatioRequest(request);
+  const confirmed = new Set(confirmedVisualGuideCandidateIds);
+  const measurements = request.measurements.map((reference) => (
+    resolveMeasurementLengthEvidence(
+      prepared,
+      confirmed,
+      reference,
+      sourcePixelWidth,
+      sourcePixelHeight,
+    )
+  )).sort((first, second) => (
+    stableStringCompare(first.measurementIdentity, second.measurementIdentity)
+  )) as [
+    PersonalVisualHarmonyMeasurementLengthEvidenceV1,
+    PersonalVisualHarmonyMeasurementLengthEvidenceV1,
+  ];
+  if (measurements[0].measurementIdentity === measurements[1].measurementIdentity) {
+    throw new Error("Declared measurement ratio requires two distinct measurement references.");
+  }
+  const analysis = analyzeDeclaredLengthPairV1({
+    measurements: measurements.map(({ measurementIdentity, lengthPixels }) => ({
+      measurementId: measurementIdentity,
+      length: lengthPixels,
+    })) as [
+      { readonly measurementId: string; readonly length: number },
+      { readonly measurementId: string; readonly length: number },
+    ],
+    ratioPacks: [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK],
+    matchTolerance: request.matchTolerance,
+  });
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "completed" as const,
+    requestId: request.requestId,
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    sourcePixelWidth,
+    sourcePixelHeight,
+    coordinateSpace: "image_plane_pixels_v1" as const,
+    normalization: "dominant_length_divided_by_pair_sum" as const,
+    measurements,
+    dominantMeasurementIdentity: analysis.dominantMeasurementId,
+    observedDominantShare: analysis.observedDominantShare,
+    ratioPackRefs: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
+    matchTolerance: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
+    relationshipCount: analysis.relationshipCount,
+    match: analysis.match,
+    pairOnly: true as const,
+    noUnrequestedComparisons: true as const,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    coreAuthority: false as const,
+    originalGeometryUnchanged: true as const,
+    noIntentInference: true as const,
+  };
+  return {
+    ...withoutIdentity,
+    contentIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+function validateMeasurementRatioRequest(request: PersonalVisualHarmonyMeasurementRatioRequestV1): void {
+  if (!isRecord(request) || !hasExactFields(request, [
+    "requestId",
+    "measurements",
+    "ratioPackRefs",
+    "matchTolerance",
+  ])) {
+    throw new Error("Declared measurement ratio request must expose exact versioned fields.");
+  }
+  if (typeof request.requestId !== "string" || !CANDIDATE_ID_PATTERN.test(request.requestId)) {
+    throw new Error("Declared measurement ratio requestId must be a safe bounded id.");
+  }
+  if (!Array.isArray(request.measurements) || request.measurements.length !== 2) {
+    throw new Error("Declared measurement ratio requires exactly two measurement references.");
+  }
+  if (!Array.isArray(request.ratioPackRefs)
+    || request.ratioPackRefs.length !== PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS.length
+    || request.ratioPackRefs.some((ref, index) => (
+      ref !== PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS[index]
+    ))) {
+    throw new Error("Declared measurement ratio requires the exact explicit ratio pack references.");
+  }
+  if (request.matchTolerance !== PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE) {
+    throw new Error("Declared measurement ratio requires the exact explicit match tolerance.");
+  }
+  request.measurements.forEach(validateMeasurementLengthReference);
+}
+
+function validateMeasurementLengthReference(
+  reference: PersonalVisualHarmonyMeasurementLengthReferenceV1,
+): void {
+  if (!isRecord(reference) || !CANDIDATE_ID_PATTERN.test(reference.candidateId)) {
+    throw new Error("Declared measurement reference requires a safe candidate id.");
+  }
+  if (reference.kind === "segment") {
+    if (!hasExactFields(reference, ["kind", "candidateId"])) {
+      throw new Error("Declared segment measurement reference must expose exact fields.");
+    }
+    return;
+  }
+  if (reference.kind === "quadrilateral-side") {
+    if (!hasExactFields(reference, ["kind", "candidateId", "sideIndex"])
+      || !Number.isInteger(reference.sideIndex) || reference.sideIndex < 0 || reference.sideIndex > 3) {
+      throw new Error("Declared quadrilateral-side reference requires sideIndex 0 through 3.");
+    }
+    return;
+  }
+  if (reference.kind === "quadrilateral-diagonal") {
+    if (!hasExactFields(reference, ["kind", "candidateId", "diagonalIndex"])
+      || !Number.isInteger(reference.diagonalIndex)
+      || reference.diagonalIndex < 0 || reference.diagonalIndex > 1) {
+      throw new Error("Declared quadrilateral-diagonal reference requires diagonalIndex 0 or 1.");
+    }
+    return;
+  }
+  throw new Error("Declared measurement reference kind is unsupported.");
+}
+
+function resolveMeasurementLengthEvidence(
+  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+  confirmed: ReadonlySet<string>,
+  reference: PersonalVisualHarmonyMeasurementLengthReferenceV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyMeasurementLengthEvidenceV1 {
+  const candidate = prepared.candidates.find(({ id }) => id === reference.candidateId);
+  if (candidate === undefined) {
+    throw new Error("Declared measurement reference is missing or stale.");
+  }
+  if (!confirmed.has(candidate.id)) {
+    throw new Error("Declared measurement reference must belong to a confirmed visual guide.");
+  }
+  let lengthPixels: number;
+  if (reference.kind === "segment") {
+    if (candidate.primitive?.kind !== "segment") {
+      throw new Error("Declared segment measurement reference does not match candidate geometry.");
+    }
+    lengthPixels = Math.hypot(
+      (candidate.primitive.end.x - candidate.primitive.start.x) * sourcePixelWidth,
+      (candidate.primitive.end.y - candidate.primitive.start.y) * sourcePixelHeight,
+    );
+  } else {
+    const measurement = createQuadrilateralMeasurement(candidate, sourcePixelWidth, sourcePixelHeight);
+    if (measurement === null) {
+      throw new Error("Declared quadrilateral measurement reference does not match candidate geometry.");
+    }
+    lengthPixels = reference.kind === "quadrilateral-side"
+      ? measurement.sideLengthsPixels[reference.sideIndex]
+      : measurement.diagonalLengthsPixels[reference.diagonalIndex];
+  }
+  if (!Number.isFinite(lengthPixels) || lengthPixels <= 0) {
+    throw new Error("Declared measurement reference resolved to a non-finite or degenerate length.");
+  }
+  const canonicalLength = canonicalNumber(lengthPixels);
+  const measurementIdentity = contentIdentityFor({
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    sourcePixelWidth,
+    sourcePixelHeight,
+    reference,
+    lengthPixels: canonicalLength,
+  });
+  return {
+    measurementIdentity,
+    reference: { ...reference },
+    candidateLabel: candidate.label,
+    lengthPixels: canonicalLength,
+    provenance: "explicit_confirmed_image_plane_length",
   };
 }
 
@@ -2131,6 +2398,14 @@ function validatePrimitivePoint(value: unknown, field: string): PersonalVisualHa
     throw new Error(`${field} must be a normalized point inside the image.`);
   }
   return { x: canonicalNumber(point.x), y: canonicalNumber(point.y) };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactFields(value: Record<string, unknown>, fields: readonly string[]): boolean {
+  return Object.keys(value).sort().join("|") === [...fields].sort().join("|");
 }
 
 function requirePositiveRectangleBounds(
