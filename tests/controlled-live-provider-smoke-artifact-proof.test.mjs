@@ -462,6 +462,11 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
       "docs/decisions/2026-07-08-controlled-live-provider-smoke.md",
     ]);
+  } else if (isTriangleCentroidSet) {
+    assert.deepEqual(changedFiles.filter((file) => file.startsWith("docs/")), [
+      "docs/decisions/2026-07-17-triangle-center-assessment.md",
+      "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+    ]);
   } else {
     assert.equal(changedFiles.some((file) => file.startsWith("docs/")), false, "docs/");
   }

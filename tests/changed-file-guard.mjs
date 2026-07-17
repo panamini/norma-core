@@ -462,6 +462,8 @@ export const personalVisualHarmonyPostPr240TruthClosureChangedFiles = Object.fre
 ].sort());
 
 export const personalVisualHarmonyTriangleCentroidChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-17-triangle-center-assessment.md",
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-constructions.ts",
   "src/personal-visual-harmony.ts",
@@ -474,6 +476,7 @@ export const personalVisualHarmonyTriangleCentroidChangedFiles = Object.freeze([
   "tests/controlled-provider-observation-to-core-handoff.test.mjs",
   "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
   "tests/personal-visual-harmony-constructions.test.mjs",
+  "tests/personal-visual-harmony-docs.test.mjs",
   "tests/personal-visual-harmony-http.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
   "tests/personal-visual-harmony.test.mjs",

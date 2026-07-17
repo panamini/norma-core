@@ -24,12 +24,19 @@ test("the active visual-harmony guide preserves conditional triangle prerequisit
     demoDoc,
     /pre-confirmation dependency order is: keep the three parent guides selected, enable \*\*Prolongements\*\*, enable \*\*Triangles\*\*/u,
   );
+  assert.match(demoDoc, /\*\*Centroïde\*\* derives exactly one point as the arithmetic mean/u);
+  assert.match(demoDoc, /one `triangleCentroids` point/u);
+  assert.match(demoDoc, /candidateEvidenceOnly=true/u);
+  assert.doesNotMatch(demoDoc, /No centroid, circumcenter, incenter, or orthocenter is exposed/u);
+  assert.doesNotMatch(demoDoc, /These layers expose no centroid/u);
 });
 
-test("the triangle-center assessment remains explicitly read-only and non-authoritative", () => {
-  assert.match(assessmentDoc, /The centroid is the first safe triangle-center candidate/u);
+test("the triangle-center assessment records the bounded implementation without granting authority", () => {
+  assert.match(assessmentDoc, /The centroid is the first safe triangle-center candidate and is implemented/u);
   assert.match(assessmentDoc, /sourceTruth: `?false`?/u);
   assert.match(assessmentDoc, /coreAuthority: `?false`?/u);
   assert.match(assessmentDoc, /CC-20260717-TRIANGLE-CENTROID-v1/u);
-  assert.match(assessmentDoc, /not executed/u);
+  assert.match(assessmentDoc, /CC-20260717-TRIANGLE-CENTROID-v2/u);
+  assert.doesNotMatch(assessmentDoc, /not executed/u);
+  assert.doesNotMatch(assessmentDoc, /this PR must not expose or render it/u);
 });
