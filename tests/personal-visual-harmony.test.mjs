@@ -978,7 +978,7 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   const baseline = confirm(prepared, { confirmedVisualGuideCandidateIds, sourcePixelHeight: 1000 });
   const enabled = confirm(prepared, {
     confirmedVisualGuideCandidateIds,
-    constructionLayers: ["triangle-altitudes", "triangle-angle-bisectors", "triangle-medians", "triangles", "support-line-extensions"],
+    constructionLayers: ["triangle-altitudes", "triangle-angle-bisectors", "triangle-centroids", "triangle-medians", "triangles", "support-line-extensions"],
     sourcePixelHeight: 1000,
   });
 
@@ -995,6 +995,7 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
     "triangle-medians",
     "triangle-angle-bisectors",
     "triangle-altitudes",
+    "triangle-centroids",
   ]);
   assert.equal(constructions.triangles.length, 1);
   assert.equal(constructions.triangles[0].requestId, request.requestId);
@@ -1024,6 +1025,10 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   assert.ok(constructions.triangleAltitudes.every(({ sourceTruth, coreAuthority }) => (
     sourceTruth === false && coreAuthority === false
   )));
+  assert.equal(constructions.triangleCentroids.length, 1);
+  assert.equal(constructions.triangleCentroids[0].triangleId, constructions.triangles[0].triangleId);
+  assert.equal(constructions.triangleCentroids[0].sourceTruth, false);
+  assert.equal(constructions.triangleCentroids[0].coreAuthority, false);
   assert.match(enabled.overlaySvg, /data-construction-layer="triangles"/u);
   assert.match(enabled.overlaySvg, /data-triangle-construction-id=/u);
   assert.match(enabled.overlaySvg, /data-parent-provenance="user-confirmed-observed-endpoint"/u);
@@ -1036,6 +1041,14 @@ test("an explicit prepared triangle stays off by default and cannot alter Core o
   assert.match(enabled.overlaySvg, /data-triangle-angle-bisector-id=/u);
   assert.match(enabled.overlaySvg, /data-construction-layer="triangle-altitudes"/u);
   assert.match(enabled.overlaySvg, /data-triangle-altitude-id=/u);
+  assert.match(enabled.overlaySvg, /data-construction-layer="triangle-centroids"/u);
+  assert.match(enabled.overlaySvg, /data-triangle-centroid-id=/u);
+  const centroidMarkup = enabled.overlaySvg.match(
+    /<g data-triangle-centroid-id="[^"]+"[\s\S]*?<\/g>/u,
+  )?.[0];
+  assert.match(centroidMarkup, /data-candidate-evidence-only="true"/u);
+  assert.match(centroidMarkup, /data-source-truth="false"/u);
+  assert.match(centroidMarkup, /data-core-authority="false"/u);
   assert.equal(enabled.imagePlaneGuideAnalysis.constructionAnalysis.coreRun, false);
 });
 

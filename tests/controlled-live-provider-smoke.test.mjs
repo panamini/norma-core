@@ -58,6 +58,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
+  personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -1602,6 +1603,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;
   if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyPostPr240TruthClosureChangedFiles)) return;
+  if (isExactChangedFileSet(branchChangedFiles(repoRoot), personalVisualHarmonyTriangleCentroidChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpQuotaIsolationHotfixChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, remoteMcpRenderPrivateBetaDeploymentChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
@@ -1648,6 +1650,7 @@ test("PR122 package files lockfiles package root exports scripts and metadata re
       controlledLiveProviderIncompleteResponseGuardChangedFiles,
       controlledLiveProviderSmokeArtifactProofChangedFiles,
       controlledLiveProviderSmokeResponseStatusGuardChangedFiles,
+      personalVisualHarmonyTriangleCentroidChangedFiles,
     ].some((expectedChangedFiles) => JSON.stringify(changedFiles) === JSON.stringify(expectedChangedFiles)),
     true,
     changedFiles.join("\n"),

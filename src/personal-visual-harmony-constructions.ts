@@ -16,6 +16,7 @@ export const PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS = [
   "triangle-perpendicular-bisectors",
   "triangle-angle-bisectors",
   "triangle-altitudes",
+  "triangle-centroids",
 ] as const;
 
 export type PersonalVisualHarmonyConstructionLayerV1 =
@@ -324,6 +325,29 @@ export interface PersonalVisualHarmonyTriangleAltitudeV1 {
   readonly coreAuthority: false;
 }
 
+export interface PersonalVisualHarmonyTriangleCentroidV1 {
+  readonly centroidId: string;
+  readonly kind: "triangle-centroid";
+  readonly triangleId: string;
+  readonly vertexIndices: readonly [0, 1, 2];
+  readonly vertices: readonly [
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+  ];
+  readonly vertexParents: readonly [
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+  ];
+  readonly centroid: PersonalVisualHarmonyConstructionPointV1;
+  readonly provenance: "derived-construction";
+  readonly derivation: "arithmetic_mean_of_canonical_triangle_vertices";
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+}
+
 export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -347,6 +371,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
   readonly trianglePerpendicularBisectors?: readonly PersonalVisualHarmonyTrianglePerpendicularBisectorV1[];
   readonly triangleAngleBisectors?: readonly PersonalVisualHarmonyTriangleAngleBisectorV1[];
   readonly triangleAltitudes?: readonly PersonalVisualHarmonyTriangleAltitudeV1[];
+  readonly triangleCentroids?: readonly PersonalVisualHarmonyTriangleCentroidV1[];
   readonly boundaryToleranceNormalized: number;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -484,6 +509,14 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
       sourcePixelHeight: input.sourcePixelHeight,
     })
     : [];
+  const triangleCentroidLayerEnabled = enabledLayers.includes("triangle-centroids");
+  const triangleCentroids = triangleCentroidLayerEnabled
+    ? constructPersonalVisualHarmonyTriangleCentroidsV1({
+      triangles,
+      sourcePixelWidth: input.sourcePixelWidth,
+      sourcePixelHeight: input.sourcePixelHeight,
+    })
+    : [];
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_ANALYSIS_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -508,6 +541,7 @@ export function analyzePersonalVisualHarmonyConstructionsV1(input: {
     ...(trianglePerpendicularBisectorLayerEnabled ? { trianglePerpendicularBisectors } : {}),
     ...(triangleAngleBisectorLayerEnabled ? { triangleAngleBisectors } : {}),
     ...(triangleAltitudeLayerEnabled ? { triangleAltitudes } : {}),
+    ...(triangleCentroidLayerEnabled ? { triangleCentroids } : {}),
     boundaryToleranceNormalized: BOUNDARY_TOLERANCE_NORMALIZED,
     candidateEvidenceOnly: true as const,
     sourceTruth: false as const,
@@ -558,6 +592,9 @@ function normalizeLayers(
   }
   if (unique.has("triangle-altitudes") && !unique.has("triangles")) {
     throw new Error("Triangle altitudes require the triangle construction layer.");
+  }
+  if (unique.has("triangle-centroids") && !unique.has("triangles")) {
+    throw new Error("Triangle centroids require the triangle construction layer.");
   }
   return PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((value) => unique.has(value));
 }
@@ -1326,6 +1363,56 @@ export function constructPersonalVisualHarmonyTriangleMediansV1(input: {
       };
     });
   });
+}
+
+export function constructPersonalVisualHarmonyTriangleCentroidsV1(input: {
+  readonly triangles: readonly PersonalVisualHarmonyTriangleConstructionV1[];
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): readonly PersonalVisualHarmonyTriangleCentroidV1[] {
+  requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (!Array.isArray(input.triangles) || input.triangles.length !== 1) {
+    throw new Error("Triangle centroids require exactly one current canonical triangle parent.");
+  }
+  const triangle = validateTriangleMedianParent(
+    input.triangles[0],
+    0,
+    input.sourcePixelWidth,
+    input.sourcePixelHeight,
+  );
+  const vertices = triangle.vertices.map(({ point }) => ({ ...point })) as [
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+    PersonalVisualHarmonyConstructionPointV1,
+  ];
+  const vertexParents = triangle.vertices.map(({ parent }) => cloneTriangleVertexParent(parent)) as [
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+    PersonalVisualHarmonyTriangleVertexParentV1,
+  ];
+  const centroid = validateTrianglePoint(canonicalPoint({
+    x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
+    y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3,
+  }), "triangle centroid");
+  const withoutIdentity = {
+    kind: "triangle-centroid" as const,
+    triangleId: triangle.triangleId,
+    vertexIndices: [0, 1, 2] as const,
+    vertices,
+    vertexParents,
+    centroid,
+    provenance: "derived-construction" as const,
+    derivation: "arithmetic_mean_of_canonical_triangle_vertices" as const,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    coreAuthority: false as const,
+  };
+  const identity = contentIdentityFor(withoutIdentity);
+  return [{
+    centroidId: `construction:triangle-centroid:${identityToken(identity)}`,
+    ...withoutIdentity,
+  }];
 }
 
 export function constructPersonalVisualHarmonyTrianglePerpendicularBisectorsV1(input: {

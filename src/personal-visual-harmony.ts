@@ -1493,6 +1493,14 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       "</g>",
     ].join("");
   }).join("");
+  const triangleCentroidMarkup = (
+    input.imagePlaneGuideAnalysis?.constructionAnalysis?.triangleCentroids ?? []
+  ).map((centroid) => [
+    `<g data-triangle-centroid-id="${escapeXml(centroid.centroidId)}" data-parent-triangle-id="${escapeXml(centroid.triangleId)}" data-construction-layer="triangle-centroids" data-provenance="derived-construction" data-candidate-evidence-only="true" data-source-truth="false" data-core-authority="false" pointer-events="none"${enabledConstructionLayers.has("triangle-centroids") ? "" : ` style="display:none"`}>`,
+    `<circle cx="${numberAttr(centroid.centroid.x * 1000)}" cy="${numberAttr(centroid.centroid.y * 1000)}" r="10" fill="#f472b6" stroke="#020617" stroke-width="4"/>`,
+    `<text x="${numberAttr((centroid.centroid.x * 1000) + 15)}" y="${numberAttr((centroid.centroid.y * 1000) - 15)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" fill="#fbcfe8" stroke="#020617" stroke-width="4" paint-order="stroke">G</text>`,
+    "</g>",
+  ].join("")).join("");
   const phaseLabel = input.result === undefined
     ? "CANDIDATS VISUELS · CONFIRMATION REQUISE"
     : `NORMA CORE · ${String(input.result.explanations.length)} RAPPORT${input.result.explanations.length === 1 ? "" : "S"} · ${String(input.imagePlaneGuideAnalysis?.relationships.length ?? 0)} RELATION${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"} VISUELLE${input.imagePlaneGuideAnalysis?.relationships.length === 1 ? "" : "S"}`;
@@ -1508,6 +1516,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     trianglePerpendicularBisectorMarkup,
     triangleAngleBisectorMarkup,
     triangleAltitudeMarkup,
+    triangleCentroidMarkup,
     "<g pointer-events=\"none\"><rect x=\"20\" y=\"930\" width=\"640\" height=\"50\" rx=\"16\" fill=\"#020617\" fill-opacity=\"0.88\"/>",
     `<text x="42" y="963" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="800" letter-spacing="1.5" fill="#f8fafc">${escapeXml(phaseLabel)}</text></g>`,
     "</svg>",
@@ -1776,6 +1785,13 @@ function validateTriangleConstructionConfirmation(
   }
   if (constructionLayers.includes("triangle-altitudes") && requests.length !== 1) {
     throw new Error("Triangle altitudes require exactly one explicit current triangle request.");
+  }
+  if (constructionLayers.includes("triangle-centroids")
+    && !constructionLayers.includes("triangles")) {
+    throw new Error("Triangle centroids require the triangle construction layer.");
+  }
+  if (constructionLayers.includes("triangle-centroids") && requests.length !== 1) {
+    throw new Error("Triangle centroids require exactly one explicit current triangle request.");
   }
   if (!constructionLayers.includes("triangles")) return;
   if (!constructionLayers.includes("support-line-extensions")) {

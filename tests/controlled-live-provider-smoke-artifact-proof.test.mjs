@@ -36,6 +36,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
+  personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
   personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles,
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
@@ -352,6 +353,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
   const isPerpendicularBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorsChangedFiles);
   const isAngleBisectorsSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyAngleBisectorsChangedFiles);
   const isTriangleAltitudesSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleAltitudesChangedFiles);
+  const isTriangleCentroidSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleCentroidChangedFiles);
   const isPerpendicularBisectorRegressionFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles);
   const isPerpendicularBisectorGeometryFixSet = isExactChangedFileSet(changedFiles, personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles);
   const isPr131Set = isExactChangedFileSet(changedFiles, localVisualCandidateReviewProductSurfaceChangedFiles);
@@ -388,7 +390,7 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
     controlledLiveProviderSmokeArtifactProofChangedFiles,
   );
   assert.equal(
-    isCleanBase || isAngleBisectorsSet || isTriangleAltitudesSet || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set,
+    isCleanBase || isAngleBisectorsSet || isTriangleAltitudesSet || isTriangleCentroidSet || isPerpendicularBisectorsSet || isPerpendicularBisectorRegressionFixSet || isPerpendicularBisectorGeometryFixSet || isArtifactProofSet || isResponseStatusSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set,
     true,
     changedFiles.join("\n"),
   );
@@ -400,6 +402,8 @@ test("PR123 changed files stay exact and do not add live provider fixtures or pa
       ? personalVisualHarmonyAngleBisectorsChangedFiles
       : isTriangleAltitudesSet
       ? personalVisualHarmonyTriangleAltitudesChangedFiles
+      : isTriangleCentroidSet
+      ? personalVisualHarmonyTriangleCentroidChangedFiles
       : isPerpendicularBisectorRegressionFixSet
       ? personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles
       : isPerpendicularBisectorsSet
