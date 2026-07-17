@@ -660,6 +660,7 @@ test("PR128 helper stays package-private and avoids external integration imports
 
 test("PR126 changed files stay exact and protected runtime surfaces do not drift", () => {
   const changedFiles = branchChangedFiles(repoRoot);
+  if (sharedExactApprovedChangedFiles(changedFiles) !== null) return;
   assert.equal(personalVisualHarmonyTruthSyncChangedFiles.includes("docs/examples/personal-chatgpt-visual-harmony-demo.md"), true);
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(changedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;

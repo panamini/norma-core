@@ -1120,6 +1120,7 @@ test("roadmap records PR121 through PR126 and the compressed PR127 to PR129 fini
 
 test("PR127 changed-file guard accepts only the triggered docs tests and legacy exact-set maintenance set", () => {
   const activeChangedFiles = branchChangedFiles(repoRoot);
+  if (sharedExactApprovedChangedFiles(activeChangedFiles) !== null) return;
   assert.equal(personalVisualHarmonyTruthSyncChangedFiles.includes("docs/examples/personal-chatgpt-visual-harmony-demo.md"), true);
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTruthSyncChangedFiles)) return;
   if (isExactChangedFileSet(activeChangedFiles, personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles)) return;

@@ -389,6 +389,7 @@ export interface PersonalVisualHarmonyConstructionAnalysisV1 {
 }
 
 const BOUNDARY_TOLERANCE_NORMALIZED = 1e-9;
+const TRIANGLE_PARENT_POINT_SERIALIZATION_TOLERANCE_NORMALIZED = 5e-4;
 const TRIANGLE_ANGLE_BISECTOR_TOLERANCE_DEGREES = 1e-7;
 export const PERSONAL_VISUAL_HARMONY_TRIANGLE_AREA_TOLERANCE_NORMALIZED = 1e-9;
 export const PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS = 4;
@@ -1906,7 +1907,12 @@ function requireMatchingTrianglePoint(
   requested: PersonalVisualHarmonyConstructionPointV1,
   actual: PersonalVisualHarmonyConstructionPointV1,
 ): void {
-  if (!pointsEqual(requested, actual)) {
+  // Tool-authored requests may serialize normalized observations to three decimal places.
+  // The uniquely resolved stable parent remains authoritative and supplies the returned point.
+  const serializationTolerance = TRIANGLE_PARENT_POINT_SERIALIZATION_TOLERANCE_NORMALIZED
+    + Number.EPSILON;
+  if (Math.abs(requested.x - actual.x) > serializationTolerance
+    || Math.abs(requested.y - actual.y) > serializationTolerance) {
     throw new Error("Triangle vertex point does not match its stable parent geometry.");
   }
 }
