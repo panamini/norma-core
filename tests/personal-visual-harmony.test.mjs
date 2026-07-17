@@ -1547,6 +1547,17 @@ test("an explicit confirmed image-plane length pair produces one separate non-au
 
   assert.throws(
     () => confirm(prepared, {
+      confirmedVisualGuideCandidateIds: ["short-segment", "right-trapezoid"],
+      measurementRatioRequest: {
+        ...measurementRatioRequest,
+        requestId: 42,
+      },
+      sourcePixelHeight: 1000,
+    }),
+    /requestId must be a safe bounded id/u,
+  );
+  assert.throws(
+    () => confirm(prepared, {
       confirmedVisualGuideCandidateIds: ["right-trapezoid"],
       measurementRatioRequest,
       sourcePixelHeight: 1000,

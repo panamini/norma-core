@@ -67,6 +67,53 @@ function widgetHydrationState(overrides = {}) {
   };
 }
 
+test("measurement ratio controls remain usable to disable an incomplete enabled request", () => {
+  const state = {
+    completed: false,
+    confirming: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [
+      { kind: "segment", candidateId: "kept" },
+      { kind: "segment", candidateId: "removed" },
+    ],
+  };
+  const measurementRatioToggle = {
+    disabled: true,
+    setAttribute() {},
+    textContent: "",
+  };
+  const createSelect = () => ({
+    disabled: false,
+    value: "",
+    replaceChildren() {},
+    add() {},
+  });
+  const updateMeasurementRatioControls = widgetScriptFunction(
+    "updateMeasurementRatioControls",
+    "measurementRatioToggle.addEventListener",
+    {
+      state,
+      eligibleMeasurementReferences: () => [{
+        reference: { kind: "segment", candidateId: "kept" },
+        label: "Kept segment",
+      }],
+      measurementRefKey: (reference) => JSON.stringify(reference),
+      measurementRatioToggle,
+      measurementRatioFirst: createSelect(),
+      measurementRatioSecond: createSelect(),
+      Option: class Option {},
+      updateConfirm() {},
+    },
+  );
+
+  updateMeasurementRatioControls();
+
+  assert.equal(measurementRatioToggle.disabled, false);
+  assert.deepEqual(state.measurementRatioRefs, [
+    { kind: "segment", candidateId: "kept" },
+  ]);
+});
+
 test("presentation promotes the complementary phi split and collapses duplicate support", () => {
   const makeMatch = (overrides) => ({
     subjectCandidateId: "square",
@@ -3469,6 +3516,36 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
     assert.equal(ratioReport.sourceTruth, false);
     assert.equal(ratioReport.coreAuthority, false);
     assert.equal(ratioReport.noUnrequestedComparisons, true);
+    const replay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["minor", "major"],
+        confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:mcp",
+          measurements: [
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(replay.isError, undefined);
+    assert.equal(
+      replay.structuredContent.canonicalResultIdentity,
+      confirmed.structuredContent.canonicalResultIdentity,
+    );
     assert.match(confirmed.content[0].text, /Mesures de quadrilatères dans le plan image/u);
     assert.match(confirmed.content[0].text, /ni des rapports harmoniques ni des mesures du monde réel/u);
     assert.match(confirmed._meta.normaPersonalVisualHarmony.overlaySvg, /data-primitive-kind="quadrilateral"/u);

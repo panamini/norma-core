@@ -1849,7 +1849,7 @@ const MEASUREMENT_RATIO_PACK_REFS=${JSON.stringify(PERSONAL_VISUAL_HARMONY_DECLA
 function measurementRefKey(reference){return JSON.stringify(reference)}
 function eligibleMeasurementReferences(){const values=[];for(const candidate of state.reviewedCandidates){if(!state.selectedGuides.has(candidate.id))continue;const kind=primitiveKind(candidate);if(kind==="segment")values.push({reference:{kind:"segment",candidateId:candidate.id},label:candidate.label+" · longueur du segment"});if(kind==="quadrilateral"){for(let sideIndex=0;sideIndex<4;sideIndex++)values.push({reference:{kind:"quadrilateral-side",candidateId:candidate.id,sideIndex},label:candidate.label+" · côté "+(sideIndex+1)});for(let diagonalIndex=0;diagonalIndex<2;diagonalIndex++)values.push({reference:{kind:"quadrilateral-diagonal",candidateId:candidate.id,diagonalIndex},label:candidate.label+" · diagonale "+(diagonalIndex+1)})}}return values}
 function measurementRatioRequest(){if(!state.measurementRatioEnabled||state.measurementRatioRefs.length!==2||measurementRefKey(state.measurementRatioRefs[0])===measurementRefKey(state.measurementRatioRefs[1]))return undefined;return{requestId:"declared-ratio:widget",measurements:state.measurementRatioRefs.map(reference=>JSON.parse(JSON.stringify(reference))),ratioPackRefs:[...MEASUREMENT_RATIO_PACK_REFS],matchTolerance:MEASUREMENT_RATIO_MATCH_TOLERANCE}}
-function updateMeasurementRatioControls(){const options=eligibleMeasurementReferences(),byKey=new Map(options.map(item=>[measurementRefKey(item.reference),item])),current=state.measurementRatioRefs.filter(reference=>byKey.has(measurementRefKey(reference)));state.measurementRatioRefs=current.slice(0,2);measurementRatioToggle.disabled=state.completed||state.confirming||options.length<2;measurementRatioToggle.setAttribute("aria-pressed",String(state.measurementRatioEnabled));measurementRatioToggle.textContent=state.measurementRatioEnabled?"Rapport de deux longueurs · activé":"Rapport de deux longueurs · désactivé";for(const [index,select] of [measurementRatioFirst,measurementRatioSecond].entries()){const selected=state.measurementRatioRefs[index],selectedKey=selected?measurementRefKey(selected):"";select.replaceChildren(new Option(index===0?"Choisir la première longueur":"Choisir la deuxième longueur",""));for(const item of options)select.add(new Option(item.label,measurementRefKey(item.reference)));select.value=selectedKey;select.disabled=state.completed||state.confirming||!state.measurementRatioEnabled||options.length<2}updateConfirm()}
+function updateMeasurementRatioControls(){const options=eligibleMeasurementReferences(),byKey=new Map(options.map(item=>[measurementRefKey(item.reference),item])),current=state.measurementRatioRefs.filter(reference=>byKey.has(measurementRefKey(reference)));state.measurementRatioRefs=current.slice(0,2);measurementRatioToggle.disabled=state.completed||state.confirming||(!state.measurementRatioEnabled&&options.length<2);measurementRatioToggle.setAttribute("aria-pressed",String(state.measurementRatioEnabled));measurementRatioToggle.textContent=state.measurementRatioEnabled?"Rapport de deux longueurs · activé":"Rapport de deux longueurs · désactivé";for(const [index,select] of [measurementRatioFirst,measurementRatioSecond].entries()){const selected=state.measurementRatioRefs[index],selectedKey=selected?measurementRefKey(selected):"";select.replaceChildren(new Option(index===0?"Choisir la première longueur":"Choisir la deuxième longueur",""));for(const item of options)select.add(new Option(item.label,measurementRefKey(item.reference)));select.value=selectedKey;select.disabled=state.completed||state.confirming||!state.measurementRatioEnabled||options.length<2}updateConfirm()}
 measurementRatioToggle.addEventListener("click",()=>{if(measurementRatioToggle.disabled)return;state.measurementRatioEnabled=!state.measurementRatioEnabled;if(!state.measurementRatioEnabled)state.measurementRatioRefs=[];updateMeasurementRatioControls();persistReviewState()})
 for(const [index,select] of [measurementRatioFirst,measurementRatioSecond].entries())select.addEventListener("change",()=>{const reference=select.value===""?null:JSON.parse(select.value),next=[...state.measurementRatioRefs];if(reference===null)next.splice(index,1);else next[index]=reference;state.measurementRatioRefs=next.filter(Boolean).slice(0,2);updateMeasurementRatioControls();persistReviewState()})
 const CONSTRUCTION_LAYERS=["support-line-extensions","format-diagonals","junction-angles","triangles","triangle-medians","triangle-perpendicular-bisectors","triangle-angle-bisectors","triangle-altitudes","triangle-centroids"];
@@ -2288,6 +2288,18 @@ function stableConfirmationKey(input: {
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
 }): string {
+  const measurementRatioRequest = input.measurementRatioRequest === undefined
+    ? null
+    : {
+        ...input.measurementRatioRequest,
+        measurements: [...input.measurementRatioRequest.measurements].sort((left, right) => (
+          JSON.stringify(left) < JSON.stringify(right)
+            ? -1
+            : JSON.stringify(left) > JSON.stringify(right)
+              ? 1
+              : 0
+        )),
+      };
   return JSON.stringify({
     candidateSetIdentity: input.candidateSetIdentity,
     selectedCandidateIds: [...input.selectedCandidateIds].sort(),
@@ -2295,7 +2307,7 @@ function stableConfirmationKey(input: {
     constructionLayers: PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.filter((layer) => (
       (input.constructionLayers ?? []).includes(layer)
     )),
-    measurementRatioRequest: input.measurementRatioRequest ?? null,
+    measurementRatioRequest,
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
   });

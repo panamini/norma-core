@@ -652,7 +652,7 @@ function validateMeasurementRatioRequest(request: PersonalVisualHarmonyMeasureme
   ])) {
     throw new Error("Declared measurement ratio request must expose exact versioned fields.");
   }
-  if (!CANDIDATE_ID_PATTERN.test(request.requestId)) {
+  if (typeof request.requestId !== "string" || !CANDIDATE_ID_PATTERN.test(request.requestId)) {
     throw new Error("Declared measurement ratio requestId must be a safe bounded id.");
   }
   if (!Array.isArray(request.measurements) || request.measurements.length !== 2) {
