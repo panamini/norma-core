@@ -480,6 +480,134 @@ test("crop integration projects image-border guides onto the last readable raste
   }
 });
 
+test("off-frame ellipse crop planning preserves full geometry and can refine visible edge evidence", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"8".repeat(64)}`,
+    candidateId: "off-frame-ellipse",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.08, y: 0.5 },
+      radiusX: 0.3,
+      radiusY: 0.2,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 0);
+  assert.ok(plan.sourceWidth < base.sourcePixelWidth);
+
+  const unavailable = refinePersonalVisualHarmonyCandidatePixelCropV1(base);
+  assert.equal(unavailable.status, "abstained");
+  assert.equal(unavailable.reason, "pixel_read_unavailable");
+  assert.deepEqual(unavailable.originalGeometry, base.primitive);
+  assert.equal(unavailable.coreRun, false);
+
+  const sourceRaster = renderRaster({
+    raster: { width: 100, height: 100, background: 0.85 },
+    shapes: [{
+      kind: "filled-ellipse",
+      center: { x: 5, y: 50 },
+      radiusX: 27,
+      radiusY: 17,
+      luminance: 0.15,
+    }],
+  });
+  const observed = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: cropLuminanceBytes(sourceRaster, plan),
+  });
+  assert.equal(observed.status, "refined");
+  assert.equal(observed.reason, "improved_edge_support");
+  assert.deepEqual(observed.originalGeometry, base.primitive);
+  assert.ok(observed.proposedGeometry);
+  assert.ok(observed.proposedGeometry.center.x - observed.proposedGeometry.radiusX < 0);
+  assert.ok(observed.displacementPixels.maximum <= observed.displacementPixels.bound);
+  assert.equal(observed.coreRun, false);
+});
+
+test("off-frame ellipse crop refinement rejects a best candidate whose center cannot map losslessly", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"7".repeat(64)}`,
+    candidateId: "off-frame-ellipse-unrepresentable-center",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0, y: 0.5 },
+      radiusX: 0.3,
+      radiusY: 0.2,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 0);
+  const sourceRaster = renderRaster({
+    raster: { width: 100, height: 100, background: 0.85 },
+    shapes: [{
+      kind: "filled-ellipse",
+      center: { x: -2, y: 50 },
+      radiusX: 30,
+      radiusY: 20,
+      luminance: 0.15,
+    }],
+  });
+
+  const observed = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: cropLuminanceBytes(sourceRaster, plan),
+  });
+  assert.equal(observed.status, "abstained");
+  assert.equal(observed.reason, "invalid_refined_geometry");
+  assert.equal(observed.proposedGeometry, null);
+  assert.deepEqual(observed.originalGeometry, base.primitive);
+  assert.equal(observed.coreRun, false);
+});
+
+test("off-frame rotated ellipse crop refinement preserves orientation and visible full geometry", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"9".repeat(64)}`,
+    candidateId: "off-frame-rotated-ellipse",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.08, y: 0.5 },
+      radiusX: 0.3,
+      radiusY: 0.18,
+      rotationDegrees: 25,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 0);
+  const sourceRaster = renderRaster({
+    raster: { width: 100, height: 100, background: 0.85 },
+    shapes: [{
+      kind: "filled-ellipse",
+      center: { x: 5, y: 50 },
+      radiusX: 27,
+      radiusY: 15,
+      rotationDegrees: 22,
+      luminance: 0.15,
+    }],
+  });
+
+  const observed = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: cropLuminanceBytes(sourceRaster, plan),
+  });
+  assert.equal(observed.status, "refined");
+  assert.equal(observed.reason, "improved_edge_support");
+  assert.deepEqual(observed.originalGeometry, base.primitive);
+  assert.ok(observed.proposedGeometry);
+  assert.equal(typeof observed.proposedGeometry.rotationDegrees, "number");
+  assert.ok(observed.proposedGeometry.center.x - observed.proposedGeometry.radiusX < 0);
+  assert.ok(observed.displacementPixels.maximum <= observed.displacementPixels.bound);
+  assert.equal(observed.coreRun, false);
+});
+
 test("crop integration abstains when mapping yields a kernel-invalid primitive", () => {
   const base = {
     candidateSetIdentity: `sha256:${"e".repeat(64)}`,

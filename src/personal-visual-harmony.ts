@@ -1204,7 +1204,18 @@ function createEllipseSupportingLineRelationship(
       contactPixels,
     );
   if (computedIntersections === null) return null;
-  let intersectionPointsPixels = computedIntersections;
+  let intersectionPointsPixels = computedIntersections
+    .filter((point) => pointIsInsideImageFramePixels(
+      point,
+      sourcePixelWidth,
+      sourcePixelHeight,
+    ))
+    .map((point) => clampPointToImageFramePixels(
+      point,
+      sourcePixelWidth,
+      sourcePixelHeight,
+    ));
+  if (computedIntersections.length > 0 && intersectionPointsPixels.length === 0) return null;
   let classification: PersonalVisualHarmonyImagePlaneRelationV1["classification"];
   let gapPixelsValue: number;
   let supportingLineContactWithinObservedSegment: boolean;
@@ -1224,7 +1235,7 @@ function createEllipseSupportingLineRelationship(
     if (chosen === undefined) return null;
     contactPixels = chosen.point;
     closestPixels = chosen.point;
-    classification = intersectionPointsPixels.length === 1 ? "near_tangent" : "intersection";
+    classification = computedIntersections.length === 1 ? "near_tangent" : "intersection";
     gapPixelsValue = 0;
     supportingLineContactWithinObservedSegment = rankedIntersections.some(({ projectionScale }) => (
       projectionScale >= 0 && projectionScale <= 1
@@ -1244,6 +1255,12 @@ function createEllipseSupportingLineRelationship(
     supportingLineContactWithinObservedSegment = contactProjectionScale >= 0
       && contactProjectionScale <= 1;
   }
+  if (!pointIsInsideImageFramePixels(contactPixels, sourcePixelWidth, sourcePixelHeight)
+    || !pointIsInsideImageFramePixels(closestPixels, sourcePixelWidth, sourcePixelHeight)) {
+    return null;
+  }
+  contactPixels = clampPointToImageFramePixels(contactPixels, sourcePixelWidth, sourcePixelHeight);
+  closestPixels = clampPointToImageFramePixels(closestPixels, sourcePixelWidth, sourcePixelHeight);
   intersectionPointsPixels = [...intersectionPointsPixels]
     .sort((first, second) => (first.x - second.x) || (first.y - second.y));
   const contactLocation = rotatedGeometry === null
@@ -1335,6 +1352,27 @@ function createEllipseSupportingLineRelationship(
     contactCharacter,
     derivation: "infinite_supporting_line_from_confirmed_endpoints",
     explanation: `${ellipseCandidate.label} ↔ ${lineEvidence.label}: ${relationLabel} au contact ${ellipseContactLocationLabel(contactLocation)}, ${observedExtentLabel}; écart ${formatNumber(gapPixels)} px (${formatPercent(gapPercentOfImageWidth)} de la largeur), angle ligne/tangente ${formatNumber(canonicalTangentAngleDeltaDegrees)}° dans le plan image.`,
+  };
+}
+
+function pointIsInsideImageFramePixels(
+  point: PersonalVisualHarmonyPointV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): boolean {
+  const tolerance = 1e-9;
+  return point.x >= -tolerance && point.x <= sourcePixelWidth + tolerance
+    && point.y >= -tolerance && point.y <= sourcePixelHeight + tolerance;
+}
+
+function clampPointToImageFramePixels(
+  point: PersonalVisualHarmonyPointV1,
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): PersonalVisualHarmonyPointV1 {
+  return {
+    x: Math.max(0, Math.min(sourcePixelWidth, point.x)),
+    y: Math.max(0, Math.min(sourcePixelHeight, point.y)),
   };
 }
 
@@ -2151,24 +2189,16 @@ function canonicalBoundsForPrimitive(
   primitive: PersonalVisualHarmonyPrimitiveV1 | undefined,
 ): Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height"> {
   if (primitive?.kind === "ellipse") {
-    if (primitive.rotationDegrees !== undefined) {
-      const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
-      const minX = Math.max(0, primitive.center.x - halfWidth);
-      const minY = Math.max(0, primitive.center.y - halfHeight);
-      const maxX = Math.min(1, primitive.center.x + halfWidth);
-      const maxY = Math.min(1, primitive.center.y + halfHeight);
-      return {
-        x: canonicalNumber(minX),
-        y: canonicalNumber(minY),
-        width: canonicalNumber(maxX - minX),
-        height: canonicalNumber(maxY - minY),
-      };
-    }
+    const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
+    const minX = Math.max(0, primitive.center.x - halfWidth);
+    const minY = Math.max(0, primitive.center.y - halfHeight);
+    const maxX = Math.min(1, primitive.center.x + halfWidth);
+    const maxY = Math.min(1, primitive.center.y + halfHeight);
     return {
-      x: canonicalNumber(primitive.center.x - primitive.radiusX),
-      y: canonicalNumber(primitive.center.y - primitive.radiusY),
-      width: canonicalNumber(primitive.radiusX * 2),
-      height: canonicalNumber(primitive.radiusY * 2),
+      x: canonicalNumber(minX),
+      y: canonicalNumber(minY),
+      width: canonicalNumber(maxX - minX),
+      height: canonicalNumber(maxY - minY),
     };
   }
   if (primitive?.kind === "quadrilateral") {
@@ -2201,6 +2231,28 @@ function rotatedEllipseNormalizedHalfExtents(
     halfWidth: Math.hypot(primitive.radiusX * cos, primitive.radiusY * sin),
     halfHeight: Math.hypot(primitive.radiusX * sin, primitive.radiusY * cos),
   };
+}
+
+function ellipsePerimeterIntersectsImageFrame(
+  primitive: Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }>,
+): boolean {
+  const rotationRadians = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  return [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ].some((corner) => {
+    const dx = corner.x - primitive.center.x;
+    const dy = corner.y - primitive.center.y;
+    const localX = (dx * cos) + (dy * sin);
+    const localY = (-dx * sin) + (dy * cos);
+    const ellipseValue = ((localX / primitive.radiusX) ** 2)
+      + ((localY / primitive.radiusY) ** 2);
+    return ellipseValue >= 1 - 1e-12;
+  });
 }
 
 function validateCandidatePrimitive(
@@ -2250,37 +2302,33 @@ function validateCandidatePrimitive(
   }
   const center = validatePrimitivePoint(value.center, `candidates.${String(candidateIndex)}.primitive.center`);
   if (!Number.isFinite(value.radiusX) || !Number.isFinite(value.radiusY)
-    || value.radiusX <= 0 || value.radiusY <= 0) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
+    || value.radiusX <= 0 || value.radiusY <= 0
+    || value.radiusX > 1 || value.radiusY > 1) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse radii must be finite and within (0, 1].`);
   }
+  let canonical: Extract<PersonalVisualHarmonyPrimitiveV1, { readonly kind: "ellipse" }>;
   if (value.rotationDegrees === undefined) {
-    if (center.x - value.radiusX < 0 || center.x + value.radiusX > 1
-      || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
-      throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
-    }
-    return {
+    canonical = {
       kind: "ellipse",
       center,
       radiusX: canonicalNumber(value.radiusX),
       radiusY: canonicalNumber(value.radiusY),
     };
+  } else {
+    const rotated = canonicalizePersonalVisualHarmonyRotatedEllipseV1({
+      kind: "ellipse",
+      center,
+      radiusX: value.radiusX,
+      radiusY: value.radiusY,
+      rotationDegrees: value.rotationDegrees,
+    });
+    if (rotated === null) {
+      throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must use finite non-degenerate geometry.`);
+    }
+    canonical = rotated;
   }
-  const canonical = canonicalizePersonalVisualHarmonyRotatedEllipseV1({
-    kind: "ellipse",
-    center,
-    radiusX: value.radiusX,
-    radiusY: value.radiusY,
-    rotationDegrees: value.rotationDegrees,
-  });
-  if (canonical === null) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must use finite non-degenerate geometry.`);
-  }
-  const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(canonical);
-  if (canonical.center.x - halfWidth < -1e-12
-    || canonical.center.y - halfHeight < -1e-12
-    || canonical.center.x + halfWidth > 1 + 1e-12
-    || canonical.center.y + halfHeight > 1 + 1e-12) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must remain inside the image.`);
+  if (!ellipsePerimeterIntersectsImageFrame(canonical)) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse perimeter must intersect the image.`);
   }
   return canonical;
 }

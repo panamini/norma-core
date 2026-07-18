@@ -209,7 +209,10 @@ export function createPersonalVisualHarmonyPixelCropPlanV1(input: {
     points = [
       { x: center.x - radiusX, y: center.y - radiusY },
       { x: center.x + radiusX, y: center.y + radiusY },
-    ];
+    ].map((point) => ({
+      x: Math.max(0, Math.min(xExtent, point.x)),
+      y: Math.max(0, Math.min(yExtent, point.y)),
+    }));
   } else {
     throw new Error("Pixel crop planning requires a supported primitive kind.");
   }
@@ -670,7 +673,8 @@ function refineAxisAlignedEllipse(
             radiusX: primitive.radiusX + radiusXDelta,
             radiusY: primitive.radiusY + radiusYDelta,
           };
-          if (geometry.radiusX <= 1 || geometry.radiusY <= 1 || !ellipseInsideRaster(geometry, raster)) {
+          if (geometry.radiusX <= 1 || geometry.radiusY <= 1
+            || !ellipseHasObservablePerimeter(geometry, raster)) {
             continue;
           }
           const displacement = ellipseDisplacement(primitive, geometry);
@@ -705,7 +709,8 @@ function refineRotatedEllipse(
   const evaluate = (candidate: EllipsePrimitive | null): ScoredGeometry<EllipsePrimitive> | null => {
     if (candidate === null || evaluatedCandidates >= ROTATED_ELLIPSE_MAX_EVALUATIONS
       || (preserveOrientation && candidate.rotationDegrees !== primitive.rotationDegrees)
-      || candidate.radiusX <= 1 || candidate.radiusY <= 1 || !ellipseInsideRaster(candidate, raster)) {
+      || candidate.radiusX <= 1 || candidate.radiusY <= 1
+      || !ellipseHasObservablePerimeter(candidate, raster)) {
       return null;
     }
     const displacement = ellipseDisplacement(primitive, candidate);
@@ -1321,25 +1326,42 @@ function lineInsideRaster(line: LinePrimitive, raster: PersonalVisualHarmonyLumi
   return pointInsideRaster(line.start, raster) && pointInsideRaster(line.end, raster);
 }
 
-function ellipseInsideRaster(
+function ellipseHasObservablePerimeter(
   ellipse: EllipsePrimitive,
   raster: PersonalVisualHarmonyLuminanceRasterV1,
 ): boolean {
-  if (ellipse.rotationDegrees !== undefined) {
-    const rotationRadians = ellipse.rotationDegrees * Math.PI / 180;
-    const cos = Math.cos(rotationRadians);
-    const sin = Math.sin(rotationRadians);
-    const halfWidth = Math.hypot(ellipse.radiusX * cos, ellipse.radiusY * sin);
-    const halfHeight = Math.hypot(ellipse.radiusX * sin, ellipse.radiusY * cos);
-    return ellipse.center.x - halfWidth >= CONTRAST_SAMPLE_OFFSET_PIXELS
-      && ellipse.center.y - halfHeight >= CONTRAST_SAMPLE_OFFSET_PIXELS
-      && ellipse.center.x + halfWidth <= raster.width - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS
-      && ellipse.center.y + halfHeight <= raster.height - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS;
+  const sampleCount = 128;
+  const minimumObservableSamples = 8;
+  const rotationRadians = (ellipse.rotationDegrees ?? 0) * Math.PI / 180;
+  const rotationCos = Math.cos(rotationRadians);
+  const rotationSin = Math.sin(rotationRadians);
+  let observableSamples = 0;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const angle = 2 * Math.PI * index / sampleCount;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const localX = ellipse.radiusX * cos;
+    const localY = ellipse.radiusY * sin;
+    const point = {
+      x: ellipse.center.x + rotationCos * localX - rotationSin * localY,
+      y: ellipse.center.y + rotationSin * localX + rotationCos * localY,
+    };
+    const localNormalX = cos / ellipse.radiusX;
+    const localNormalY = sin / ellipse.radiusY;
+    const rotatedNormal = {
+      x: rotationCos * localNormalX - rotationSin * localNormalY,
+      y: rotationSin * localNormalX + rotationCos * localNormalY,
+    };
+    const normalLength = Math.hypot(rotatedNormal.x, rotatedNormal.y);
+    if (contrastAcrossNormal(raster, point, {
+      x: rotatedNormal.x / normalLength,
+      y: rotatedNormal.y / normalLength,
+    }) !== null) {
+      observableSamples += 1;
+      if (observableSamples >= minimumObservableSamples) return true;
+    }
   }
-  return ellipse.center.x - ellipse.radiusX >= CONTRAST_SAMPLE_OFFSET_PIXELS
-    && ellipse.center.y - ellipse.radiusY >= CONTRAST_SAMPLE_OFFSET_PIXELS
-    && ellipse.center.x + ellipse.radiusX <= raster.width - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS
-    && ellipse.center.y + ellipse.radiusY <= raster.height - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS;
+  return false;
 }
 
 function undirectedAngleSeparationDegrees(first: number, second: number): number {
@@ -1515,13 +1537,13 @@ function validateNormalizedRefinementPrimitive(
   requireExactFields(primitive, ellipseFields, "Normalized ellipse primitives");
   validateNormalizedPoint(primitive.center);
   if (!Number.isFinite(primitive.radiusX) || !Number.isFinite(primitive.radiusY)
-    || primitive.radiusX <= 0 || primitive.radiusY <= 0) {
-    throw new Error("Normalized ellipses must have positive in-image radii.");
+    || primitive.radiusX <= 0 || primitive.radiusY <= 0
+    || primitive.radiusX > 1 || primitive.radiusY > 1) {
+    throw new Error("Normalized ellipses must have finite radii within (0, 1].");
   }
   if (primitive.rotationDegrees === undefined) {
-    if (primitive.center.x - primitive.radiusX < 0 || primitive.center.x + primitive.radiusX > 1
-      || primitive.center.y - primitive.radiusY < 0 || primitive.center.y + primitive.radiusY > 1) {
-      throw new Error("Normalized ellipses must have positive in-image radii.");
+    if (!normalizedEllipsePerimeterIntersectsImageFrame(primitive)) {
+      throw new Error("Normalized ellipse perimeter must intersect the image.");
     }
     return;
   }
@@ -1532,21 +1554,30 @@ function validateNormalizedRefinementPrimitive(
   if (canonical === null || JSON.stringify(canonical) !== JSON.stringify(primitive)) {
     throw new Error("Normalized rotated ellipses must use canonical finite geometry.");
   }
-  const rotationRadians = primitive.rotationDegrees * Math.PI / 180;
-  const rotationCos = Math.cos(rotationRadians);
-  const rotationSin = Math.sin(rotationRadians);
-  const halfWidth = Math.hypot(
-    primitive.radiusX * rotationCos,
-    primitive.radiusY * rotationSin,
-  );
-  const halfHeight = Math.hypot(
-    primitive.radiusX * rotationSin,
-    primitive.radiusY * rotationCos,
-  );
-  if (primitive.center.x - halfWidth < -EPSILON || primitive.center.x + halfWidth > 1 + EPSILON
-    || primitive.center.y - halfHeight < -EPSILON || primitive.center.y + halfHeight > 1 + EPSILON) {
-    throw new Error("Normalized rotated ellipses must remain inside the image.");
+  if (!normalizedEllipsePerimeterIntersectsImageFrame(primitive)) {
+    throw new Error("Normalized rotated ellipse perimeter must intersect the image.");
   }
+}
+
+function normalizedEllipsePerimeterIntersectsImageFrame(
+  primitive: Extract<PersonalVisualHarmonyPixelRefinementPrimitiveV1, { readonly kind: "ellipse" }>,
+): boolean {
+  const rotationRadians = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  return [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ].some((corner) => {
+    const dx = corner.x - primitive.center.x;
+    const dy = corner.y - primitive.center.y;
+    const localX = (dx * cos) + (dy * sin);
+    const localY = (-dx * sin) + (dy * cos);
+    return ((localX / primitive.radiusX) ** 2)
+      + ((localY / primitive.radiusY) ** 2) >= 1 - EPSILON;
+  });
 }
 
 function validateLuminanceBytes(value: readonly number[], expectedLength: number): void {
@@ -1614,6 +1645,10 @@ function primitiveToWorkingCrop(
 ): PersonalVisualHarmonyPixelRefinementPrimitiveV1 {
   const xExtent = input.sourcePixelWidth;
   const yExtent = input.sourcePixelHeight;
+  const unboundedPoint = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: (value.x * xExtent - crop.originX) / crop.scaleX,
+    y: (value.y * yExtent - crop.originY) / crop.scaleY,
+  });
   const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
     x: Math.max(0, Math.min(
       crop.rasterWidth - 1,
@@ -1643,39 +1678,18 @@ function primitiveToWorkingCrop(
       primitive,
       xExtent / crop.scaleX,
       yExtent / crop.scaleY,
-      point(primitive.center),
+      unboundedPoint(primitive.center),
     );
     if (transformed === null) {
       throw new Error("Rotated ellipse crop mapping requires stable canonical geometry.");
     }
     return transformed;
   }
-  const ellipsePoint = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
-    x: Math.max(CONTRAST_SAMPLE_OFFSET_PIXELS, Math.min(
-      crop.rasterWidth - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS,
-      (value.x * xExtent - crop.originX) / crop.scaleX,
-    )),
-    y: Math.max(CONTRAST_SAMPLE_OFFSET_PIXELS, Math.min(
-      crop.rasterHeight - 1 - CONTRAST_SAMPLE_OFFSET_PIXELS,
-      (value.y * yExtent - crop.originY) / crop.scaleY,
-    )),
-  });
-  const minimum = ellipsePoint({
-    x: primitive.center.x - primitive.radiusX,
-    y: primitive.center.y - primitive.radiusY,
-  });
-  const maximum = ellipsePoint({
-    x: primitive.center.x + primitive.radiusX,
-    y: primitive.center.y + primitive.radiusY,
-  });
   return {
     kind: "ellipse",
-    center: {
-      x: (minimum.x + maximum.x) / 2,
-      y: (minimum.y + maximum.y) / 2,
-    },
-    radiusX: (maximum.x - minimum.x) / 2,
-    radiusY: (maximum.y - minimum.y) / 2,
+    center: unboundedPoint(primitive.center),
+    radiusX: primitive.radiusX * xExtent / crop.scaleX,
+    radiusY: primitive.radiusY * yExtent / crop.scaleY,
   };
 }
 
@@ -1691,6 +1705,10 @@ function primitiveFromWorkingCrop(
   const point = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
     x: unit((crop.originX + value.x * crop.scaleX) / xExtent),
     y: unit((crop.originY + value.y * crop.scaleY) / yExtent),
+  });
+  const unboundedPoint = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: canonicalNumber((crop.originX + value.x * crop.scaleX) / xExtent),
+    y: canonicalNumber((crop.originY + value.y * crop.scaleY) / yExtent),
   });
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
@@ -1711,7 +1729,7 @@ function primitiveFromWorkingCrop(
       primitive,
       crop.scaleX / xExtent,
       crop.scaleY / yExtent,
-      point(primitive.center),
+      unboundedPoint(primitive.center),
     );
     if (transformed === null) {
       throw new Error("Rotated ellipse source mapping requires stable canonical geometry.");
@@ -1720,9 +1738,9 @@ function primitiveFromWorkingCrop(
   }
   return {
     kind: "ellipse",
-    center: point(primitive.center),
-    radiusX: unit(primitive.radiusX * crop.scaleX / xExtent),
-    radiusY: unit(primitive.radiusY * crop.scaleY / yExtent),
+    center: unboundedPoint(primitive.center),
+    radiusX: canonicalNumber(primitive.radiusX * crop.scaleX / xExtent),
+    radiusY: canonicalNumber(primitive.radiusY * crop.scaleY / yExtent),
   };
 }
 
@@ -1881,8 +1899,8 @@ function validatePrimitive(
       throw new Error("Rotated ellipse pixel refinement requires canonical finite geometry.");
     }
   }
-  if (!ellipseInsideRaster(primitive, raster)) {
-    throw new Error("Ellipse perimeter and contrast samples must stay within the raster.");
+  if (!ellipseHasObservablePerimeter(primitive, raster)) {
+    throw new Error("Ellipse refinement requires an observable perimeter arc in the raster.");
   }
 }
 

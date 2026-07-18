@@ -158,13 +158,14 @@ test("measurement ratio selectors update only pending widget state", () => {
   assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
 });
 
-test("widget ellipses expose bounded center and radius editing in responsive layout", () => {
+test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /\.shell\{container-type:inline-size\}/u);
   assert.match(html, /@container \(max-width:900px\)\{\.content\{grid-template-columns:minmax\(0,1fr\)\}/u);
   assert.match(html, /data-ellipse-handle/u);
   assert.doesNotMatch(html, /group\.setAttribute\("role","img"\)/u);
-  assert.match(html, /ellipses : déplacez le centre ou ajustez les deux rayons/u);
+  assert.match(html, /une poignée hors cadre reste accessible sur le bord/u);
+  assert.match(html, /data-ellipse-handle-proxy/u);
 
   const ellipseEnvelope = widgetScriptFunction(
     "ellipseEnvelope",
@@ -174,6 +175,11 @@ test("widget ellipses expose bounded center and radius editing in responsive lay
   const ellipseAxes = widgetScriptFunction(
     "ellipseAxes",
     "function adjustedEllipseCandidate",
+    {},
+  );
+  const ellipsePerimeterIntersectsImage = widgetScriptFunction(
+    "ellipsePerimeterIntersectsImage",
+    "function validQuadrilateralVertices",
     {},
   );
   const rounded = (value) => Math.round(value * 1_000_000) / 1_000_000;
@@ -191,9 +197,15 @@ test("widget ellipses expose bounded center and radius editing in responsive lay
     {
       ellipseAxes,
       ellipseEnvelope,
+      ellipsePerimeterIntersectsImage,
       candidateWithPrimitive,
       rounded,
     },
+  );
+  const visibleEllipseHandlePoint = widgetScriptFunction(
+    "visibleEllipseHandlePoint",
+    "function adjustedEllipseCandidate",
+    {},
   );
   const ellipse = {
     id: "door-circle",
@@ -223,7 +235,29 @@ test("widget ellipses expose bounded center and radius editing in responsive lay
   assert.equal(taller.primitive.radiusX, 0.2);
   assert.equal(taller.primitive.radiusY, 0.14);
 
-  assert.equal(adjustedEllipseCandidate(ellipse, "radius-x", 1, 0), ellipse);
+  const offFrame = adjustedEllipseCandidate(ellipse, "radius-x", 1, 0);
+  assert.equal(offFrame.primitive.radiusX, 1);
+  assert.deepEqual(
+    { x: offFrame.x, y: offFrame.y, width: offFrame.width, height: offFrame.height },
+    { x: 0, y: 0.4, width: 1, height: 0.2 },
+  );
+  assert.deepEqual(
+    visibleEllipseHandlePoint({ x: 0.5, y: 1.4 }),
+    { point: { x: 0.5, y: 0.982 }, proxy: true },
+  );
+  assert.deepEqual(
+    visibleEllipseHandlePoint({ x: 0.7, y: 0.6 }),
+    { point: { x: 0.7, y: 0.6 }, proxy: false },
+  );
+  const invisible = {
+    ...ellipse,
+    primitive: {
+      ...ellipse.primitive,
+      radiusX: 1,
+      radiusY: 1,
+    },
+  };
+  assert.equal(adjustedEllipseCandidate(invisible, "center", 0, 0), invisible);
 });
 
 test("quadrilateral measurement references preserve the selected visual edge through canonicalization", () => {
@@ -1059,6 +1093,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       CSS: { escape: (value) => value },
       primitiveKind: (item) => item.primitive.kind,
       ellipseAxes: ellipseAxesForTest,
+      visibleEllipseHandlePoint: (point) => ({ point, proxy: false }),
       supportingLineEndpoints() { throw new Error("line branch must remain unused"); },
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
@@ -1115,6 +1150,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       }) },
       primitiveKind: (item) => item.primitive.kind,
       ellipseAxes: ellipseAxesForTest,
+      visibleEllipseHandlePoint: (point) => ({ point, proxy: false }),
       CSS: { escape: (value) => value },
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
@@ -1168,6 +1204,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
         .every((field) => Math.abs(value[field] - expected[field]) <= 0.000001),
       validQuadrilateralVertices: () => false,
       ellipseEnvelope,
+      ellipsePerimeterIntersectsImage: () => true,
     },
   );
   assert.equal(validGeometryPatch(reviewed, rotated), true);
@@ -3888,15 +3925,67 @@ test("prepare canonically derives ellipse bounds from its measured center and ra
 
     const first = await prepare({ x: 0.24, y: 0.14, width: 0.51, height: 0.71 });
     const second = await prepare({ x: 0.26, y: 0.16, width: 0.49, height: 0.69 });
+    const clippedCandidates = mixedPrimitiveCandidates().map((candidate) => (
+      candidate.id === "main-ellipse"
+        ? {
+          ...candidate,
+          primitive: {
+            kind: "ellipse",
+            center: { x: 0.08, y: 0.5 },
+            radiusX: 0.3,
+            radiusY: 0.2,
+          },
+        }
+        : candidate
+    ));
+    const clippedPrepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-opaque-id",
+          mime_type: "image/png",
+        },
+        candidates: clippedCandidates,
+      },
+    });
 
     assert.equal(first.isError, undefined);
     assert.equal(second.isError, undefined);
+    assert.equal(clippedPrepared.isError, undefined);
     const ellipse = first.structuredContent.candidates.find(({ id }) => id === "main-ellipse");
     assert.deepEqual(
       { x: ellipse.x, y: ellipse.y, width: ellipse.width, height: ellipse.height },
       { x: 0.25, y: 0.15, width: 0.5, height: 0.7 },
     );
     assert.equal(first.structuredContent.candidateSetIdentity, second.structuredContent.candidateSetIdentity);
+    const clippedEllipse = clippedPrepared.structuredContent.candidates.find(({ id }) => (
+      id === "main-ellipse"
+    ));
+    assert.deepEqual(
+      { x: clippedEllipse.x, y: clippedEllipse.y, width: clippedEllipse.width, height: clippedEllipse.height },
+      { x: 0, y: 0.3, width: 0.38, height: 0.4 },
+    );
+
+    const clippedMeta = clippedPrepared._meta.normaPersonalVisualHarmony;
+    const clippedConfirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: clippedMeta.sessionId,
+        candidateSetIdentity: clippedMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["main-ellipse"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", clippedCandidates),
+      },
+    });
+    assert.equal(clippedConfirmed.isError, undefined);
+    assert.deepEqual(
+      clippedConfirmed.structuredContent.confirmedVisualGuideCandidateIds,
+      ["main-ellipse"],
+    );
   } finally {
     await connected.close();
   }
