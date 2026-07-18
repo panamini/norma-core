@@ -406,6 +406,148 @@ test("presentation does not promote unrelated complementary phi matches", () => 
   assert.equal(presentation.primaryPattern.subjects.length, 1);
 });
 
+test("widget manual segment is bounded, deterministic, candidate-only, and cannot run Core by itself", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="manualSegmentToggle"[^>]*disabled/u);
+  assert.match(html, /id="manualSegmentRemove"[^>]*disabled/u);
+  assert.match(html, /data-provenance","human-added-candidate"/u);
+  assert.match(html, /Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate/u);
+  assert.match(html, /activez Prolongements si vous voulez voir son axe/u);
+  assert.match(html, /Math\.hypot\(end\.x-start\.x,end\.y-start\.y\)<\.01/u);
+  assert.match(html, /state\.reviewedCandidates\.length>=MAX_REVIEW_CANDIDATES/u);
+  assert.match(html, /manualSegmentToggle\.addEventListener\("click"/u);
+  assert.match(html, /overlay\.addEventListener\("pointerdown",event=>\{if\(!state\.manualSegmentMode/u);
+  assert.match(html, /manualSegmentAnchor:null/u);
+  assert.match(html, /cliquez successivement les deux points/u);
+  assert.match(html, /Premier point enregistré\. Cliquez le second point visible/u);
+  assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
+
+  const nextManualSegmentId = widgetScriptFunction(
+    "nextManualSegmentId",
+    "function manualSegmentCandidate",
+    { MAX_REVIEW_CANDIDATES: 12 },
+  );
+  const manualSegmentCandidate = widgetScriptFunction(
+    "manualSegmentCandidate",
+    "function updateManualSegmentControls",
+    {
+      nextManualSegmentId,
+      validPoint: (point) => (
+        point
+        && Number.isFinite(point.x)
+        && Number.isFinite(point.y)
+        && point.x >= 0
+        && point.x <= 1
+        && point.y >= 0
+        && point.y <= 1
+      ),
+      candidateWithPrimitive: (item, primitive) => ({
+        ...item,
+        x: Math.min(primitive.start.x, primitive.end.x),
+        y: Math.min(primitive.start.y, primitive.end.y),
+        width: Math.abs(primitive.end.x - primitive.start.x),
+        height: Math.abs(primitive.end.y - primitive.start.y),
+        primitive,
+      }),
+    },
+  );
+  const existing = [{ id: "manual-segment-1" }, { id: "provider-segment" }];
+  const first = manualSegmentCandidate(existing, { x: 0.2, y: 0.8 }, { x: 0.24, y: 0.1 });
+  const second = manualSegmentCandidate(existing, { x: 0.2, y: 0.8 }, { x: 0.24, y: 0.1 });
+
+  assert.deepEqual(first, second);
+  assert.equal(first.id, "manual-segment-2");
+  assert.equal(first.role, "secondary-subject");
+  assert.equal(first.primitive.kind, "segment");
+  assert.deepEqual(first.primitive.start, { x: 0.2, y: 0.8 });
+  assert.deepEqual(first.primitive.end, { x: 0.24, y: 0.1 });
+  assert.equal(manualSegmentCandidate(existing, { x: 0.2, y: 0.2 }, { x: 0.205, y: 0.205 }), null);
+  assert.equal(
+    manualSegmentCandidate(
+      Array.from({ length: 12 }, (_, index) => ({ id: `manual-segment-${index + 1}` })),
+      { x: 0.1, y: 0.1 },
+      { x: 0.8, y: 0.8 },
+    ),
+    null,
+  );
+});
+
+test("widget re-prepares an added manual segment before confirmation and adopts the fresh identity", async () => {
+  const oldIdentity = `sha256:${"a".repeat(64)}`;
+  const freshIdentity = `sha256:${"b".repeat(64)}`;
+  const candidates = [{
+    id: "frame",
+    label: "Frame",
+    role: "frame",
+    reason: "Visible frame",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+  }, {
+    id: "manual-segment-1",
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  }];
+  const calls = [];
+  const state = {
+    downloadUrl: "https://files.example/manual.jpg",
+    activePayloadIdentity: "active-payload",
+    payload: null,
+    proposalCandidateSetIdentity: oldIdentity,
+    proposalCandidates: [],
+    pixelRefinementProposals: new Map([["provider-segment", {}]]),
+    adoptedPixelRefinements: new Map([["provider-segment", "sha256:proposal"]]),
+  };
+  const prepareReviewedPayload = widgetScriptFunction(
+    "prepareReviewedPayload",
+    "async function callConfirmation",
+    {
+      state,
+      PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      callAppTool: async (name, args) => {
+        calls.push({ name, args });
+        return {
+          normaPersonalVisualHarmony: {
+            stage: "confirmation_required",
+            fileId: "file-manual",
+            prepared: { candidateSetIdentity: freshIdentity, candidates },
+          },
+        };
+      },
+      findPayload: (value) => value.normaPersonalVisualHarmony,
+      samePreparedReviewCandidates: (requested, prepared) => (
+        JSON.stringify(requested) === JSON.stringify(prepared)
+      ),
+    },
+  );
+
+  const fresh = await prepareReviewedPayload({
+    fileId: "file-manual",
+    sourceImageMediaType: "image/jpeg",
+  }, candidates);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+  assert.deepEqual(calls[0].args.candidates, candidates);
+  assert.equal(fresh.prepared.candidateSetIdentity, freshIdentity);
+  assert.equal(state.payload, fresh);
+  assert.equal(state.proposalCandidateSetIdentity, freshIdentity);
+  assert.deepEqual(state.proposalCandidates, candidates);
+  assert.equal(state.pixelRefinementProposals.size, 0);
+  assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
 test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
   const identity = (character) => `sha256:${character.repeat(64)}`;
   const candidateSetIdentity = identity("a");
@@ -2617,8 +2759,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);
     assert.match(resource.contents[0].text, /download_url:state\.downloadUrl/u);
-    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
-    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
+    assert.match(resource.contents[0].text, /if\(candidateSnapshot\.length!==state\.proposalCandidates\.length\)\{state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
+    assert.match(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity=state\.proposalCandidateSetIdentity\|\|state\.payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
