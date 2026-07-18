@@ -461,6 +461,17 @@ export const personalVisualHarmonyPostPr240TruthClosureChangedFiles = Object.fre
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyBrandIdentityChangedFiles = Object.freeze([
+  "brand/DESIGN.md",
+  "brand/design-preview.html",
+  "brand/design-tokens.json",
+  "brand/logos/norma-mark-gesture.svg",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyTriangleCentroidChangedFiles = Object.freeze([
   "docs/decisions/2026-07-17-triangle-center-assessment.md",
   "docs/examples/personal-chatgpt-visual-harmony-demo.md",
@@ -1631,6 +1642,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   declaredImagePlaneMeasurementRatiosChangedFiles,
+  personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
