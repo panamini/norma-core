@@ -209,7 +209,10 @@ export function createPersonalVisualHarmonyPixelCropPlanV1(input: {
     points = [
       { x: center.x - radiusX, y: center.y - radiusY },
       { x: center.x + radiusX, y: center.y + radiusY },
-    ];
+    ].map((point) => ({
+      x: Math.max(0, Math.min(xExtent, point.x)),
+      y: Math.max(0, Math.min(yExtent, point.y)),
+    }));
   } else {
     throw new Error("Pixel crop planning requires a supported primitive kind.");
   }
@@ -1515,13 +1518,13 @@ function validateNormalizedRefinementPrimitive(
   requireExactFields(primitive, ellipseFields, "Normalized ellipse primitives");
   validateNormalizedPoint(primitive.center);
   if (!Number.isFinite(primitive.radiusX) || !Number.isFinite(primitive.radiusY)
-    || primitive.radiusX <= 0 || primitive.radiusY <= 0) {
-    throw new Error("Normalized ellipses must have positive in-image radii.");
+    || primitive.radiusX <= 0 || primitive.radiusY <= 0
+    || primitive.radiusX > 1 || primitive.radiusY > 1) {
+    throw new Error("Normalized ellipses must have finite radii within (0, 1].");
   }
   if (primitive.rotationDegrees === undefined) {
-    if (primitive.center.x - primitive.radiusX < 0 || primitive.center.x + primitive.radiusX > 1
-      || primitive.center.y - primitive.radiusY < 0 || primitive.center.y + primitive.radiusY > 1) {
-      throw new Error("Normalized ellipses must have positive in-image radii.");
+    if (!normalizedEllipsePerimeterIntersectsImageFrame(primitive)) {
+      throw new Error("Normalized ellipse perimeter must intersect the image.");
     }
     return;
   }
@@ -1532,21 +1535,30 @@ function validateNormalizedRefinementPrimitive(
   if (canonical === null || JSON.stringify(canonical) !== JSON.stringify(primitive)) {
     throw new Error("Normalized rotated ellipses must use canonical finite geometry.");
   }
-  const rotationRadians = primitive.rotationDegrees * Math.PI / 180;
-  const rotationCos = Math.cos(rotationRadians);
-  const rotationSin = Math.sin(rotationRadians);
-  const halfWidth = Math.hypot(
-    primitive.radiusX * rotationCos,
-    primitive.radiusY * rotationSin,
-  );
-  const halfHeight = Math.hypot(
-    primitive.radiusX * rotationSin,
-    primitive.radiusY * rotationCos,
-  );
-  if (primitive.center.x - halfWidth < -EPSILON || primitive.center.x + halfWidth > 1 + EPSILON
-    || primitive.center.y - halfHeight < -EPSILON || primitive.center.y + halfHeight > 1 + EPSILON) {
-    throw new Error("Normalized rotated ellipses must remain inside the image.");
+  if (!normalizedEllipsePerimeterIntersectsImageFrame(primitive)) {
+    throw new Error("Normalized rotated ellipse perimeter must intersect the image.");
   }
+}
+
+function normalizedEllipsePerimeterIntersectsImageFrame(
+  primitive: Extract<PersonalVisualHarmonyPixelRefinementPrimitiveV1, { readonly kind: "ellipse" }>,
+): boolean {
+  const rotationRadians = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+  return [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ].some((corner) => {
+    const dx = corner.x - primitive.center.x;
+    const dy = corner.y - primitive.center.y;
+    const localX = (dx * cos) + (dy * sin);
+    const localY = (-dx * sin) + (dy * cos);
+    return ((localX / primitive.radiusX) ** 2)
+      + ((localY / primitive.radiusY) ** 2) >= 1 - EPSILON;
+  });
 }
 
 function validateLuminanceBytes(value: readonly number[], expectedLength: number): void {

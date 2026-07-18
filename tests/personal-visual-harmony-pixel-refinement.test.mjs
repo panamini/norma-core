@@ -480,6 +480,40 @@ test("crop integration projects image-border guides onto the last readable raste
   }
 });
 
+test("off-frame ellipse crop planning clips to readable pixels and returns a normal proposal", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"8".repeat(64)}`,
+    candidateId: "off-frame-ellipse",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.08, y: 0.5 },
+      radiusX: 0.3,
+      radiusY: 0.2,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 0);
+  assert.ok(plan.sourceWidth < base.sourcePixelWidth);
+
+  const unavailable = refinePersonalVisualHarmonyCandidatePixelCropV1(base);
+  assert.equal(unavailable.status, "abstained");
+  assert.equal(unavailable.reason, "pixel_read_unavailable");
+  assert.deepEqual(unavailable.originalGeometry, base.primitive);
+  assert.equal(unavailable.coreRun, false);
+
+  const observed = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: new Array(plan.rasterWidth * plan.rasterHeight).fill(128),
+  });
+  assert.equal(observed.status, "abstained");
+  assert.notEqual(observed.reason, "pixel_read_unavailable");
+  assert.deepEqual(observed.originalGeometry, base.primitive);
+  assert.equal(observed.coreRun, false);
+});
+
 test("crop integration abstains when mapping yields a kernel-invalid primitive", () => {
   const base = {
     candidateSetIdentity: `sha256:${"e".repeat(64)}`,

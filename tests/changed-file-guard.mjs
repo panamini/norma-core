@@ -528,10 +528,12 @@ export const personalVisualHarmonyWidgetEllipseResponsiveChangedFiles = Object.f
 
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-pixel-refinement.ts",
   "src/personal-visual-harmony.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-pixel-refinement.test.mjs",
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 

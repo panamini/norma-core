@@ -177,6 +177,11 @@ test("widget ellipses keep bounded off-frame radius editing reachable in respons
     "function adjustedEllipseCandidate",
     {},
   );
+  const ellipsePerimeterIntersectsImage = widgetScriptFunction(
+    "ellipsePerimeterIntersectsImage",
+    "function validQuadrilateralVertices",
+    {},
+  );
   const rounded = (value) => Math.round(value * 1_000_000) / 1_000_000;
   const candidateWithPrimitive = widgetScriptFunction(
     "candidateWithPrimitive",
@@ -192,6 +197,7 @@ test("widget ellipses keep bounded off-frame radius editing reachable in respons
     {
       ellipseAxes,
       ellipseEnvelope,
+      ellipsePerimeterIntersectsImage,
       candidateWithPrimitive,
       rounded,
     },
@@ -243,6 +249,15 @@ test("widget ellipses keep bounded off-frame radius editing reachable in respons
     visibleEllipseHandlePoint({ x: 0.7, y: 0.6 }),
     { point: { x: 0.7, y: 0.6 }, proxy: false },
   );
+  const invisible = {
+    ...ellipse,
+    primitive: {
+      ...ellipse.primitive,
+      radiusX: 1,
+      radiusY: 1,
+    },
+  };
+  assert.equal(adjustedEllipseCandidate(invisible, "center", 0, 0), invisible);
 });
 
 test("quadrilateral measurement references preserve the selected visual edge through canonicalization", () => {
@@ -1189,6 +1204,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
         .every((field) => Math.abs(value[field] - expected[field]) <= 0.000001),
       validQuadrilateralVertices: () => false,
       ellipseEnvelope,
+      ellipsePerimeterIntersectsImage: () => true,
     },
   );
   assert.equal(validGeometryPatch(reviewed, rotated), true);

@@ -644,6 +644,7 @@ test("ellipse validation allows visible clipped contours and fails closed for un
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.NaN },
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.POSITIVE_INFINITY },
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 1.01, radiusY: 0.1, rotationDegrees: 45 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 1, radiusY: 1, rotationDegrees: 45 },
   ];
   for (const primitive of invalid) {
     assert.throws(
@@ -679,6 +680,56 @@ test("ellipse validation allows visible clipped contours and fails closed for un
     clipped.candidates[2].primitive.center.x,
     Number((halfWidth - 1e-8).toFixed(12)),
   );
+});
+
+test("off-frame ellipse contacts are omitted instead of escaping normalized relation output", () => {
+  const ellipse = {
+    kind: "ellipse",
+    center: { x: 0.1, y: 0.5 },
+    radiusX: 0.5,
+    radiusY: 0.1,
+    rotationDegrees: 45,
+  };
+  const parameter = 1.6580634875263138;
+  const rotation = Math.PI / 4;
+  const contact = {
+    x: ellipse.center.x
+      + (ellipse.radiusX * Math.cos(parameter) * Math.cos(rotation))
+      - (ellipse.radiusY * Math.sin(parameter) * Math.sin(rotation)),
+    y: ellipse.center.y
+      + (ellipse.radiusX * Math.cos(parameter) * Math.sin(rotation))
+      + (ellipse.radiusY * Math.sin(parameter) * Math.cos(rotation)),
+  };
+  const tangent = {
+    x: (-ellipse.radiusX * Math.sin(parameter) * Math.cos(rotation))
+      - (ellipse.radiusY * Math.cos(parameter) * Math.sin(rotation)),
+    y: (-ellipse.radiusX * Math.sin(parameter) * Math.sin(rotation))
+      + (ellipse.radiusY * Math.cos(parameter) * Math.cos(rotation)),
+  };
+  const pointAtY = (y) => {
+    const scale = (y - contact.y) / tangent.y;
+    return { x: contact.x + (scale * tangent.x), y };
+  };
+  const start = {
+    x: 0,
+    y: contact.y - (contact.x * tangent.y / tangent.x),
+  };
+  const end = pointAtY(1);
+  assert.ok(contact.x < 0);
+  assert.ok(start.y >= 0 && start.y <= 1);
+  assert.ok(end.x >= 0 && end.x <= 1);
+
+  const prepared = prepare([
+    ...goldenCandidates(),
+    rotatedEllipseCandidate(ellipse),
+    lineGuide("off-frame-tangent", start, end),
+  ]);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: ["rotated-ellipse", "off-frame-tangent"],
+    sourcePixelWidth: 1000,
+    sourcePixelHeight: 1000,
+  });
+  assert.deepEqual(confirmation.imagePlaneGuideAnalysis.relationships, []);
 });
 
 test("rotated ellipses classify line contacts deterministically in the confirmed image plane", () => {
