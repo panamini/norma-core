@@ -2412,6 +2412,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /\.flow span,\.family-filter,\.construction-toggle,\.pixel-toggle,\.candidate strong,\.confirm\{font-family:var\(--body\);font-weight:600/u);
     assert.match(resource.contents[0].text, /\.match,\.ratio,\.match-copy strong\{color:var\(--ink\)\}/u);
     assert.match(resource.contents[0].text, /\.overlay svg path,\.overlay svg rect\[stroke\]\{filter:drop-shadow\(0 0 1px rgba\(10,10,10,\.85\)\)\}/u);
+    assert.match(resource.contents[0].text, /\.measurement-ratio\{display:grid;gap:6px;[^}]*padding:9px/u);
+    assert.match(resource.contents[0].text, /\.measurement-ratio-toggle\{width:100%;padding:7px/u);
+    assert.match(resource.contents[0].text, /\.measurement-ratio-selects\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);gap:6px\}/u);
+    assert.match(resource.contents[0].text, /\.measurement-ratio select\{min-width:0;width:100%;padding:7px/u);
     assert.match(resource.contents[0].text, /appearance:none;border:1px solid var\(--ink\);border-radius:0/u);
     assert.match(resource.contents[0].text, /background:var\(--paper-hover\);color:var\(--ink\)/u);
     assert.match(resource.contents[0].text, /linear-gradient\(45deg,transparent 0 42%,var\(--white\) 42% 58%,transparent 58%\)/u);
