@@ -527,6 +527,44 @@ test("off-frame ellipse crop planning preserves full geometry and can refine vis
   assert.equal(observed.coreRun, false);
 });
 
+test("off-frame ellipse crop refinement rejects a best candidate whose center cannot map losslessly", () => {
+  const base = {
+    candidateSetIdentity: `sha256:${"7".repeat(64)}`,
+    candidateId: "off-frame-ellipse-unrepresentable-center",
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0, y: 0.5 },
+      radiusX: 0.3,
+      radiusY: 0.2,
+    },
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+  };
+  const plan = createPersonalVisualHarmonyPixelCropPlanV1(base);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.originX, 0);
+  const sourceRaster = renderRaster({
+    raster: { width: 100, height: 100, background: 0.85 },
+    shapes: [{
+      kind: "filled-ellipse",
+      center: { x: -2, y: 50 },
+      radiusX: 30,
+      radiusY: 20,
+      luminance: 0.15,
+    }],
+  });
+
+  const observed = refinePersonalVisualHarmonyCandidatePixelCropV1({
+    ...base,
+    luminanceBytes: cropLuminanceBytes(sourceRaster, plan),
+  });
+  assert.equal(observed.status, "abstained");
+  assert.equal(observed.reason, "invalid_refined_geometry");
+  assert.equal(observed.proposedGeometry, null);
+  assert.deepEqual(observed.originalGeometry, base.primitive);
+  assert.equal(observed.coreRun, false);
+});
+
 test("off-frame rotated ellipse crop refinement preserves orientation and visible full geometry", () => {
   const base = {
     candidateSetIdentity: `sha256:${"9".repeat(64)}`,

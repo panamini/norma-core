@@ -1706,6 +1706,10 @@ function primitiveFromWorkingCrop(
     x: unit((crop.originX + value.x * crop.scaleX) / xExtent),
     y: unit((crop.originY + value.y * crop.scaleY) / yExtent),
   });
+  const unboundedPoint = (value: PersonalVisualHarmonyPointV1): PersonalVisualHarmonyPointV1 => ({
+    x: canonicalNumber((crop.originX + value.x * crop.scaleX) / xExtent),
+    y: canonicalNumber((crop.originY + value.y * crop.scaleY) / yExtent),
+  });
   if (primitive.kind === "segment" || primitive.kind === "axis") {
     return { kind: primitive.kind, start: point(primitive.start), end: point(primitive.end) };
   }
@@ -1725,7 +1729,7 @@ function primitiveFromWorkingCrop(
       primitive,
       crop.scaleX / xExtent,
       crop.scaleY / yExtent,
-      point(primitive.center),
+      unboundedPoint(primitive.center),
     );
     if (transformed === null) {
       throw new Error("Rotated ellipse source mapping requires stable canonical geometry.");
@@ -1734,9 +1738,9 @@ function primitiveFromWorkingCrop(
   }
   return {
     kind: "ellipse",
-    center: point(primitive.center),
-    radiusX: unit(primitive.radiusX * crop.scaleX / xExtent),
-    radiusY: unit(primitive.radiusY * crop.scaleY / yExtent),
+    center: unboundedPoint(primitive.center),
+    radiusX: canonicalNumber(primitive.radiusX * crop.scaleX / xExtent),
+    radiusY: canonicalNumber(primitive.radiusY * crop.scaleY / yExtent),
   };
 }
 
