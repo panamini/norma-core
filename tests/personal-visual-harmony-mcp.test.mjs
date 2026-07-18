@@ -48,6 +48,14 @@ function deferred() {
   return { promise, resolve };
 }
 
+function ellipseAxesForTest(primitive) {
+  const rotation = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
+  return {
+    x: { x: Math.cos(rotation), y: Math.sin(rotation) },
+    y: { x: -Math.sin(rotation), y: Math.cos(rotation) },
+  };
+}
+
 function widgetHydrationState(overrides = {}) {
   return {
     payload: null,
@@ -112,6 +120,110 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   assert.deepEqual(state.measurementRatioRefs, [
     { kind: "segment", candidateId: "kept" },
   ]);
+});
+
+test("measurement ratio selectors update only pending widget state", () => {
+  const state = {
+    measurementRatioRefs: [],
+  };
+  let controlsUpdated = 0;
+  let persisted = 0;
+  let appToolCalls = 0;
+  const setMeasurementRatioReference = widgetScriptFunction(
+    "setMeasurementRatioReference",
+    "for(const [index,select]",
+    {
+      state,
+      updateMeasurementRatioControls() { controlsUpdated += 1; },
+      persistReviewState() { persisted += 1; },
+      callAppTool() { appToolCalls += 1; },
+    },
+  );
+  const first = { kind: "segment", candidateId: "oblique" };
+  const second = { kind: "quadrilateral-side", candidateId: "trapezoid", sideIndex: 2 };
+
+  setMeasurementRatioReference(0, JSON.stringify(first));
+  setMeasurementRatioReference(1, JSON.stringify(second));
+
+  assert.deepEqual(state.measurementRatioRefs, [first, second]);
+  assert.equal(controlsUpdated, 2);
+  assert.equal(persisted, 2);
+  assert.equal(appToolCalls, 0);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /select\.addEventListener\("change",\(\)=>setMeasurementRatioReference\(index,select\.value\)\)/u,
+  );
+  assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
+});
+
+test("widget ellipses expose bounded center and radius editing in responsive layout", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /\.shell\{container-type:inline-size\}/u);
+  assert.match(html, /@container \(max-width:900px\)\{\.content\{grid-template-columns:minmax\(0,1fr\)\}/u);
+  assert.match(html, /data-ellipse-handle/u);
+  assert.doesNotMatch(html, /group\.setAttribute\("role","img"\)/u);
+  assert.match(html, /ellipses : déplacez le centre ou ajustez les deux rayons/u);
+
+  const ellipseEnvelope = widgetScriptFunction(
+    "ellipseEnvelope",
+    "function validQuadrilateralVertices",
+    {},
+  );
+  const ellipseAxes = widgetScriptFunction(
+    "ellipseAxes",
+    "function adjustedEllipseCandidate",
+    {},
+  );
+  const rounded = (value) => Math.round(value * 1_000_000) / 1_000_000;
+  const candidateWithPrimitive = widgetScriptFunction(
+    "candidateWithPrimitive",
+    "function decorateEditableOverlay",
+    {
+      ellipseEnvelope,
+      rounded,
+    },
+  );
+  const adjustedEllipseCandidate = widgetScriptFunction(
+    "adjustedEllipseCandidate",
+    "function supportingLineEndpoints",
+    {
+      ellipseAxes,
+      ellipseEnvelope,
+      candidateWithPrimitive,
+      rounded,
+    },
+  );
+  const ellipse = {
+    id: "door-circle",
+    x: 0.3,
+    y: 0.4,
+    width: 0.4,
+    height: 0.2,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.5, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 0,
+    },
+  };
+
+  const moved = adjustedEllipseCandidate(ellipse, "center", 0.1, -0.1);
+  assert.deepEqual(moved.primitive.center, { x: 0.6, y: 0.4 });
+  assert.equal(moved.primitive.radiusX, 0.2);
+  assert.equal(moved.primitive.radiusY, 0.1);
+
+  const wider = adjustedEllipseCandidate(ellipse, "radius-x", 0.05, 0);
+  assert.equal(wider.primitive.radiusX, 0.25);
+  assert.equal(wider.primitive.radiusY, 0.1);
+
+  const taller = adjustedEllipseCandidate(ellipse, "radius-y", 0, 0.04);
+  assert.equal(taller.primitive.radiusX, 0.2);
+  assert.equal(taller.primitive.radiusY, 0.14);
+
+  assert.equal(adjustedEllipseCandidate(ellipse, "radius-x", 1, 0), ellipse);
 });
 
 test("quadrilateral measurement references preserve the selected visual edge through canonicalization", () => {
@@ -946,6 +1058,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       overlay: { querySelector: () => group },
       CSS: { escape: (value) => value },
       primitiveKind: (item) => item.primitive.kind,
+      ellipseAxes: ellipseAxesForTest,
       supportingLineEndpoints() { throw new Error("line branch must remain unused"); },
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
@@ -1001,6 +1114,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
         querySelector: (selector) => selector === "[data-candidate-shape]" ? shape : null,
       }) },
       primitiveKind: (item) => item.primitive.kind,
+      ellipseAxes: ellipseAxesForTest,
       CSS: { escape: (value) => value },
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
