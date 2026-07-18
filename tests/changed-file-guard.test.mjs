@@ -42,6 +42,7 @@ import {
   personalVisualHarmonyTriangleCentroidChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
+  personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
   personalVisualHarmonyPostPr240TruthClosureChangedFiles,
   personalVisualHarmonyPerpendicularBisectorsChangedFiles,
@@ -173,6 +174,34 @@ test("declared image-plane measurement-ratio allowlist is exact and fail-closed"
     sharedExactApprovedChangedFiles([...declaredImagePlaneMeasurementRatiosChangedFiles, "src/index.ts"]),
     null,
   );
+});
+
+test("personal widget ellipse and responsive allowlist is exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyWidgetEllipseResponsiveChangedFiles),
+    personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyWidgetEllipseResponsiveChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyWidgetEllipseResponsiveChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of ["src/index.ts", "package.json", "package-lock.json", "render.yaml"]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
 });
 
 test("triangle angle-bisector allowlist is exact and fail-closed", () => {
@@ -3098,6 +3127,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     declaredImagePlaneMeasurementRatiosChangedFiles,
   );
+  const isPersonalVisualHarmonyWidgetEllipseResponsiveSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
+  );
   const isPersonalVisualHarmonyBrandIdentitySet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyBrandIdentityChangedFiles,
@@ -3218,7 +3251,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -3228,6 +3261,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     sharedExactApprovedChangedFiles(changedFiles),
     isDeclaredImagePlaneMeasurementRatiosSet
       ? declaredImagePlaneMeasurementRatiosChangedFiles
+      : isPersonalVisualHarmonyWidgetEllipseResponsiveSet
+      ? personalVisualHarmonyWidgetEllipseResponsiveChangedFiles
       : isPersonalVisualHarmonyBrandIdentitySet
       ? personalVisualHarmonyBrandIdentityChangedFiles
       : isPersonalVisualHarmonyTruthSyncSet
