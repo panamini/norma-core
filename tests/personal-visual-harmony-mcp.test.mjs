@@ -421,6 +421,15 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /cliquez successivement les deux points/u);
   assert.match(html, /Premier point enregistré\. Cliquez le second point visible/u);
   assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
+  assert.match(html, /manualSegmentState:manualSegmentSnapshot\(\)/u);
+  assert.match(html, /const restoredManual=restoredManualSegmentFor\(prepared\)/u);
+  assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
+  assert.match(html, /remove\.disabled=state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
+  assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
+  assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
+  assert.match(html, /state\.activePayloadIdentity!==null&&state\.activePayloadIdentity!==identity\)resetManualSegmentGesture\(\)/u);
+  assert.match(html, /preview\.remove\(\);if\(!state\.manualSegmentMode\)return/u);
+  assert.match(html, /candidates\.length!==state\.proposalCandidates\.length\|\|candidates\.some/u);
 
   const nextManualSegmentId = widgetScriptFunction(
     "nextManualSegmentId",
@@ -470,6 +479,86 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
     ),
     null,
   );
+});
+
+test("widget restores a persisted manual segment only for the same file and marks deletion dirty", () => {
+  const candidate = {
+    id: "manual-segment-1",
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  let saved = {
+    manualSegmentState: {
+      fileId: "file-manual",
+      geometry: {
+        id: candidate.id,
+        x: candidate.x,
+        y: candidate.y,
+        width: candidate.width,
+        height: candidate.height,
+        primitive: candidate.primitive,
+      },
+    },
+  };
+  const state = { activePayload: { fileId: "file-manual" } };
+  const restoredManualSegmentFor = widgetScriptFunction(
+    "restoredManualSegmentFor",
+    "function updateManualSegmentControls",
+    {
+      publicWidgetState: () => saved,
+      state,
+      MAX_REVIEW_CANDIDATES: 12,
+      clonePrimitive: (primitive) => structuredClone(primitive),
+      isManualSegmentCandidate: (value) => (
+        value.id === candidate.id
+        && value.primitive?.kind === "segment"
+      ),
+    },
+  );
+  const prepared = {
+    candidates: [{
+      id: "frame",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  };
+
+  assert.deepEqual(restoredManualSegmentFor(prepared), candidate);
+  state.activePayload.fileId = "different-file";
+  assert.equal(restoredManualSegmentFor(prepared), null);
+  state.activePayload.fileId = "file-manual";
+  assert.equal(restoredManualSegmentFor({
+    candidates: [...prepared.candidates, candidate],
+  }), null);
+
+  const geometryState = {
+    proposalCandidates: [...prepared.candidates, candidate],
+    reviewedCandidates: prepared.candidates,
+  };
+  const geometryChanged = widgetScriptFunction(
+    "geometryChanged",
+    "function rounded",
+    {
+      state: geometryState,
+      geometrySnapshotFor: (value) => value,
+    },
+  );
+  assert.equal(geometryChanged(), true);
+
+  saved = {};
+  assert.equal(restoredManualSegmentFor(prepared), null);
 });
 
 test("widget re-prepares an added manual segment before confirmation and adopts the fresh identity", async () => {
@@ -845,6 +934,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -1581,6 +1671,7 @@ test("widget hydration never requests pixel proposals while refinement is disabl
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -1639,6 +1730,7 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
@@ -1673,6 +1765,7 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
@@ -1728,6 +1821,7 @@ test("widget fails closed when a local pixel crop cannot be planned", async () =
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(candidate)],
       primitiveKind: (item) => item.primitive.kind,
@@ -2805,6 +2899,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -2871,6 +2966,7 @@ test("completed payload for a new file hydrates and renders over existing widget
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
