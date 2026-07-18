@@ -637,13 +637,13 @@ test("rotated ellipse representations canonicalize deterministically without mut
     "sha256:9631a04a5e62d1b7b29e20e1d14b8cdc32f0eb0e7b5f11131037c2cf8233716a");
 });
 
-test("rotated ellipse validation fails closed for unstable or out-of-frame geometry", () => {
+test("ellipse validation allows visible clipped contours and fails closed for unstable or oversized geometry", () => {
   const invalid = [
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0, radiusY: 0.1, rotationDegrees: 30 },
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 1e-10, radiusY: 0.1, rotationDegrees: 30 },
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.NaN },
     { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: Number.POSITIVE_INFINITY },
-    { kind: "ellipse", center: { x: 0.06, y: 0.06 }, radiusX: 0.2, radiusY: 0.1, rotationDegrees: 45 },
+    { kind: "ellipse", center: { x: 0.5, y: 0.5 }, radiusX: 1.01, radiusY: 0.1, rotationDegrees: 45 },
   ];
   for (const primitive of invalid) {
     assert.throws(
@@ -664,18 +664,20 @@ test("rotated ellipse validation fails closed for unstable or out-of-frame geome
     }),
   ]);
   assert.equal(tolerated.candidates[2].x, 0);
-  assert.throws(
-    () => prepare([
-      ...goldenCandidates(),
-      rotatedEllipseCandidate({
-        kind: "ellipse",
-        center: { x: halfWidth - 1e-8, y: 0.5 },
-        radiusX: 0.2,
-        radiusY: 0.1,
-        rotationDegrees: 30,
-      }),
-    ]),
-    /remain inside the image/u,
+  const clipped = prepare([
+    ...goldenCandidates(),
+    rotatedEllipseCandidate({
+      kind: "ellipse",
+      center: { x: halfWidth - 1e-8, y: 0.5 },
+      radiusX: 0.2,
+      radiusY: 0.1,
+      rotationDegrees: 30,
+    }),
+  ]);
+  assert.equal(clipped.candidates[2].x, 0);
+  assert.equal(
+    clipped.candidates[2].primitive.center.x,
+    Number((halfWidth - 1e-8).toFixed(12)),
   );
 });
 

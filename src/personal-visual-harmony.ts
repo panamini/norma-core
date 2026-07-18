@@ -2151,24 +2151,16 @@ function canonicalBoundsForPrimitive(
   primitive: PersonalVisualHarmonyPrimitiveV1 | undefined,
 ): Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height"> {
   if (primitive?.kind === "ellipse") {
-    if (primitive.rotationDegrees !== undefined) {
-      const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
-      const minX = Math.max(0, primitive.center.x - halfWidth);
-      const minY = Math.max(0, primitive.center.y - halfHeight);
-      const maxX = Math.min(1, primitive.center.x + halfWidth);
-      const maxY = Math.min(1, primitive.center.y + halfHeight);
-      return {
-        x: canonicalNumber(minX),
-        y: canonicalNumber(minY),
-        width: canonicalNumber(maxX - minX),
-        height: canonicalNumber(maxY - minY),
-      };
-    }
+    const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
+    const minX = Math.max(0, primitive.center.x - halfWidth);
+    const minY = Math.max(0, primitive.center.y - halfHeight);
+    const maxX = Math.min(1, primitive.center.x + halfWidth);
+    const maxY = Math.min(1, primitive.center.y + halfHeight);
     return {
-      x: canonicalNumber(primitive.center.x - primitive.radiusX),
-      y: canonicalNumber(primitive.center.y - primitive.radiusY),
-      width: canonicalNumber(primitive.radiusX * 2),
-      height: canonicalNumber(primitive.radiusY * 2),
+      x: canonicalNumber(minX),
+      y: canonicalNumber(minY),
+      width: canonicalNumber(maxX - minX),
+      height: canonicalNumber(maxY - minY),
     };
   }
   if (primitive?.kind === "quadrilateral") {
@@ -2250,14 +2242,11 @@ function validateCandidatePrimitive(
   }
   const center = validatePrimitivePoint(value.center, `candidates.${String(candidateIndex)}.primitive.center`);
   if (!Number.isFinite(value.radiusX) || !Number.isFinite(value.radiusY)
-    || value.radiusX <= 0 || value.radiusY <= 0) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
+    || value.radiusX <= 0 || value.radiusY <= 0
+    || value.radiusX > 1 || value.radiusY > 1) {
+    throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse radii must be finite and within (0, 1].`);
   }
   if (value.rotationDegrees === undefined) {
-    if (center.x - value.radiusX < 0 || center.x + value.radiusX > 1
-      || center.y - value.radiusY < 0 || center.y + value.radiusY > 1) {
-      throw new Error(`Visual harmony candidate ${String(candidateIndex)} ellipse must be positive and remain inside the image.`);
-    }
     return {
       kind: "ellipse",
       center,
@@ -2274,13 +2263,6 @@ function validateCandidatePrimitive(
   });
   if (canonical === null) {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must use finite non-degenerate geometry.`);
-  }
-  const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(canonical);
-  if (canonical.center.x - halfWidth < -1e-12
-    || canonical.center.y - halfHeight < -1e-12
-    || canonical.center.x + halfWidth > 1 + 1e-12
-    || canonical.center.y + halfHeight > 1 + 1e-12) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} rotated ellipse must remain inside the image.`);
   }
   return canonical;
 }
