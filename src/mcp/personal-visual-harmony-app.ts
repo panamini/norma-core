@@ -87,6 +87,41 @@ const CANONICAL_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A
 const MISSING_OR_EXPIRED_SESSION_MESSAGE =
   "Visual harmony review session is missing or expired; prepare the image again.";
 
+type ChatGptCompatibleTupleItems = readonly [
+  z.ZodType,
+  z.ZodType,
+  ...z.ZodType[],
+];
+type ChatGptCompatibleTupleOutput<T extends ChatGptCompatibleTupleItems> = {
+  -readonly [K in keyof T]: T[K] extends z.ZodType ? z.output<T[K]> : never;
+};
+type ChatGptCompatibleTupleInput<T extends ChatGptCompatibleTupleItems> = {
+  -readonly [K in keyof T]: T[K] extends z.ZodType ? z.input<T[K]> : never;
+};
+
+function chatGptCompatibleTuple<const T extends ChatGptCompatibleTupleItems>(
+  items: T,
+): z.ZodType<ChatGptCompatibleTupleOutput<T>, ChatGptCompatibleTupleInput<T>> {
+  return z.array(z.union(items))
+    .length(items.length)
+    .superRefine((values, context) => {
+      items.forEach((itemSchema, index) => {
+        const result = itemSchema.safeParse(values[index]);
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            context.addIssue({
+              ...issue,
+              path: [index, ...issue.path],
+            });
+          }
+        }
+      });
+    }) as z.ZodType<
+      ChatGptCompatibleTupleOutput<T>,
+      ChatGptCompatibleTupleInput<T>
+    >;
+}
+
 const FileParamSchema = z.object({
   download_url: z.url(),
   file_id: z.string().min(1).max(2_048),
@@ -485,7 +520,7 @@ const ConfirmInputSchema = z.object({
     .default([]),
   measurementRatioRequest: z.object({
     requestId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u),
-    measurements: z.tuple([
+    measurements: chatGptCompatibleTuple([
       z.discriminatedUnion("kind", [
         z.object({
           kind: z.literal("segment"),
@@ -521,7 +556,7 @@ const ConfirmInputSchema = z.object({
     ]).refine(([first, second]) => JSON.stringify(first) !== JSON.stringify(second), {
       message: "Declared measurement ratio references must be distinct.",
     }),
-    ratioPackRefs: z.tuple([
+    ratioPackRefs: chatGptCompatibleTuple([
       z.literal(PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS[0]),
       z.literal(PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS[1]),
     ]),
@@ -629,29 +664,29 @@ const QuadrilateralMeasurementSchema = z.object({
   candidateId: z.string(),
   candidateLabel: z.string(),
   classification: z.enum(["quadrilateral", "trapezoid", "parallelogram", "rectangle"]),
-  vertices: z.tuple([
+  vertices: chatGptCompatibleTuple([
     NormalizedPointSchema,
     NormalizedPointSchema,
     NormalizedPointSchema,
     NormalizedPointSchema,
   ]),
-  sideLengthsPixels: z.tuple([z.number().gt(0), z.number().gt(0), z.number().gt(0), z.number().gt(0)]),
-  interiorAnglesDegrees: z.tuple([
+  sideLengthsPixels: chatGptCompatibleTuple([z.number().gt(0), z.number().gt(0), z.number().gt(0), z.number().gt(0)]),
+  interiorAnglesDegrees: chatGptCompatibleTuple([
     z.number().gt(0).lt(180),
     z.number().gt(0).lt(180),
     z.number().gt(0).lt(180),
     z.number().gt(0).lt(180),
   ]),
-  diagonalLengthsPixels: z.tuple([z.number().gt(0), z.number().gt(0)]),
+  diagonalLengthsPixels: chatGptCompatibleTuple([z.number().gt(0), z.number().gt(0)]),
   diagonalIntersection: NormalizedPointSchema,
-  oppositeSideParallelism: z.tuple([
+  oppositeSideParallelism: chatGptCompatibleTuple([
     z.object({
-      sideIndices: z.tuple([z.literal(0), z.literal(2)]),
+      sideIndices: chatGptCompatibleTuple([z.literal(0), z.literal(2)]),
       angleDeltaDegrees: z.number().min(0).max(90),
       parallelWithinTolerance: z.boolean(),
     }).strict(),
     z.object({
-      sideIndices: z.tuple([z.literal(1), z.literal(3)]),
+      sideIndices: chatGptCompatibleTuple([z.literal(1), z.literal(3)]),
       angleDeltaDegrees: z.number().min(0).max(90),
       parallelWithinTolerance: z.boolean(),
     }).strict(),
@@ -710,10 +745,10 @@ const DeclaredMeasurementRatioReportSchema = z.object({
   sourcePixelHeight: z.number().int().min(1).max(100_000),
   coordinateSpace: z.literal("image_plane_pixels_v1"),
   normalization: z.literal("dominant_length_divided_by_pair_sum"),
-  measurements: z.tuple([MeasurementLengthEvidenceSchema, MeasurementLengthEvidenceSchema]),
+  measurements: chatGptCompatibleTuple([MeasurementLengthEvidenceSchema, MeasurementLengthEvidenceSchema]),
   dominantMeasurementIdentity: z.string().regex(SHA256_PATTERN),
   observedDominantShare: z.number().min(0.5).lt(1),
-  ratioPackRefs: z.tuple([
+  ratioPackRefs: chatGptCompatibleTuple([
     z.literal(PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS[0]),
     z.literal(PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS[1]),
   ]),
@@ -754,7 +789,7 @@ const TriangleVertexParentOutputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("junction-intersection"),
     parentId: z.string(),
-    participantConstructionIds: z.tuple([z.string(), z.string()]),
+    participantConstructionIds: chatGptCompatibleTuple([z.string(), z.string()]),
     provenance: z.literal("derived-junction-intersection"),
   }).strict(),
 ]);
@@ -763,7 +798,7 @@ const TriangleConstructionOutputSchema = z.object({
   triangleId: z.string(),
   kind: z.literal("triangle-construction"),
   requestId: z.string(),
-  vertices: z.tuple([
+  vertices: chatGptCompatibleTuple([
     z.object({ point: NormalizedPointSchema, parent: TriangleVertexParentOutputSchema }).strict(),
     z.object({ point: NormalizedPointSchema, parent: TriangleVertexParentOutputSchema }).strict(),
     z.object({ point: NormalizedPointSchema, parent: TriangleVertexParentOutputSchema }).strict(),
@@ -772,8 +807,8 @@ const TriangleConstructionOutputSchema = z.object({
   signedNormalizedArea: z.number().gt(0),
   absoluteNormalizedArea: z.number().gt(0),
   areaToleranceNormalized: z.number().gt(0),
-  sideLengthsPixels: z.tuple([z.number().gt(0), z.number().gt(0), z.number().gt(0)]),
-  interiorAnglesDegrees: z.tuple([
+  sideLengthsPixels: chatGptCompatibleTuple([z.number().gt(0), z.number().gt(0), z.number().gt(0)]),
+  interiorAnglesDegrees: chatGptCompatibleTuple([
     z.number().gt(0).lt(180),
     z.number().gt(0).lt(180),
     z.number().gt(0).lt(180),
@@ -793,12 +828,12 @@ const TriangleMedianOutputSchema = z.object({
   vertexIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   vertex: NormalizedPointSchema,
   vertexParent: TriangleVertexParentOutputSchema,
-  oppositeSideVertexIndices: z.tuple([
+  oppositeSideVertexIndices: chatGptCompatibleTuple([
     z.union([z.literal(0), z.literal(1), z.literal(2)]),
     z.union([z.literal(0), z.literal(1), z.literal(2)]),
   ]),
-  oppositeSideVertices: z.tuple([NormalizedPointSchema, NormalizedPointSchema]),
-  oppositeSideParents: z.tuple([
+  oppositeSideVertices: chatGptCompatibleTuple([NormalizedPointSchema, NormalizedPointSchema]),
+  oppositeSideParents: chatGptCompatibleTuple([
     TriangleVertexParentOutputSchema,
     TriangleVertexParentOutputSchema,
   ]),
@@ -814,9 +849,9 @@ const TriangleMedianOutputSchema = z.object({
 const TrianglePerpendicularBisectorOutputSchema = z.object({
   bisectorId: z.string(), kind: z.literal("triangle-perpendicular-bisector"), triangleId: z.string(),
   sideIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]),
-  sideVertexIndices: z.tuple([z.number().int(), z.number().int()]),
-  sideVertices: z.tuple([NormalizedPointSchema, NormalizedPointSchema]),
-  sideParents: z.tuple([TriangleVertexParentOutputSchema, TriangleVertexParentOutputSchema]),
+  sideVertexIndices: chatGptCompatibleTuple([z.number().int(), z.number().int()]),
+  sideVertices: chatGptCompatibleTuple([NormalizedPointSchema, NormalizedPointSchema]),
+  sideParents: chatGptCompatibleTuple([TriangleVertexParentOutputSchema, TriangleVertexParentOutputSchema]),
   midpoint: NormalizedPointSchema,
   supportLineStart: FiniteImagePlanePointSchema, supportLineEnd: FiniteImagePlanePointSchema,
   clippedStart: NormalizedPointSchema, clippedEnd: NormalizedPointSchema,
@@ -830,8 +865,8 @@ const TriangleAngleBisectorOutputSchema = z.object({
   bisectorId: z.string(), kind: z.literal("triangle-angle-bisector"), triangleId: z.string(),
   vertexIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   vertex: NormalizedPointSchema, vertexParent: TriangleVertexParentOutputSchema,
-  oppositeSideVertexIndices: z.tuple([z.number().int(), z.number().int()]),
-  oppositeSideParents: z.tuple([TriangleVertexParentOutputSchema, TriangleVertexParentOutputSchema]),
+  oppositeSideVertexIndices: chatGptCompatibleTuple([z.number().int(), z.number().int()]),
+  oppositeSideParents: chatGptCompatibleTuple([TriangleVertexParentOutputSchema, TriangleVertexParentOutputSchema]),
   oppositeSideIntersection: NormalizedPointSchema, lengthPixels: z.number().gt(0),
   angleToleranceDegrees: z.number().gt(0), provenance: z.literal("derived-construction"),
   derivation: z.literal("canonical_triangle_internal_angle_bisector"),
@@ -842,12 +877,12 @@ const TriangleAltitudeOutputSchema = z.object({
   altitudeId: z.string(), kind: z.literal("triangle-altitude"), triangleId: z.string(),
   vertexIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   vertex: NormalizedPointSchema, vertexParent: TriangleVertexParentOutputSchema,
-  oppositeSideVertexIndices: z.tuple([
+  oppositeSideVertexIndices: chatGptCompatibleTuple([
     z.union([z.literal(0), z.literal(1), z.literal(2)]),
     z.union([z.literal(0), z.literal(1), z.literal(2)]),
   ]),
-  oppositeSideVertices: z.tuple([NormalizedPointSchema, NormalizedPointSchema]),
-  oppositeSideParents: z.tuple([
+  oppositeSideVertices: chatGptCompatibleTuple([NormalizedPointSchema, NormalizedPointSchema]),
+  oppositeSideParents: chatGptCompatibleTuple([
     TriangleVertexParentOutputSchema,
     TriangleVertexParentOutputSchema,
   ]),
@@ -867,9 +902,9 @@ const TriangleCentroidOutputSchema = z.object({
   centroidId: z.string(),
   kind: z.literal("triangle-centroid"),
   triangleId: z.string(),
-  vertexIndices: z.tuple([z.literal(0), z.literal(1), z.literal(2)]),
-  vertices: z.tuple([NormalizedPointSchema, NormalizedPointSchema, NormalizedPointSchema]),
-  vertexParents: z.tuple([
+  vertexIndices: chatGptCompatibleTuple([z.literal(0), z.literal(1), z.literal(2)]),
+  vertices: chatGptCompatibleTuple([NormalizedPointSchema, NormalizedPointSchema, NormalizedPointSchema]),
+  vertexParents: chatGptCompatibleTuple([
     TriangleVertexParentOutputSchema,
     TriangleVertexParentOutputSchema,
     TriangleVertexParentOutputSchema,
@@ -894,7 +929,7 @@ const ConstructionAnalysisSchema = z.object({
   frame: z.object({
     frameId: z.string(),
     kind: z.enum(["confirmed-image-boundary", "confirmed-rectangle", "confirmed-quadrilateral"]),
-    vertices: z.tuple([
+    vertices: chatGptCompatibleTuple([
       NormalizedPointSchema,
       NormalizedPointSchema,
       NormalizedPointSchema,
@@ -924,7 +959,7 @@ const ConstructionAnalysisSchema = z.object({
     observedLineId: z.string(),
     clippedStart: NormalizedPointSchema,
     clippedEnd: NormalizedPointSchema,
-    frameEdgeContacts: z.tuple([
+    frameEdgeContacts: chatGptCompatibleTuple([
       z.object({
         point: NormalizedPointSchema,
         frameEdgeIndices: z.array(z.number().int().min(0).max(3)).min(1).max(2),

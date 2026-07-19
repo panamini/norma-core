@@ -3359,6 +3359,34 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
   };
 }
 
+function unsupportedTupleSchemaPaths(value, path = "$", paths = []) {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => unsupportedTupleSchemaPaths(entry, `${path}[${String(index)}]`, paths));
+    return paths;
+  }
+  if (value === null || typeof value !== "object") return paths;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if ((key === "items" && Array.isArray(child)) || key === "prefixItems") paths.push(childPath);
+    unsupportedTupleSchemaPaths(child, childPath, paths);
+  }
+  return paths;
+}
+
+test("ChatGPT App MCP public tool schemas avoid tuple-form array-valued items", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const listed = await connected.client.listTools();
+    const incompatiblePaths = listed.tools.flatMap((tool) => [
+      ...unsupportedTupleSchemaPaths(tool.inputSchema, `${tool.name}.inputSchema`),
+      ...unsupportedTupleSchemaPaths(tool.outputSchema, `${tool.name}.outputSchema`),
+    ]);
+    assert.deepEqual(incompatiblePaths, []);
+  } finally {
+    await connected.close();
+  }
+});
+
 // This exact resource contract intentionally keeps its symmetric prepare/confirm assertions together.
 // fallow-ignore-next-line complexity code-duplication
 test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation, and widget resource", async () => {
@@ -3432,8 +3460,13 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const measurementRatioInput = confirmTool.inputSchema.properties.measurementRatioRequest;
     assert.equal(confirmTool.inputSchema.required.includes("measurementRatioRequest"), false);
     assert.equal(measurementRatioInput.additionalProperties, false);
-    assert.equal(measurementRatioInput.properties.measurements.items.length, 2);
-    assert.deepEqual(measurementRatioInput.properties.ratioPackRefs.items.map(({ const: value }) => value), [
+    assert.equal(measurementRatioInput.properties.measurements.minItems, 2);
+    assert.equal(measurementRatioInput.properties.measurements.maxItems, 2);
+    assert.equal(Array.isArray(measurementRatioInput.properties.measurements.items), false);
+    assert.equal(measurementRatioInput.properties.ratioPackRefs.minItems, 2);
+    assert.equal(measurementRatioInput.properties.ratioPackRefs.maxItems, 2);
+    assert.equal(Array.isArray(measurementRatioInput.properties.ratioPackRefs.items), false);
+    assert.deepEqual(measurementRatioInput.properties.ratioPackRefs.items.anyOf.map(({ const: value }) => value), [
       "norma.geometry-harmonies@0.1.0",
       "norma.basic-proportions@0.1.0",
     ]);
@@ -5072,6 +5105,33 @@ test("MCP preserves a reviewed quadrilateral as four editable vertices and retur
     assert.equal([...quadrilateralGroup.matchAll(/data-vertex-handle=/gu)].length, 4);
 
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const swappedRatioPackRefs = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["major", "minor"],
+        confirmedVisualGuideCandidateIds: ["right-trapezoid"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:swapped-pack-refs",
+          measurements: [
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 0 },
+            { kind: "quadrilateral-side", candidateId: "right-trapezoid", sideIndex: 2 },
+          ],
+          ratioPackRefs: [
+            "norma.basic-proportions@0.1.0",
+            "norma.geometry-harmonies@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 1000,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-opaque-id", candidateValues),
+      },
+    });
+    assert.equal(swappedRatioPackRefs.isError, true);
+
     const confirmed = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
