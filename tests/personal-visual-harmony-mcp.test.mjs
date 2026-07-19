@@ -1397,7 +1397,7 @@ test("widget restores pending review geometry without adopting its missing serve
   );
 });
 
-test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
+test("completed widget cache round-trips related candidates, guided scope, and rejects legacy omissions", async () => {
   const identity = (character) => `sha256:${character.repeat(64)}`;
   const candidateSetIdentity = identity("a");
   const candidates = [
@@ -1481,8 +1481,15 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const persistedStates = [];
   const state = {
     completed: false,
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-completed",
+      prepared: { candidateSetIdentity },
+    },
     payload: { prepared: { candidateSetIdentity, triangleConstructionRequests } },
     proposalCandidateSetIdentity: candidateSetIdentity,
+    guidedAnalysisGoal: "ellipses-lines",
+    visibleKinds: new Set(["segment", "axis", "ellipse"]),
     constructionLayers: new Set([
       "support-line-extensions",
       "format-diagonals",
@@ -1491,6 +1498,26 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       "triangle-medians",
     ]),
     dimensions: { width: 1_000, height: 800 },
+  };
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+  const guidedAnalysisGoalSnapshot = widgetScriptFunction(
+    "guidedAnalysisGoalSnapshot",
+    "function storedGuidedAnalysisGoalFor",
+    {
+      state,
+      guidedAnalysisScope,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const previousGuidedAnalysisGoal = {
+    analysisIdentity: candidateSetIdentity,
+    fileId: "file-completed",
+    goalId: "ellipses-lines",
+    visibleKinds: ["segment", "axis", "ellipse"],
   };
   const constructionGuideState = {
     candidateSetIdentity,
@@ -1529,7 +1556,8 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     measurementRatioRequest: () => undefined,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
-    publicWidgetState: () => ({}),
+    publicWidgetState: () => ({ guidedAnalysisGoal: previousGuidedAnalysisGoal }),
+    guidedAnalysisGoalSnapshot,
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians"],
@@ -1540,6 +1568,8 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   });
   renderResult(
     {
+      stage: "completed",
+      fileId: "file-completed",
       result: {
         headline: "Analyse terminée",
         contentIdentity: identity("b"),
@@ -1567,6 +1597,10 @@ test("completed widget cache round-trips related candidates and rejects legacy o
 
   const persisted = persistedStates.at(-1);
   assert.equal(state.displayedPayload.result.contentIdentity, identity("b"));
+  assert.deepEqual(persisted.guidedAnalysisGoal, {
+    ...previousGuidedAnalysisGoal,
+    analysisIdentity: identity("b"),
+  });
   assert.deepEqual(persisted.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.completedVisualHarmony.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.pixelRefinementState, pixelRefinementState);
