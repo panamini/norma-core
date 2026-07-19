@@ -423,6 +423,9 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
   assert.match(html, /manualSegmentState:manualSegmentSnapshot\(\)/u);
   assert.match(html, /const activePrepared=restoredPreparedFor\(prepared\)/u);
+  assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
+  assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
+  assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
   assert.match(html, /const restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
   assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
   assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
@@ -722,7 +725,7 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
   assert.equal(state.adoptedPixelRefinements.size, 0);
 });
 
-test("widget restores the fresh prepared baseline for pending manual review state", () => {
+test("widget restores pending review geometry without adopting its missing server session", () => {
   const originalIdentity = `sha256:${"a".repeat(64)}`;
   const freshIdentity = `sha256:${"b".repeat(64)}`;
   const frame = {
@@ -785,6 +788,18 @@ test("widget restores the fresh prepared baseline for pending manual review stat
 
   assert.equal(restored.candidateSetIdentity, freshIdentity);
   assert.deepEqual(restored.candidates, [frame, manualCandidate]);
+  const geometryChanged = widgetScriptFunction(
+    "geometryChanged",
+    "function rounded",
+    {
+      state: {
+        proposalCandidates: [frame],
+        reviewedCandidates: restored.candidates,
+      },
+      geometrySnapshotFor: (value) => value,
+    },
+  );
+  assert.equal(geometryChanged(), true);
   assert.equal(
     preparedForStoredReview(
       { candidateSetIdentity: originalIdentity, candidates: [frame] },
