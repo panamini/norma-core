@@ -758,6 +758,34 @@ test("guided goals restore only for the same file and candidate-set identity", (
   );
 });
 
+test("rendering a new prepared candidate set scopes guided-goal restoration to its identity", () => {
+  const previousIdentity = `sha256:${"a".repeat(64)}`;
+  const currentIdentity = `sha256:${"b".repeat(64)}`;
+  const calls = [];
+  const state = { proposalCandidateSetIdentity: previousIdentity };
+  const initializeGuidedAnalysisForPrepared = widgetScriptFunction(
+    "initializeGuidedAnalysisForPrepared",
+    "function renderCandidates",
+    {
+      state,
+      restoreGuidedAnalysisGoal() {
+        calls.push(["restore", state.proposalCandidateSetIdentity]);
+      },
+      renderGuidedAnalysisGoals() {
+        calls.push(["render", state.proposalCandidateSetIdentity]);
+      },
+    },
+  );
+
+  initializeGuidedAnalysisForPrepared({ candidateSetIdentity: currentIdentity });
+
+  assert.equal(state.proposalCandidateSetIdentity, currentIdentity);
+  assert.deepEqual(calls, [
+    ["restore", currentIdentity],
+    ["render", currentIdentity],
+  ]);
+});
+
 test("triangle guided goal focuses explicit parent-guide families without enabling constructions", () => {
   const triangleRequestParentGuideIds = widgetScriptFunction(
     "triangleRequestParentGuideIds",
