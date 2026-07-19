@@ -44,6 +44,7 @@ import {
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
   personalVisualHarmonyGuidedAnalysisEntryChangedFiles,
   personalVisualHarmonyManualSegmentChangedFiles,
+  personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
@@ -241,6 +242,27 @@ test("personal guided-analysis entry allowlist is exact and fail-closed", () => 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyGuidedAnalysisEntryChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("personal MCP tool-schema compatibility allowlist is exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles),
+    personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles.slice(1)),
+    null,
+  );
+  for (const extra of ["src/index.ts", "package.json", "package-lock.json", "render.yaml"]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
         extra,
       ]),
       null,
