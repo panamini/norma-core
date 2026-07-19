@@ -873,6 +873,19 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     "function isStoredMatch",
     { storedConstructionGuideStateFor },
   );
+  const completedPreparedFor = widgetScriptFunction(
+    "completedPreparedFor",
+    "function completedWidgetStateFor",
+    {
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      MAX_REVIEW_CANDIDATES: 12,
+      clonePrimitive: structuredClone,
+      isManualSegmentCandidate: (value) => (
+        value?.id === "manual-segment-1"
+        && value?.primitive?.kind === "segment"
+      ),
+    },
+  );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
     "completedWidgetStateFor",
     "function payloadIdentity",
@@ -893,6 +906,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       isStoredMatch,
       isStoredPresentation: () => true,
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      completedPreparedFor,
     },
   );
   const payload = {
@@ -903,6 +917,45 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   };
   const acceptPersisted = completedWidgetStateFor(() => persisted);
   assert.deepEqual(acceptPersisted(payload)?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const manualIdentity = identity("9");
+  const manualGeometry = {
+    id: "manual-segment-1",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  const persistedManual = structuredClone(persisted);
+  persistedManual.reviewedProposalCandidateSetIdentity = manualIdentity;
+  persistedManual.reviewedCandidateGeometry.push(manualGeometry);
+  persistedManual.confirmedVisualGuideCandidateIds = ["manual-segment-1"];
+  persistedManual.manualSegmentState = {
+    fileId: payload.fileId,
+    geometry: manualGeometry,
+  };
+  persistedManual.pixelRefinementState.candidateSetIdentity = manualIdentity;
+  persistedManual.constructionGuideState.candidateSetIdentity = manualIdentity;
+  Object.assign(persistedManual.completedVisualHarmony, {
+    candidateSetIdentity: manualIdentity,
+    reviewedCandidateGeometry: structuredClone(persistedManual.reviewedCandidateGeometry),
+    confirmedVisualGuideCandidateIds: ["manual-segment-1"],
+    pixelRefinementState: structuredClone(persistedManual.pixelRefinementState),
+    constructionGuideState: structuredClone(persistedManual.constructionGuideState),
+  });
+  assert.deepEqual(
+    completedWidgetStateFor(() => persistedManual)(payload)?.confirmedVisualGuideCandidateIds,
+    ["manual-segment-1"],
+  );
+
+  const staleManual = structuredClone(persistedManual);
+  staleManual.manualSegmentState.fileId = "different-file";
+  assert.equal(completedWidgetStateFor(() => staleManual)(payload), null);
 
   const mismatchedPixelCache = structuredClone(persisted);
   mismatchedPixelCache.pixelRefinementState = {
@@ -1695,7 +1748,7 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   assert.equal(refinementCalls, 1);
 });
 
-test("widget sends reviewed geometry directly for pixel proposals and stops on confirmation", async () => {
+test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
   const original = {
     id: "oblique",
     primitive: { kind: "segment", start: { x: 0.1, y: 0.2 }, end: { x: 0.7, y: 0.8 } },
@@ -1724,6 +1777,10 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
     dimensions: { width: 100, height: 80 },
   };
   const requestedCandidates = [];
+  const freshPayload = {
+    prepared: { candidateSetIdentity: "fresh-set", candidates: [reviewed] },
+  };
+  const preparedCandidates = [];
   const refreshPixelRefinements = widgetScriptFunction(
     "refreshPixelRefinements",
     "function applyPixelProposal",
@@ -1733,9 +1790,18 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
       updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      geometryChanged: () => true,
+      prepareReviewedPayload: async (_payload, candidateSnapshot) => {
+        preparedCandidates.push(structuredClone(candidateSnapshot));
+        state.payload = freshPayload;
+        state.proposalCandidateSetIdentity = "fresh-set";
+        state.proposalCandidates = structuredClone(candidateSnapshot);
+        return freshPayload;
+      },
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
       createPixelCropPlan: () => ({ status: "ready" }),
-      requestPixelProposal: async (_payload, candidate) => {
+      requestPixelProposal: async (proposalPayload, candidate) => {
+        assert.equal(proposalPayload, freshPayload);
         requestedCandidates.push(structuredClone(candidate));
         return { candidateId: candidate.id, status: "abstained", contentIdentity: "proposal" };
       },
@@ -1750,9 +1816,10 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
   );
 
   await refreshPixelRefinements(oldPayload, "payload-id");
+  assert.deepEqual(preparedCandidates, [[reviewed]]);
   assert.deepEqual(requestedCandidates, [reviewed]);
-  assert.equal(state.proposalCandidateSetIdentity, "old-set");
-  assert.deepEqual(state.proposalCandidates, [original]);
+  assert.equal(state.proposalCandidateSetIdentity, "fresh-set");
+  assert.deepEqual(state.proposalCandidates, [reviewed]);
   assert.equal(state.pixelRefinementProposals.get("oblique")?.contentIdentity, "proposal");
   assert.equal(state.pixelRefinementRunning, false);
 
@@ -1768,6 +1835,8 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
       updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      geometryChanged: () => false,
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
       createPixelCropPlan: () => ({ status: "ready" }),
       requestPixelProposal: async () => {
@@ -1824,6 +1893,8 @@ test("widget fails closed when a local pixel crop cannot be planned", async () =
       updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(candidate)],
+      geometryChanged: () => false,
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
       primitiveKind: (item) => item.primitive.kind,
       createPixelCropPlan() { throw new Error("source dimensions below crop minimum"); },
       requestPixelProposal() { throw new Error("tool must not run without a crop"); },
