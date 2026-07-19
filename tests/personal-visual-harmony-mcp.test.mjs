@@ -519,6 +519,7 @@ test("widget guided analysis entry is display-only and does not activate measure
     measurementRatioRefs: [],
   };
   const pressed = new Map();
+  const familyPressed = new Map();
   let familyVisibilitySyncs = 0;
   let persisted = 0;
   let appToolCalls = 0;
@@ -537,11 +538,31 @@ test("widget guided analysis entry is display-only and does not activate measure
       }));
     },
   };
+  const familyFilters = {
+    querySelectorAll(selector) {
+      assert.equal(selector, ".family-filter");
+      return ["rectangle", "quadrilateral", "segment", "axis", "ellipse"].map((kind) => ({
+        getAttribute(name) {
+          assert.equal(name, "data-primitive-kind");
+          return kind;
+        },
+        setAttribute(name, value) {
+          assert.equal(name, "aria-pressed");
+          familyPressed.set(kind, value);
+        },
+      }));
+    },
+  };
   const guidedGoalStatus = { textContent: "" };
   const updateGuidedAnalysisGoalButtons = widgetScriptFunction(
     "updateGuidedAnalysisGoalButtons",
-    "function applyGuidedAnalysisGoal",
+    "function updateFamilyFilterButtons",
     { guidedGoals, state },
+  );
+  const updateFamilyFilterButtons = widgetScriptFunction(
+    "updateFamilyFilterButtons",
+    "function applyGuidedAnalysisGoal",
+    { familyFilters, state },
   );
   const applyGuidedAnalysisGoal = widgetScriptFunction(
     "applyGuidedAnalysisGoal",
@@ -550,6 +571,7 @@ test("widget guided analysis entry is display-only and does not activate measure
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
       state,
       updateGuidedAnalysisGoalButtons,
+      updateFamilyFilterButtons,
       syncFamilyVisibility() { familyVisibilitySyncs += 1; },
       guidedGoalStatus,
       persistReviewState() { persisted += 1; },
@@ -570,6 +592,11 @@ test("widget guided analysis entry is display-only and does not activate measure
   assert.equal(appToolCalls, 0);
   assert.equal(pressed.get("compare-two-lengths"), "true");
   assert.equal(pressed.get("general-geometry"), "false");
+  assert.equal(familyPressed.get("rectangle"), "false");
+  assert.equal(familyPressed.get("quadrilateral"), "true");
+  assert.equal(familyPressed.get("segment"), "true");
+  assert.equal(familyPressed.get("axis"), "false");
+  assert.equal(familyPressed.get("ellipse"), "false");
   assert.match(guidedGoalStatus.textContent, /rapport reste opt-in et séparé du Core/u);
 });
 
@@ -3297,6 +3324,7 @@ test("guided analysis entry exposes the short default and every goal without act
     selectedGuides: new Set(["axis"]),
   };
   const guidedGoalStatus = { textContent: "" };
+  let familyButtonSyncCalls = 0;
   let syncCalls = 0;
   let persistCalls = 0;
   const applyGuidedAnalysisGoal = widgetScriptFunction(
@@ -3306,6 +3334,7 @@ test("guided analysis entry exposes the short default and every goal without act
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
       state,
       updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() { familyButtonSyncCalls += 1; },
       syncFamilyVisibility() { syncCalls += 1; },
       guidedGoalStatus,
       persistReviewState() { persistCalls += 1; },
@@ -3318,6 +3347,7 @@ test("guided analysis entry exposes the short default and every goal without act
     assert.deepEqual([...state.visibleKinds].sort(), [...goal.visibleKinds].sort());
     assert.equal(guidedGoalStatus.textContent, goal.effect);
   }
+  assert.equal(familyButtonSyncCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
   assert.equal(syncCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
   assert.equal(persistCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
   assert.deepEqual([...state.constructionLayers], []);
