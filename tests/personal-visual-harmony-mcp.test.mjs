@@ -422,6 +422,7 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /Premier point enregistré\. Cliquez le second point visible/u);
   assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
   assert.match(html, /manualSegmentState:manualSegmentSnapshot\(\)/u);
+  assert.match(html, /\.overlay\.drawing-segment\{cursor:crosshair;touch-action:none\}/u);
   assert.match(html, /const activePrepared=restoredPreparedFor\(prepared\)/u);
   assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
   assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
@@ -1937,6 +1938,51 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   assert.equal(refinementCalls, 1);
 });
 
+test("widget revalidates completed state against the payload prepared during pixel refresh", async () => {
+  const originalPayload = {
+    stage: "confirmation_required",
+    fileId: "file-restored-pixel",
+    sessionId: "session-original",
+    prepared: { candidateSetIdentity: "sha256:original", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+  const refreshedPayload = {
+    ...originalPayload,
+    sessionId: "session-refreshed",
+    prepared: { candidateSetIdentity: "sha256:refreshed", candidates: [] },
+  };
+  const state = widgetHydrationState({ pixelRefinementEnabled: true });
+  const completedPayloads = [];
+  const revalidatedPayloads = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => true,
+    refreshPixelRefinements: async () => {
+      state.payload = refreshedPayload;
+    },
+    completedWidgetStateFor: (payload) => {
+      completedPayloads.push(payload);
+      return { selectedCandidateIds: [] };
+    },
+    revalidateCompleted: async (payload) => {
+      revalidatedPayloads.push(payload);
+    },
+    renderResult() { throw new Error("confirmation payload must not render a result"); },
+  });
+
+  await hydrate(originalPayload);
+
+  assert.deepEqual(completedPayloads, [refreshedPayload]);
+  assert.deepEqual(revalidatedPayloads, [refreshedPayload]);
+});
+
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
   const original = {
     id: "oblique",
@@ -2991,7 +3037,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
     assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed,expectedPayloadIdentity\)/u);
-    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(payload,completed,identity\)/u);
+    assert.match(resource.contents[0].text, /const revalidationPayload=state\.payload,completed=completedWidgetStateFor\(revalidationPayload\)/u);
+    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(revalidationPayload,completed,identity\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
     assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
