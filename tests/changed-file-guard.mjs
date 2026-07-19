@@ -537,6 +537,13 @@ export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.fr
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyManualSegmentChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyPerpendicularBisectorRegressionFixChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-constructions.ts",
@@ -1660,6 +1667,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   declaredImagePlaneMeasurementRatiosChangedFiles,
+  personalVisualHarmonyManualSegmentChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,

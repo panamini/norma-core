@@ -406,6 +406,413 @@ test("presentation does not promote unrelated complementary phi matches", () => 
   assert.equal(presentation.primaryPattern.subjects.length, 1);
 });
 
+test("widget manual segment is bounded, deterministic, candidate-only, and cannot run Core by itself", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="manualSegmentToggle"[^>]*disabled/u);
+  assert.match(html, /id="manualSegmentRemove"[^>]*disabled/u);
+  assert.match(html, /data-provenance","human-added-candidate"/u);
+  assert.match(html, /Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate/u);
+  assert.match(html, /activez Prolongements si vous voulez voir son axe/u);
+  assert.match(html, /Math\.hypot\(end\.x-start\.x,end\.y-start\.y\)<\.01/u);
+  assert.match(html, /state\.reviewedCandidates\.length>=MAX_REVIEW_CANDIDATES/u);
+  assert.match(html, /manualSegmentToggle\.addEventListener\("click"/u);
+  assert.match(html, /overlay\.addEventListener\("pointerdown",event=>\{if\(!state\.manualSegmentMode/u);
+  assert.match(html, /manualSegmentAnchor:null/u);
+  assert.match(html, /cliquez successivement les deux points/u);
+  assert.match(html, /Premier point enregistré\. Cliquez le second point visible/u);
+  assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
+  assert.match(html, /manualSegmentState:manualSegmentSnapshot\(\)/u);
+  assert.match(html, /\.overlay\.drawing-segment\{cursor:crosshair;touch-action:none\}/u);
+  assert.match(html, /const activePrepared=restoredPreparedFor\(prepared\)/u);
+  assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
+  assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
+  assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
+  assert.match(html, /const restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
+  assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
+  assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
+  assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
+  assert.match(html, /remove\.disabled=state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
+  assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
+  assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
+  assert.match(html, /state\.activePayloadIdentity!==null&&state\.activePayloadIdentity!==identity\)resetManualSegmentGesture\(\)/u);
+  assert.match(html, /preview\.remove\(\);if\(!state\.manualSegmentMode\)return/u);
+  assert.match(html, /candidates\.length!==state\.proposalCandidates\.length\|\|candidates\.some/u);
+
+  const nextManualSegmentId = widgetScriptFunction(
+    "nextManualSegmentId",
+    "function manualSegmentCandidate",
+    { MAX_REVIEW_CANDIDATES: 12 },
+  );
+  const manualSegmentCandidate = widgetScriptFunction(
+    "manualSegmentCandidate",
+    "function updateManualSegmentControls",
+    {
+      nextManualSegmentId,
+      validPoint: (point) => (
+        point
+        && Number.isFinite(point.x)
+        && Number.isFinite(point.y)
+        && point.x >= 0
+        && point.x <= 1
+        && point.y >= 0
+        && point.y <= 1
+      ),
+      candidateWithPrimitive: (item, primitive) => ({
+        ...item,
+        x: Math.min(primitive.start.x, primitive.end.x),
+        y: Math.min(primitive.start.y, primitive.end.y),
+        width: Math.abs(primitive.end.x - primitive.start.x),
+        height: Math.abs(primitive.end.y - primitive.start.y),
+        primitive,
+      }),
+    },
+  );
+  const existing = [{ id: "manual-segment-1" }, { id: "provider-segment" }];
+  const first = manualSegmentCandidate(existing, { x: 0.2, y: 0.8 }, { x: 0.24, y: 0.1 });
+  const second = manualSegmentCandidate(existing, { x: 0.2, y: 0.8 }, { x: 0.24, y: 0.1 });
+
+  assert.deepEqual(first, second);
+  assert.equal(first.id, "manual-segment-2");
+  assert.equal(first.role, "secondary-subject");
+  assert.equal(first.primitive.kind, "segment");
+  assert.deepEqual(first.primitive.start, { x: 0.2, y: 0.8 });
+  assert.deepEqual(first.primitive.end, { x: 0.24, y: 0.1 });
+  assert.equal(manualSegmentCandidate(existing, { x: 0.2, y: 0.2 }, { x: 0.205, y: 0.205 }), null);
+  assert.equal(
+    manualSegmentCandidate(
+      Array.from({ length: 12 }, (_, index) => ({ id: `manual-segment-${index + 1}` })),
+      { x: 0.1, y: 0.1 },
+      { x: 0.8, y: 0.8 },
+    ),
+    null,
+  );
+});
+
+test("widget restores a persisted manual segment only for the same file and marks deletion dirty", () => {
+  const candidate = {
+    id: "manual-segment-1",
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  let saved = {
+    manualSegmentState: {
+      fileId: "file-manual",
+      geometry: {
+        id: candidate.id,
+        x: candidate.x,
+        y: candidate.y,
+        width: candidate.width,
+        height: candidate.height,
+        primitive: candidate.primitive,
+      },
+    },
+  };
+  const state = { activePayload: { fileId: "file-manual" } };
+  const restoredManualSegmentFor = widgetScriptFunction(
+    "restoredManualSegmentFor",
+    "function updateManualSegmentControls",
+    {
+      publicWidgetState: () => saved,
+      state,
+      MAX_REVIEW_CANDIDATES: 12,
+      clonePrimitive: (primitive) => structuredClone(primitive),
+      isManualSegmentCandidate: (value) => (
+        value.id === candidate.id
+        && value.primitive?.kind === "segment"
+      ),
+      manualSegmentFromGeometry: (geometry) => ({
+        ...candidate,
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+        primitive: structuredClone(geometry.primitive),
+      }),
+    },
+  );
+  const prepared = {
+    candidates: [{
+      id: "frame",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  };
+
+  assert.deepEqual(restoredManualSegmentFor(prepared), candidate);
+  state.activePayload.fileId = "different-file";
+  assert.equal(restoredManualSegmentFor(prepared), null);
+  state.activePayload.fileId = "file-manual";
+  assert.equal(restoredManualSegmentFor({
+    candidates: [...prepared.candidates, candidate],
+  }), null);
+
+  const geometryState = {
+    proposalCandidates: [...prepared.candidates, candidate],
+    reviewedCandidates: prepared.candidates,
+  };
+  const geometryChanged = widgetScriptFunction(
+    "geometryChanged",
+    "function rounded",
+    {
+      state: geometryState,
+      geometrySnapshotFor: (value) => value,
+    },
+  );
+  assert.equal(geometryChanged(), true);
+
+  saved = {};
+  assert.equal(restoredManualSegmentFor(prepared), null);
+});
+
+test("removing a manual segment clears its pixel proposal and overlay state", () => {
+  const manualId = "manual-segment-1";
+  const calls = [];
+  let overlayRemoved = false;
+  let cardRemoved = false;
+  const state = {
+    manualSegmentCandidateId: manualId,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    manualSegmentMode: true,
+    manualSegmentAnchor: { x: 0.1, y: 0.2 },
+    reviewedCandidates: [{ id: "frame" }, { id: manualId }],
+    selectedGuides: new Set(["frame", manualId]),
+    pixelRefinementProposals: new Map([[manualId, { status: "refined" }]]),
+    adoptedPixelRefinements: new Map([[manualId, "sha256:proposal"]]),
+    measurementRatioRefs: [
+      { candidateId: manualId, metric: "length" },
+      { candidateId: "frame", metric: "width" },
+    ],
+    payload: { prepared: { candidates: [{ id: "frame" }] } },
+  };
+  const statusNode = { textContent: "" };
+  const removeManualSegment = widgetScriptFunction(
+    "removeManualSegment",
+    "function resetManualSegmentGesture",
+    {
+      state,
+      overlay: {
+        querySelector: () => ({
+          remove: () => {
+            overlayRemoved = true;
+          },
+        }),
+      },
+      candidateList: {
+        querySelector: () => ({
+          remove: () => {
+            cardRemoved = true;
+          },
+        }),
+      },
+      CSS: { escape: (value) => value },
+      renderFamilyFilters: () => calls.push("renderFamilyFilters"),
+      invalidateTriangleConstruction: () => calls.push("invalidateTriangleConstruction"),
+      syncPixelProposalOverlay: () => calls.push("syncPixelProposalOverlay"),
+      syncFamilyVisibility: () => calls.push("syncFamilyVisibility"),
+      syncConstructionVisibility: () => calls.push("syncConstructionVisibility"),
+      updatePixelProposalUi: () => calls.push("updatePixelProposalUi"),
+      updateMeasurementRatioControls: () => calls.push("updateMeasurementRatioControls"),
+      persistReviewState: () => calls.push("persistReviewState"),
+      updateManualSegmentControls: () => calls.push("updateManualSegmentControls"),
+      updateConfirm: () => calls.push("updateConfirm"),
+      statusNode,
+    },
+  );
+
+  removeManualSegment();
+
+  assert.equal(state.manualSegmentCandidateId, null);
+  assert.equal(state.manualSegmentMode, false);
+  assert.equal(state.manualSegmentAnchor, null);
+  assert.deepEqual(state.reviewedCandidates, [{ id: "frame" }]);
+  assert.deepEqual([...state.selectedGuides], ["frame"]);
+  assert.equal(state.pixelRefinementProposals.has(manualId), false);
+  assert.equal(state.adoptedPixelRefinements.has(manualId), false);
+  assert.deepEqual(state.measurementRatioRefs, [{ candidateId: "frame", metric: "width" }]);
+  assert.equal(overlayRemoved, true);
+  assert.equal(cardRemoved, true);
+  assert.ok(calls.includes("syncPixelProposalOverlay"));
+  assert.ok(calls.includes("updatePixelProposalUi"));
+  assert.match(statusNode.textContent, /Segment manuel supprimé/u);
+});
+
+test("widget re-prepares an added manual segment before confirmation and adopts the fresh identity", async () => {
+  const oldIdentity = `sha256:${"a".repeat(64)}`;
+  const freshIdentity = `sha256:${"b".repeat(64)}`;
+  const candidates = [{
+    id: "frame",
+    label: "Frame",
+    role: "frame",
+    reason: "Visible frame",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+  }, {
+    id: "manual-segment-1",
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  }];
+  const calls = [];
+  const state = {
+    downloadUrl: "https://files.example/manual.jpg",
+    activePayloadIdentity: "active-payload",
+    payload: null,
+    proposalCandidateSetIdentity: oldIdentity,
+    proposalCandidates: structuredClone(candidates),
+    pixelRefinementProposals: new Map([["provider-segment", {}]]),
+    adoptedPixelRefinements: new Map([["provider-segment", "sha256:proposal"]]),
+  };
+  const prepareReviewedPayload = widgetScriptFunction(
+    "prepareReviewedPayload",
+    "async function callConfirmation",
+    {
+      state,
+      PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      callAppTool: async (name, args) => {
+        calls.push({ name, args });
+        return {
+          normaPersonalVisualHarmony: {
+            stage: "confirmation_required",
+            fileId: "file-manual",
+            prepared: { candidateSetIdentity: freshIdentity, candidates },
+          },
+        };
+      },
+      findPayload: (value) => value.normaPersonalVisualHarmony,
+      samePreparedReviewCandidates: (requested, prepared) => (
+        JSON.stringify(requested) === JSON.stringify(prepared)
+      ),
+    },
+  );
+
+  const fresh = await prepareReviewedPayload({
+    fileId: "file-manual",
+    sourceImageMediaType: "image/jpeg",
+  }, candidates);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+  assert.deepEqual(calls[0].args.candidates, candidates);
+  assert.equal(fresh.prepared.candidateSetIdentity, freshIdentity);
+  assert.equal(state.payload, fresh);
+  assert.equal(state.proposalCandidateSetIdentity, freshIdentity);
+  assert.deepEqual(state.proposalCandidates, candidates);
+  assert.equal(state.pixelRefinementProposals.size, 0);
+  assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
+test("widget restores pending review geometry without adopting its missing server session", () => {
+  const originalIdentity = `sha256:${"a".repeat(64)}`;
+  const freshIdentity = `sha256:${"b".repeat(64)}`;
+  const frame = {
+    id: "frame",
+    label: "Frame",
+    role: "frame",
+    reason: "Visible frame",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+  };
+  const manualGeometry = {
+    id: "manual-segment-1",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  const saved = {
+    reviewedProposalCandidateSetIdentity: freshIdentity,
+    reviewedCandidateGeometry: [
+      { id: frame.id, x: frame.x, y: frame.y, width: frame.width, height: frame.height },
+      manualGeometry,
+    ],
+    manualSegmentState: { fileId: "file-manual", geometry: manualGeometry },
+  };
+  const manualCandidate = {
+    id: manualGeometry.id,
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    ...manualGeometry,
+  };
+  const preparedForStoredReview = widgetScriptFunction(
+    "preparedForStoredReview",
+    "function restoredPreparedFor",
+    {
+      isStoredIdentity: (value) => /^sha256:[0-9a-f]{64}$/u.test(value),
+      MAX_REVIEW_CANDIDATES: 12,
+      manualSegmentFromGeometry: () => structuredClone(manualCandidate),
+      isStoredGeometrySnapshot: (geometry, candidates) => (
+        geometry.length === candidates.length
+        && geometry.every((item, index) => item.id === candidates[index].id)
+      ),
+    },
+  );
+  const restored = preparedForStoredReview(
+    { candidateSetIdentity: originalIdentity, candidates: [frame] },
+    "file-manual",
+    saved,
+    freshIdentity,
+    saved.reviewedCandidateGeometry,
+  );
+
+  assert.equal(restored.candidateSetIdentity, freshIdentity);
+  assert.deepEqual(restored.candidates, [frame, manualCandidate]);
+  const geometryChanged = widgetScriptFunction(
+    "geometryChanged",
+    "function rounded",
+    {
+      state: {
+        proposalCandidates: [frame],
+        reviewedCandidates: restored.candidates,
+      },
+      geometrySnapshotFor: (value) => value,
+    },
+  );
+  assert.equal(geometryChanged(), true);
+  assert.equal(
+    preparedForStoredReview(
+      { candidateSetIdentity: originalIdentity, candidates: [frame] },
+      "different-file",
+      saved,
+      freshIdentity,
+      saved.reviewedCandidateGeometry,
+    ),
+    null,
+  );
+});
+
 test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
   const identity = (character) => `sha256:${character.repeat(64)}`;
   const candidateSetIdentity = identity("a");
@@ -642,6 +1049,33 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     "function isStoredMatch",
     { storedConstructionGuideStateFor },
   );
+  const preparedForStoredReview = widgetScriptFunction(
+    "preparedForStoredReview",
+    "function restoredPreparedFor",
+    {
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      MAX_REVIEW_CANDIDATES: 12,
+      manualSegmentFromGeometry: (geometry) => ({
+        id: geometry.id,
+        label: "Segment ajouté manuellement",
+        role: "secondary-subject",
+        reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+        primitive: structuredClone(geometry.primitive),
+      }),
+      isStoredGeometrySnapshot,
+    },
+  );
+  const completedPreparedFor = widgetScriptFunction(
+    "completedPreparedFor",
+    "function completedWidgetStateFor",
+    {
+      preparedForStoredReview,
+    },
+  );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
     "completedWidgetStateFor",
     "function payloadIdentity",
@@ -662,6 +1096,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       isStoredMatch,
       isStoredPresentation: () => true,
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      completedPreparedFor,
     },
   );
   const payload = {
@@ -672,6 +1107,45 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   };
   const acceptPersisted = completedWidgetStateFor(() => persisted);
   assert.deepEqual(acceptPersisted(payload)?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const manualIdentity = identity("9");
+  const manualGeometry = {
+    id: "manual-segment-1",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  const persistedManual = structuredClone(persisted);
+  persistedManual.reviewedProposalCandidateSetIdentity = manualIdentity;
+  persistedManual.reviewedCandidateGeometry.push(manualGeometry);
+  persistedManual.confirmedVisualGuideCandidateIds = ["manual-segment-1"];
+  persistedManual.manualSegmentState = {
+    fileId: payload.fileId,
+    geometry: manualGeometry,
+  };
+  persistedManual.pixelRefinementState.candidateSetIdentity = manualIdentity;
+  persistedManual.constructionGuideState.candidateSetIdentity = manualIdentity;
+  Object.assign(persistedManual.completedVisualHarmony, {
+    candidateSetIdentity: manualIdentity,
+    reviewedCandidateGeometry: structuredClone(persistedManual.reviewedCandidateGeometry),
+    confirmedVisualGuideCandidateIds: ["manual-segment-1"],
+    pixelRefinementState: structuredClone(persistedManual.pixelRefinementState),
+    constructionGuideState: structuredClone(persistedManual.constructionGuideState),
+  });
+  assert.deepEqual(
+    completedWidgetStateFor(() => persistedManual)(payload)?.confirmedVisualGuideCandidateIds,
+    ["manual-segment-1"],
+  );
+
+  const staleManual = structuredClone(persistedManual);
+  staleManual.manualSegmentState.fileId = "different-file";
+  assert.equal(completedWidgetStateFor(() => staleManual)(payload), null);
 
   const mismatchedPixelCache = structuredClone(persisted);
   mismatchedPixelCache.pixelRefinementState = {
@@ -703,6 +1177,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -1439,6 +1914,7 @@ test("widget hydration never requests pixel proposals while refinement is disabl
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -1462,7 +1938,52 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   assert.equal(refinementCalls, 1);
 });
 
-test("widget sends reviewed geometry directly for pixel proposals and stops on confirmation", async () => {
+test("widget revalidates completed state against the payload prepared during pixel refresh", async () => {
+  const originalPayload = {
+    stage: "confirmation_required",
+    fileId: "file-restored-pixel",
+    sessionId: "session-original",
+    prepared: { candidateSetIdentity: "sha256:original", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+  const refreshedPayload = {
+    ...originalPayload,
+    sessionId: "session-refreshed",
+    prepared: { candidateSetIdentity: "sha256:refreshed", candidates: [] },
+  };
+  const state = widgetHydrationState({ pixelRefinementEnabled: true });
+  const completedPayloads = [];
+  const revalidatedPayloads = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => true,
+    refreshPixelRefinements: async () => {
+      state.payload = refreshedPayload;
+    },
+    completedWidgetStateFor: (payload) => {
+      completedPayloads.push(payload);
+      return { selectedCandidateIds: [] };
+    },
+    revalidateCompleted: async (payload) => {
+      revalidatedPayloads.push(payload);
+    },
+    renderResult() { throw new Error("confirmation payload must not render a result"); },
+  });
+
+  await hydrate(originalPayload);
+
+  assert.deepEqual(completedPayloads, [refreshedPayload]);
+  assert.deepEqual(revalidatedPayloads, [refreshedPayload]);
+});
+
+test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
   const original = {
     id: "oblique",
     primitive: { kind: "segment", start: { x: 0.1, y: 0.2 }, end: { x: 0.7, y: 0.8 } },
@@ -1491,17 +2012,31 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
     dimensions: { width: 100, height: 80 },
   };
   const requestedCandidates = [];
+  const freshPayload = {
+    prepared: { candidateSetIdentity: "fresh-set", candidates: [reviewed] },
+  };
+  const preparedCandidates = [];
   const refreshPixelRefinements = widgetScriptFunction(
     "refreshPixelRefinements",
     "function applyPixelProposal",
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      geometryChanged: () => true,
+      prepareReviewedPayload: async (_payload, candidateSnapshot) => {
+        preparedCandidates.push(structuredClone(candidateSnapshot));
+        state.payload = freshPayload;
+        state.proposalCandidateSetIdentity = "fresh-set";
+        state.proposalCandidates = structuredClone(candidateSnapshot);
+        return freshPayload;
+      },
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
       createPixelCropPlan: () => ({ status: "ready" }),
-      requestPixelProposal: async (_payload, candidate) => {
+      requestPixelProposal: async (proposalPayload, candidate) => {
+        assert.equal(proposalPayload, freshPayload);
         requestedCandidates.push(structuredClone(candidate));
         return { candidateId: candidate.id, status: "abstained", contentIdentity: "proposal" };
       },
@@ -1516,9 +2051,10 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
   );
 
   await refreshPixelRefinements(oldPayload, "payload-id");
+  assert.deepEqual(preparedCandidates, [[reviewed]]);
   assert.deepEqual(requestedCandidates, [reviewed]);
-  assert.equal(state.proposalCandidateSetIdentity, "old-set");
-  assert.deepEqual(state.proposalCandidates, [original]);
+  assert.equal(state.proposalCandidateSetIdentity, "fresh-set");
+  assert.deepEqual(state.proposalCandidates, [reviewed]);
   assert.equal(state.pixelRefinementProposals.get("oblique")?.contentIdentity, "proposal");
   assert.equal(state.pixelRefinementRunning, false);
 
@@ -1531,8 +2067,11 @@ test("widget sends reviewed geometry directly for pixel proposals and stops on c
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(reviewed)],
+      geometryChanged: () => false,
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
       primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
       createPixelCropPlan: () => ({ status: "ready" }),
       requestPixelProposal: async () => {
@@ -1586,8 +2125,11 @@ test("widget fails closed when a local pixel crop cannot be planned", async () =
     {
       state,
       updatePixelProposalUi() {},
+      updateManualSegmentControls() {},
       updateConfirm() {},
       pixelRefinementCandidateSnapshot: () => [structuredClone(candidate)],
+      geometryChanged: () => false,
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
       primitiveKind: (item) => item.primitive.kind,
       createPixelCropPlan() { throw new Error("source dimensions below crop minimum"); },
       requestPixelProposal() { throw new Error("tool must not run without a crop"); },
@@ -2470,7 +3012,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /preparedWithReviewedCandidates\(payload\.prepared,\[candidate\]\)/u);
     assert.match(resource.contents[0].text, /function completedPixelRefinementStateFor\(saved,completed,prepared\)\{if\(!isStoredGeometrySnapshot/u);
     assert.match(resource.contents[0].text, /try\{const plan=createPixelCropPlan/u);
-    assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
+    assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(state\.payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
     assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
@@ -2495,7 +3037,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /mappedGeometryContentIdentity/u);
     assert.match(resource.contents[0].text, /ratioPackRefs/u);
     assert.match(resource.contents[0].text, /revalidateCompleted\(payload,completed,expectedPayloadIdentity\)/u);
-    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(payload,completed,identity\)/u);
+    assert.match(resource.contents[0].text, /const revalidationPayload=state\.payload,completed=completedWidgetStateFor\(revalidationPayload\)/u);
+    assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(revalidationPayload,completed,identity\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
     assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
@@ -2617,8 +3160,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);
     assert.match(resource.contents[0].text, /download_url:state\.downloadUrl/u);
-    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
-    assert.doesNotMatch(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
+    assert.match(resource.contents[0].text, /state\.payload=fresh;state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
+    assert.match(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity=state\.proposalCandidateSetIdentity\|\|state\.payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
@@ -2663,6 +3206,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
@@ -2729,6 +3273,7 @@ test("completed payload for a new file hydrates and renders over existing widget
     currentPayload: () => null,
     window: { openai: {} },
     payloadIdentity,
+    resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
     renderCandidates() {},
