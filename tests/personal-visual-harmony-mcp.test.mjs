@@ -422,8 +422,11 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /Premier point enregistré\. Cliquez le second point visible/u);
   assert.match(html, /start=state\.manualSegmentAnchor\?\?pointerStart/u);
   assert.match(html, /manualSegmentState:manualSegmentSnapshot\(\)/u);
-  assert.match(html, /const restoredManual=restoredManualSegmentFor\(prepared\)/u);
+  assert.match(html, /const activePrepared=restoredPreparedFor\(prepared\)/u);
+  assert.match(html, /const restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
   assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
+  assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
+  assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
   assert.match(html, /remove\.disabled=state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
   assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
   assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
@@ -523,6 +526,14 @@ test("widget restores a persisted manual segment only for the same file and mark
         value.id === candidate.id
         && value.primitive?.kind === "segment"
       ),
+      manualSegmentFromGeometry: (geometry) => ({
+        ...candidate,
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+        primitive: structuredClone(geometry.primitive),
+      }),
     },
   );
   const prepared = {
@@ -561,6 +572,80 @@ test("widget restores a persisted manual segment only for the same file and mark
   assert.equal(restoredManualSegmentFor(prepared), null);
 });
 
+test("removing a manual segment clears its pixel proposal and overlay state", () => {
+  const manualId = "manual-segment-1";
+  const calls = [];
+  let overlayRemoved = false;
+  let cardRemoved = false;
+  const state = {
+    manualSegmentCandidateId: manualId,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    manualSegmentMode: true,
+    manualSegmentAnchor: { x: 0.1, y: 0.2 },
+    reviewedCandidates: [{ id: "frame" }, { id: manualId }],
+    selectedGuides: new Set(["frame", manualId]),
+    pixelRefinementProposals: new Map([[manualId, { status: "refined" }]]),
+    adoptedPixelRefinements: new Map([[manualId, "sha256:proposal"]]),
+    measurementRatioRefs: [
+      { candidateId: manualId, metric: "length" },
+      { candidateId: "frame", metric: "width" },
+    ],
+    payload: { prepared: { candidates: [{ id: "frame" }] } },
+  };
+  const statusNode = { textContent: "" };
+  const removeManualSegment = widgetScriptFunction(
+    "removeManualSegment",
+    "function resetManualSegmentGesture",
+    {
+      state,
+      overlay: {
+        querySelector: () => ({
+          remove: () => {
+            overlayRemoved = true;
+          },
+        }),
+      },
+      candidateList: {
+        querySelector: () => ({
+          remove: () => {
+            cardRemoved = true;
+          },
+        }),
+      },
+      CSS: { escape: (value) => value },
+      renderFamilyFilters: () => calls.push("renderFamilyFilters"),
+      invalidateTriangleConstruction: () => calls.push("invalidateTriangleConstruction"),
+      syncPixelProposalOverlay: () => calls.push("syncPixelProposalOverlay"),
+      syncFamilyVisibility: () => calls.push("syncFamilyVisibility"),
+      syncConstructionVisibility: () => calls.push("syncConstructionVisibility"),
+      updatePixelProposalUi: () => calls.push("updatePixelProposalUi"),
+      updateMeasurementRatioControls: () => calls.push("updateMeasurementRatioControls"),
+      persistReviewState: () => calls.push("persistReviewState"),
+      updateManualSegmentControls: () => calls.push("updateManualSegmentControls"),
+      updateConfirm: () => calls.push("updateConfirm"),
+      statusNode,
+    },
+  );
+
+  removeManualSegment();
+
+  assert.equal(state.manualSegmentCandidateId, null);
+  assert.equal(state.manualSegmentMode, false);
+  assert.equal(state.manualSegmentAnchor, null);
+  assert.deepEqual(state.reviewedCandidates, [{ id: "frame" }]);
+  assert.deepEqual([...state.selectedGuides], ["frame"]);
+  assert.equal(state.pixelRefinementProposals.has(manualId), false);
+  assert.equal(state.adoptedPixelRefinements.has(manualId), false);
+  assert.deepEqual(state.measurementRatioRefs, [{ candidateId: "frame", metric: "width" }]);
+  assert.equal(overlayRemoved, true);
+  assert.equal(cardRemoved, true);
+  assert.ok(calls.includes("syncPixelProposalOverlay"));
+  assert.ok(calls.includes("updatePixelProposalUi"));
+  assert.match(statusNode.textContent, /Segment manuel supprimé/u);
+});
+
 test("widget re-prepares an added manual segment before confirmation and adopts the fresh identity", async () => {
   const oldIdentity = `sha256:${"a".repeat(64)}`;
   const freshIdentity = `sha256:${"b".repeat(64)}`;
@@ -594,7 +679,7 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
     activePayloadIdentity: "active-payload",
     payload: null,
     proposalCandidateSetIdentity: oldIdentity,
-    proposalCandidates: [],
+    proposalCandidates: structuredClone(candidates),
     pixelRefinementProposals: new Map([["provider-segment", {}]]),
     adoptedPixelRefinements: new Map([["provider-segment", "sha256:proposal"]]),
   };
@@ -635,6 +720,81 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
   assert.deepEqual(state.proposalCandidates, candidates);
   assert.equal(state.pixelRefinementProposals.size, 0);
   assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
+test("widget restores the fresh prepared baseline for pending manual review state", () => {
+  const originalIdentity = `sha256:${"a".repeat(64)}`;
+  const freshIdentity = `sha256:${"b".repeat(64)}`;
+  const frame = {
+    id: "frame",
+    label: "Frame",
+    role: "frame",
+    reason: "Visible frame",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+  };
+  const manualGeometry = {
+    id: "manual-segment-1",
+    x: 0.2,
+    y: 0.1,
+    width: 0.04,
+    height: 0.7,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.2, y: 0.8 },
+      end: { x: 0.24, y: 0.1 },
+    },
+  };
+  const saved = {
+    reviewedProposalCandidateSetIdentity: freshIdentity,
+    reviewedCandidateGeometry: [
+      { id: frame.id, x: frame.x, y: frame.y, width: frame.width, height: frame.height },
+      manualGeometry,
+    ],
+    manualSegmentState: { fileId: "file-manual", geometry: manualGeometry },
+  };
+  const manualCandidate = {
+    id: manualGeometry.id,
+    label: "Segment ajouté manuellement",
+    role: "secondary-subject",
+    reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+    ...manualGeometry,
+  };
+  const preparedForStoredReview = widgetScriptFunction(
+    "preparedForStoredReview",
+    "function restoredPreparedFor",
+    {
+      isStoredIdentity: (value) => /^sha256:[0-9a-f]{64}$/u.test(value),
+      MAX_REVIEW_CANDIDATES: 12,
+      manualSegmentFromGeometry: () => structuredClone(manualCandidate),
+      isStoredGeometrySnapshot: (geometry, candidates) => (
+        geometry.length === candidates.length
+        && geometry.every((item, index) => item.id === candidates[index].id)
+      ),
+    },
+  );
+  const restored = preparedForStoredReview(
+    { candidateSetIdentity: originalIdentity, candidates: [frame] },
+    "file-manual",
+    saved,
+    freshIdentity,
+    saved.reviewedCandidateGeometry,
+  );
+
+  assert.equal(restored.candidateSetIdentity, freshIdentity);
+  assert.deepEqual(restored.candidates, [frame, manualCandidate]);
+  assert.equal(
+    preparedForStoredReview(
+      { candidateSetIdentity: originalIdentity, candidates: [frame] },
+      "different-file",
+      saved,
+      freshIdentity,
+      saved.reviewedCandidateGeometry,
+    ),
+    null,
+  );
 });
 
 test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
@@ -873,17 +1033,31 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     "function isStoredMatch",
     { storedConstructionGuideStateFor },
   );
+  const preparedForStoredReview = widgetScriptFunction(
+    "preparedForStoredReview",
+    "function restoredPreparedFor",
+    {
+      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
+      MAX_REVIEW_CANDIDATES: 12,
+      manualSegmentFromGeometry: (geometry) => ({
+        id: geometry.id,
+        label: "Segment ajouté manuellement",
+        role: "secondary-subject",
+        reason: "Guide tracé explicitement par l’utilisateur dans le widget; preuve candidate à vérifier avant confirmation.",
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+        primitive: structuredClone(geometry.primitive),
+      }),
+      isStoredGeometrySnapshot,
+    },
+  );
   const completedPreparedFor = widgetScriptFunction(
     "completedPreparedFor",
     "function completedWidgetStateFor",
     {
-      isStoredIdentity: (value) => typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value),
-      MAX_REVIEW_CANDIDATES: 12,
-      clonePrimitive: structuredClone,
-      isManualSegmentCandidate: (value) => (
-        value?.id === "manual-segment-1"
-        && value?.primitive?.kind === "segment"
-      ),
+      preparedForStoredReview,
     },
   );
   const completedWidgetStateFor = (publicWidgetState) => widgetScriptFunction(
@@ -2777,7 +2951,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /preparedWithReviewedCandidates\(payload\.prepared,\[candidate\]\)/u);
     assert.match(resource.contents[0].text, /function completedPixelRefinementStateFor\(saved,completed,prepared\)\{if\(!isStoredGeometrySnapshot/u);
     assert.match(resource.contents[0].text, /try\{const plan=createPixelCropPlan/u);
-    assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(payload,identity\)/u);
+    assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(state\.payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
     assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
@@ -2924,7 +3098,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);
     assert.match(resource.contents[0].text, /download_url:state\.downloadUrl/u);
-    assert.match(resource.contents[0].text, /if\(candidateSnapshot\.length!==state\.proposalCandidates\.length\)\{state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
+    assert.match(resource.contents[0].text, /state\.payload=fresh;state\.proposalCandidateSetIdentity=fresh\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /state\.proposalCandidates=fresh\.prepared\.candidates\.map/u);
     assert.match(resource.contents[0].text, /candidateSetIdentity=state\.proposalCandidateSetIdentity\|\|state\.payload\.prepared\.candidateSetIdentity/u);
     assert.match(resource.contents[0].text, /function reviewedCandidateSnapshot\(\)\{return Object\.freeze/u);
