@@ -11,6 +11,8 @@ import {
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1,
+  PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
@@ -427,7 +429,7 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
   assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
   assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
-  assert.match(html, /const restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
+  assert.match(html, /restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
   assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
   assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
   assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
@@ -486,6 +488,588 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
     ),
     null,
   );
+});
+
+test("widget guided analysis entry is display-only and does not activate measurement or Core", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="guidedEntry"/u);
+  assert.match(html, /id="guidedGoals"/u);
+  assert.match(html, /Le choix filtre l’affichage seulement/u);
+  assert.match(html, /DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry"/u);
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    assert.match(html, new RegExp(goal.id, "u"));
+    assert.match(html, new RegExp(goal.label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  }
+  assert.equal(PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length, 6);
+  assert.deepEqual(
+    PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "compare-two-lengths")?.visibleKinds,
+    ["quadrilateral", "segment"],
+  );
+  assert.deepEqual(
+    PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "triangles-constructions")?.visibleKinds,
+    ["segment", "axis"],
+  );
+
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle", "quadrilateral", "segment", "axis", "ellipse"]),
+    constructionLayers: new Set(),
+    visibleConstructionLayers: new Set(),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  const pressed = new Map();
+  const familyPressed = new Map();
+  let familyVisibilitySyncs = 0;
+  let persisted = 0;
+  let appToolCalls = 0;
+  const guidedGoals = {
+    querySelectorAll(selector) {
+      assert.equal(selector, ".guided-goal");
+      return PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.map((goal) => ({
+        getAttribute(name) {
+          assert.equal(name, "data-goal-id");
+          return goal.id;
+        },
+        setAttribute(name, value) {
+          assert.equal(name, "aria-pressed");
+          pressed.set(goal.id, value);
+        },
+      }));
+    },
+  };
+  const familyFilters = {
+    querySelectorAll(selector) {
+      assert.equal(selector, ".family-filter");
+      return ["rectangle", "quadrilateral", "segment", "axis", "ellipse"].map((kind) => ({
+        getAttribute(name) {
+          assert.equal(name, "data-primitive-kind");
+          return kind;
+        },
+        setAttribute(name, value) {
+          assert.equal(name, "aria-pressed");
+          familyPressed.set(kind, value);
+        },
+      }));
+    },
+  };
+  const guidedGoalStatus = { textContent: "" };
+  const updateGuidedAnalysisGoalButtons = widgetScriptFunction(
+    "updateGuidedAnalysisGoalButtons",
+    "function updateFamilyFilterButtons",
+    { guidedGoals, state },
+  );
+  const updateFamilyFilterButtons = widgetScriptFunction(
+    "updateFamilyFilterButtons",
+    "function guidedAnalysisScope",
+    { familyFilters, state },
+  );
+  const visibleKindsForGuidedAnalysisGoal = widgetScriptFunction(
+    "visibleKindsForGuidedAnalysisGoal",
+    "function guidedAnalysisGoalSnapshot",
+    {
+      state,
+      triangleRequestParentGuideIds: () => [],
+      primitiveKind: (item) => item.primitive.kind,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      state,
+      visibleKindsForGuidedAnalysisGoal,
+      updateGuidedAnalysisGoalButtons,
+      updateFamilyFilterButtons,
+      syncFamilyVisibility() { familyVisibilitySyncs += 1; },
+      guidedGoalStatus,
+      persistGuidedAnalysisGoal() { persisted += 1; },
+      callAppTool() { appToolCalls += 1; },
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.deepEqual([...state.visibleKinds], ["quadrilateral", "segment"]);
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.deepEqual([...state.visibleConstructionLayers], []);
+  assert.equal(state.measurementRatioEnabled, false);
+  assert.deepEqual(state.measurementRatioRefs, []);
+  assert.equal(familyVisibilitySyncs, 1);
+  assert.equal(persisted, 1);
+  assert.equal(appToolCalls, 0);
+  assert.equal(pressed.get("compare-two-lengths"), "true");
+  assert.equal(pressed.get("general-geometry"), "false");
+  assert.equal(familyPressed.get("rectangle"), "false");
+  assert.equal(familyPressed.get("quadrilateral"), "true");
+  assert.equal(familyPressed.get("segment"), "true");
+  assert.equal(familyPressed.get("axis"), "false");
+  assert.equal(familyPressed.get("ellipse"), "false");
+  assert.match(guidedGoalStatus.textContent, /rapport reste opt-in et séparé du Core/u);
+});
+
+test("completed guided-goal changes preserve cached review state", () => {
+  const state = {
+    activePayload: {
+      stage: "completed",
+      fileId: "file-completed",
+      result: { contentIdentity: `sha256:${"a".repeat(64)}` },
+    },
+    proposalCandidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    guidedAnalysisGoal: "frames-proportions",
+    visibleKinds: new Set(["rectangle", "quadrilateral"]),
+  };
+  const saved = {
+    selectedCandidateIds: ["frame"],
+    confirmedVisualGuideCandidateIds: ["axis"],
+    reviewedProposalCandidateSetIdentity: `sha256:${"c".repeat(64)}`,
+    reviewedCandidateGeometry: [{ id: "frame", x: 0, y: 0, width: 1, height: 1 }],
+    completedVisualHarmony: { canonicalResultIdentity: `sha256:${"d".repeat(64)}` },
+  };
+  let persisted;
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+  const guidedAnalysisGoalSnapshot = widgetScriptFunction(
+    "guidedAnalysisGoalSnapshot",
+    "function storedGuidedAnalysisGoalFor",
+    {
+      state,
+      guidedAnalysisScope,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const persistGuidedAnalysisGoal = widgetScriptFunction(
+    "persistGuidedAnalysisGoal",
+    "function applyGuidedAnalysisGoal",
+    {
+      guidedAnalysisGoalSnapshot,
+      publicWidgetState: () => saved,
+      window: {
+        openai: {
+          setWidgetState(value) { persisted = value; },
+        },
+      },
+    },
+  );
+
+  persistGuidedAnalysisGoal();
+
+  assert.deepEqual(persisted, {
+    ...saved,
+    guidedAnalysisGoal: {
+      analysisIdentity: `sha256:${"a".repeat(64)}`,
+      fileId: "file-completed",
+      goalId: "frames-proportions",
+      visibleKinds: ["rectangle", "quadrilateral"],
+    },
+  });
+  assert.deepEqual(persisted.reviewedCandidateGeometry, saved.reviewedCandidateGeometry);
+  assert.equal(
+    persisted.reviewedProposalCandidateSetIdentity,
+    saved.reviewedProposalCandidateSetIdentity,
+  );
+});
+
+test("guided goals restore only for the same file and candidate-set identity", () => {
+  const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-current",
+      prepared: {
+        candidateSetIdentity,
+        candidates: [],
+      },
+    },
+    payload: null,
+    proposalCandidateSetIdentity: candidateSetIdentity,
+    reviewedCandidates: [],
+  };
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+  const visibleKindsForGuidedAnalysisGoal = widgetScriptFunction(
+    "visibleKindsForGuidedAnalysisGoal",
+    "function guidedAnalysisGoalSnapshot",
+    {
+      state,
+      triangleRequestParentGuideIds: () => [],
+      primitiveKind: (item) => item.primitive.kind,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const storedGuidedAnalysisGoalFor = widgetScriptFunction(
+    "storedGuidedAnalysisGoalFor",
+    "function persistGuidedAnalysisGoal",
+    {
+      guidedAnalysisScope,
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      visibleKindsForGuidedAnalysisGoal,
+    },
+  );
+  const matching = {
+    analysisIdentity: candidateSetIdentity,
+    fileId: "file-current",
+    goalId: "ellipses-lines",
+    visibleKinds: ["ellipse", "segment", "axis"],
+  };
+  let persisted = matching;
+  const restoreGuidedAnalysisGoal = widgetScriptFunction(
+    "restoreGuidedAnalysisGoal",
+    "function renderGuidedAnalysisGoals",
+    {
+      storedGuidedAnalysisGoalFor,
+      publicWidgetState: () => ({ guidedAnalysisGoal: persisted }),
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      DEFAULT_GUIDED_ANALYSIS_GOAL: "general-geometry",
+      visibleKindsForGuidedAnalysisGoal,
+      state,
+    },
+  );
+
+  assert.deepEqual(storedGuidedAnalysisGoalFor(matching), matching);
+  restoreGuidedAnalysisGoal();
+  assert.equal(state.guidedAnalysisGoal, "ellipses-lines");
+  assert.deepEqual([...state.visibleKinds], ["ellipse", "segment", "axis"]);
+  assert.equal(storedGuidedAnalysisGoalFor({ ...matching, fileId: "file-old" }), null);
+  assert.equal(
+    storedGuidedAnalysisGoalFor({
+      ...matching,
+      analysisIdentity: `sha256:${"b".repeat(64)}`,
+    }),
+    null,
+  );
+  assert.equal(storedGuidedAnalysisGoalFor("ellipses-lines"), null);
+  persisted = { ...matching, fileId: "file-old" };
+  restoreGuidedAnalysisGoal();
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.deepEqual(
+    [...state.visibleKinds],
+    ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+  );
+});
+
+test("rendering a new prepared candidate set scopes guided-goal restoration to its identity", () => {
+  const previousIdentity = `sha256:${"a".repeat(64)}`;
+  const currentIdentity = `sha256:${"b".repeat(64)}`;
+  const calls = [];
+  const currentPayload = {
+    stage: "confirmation_required",
+    fileId: "file-current",
+    prepared: { candidateSetIdentity: currentIdentity },
+  };
+  const currentCandidates = [{ id: "current-line", primitive: { kind: "segment" } }];
+  const state = {
+    activePayload: currentPayload,
+    displayedPayload: null,
+    proposalCandidateSetIdentity: previousIdentity,
+    reviewedCandidates: [{ id: "previous-line", primitive: { kind: "axis" } }],
+  };
+  const initializeGuidedAnalysisForPrepared = widgetScriptFunction(
+    "initializeGuidedAnalysisForPrepared",
+    "function renderCandidates",
+    {
+      state,
+      restoreGuidedAnalysisGoal() {
+        calls.push([
+          "restore",
+          state.proposalCandidateSetIdentity,
+          state.reviewedCandidates[0].id,
+        ]);
+      },
+      renderGuidedAnalysisGoals() {
+        calls.push([
+          "render",
+          state.proposalCandidateSetIdentity,
+          state.reviewedCandidates[0].id,
+        ]);
+      },
+    },
+  );
+
+  initializeGuidedAnalysisForPrepared(
+    { candidateSetIdentity: currentIdentity },
+    currentCandidates,
+  );
+
+  assert.equal(state.proposalCandidateSetIdentity, currentIdentity);
+  assert.equal(state.displayedPayload, currentPayload);
+  assert.equal(state.reviewedCandidates, currentCandidates);
+  assert.deepEqual(calls, [
+    ["restore", currentIdentity, "current-line"],
+    ["render", currentIdentity, "current-line"],
+  ]);
+});
+
+test("completed guided choices use the displayed result identity while a prepare payload remains active", () => {
+  const completedIdentity = `sha256:${"c".repeat(64)}`;
+  const candidateSetIdentity = `sha256:${"d".repeat(64)}`;
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-shared",
+      prepared: { candidateSetIdentity },
+    },
+    displayedPayload: {
+      stage: "completed",
+      fileId: "file-shared",
+      result: { contentIdentity: completedIdentity },
+    },
+    proposalCandidateSetIdentity: candidateSetIdentity,
+  };
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+
+  assert.deepEqual(guidedAnalysisScope(), {
+    analysisIdentity: completedIdentity,
+    fileId: "file-shared",
+  });
+});
+
+test("triangle guided goal focuses explicit parent-guide families without enabling constructions", () => {
+  const triangleRequestParentGuideIds = widgetScriptFunction(
+    "triangleRequestParentGuideIds",
+    "function triangleLayerReady",
+    {},
+  );
+  const prepared = {
+    candidateSetIdentity: `sha256:${"a".repeat(64)}`,
+    candidates: [
+      { id: "frame", primitive: { kind: "rectangle" } },
+      { id: "line-a", primitive: { kind: "segment" } },
+      { id: "line-b", primitive: { kind: "axis" } },
+      { id: "ellipse", primitive: { kind: "ellipse" } },
+    ],
+    triangleConstructionRequests: [{
+      requestId: "triangle-guided-focus",
+      vertices: [
+        {
+          point: { x: 0.1, y: 0.1 },
+          parent: { kind: "observed-line-endpoint", candidateId: "line-a", endpoint: "start" },
+        },
+        {
+          point: { x: 0.8, y: 0.1 },
+          parent: { kind: "observed-line-endpoint", candidateId: "line-a", endpoint: "end" },
+        },
+        {
+          point: { x: 0.4, y: 0.8 },
+          parent: { kind: "observed-line-endpoint", candidateId: "line-b", endpoint: "end" },
+        },
+      ],
+    }],
+  };
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-triangle",
+      prepared,
+    },
+    payload: { prepared },
+    reviewedCandidates: prepared.candidates,
+    constructionLayers: new Set(),
+    visibleConstructionLayers: new Set(),
+  };
+  const visibleKindsForGuidedAnalysisGoal = widgetScriptFunction(
+    "visibleKindsForGuidedAnalysisGoal",
+    "function guidedAnalysisGoalSnapshot",
+    {
+      state,
+      triangleRequestParentGuideIds,
+      primitiveKind: (item) => item.primitive.kind,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const goal = PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(
+    ({ id }) => id === "triangles-constructions",
+  );
+
+  assert.deepEqual(visibleKindsForGuidedAnalysisGoal(goal), ["segment", "axis"]);
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.deepEqual([...state.visibleConstructionLayers], []);
+});
+
+test("manual family filters become an identity-scoped custom guided state", () => {
+  const candidateSetIdentity = `sha256:${"a".repeat(64)}`;
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-custom",
+      prepared: { candidateSetIdentity },
+    },
+    proposalCandidateSetIdentity: candidateSetIdentity,
+    guidedAnalysisGoal: "ellipses-lines",
+    visibleKinds: new Set(["ellipse", "segment", "axis"]),
+  };
+  const saved = {
+    reviewedProposalCandidateSetIdentity: candidateSetIdentity,
+    reviewedCandidateGeometry: [{ id: "line-a" }],
+  };
+  const buttonStates = new Map();
+  let guidedButtonUpdates = 0;
+  let visibilitySyncs = 0;
+  let persisted;
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+  const guidedAnalysisGoalSnapshot = widgetScriptFunction(
+    "guidedAnalysisGoalSnapshot",
+    "function storedGuidedAnalysisGoalFor",
+    {
+      state,
+      guidedAnalysisScope,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const persistGuidedAnalysisGoal = widgetScriptFunction(
+    "persistGuidedAnalysisGoal",
+    "function applyGuidedAnalysisGoal",
+    {
+      guidedAnalysisGoalSnapshot,
+      publicWidgetState: () => saved,
+      window: {
+        openai: {
+          setWidgetState(value) { persisted = value; },
+        },
+      },
+    },
+  );
+  const guidedGoalStatus = { textContent: "" };
+  const toggleFamilyVisibility = widgetScriptFunction(
+    "toggleFamilyVisibility",
+    "function renderFamilyFilters",
+    {
+      state,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      markGuidedAnalysisCustom() {
+        state.guidedAnalysisGoal = null;
+        guidedButtonUpdates += 1;
+        guidedGoalStatus.textContent =
+          "Affichage personnalisé · vos filtres de familles sont conservés pour cette analyse seulement.";
+      },
+      updateGuidedAnalysisGoalButtons() { guidedButtonUpdates += 1; },
+      updateFamilyFilterButtons() {
+        for (const kind of ["rectangle", "quadrilateral", "segment", "axis", "ellipse"]) {
+          buttonStates.set(kind, state.visibleKinds.has(kind));
+        }
+      },
+      syncFamilyVisibility() { visibilitySyncs += 1; },
+      guidedGoalStatus,
+      persistGuidedAnalysisGoal,
+    },
+  );
+
+  toggleFamilyVisibility("axis");
+
+  assert.equal(state.guidedAnalysisGoal, null);
+  assert.deepEqual([...state.visibleKinds], ["ellipse", "segment"]);
+  assert.equal(guidedButtonUpdates, 1);
+  assert.equal(visibilitySyncs, 1);
+  assert.equal(buttonStates.get("axis"), false);
+  assert.match(guidedGoalStatus.textContent, /Affichage personnalisé/u);
+  assert.deepEqual(persisted, {
+    ...saved,
+    guidedAnalysisGoal: {
+      analysisIdentity: candidateSetIdentity,
+      fileId: "file-custom",
+      goalId: null,
+      visibleKinds: ["segment", "ellipse"],
+    },
+  });
+});
+
+test("implicit manual-segment visibility changes clear a pressed guided preset", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /state\.visibleKinds\.add\("segment"\);markGuidedAnalysisCustom\(\)/u,
+  );
+  const state = {
+    confirming: false,
+    guidedAnalysisGoal: "frames-proportions",
+  };
+  const guidedGoalStatus = { textContent: "" };
+  let guidedButtonUpdates = 0;
+  const markGuidedAnalysisCustom = widgetScriptFunction(
+    "markGuidedAnalysisCustom",
+    "function toggleFamilyVisibility",
+    {
+      state,
+      updateGuidedAnalysisGoalButtons() { guidedButtonUpdates += 1; },
+      guidedGoalStatus,
+      CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT: "Affichage personnalisé",
+    },
+  );
+
+  markGuidedAnalysisCustom();
+
+  assert.equal(state.guidedAnalysisGoal, null);
+  assert.equal(guidedButtonUpdates, 1);
+  assert.equal(guidedGoalStatus.textContent, "Affichage personnalisé");
+});
+
+test("guided and family-filter choices are inert while confirmation locks the review", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+  );
+  assert.match(
+    html,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+  );
+  const state = {
+    confirming: true,
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle"]),
+  };
+  let persisted = 0;
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      guidedGoalStatus: { textContent: "" },
+      persistGuidedAnalysisGoal() { persisted += 1; },
+    },
+  );
+  const toggleFamilyVisibility = widgetScriptFunction(
+    "toggleFamilyVisibility",
+    "function renderFamilyFilters",
+    {
+      state,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      markGuidedAnalysisCustom() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      persistGuidedAnalysisGoal() { persisted += 1; },
+    },
+  );
+
+  applyGuidedAnalysisGoal("ellipses-lines");
+  toggleFamilyVisibility("segment");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.equal(persisted, 0);
 });
 
 test("widget restores a persisted manual segment only for the same file and marks deletion dirty", () => {
@@ -813,7 +1397,7 @@ test("widget restores pending review geometry without adopting its missing serve
   );
 });
 
-test("completed widget cache round-trips related candidates and rejects legacy omissions", async () => {
+test("completed widget cache round-trips related candidates, guided scope, and rejects legacy omissions", async () => {
   const identity = (character) => `sha256:${character.repeat(64)}`;
   const candidateSetIdentity = identity("a");
   const candidates = [
@@ -897,8 +1481,15 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   const persistedStates = [];
   const state = {
     completed: false,
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-completed",
+      prepared: { candidateSetIdentity },
+    },
     payload: { prepared: { candidateSetIdentity, triangleConstructionRequests } },
     proposalCandidateSetIdentity: candidateSetIdentity,
+    guidedAnalysisGoal: "ellipses-lines",
+    visibleKinds: new Set(["segment", "axis", "ellipse"]),
     constructionLayers: new Set([
       "support-line-extensions",
       "format-diagonals",
@@ -907,6 +1498,26 @@ test("completed widget cache round-trips related candidates and rejects legacy o
       "triangle-medians",
     ]),
     dimensions: { width: 1_000, height: 800 },
+  };
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+  const guidedAnalysisGoalSnapshot = widgetScriptFunction(
+    "guidedAnalysisGoalSnapshot",
+    "function storedGuidedAnalysisGoalFor",
+    {
+      state,
+      guidedAnalysisScope,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const previousGuidedAnalysisGoal = {
+    analysisIdentity: candidateSetIdentity,
+    fileId: "file-completed",
+    goalId: "ellipses-lines",
+    visibleKinds: ["segment", "axis", "ellipse"],
   };
   const constructionGuideState = {
     candidateSetIdentity,
@@ -945,7 +1556,8 @@ test("completed widget cache round-trips related candidates and rejects legacy o
     measurementRatioRequest: () => undefined,
     coreSelectedIds: () => ["major", "minor"],
     confirmedGuideIds: () => [],
-    publicWidgetState: () => ({}),
+    publicWidgetState: () => ({ guidedAnalysisGoal: previousGuidedAnalysisGoal }),
+    guidedAnalysisGoalSnapshot,
     window: { openai: { setWidgetState: (value) => { persistedStates.push(value); } } },
     CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     CONSTRUCTION_LAYERS: ["support-line-extensions", "format-diagonals", "junction-angles", "triangles", "triangle-medians"],
@@ -956,6 +1568,8 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   });
   renderResult(
     {
+      stage: "completed",
+      fileId: "file-completed",
       result: {
         headline: "Analyse terminée",
         contentIdentity: identity("b"),
@@ -982,6 +1596,11 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   );
 
   const persisted = persistedStates.at(-1);
+  assert.equal(state.displayedPayload.result.contentIdentity, identity("b"));
+  assert.deepEqual(persisted.guidedAnalysisGoal, {
+    ...previousGuidedAnalysisGoal,
+    analysisIdentity: identity("b"),
+  });
   assert.deepEqual(persisted.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.completedVisualHarmony.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.pixelRefinementState, pixelRefinementState);
@@ -2761,6 +3380,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
     assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
+    assert.match(prepareTool.description, new RegExp(PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1, "u"));
+    assert.match(prepareTool.description, /Analyze this image with Norma/u);
+    assert.match(prepareTool.description, /Do not ask the user to list primitives/u);
+    assert.match(prepareTool.description, /compare two confirmed lengths prepares length-bearing guides without enabling the report/u);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
@@ -3065,7 +3688,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",fileId:payloadSnapshot\.fileId,result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
     assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
@@ -3185,6 +3808,122 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   }
 });
 
+test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="guidedEntry"/u);
+  assert.match(html, /confirmation et Core restent manuels/u);
+  assert.match(html, /guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL/u);
+  assert.match(html, /guidedAnalysisGoal:guidedAnalysisGoalSnapshot\(\)/u);
+  assert.match(html, /button\.addEventListener\("click",\(\)=>toggleFamilyVisibility\(kind\)\)/u);
+  assert.match(html, /\.guided-goals\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
+  assert.match(html, /@media\(max-width:520px\)\{\.guided-goals\{grid-template-columns:minmax\(0,1fr\)\}\}/u);
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    assert.match(html, new RegExp(goal.id, "u"));
+    assert.match(html, new RegExp(goal.label, "u"));
+    assert.match(html, new RegExp(goal.effect, "u"));
+  }
+
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle"]),
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-guided",
+      prepared: {
+        candidateSetIdentity: `sha256:${"a".repeat(64)}`,
+        candidates: [
+          { id: "frame", primitive: { kind: "rectangle" } },
+          { id: "axis", primitive: { kind: "axis" } },
+          { id: "segment", primitive: { kind: "segment" } },
+        ],
+        triangleConstructionRequests: [{
+          requestId: "guided-triangle",
+          vertices: [
+            {
+              parent: {
+                kind: "observed-line-endpoint",
+                candidateId: "segment",
+                endpoint: "start",
+              },
+            },
+            {
+              parent: {
+                kind: "observed-line-endpoint",
+                candidateId: "segment",
+                endpoint: "end",
+              },
+            },
+            {
+              parent: {
+                kind: "observed-line-endpoint",
+                candidateId: "axis",
+                endpoint: "end",
+              },
+            },
+          ],
+        }],
+      },
+    },
+    payload: null,
+    reviewedCandidates: [],
+    constructionLayers: new Set(),
+    measurementRatioEnabled: false,
+    selected: new Set(["frame"]),
+    selectedGuides: new Set(["axis"]),
+  };
+  const guidedGoalStatus = { textContent: "" };
+  let familyButtonSyncCalls = 0;
+  let syncCalls = 0;
+  let persistCalls = 0;
+  const triangleRequestParentGuideIds = widgetScriptFunction(
+    "triangleRequestParentGuideIds",
+    "function triangleLayerReady",
+    {},
+  );
+  const visibleKindsForGuidedAnalysisGoal = widgetScriptFunction(
+    "visibleKindsForGuidedAnalysisGoal",
+    "function guidedAnalysisGoalSnapshot",
+    {
+      state,
+      triangleRequestParentGuideIds,
+      primitiveKind: (item) => item.primitive.kind,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+    },
+  );
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      state,
+      visibleKindsForGuidedAnalysisGoal,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() { familyButtonSyncCalls += 1; },
+      syncFamilyVisibility() { syncCalls += 1; },
+      guidedGoalStatus,
+      persistGuidedAnalysisGoal() { persistCalls += 1; },
+    },
+  );
+
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    applyGuidedAnalysisGoal(goal.id);
+    assert.equal(state.guidedAnalysisGoal, goal.id);
+    assert.deepEqual(
+      [...state.visibleKinds].sort(),
+      [...visibleKindsForGuidedAnalysisGoal(goal)].sort(),
+    );
+    assert.equal(guidedGoalStatus.textContent, goal.effect);
+  }
+  assert.equal(familyButtonSyncCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
+  assert.equal(syncCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
+  assert.equal(persistCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.equal(state.measurementRatioEnabled, false);
+  assert.deepEqual([...state.selected], ["frame"]);
+  assert.deepEqual([...state.selectedGuides], ["axis"]);
+  assert.doesNotMatch(String(applyGuidedAnalysisGoal), /callAppTool|confirmButton|toggleConstructionLayer/u);
+});
+
 test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
   const state = widgetHydrationState();
@@ -3268,6 +4007,8 @@ test("completed payload for a new file hydrates and renders over existing widget
     ),
   });
   const rendered = [];
+  let guidedGoalRestores = 0;
+  let guidedGoalRenders = 0;
   const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
     state,
     currentPayload: () => null,
@@ -3280,6 +4021,8 @@ test("completed payload for a new file hydrates and renders over existing widget
     loadImage,
     completedWidgetStateFor() { throw new Error("completed payload must not revalidate cached confirmation state"); },
     revalidateCompleted() { throw new Error("completed payload must not revalidate cached confirmation state"); },
+    restoreGuidedAnalysisGoal() { guidedGoalRestores += 1; },
+    renderGuidedAnalysisGoals() { guidedGoalRenders += 1; },
     renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
   });
   const completedPayload = {
@@ -3295,6 +4038,8 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
   assert.equal(state.activePayload, completedPayload);
   assert.equal(state.imageLoadFileId, "file-new");
+  assert.equal(guidedGoalRestores, 1);
+  assert.equal(guidedGoalRenders, 1);
 });
 
 test("displayed image load is the hydration proof for single-use temporary URLs", async () => {
