@@ -11,6 +11,8 @@ import {
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1,
+  PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
@@ -486,6 +488,89 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
     ),
     null,
   );
+});
+
+test("widget guided analysis entry is display-only and does not activate measurement or Core", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="guidedEntry"/u);
+  assert.match(html, /id="guidedGoals"/u);
+  assert.match(html, /Le choix filtre l’affichage seulement/u);
+  assert.match(html, /DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry"/u);
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    assert.match(html, new RegExp(goal.id, "u"));
+    assert.match(html, new RegExp(goal.label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  }
+  assert.equal(PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length, 6);
+  assert.deepEqual(
+    PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "compare-two-lengths")?.visibleKinds,
+    ["quadrilateral", "segment"],
+  );
+  assert.deepEqual(
+    PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "triangles-constructions")?.visibleKinds,
+    ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+  );
+
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle", "quadrilateral", "segment", "axis", "ellipse"]),
+    constructionLayers: new Set(),
+    visibleConstructionLayers: new Set(),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  const pressed = new Map();
+  let familyVisibilitySyncs = 0;
+  let persisted = 0;
+  let appToolCalls = 0;
+  const guidedGoals = {
+    querySelectorAll(selector) {
+      assert.equal(selector, ".guided-goal");
+      return PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.map((goal) => ({
+        getAttribute(name) {
+          assert.equal(name, "data-goal-id");
+          return goal.id;
+        },
+        setAttribute(name, value) {
+          assert.equal(name, "aria-pressed");
+          pressed.set(goal.id, value);
+        },
+      }));
+    },
+  };
+  const guidedGoalStatus = { textContent: "" };
+  const updateGuidedAnalysisGoalButtons = widgetScriptFunction(
+    "updateGuidedAnalysisGoalButtons",
+    "function applyGuidedAnalysisGoal",
+    { guidedGoals, state },
+  );
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      state,
+      updateGuidedAnalysisGoalButtons,
+      syncFamilyVisibility() { familyVisibilitySyncs += 1; },
+      guidedGoalStatus,
+      persistReviewState() { persisted += 1; },
+      callAppTool() { appToolCalls += 1; },
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.deepEqual([...state.visibleKinds], ["quadrilateral", "segment"]);
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.deepEqual([...state.visibleConstructionLayers], []);
+  assert.equal(state.measurementRatioEnabled, false);
+  assert.deepEqual(state.measurementRatioRefs, []);
+  assert.equal(familyVisibilitySyncs, 1);
+  assert.equal(persisted, 1);
+  assert.equal(appToolCalls, 0);
+  assert.equal(pressed.get("compare-two-lengths"), "true");
+  assert.equal(pressed.get("general-geometry"), "false");
+  assert.match(guidedGoalStatus.textContent, /rapport reste opt-in et séparé du Core/u);
 });
 
 test("widget restores a persisted manual segment only for the same file and marks deletion dirty", () => {
@@ -2761,6 +2846,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
     assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
+    assert.match(prepareTool.description, new RegExp(PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1, "u"));
+    assert.match(prepareTool.description, /Analyze this image with Norma/u);
+    assert.match(prepareTool.description, /Do not ask the user to list primitives/u);
+    assert.match(prepareTool.description, /compare two confirmed lengths prepares length-bearing guides without enabling the report/u);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
@@ -3183,6 +3272,59 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   } finally {
     await connected.close();
   }
+});
+
+test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="guidedEntry"/u);
+  assert.match(html, /confirmation et Core restent manuels/u);
+  assert.match(html, /guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL/u);
+  assert.match(html, /guidedAnalysisGoal:state\.guidedAnalysisGoal/u);
+  assert.match(html, /\.guided-goals\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/u);
+  assert.match(html, /@media\(max-width:520px\)\{\.guided-goals\{grid-template-columns:minmax\(0,1fr\)\}\}/u);
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    assert.match(html, new RegExp(goal.id, "u"));
+    assert.match(html, new RegExp(goal.label, "u"));
+    assert.match(html, new RegExp(goal.effect, "u"));
+  }
+
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle"]),
+    constructionLayers: new Set(),
+    measurementRatioEnabled: false,
+    selected: new Set(["frame"]),
+    selectedGuides: new Set(["axis"]),
+  };
+  const guidedGoalStatus = { textContent: "" };
+  let syncCalls = 0;
+  let persistCalls = 0;
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      state,
+      updateGuidedAnalysisGoalButtons() {},
+      syncFamilyVisibility() { syncCalls += 1; },
+      guidedGoalStatus,
+      persistReviewState() { persistCalls += 1; },
+    },
+  );
+
+  for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
+    applyGuidedAnalysisGoal(goal.id);
+    assert.equal(state.guidedAnalysisGoal, goal.id);
+    assert.deepEqual([...state.visibleKinds].sort(), [...goal.visibleKinds].sort());
+    assert.equal(guidedGoalStatus.textContent, goal.effect);
+  }
+  assert.equal(syncCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
+  assert.equal(persistCalls, PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length);
+  assert.deepEqual([...state.constructionLayers], []);
+  assert.equal(state.measurementRatioEnabled, false);
+  assert.deepEqual([...state.selected], ["frame"]);
+  assert.deepEqual([...state.selectedGuides], ["axis"]);
+  assert.doesNotMatch(String(applyGuidedAnalysisGoal), /callAppTool|confirmButton|toggleConstructionLayer/u);
 });
 
 test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
