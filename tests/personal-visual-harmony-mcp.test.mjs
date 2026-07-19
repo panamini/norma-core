@@ -3440,6 +3440,8 @@ test("completed payload for a new file hydrates and renders over existing widget
     ),
   });
   const rendered = [];
+  let guidedGoalRestores = 0;
+  let guidedGoalRenders = 0;
   const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
     state,
     currentPayload: () => null,
@@ -3452,6 +3454,8 @@ test("completed payload for a new file hydrates and renders over existing widget
     loadImage,
     completedWidgetStateFor() { throw new Error("completed payload must not revalidate cached confirmation state"); },
     revalidateCompleted() { throw new Error("completed payload must not revalidate cached confirmation state"); },
+    restoreGuidedAnalysisGoal() { guidedGoalRestores += 1; },
+    renderGuidedAnalysisGoals() { guidedGoalRenders += 1; },
     renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
   });
   const completedPayload = {
@@ -3467,6 +3471,8 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
   assert.equal(state.activePayload, completedPayload);
   assert.equal(state.imageLoadFileId, "file-new");
+  assert.equal(guidedGoalRestores, 1);
+  assert.equal(guidedGoalRenders, 1);
 });
 
 test("displayed image load is the hydration proof for single-use temporary URLs", async () => {
