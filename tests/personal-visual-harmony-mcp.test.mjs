@@ -429,7 +429,7 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
   assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
   assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
-  assert.match(html, /const restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
+  assert.match(html, /restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
   assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
   assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
   assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
@@ -762,28 +762,80 @@ test("rendering a new prepared candidate set scopes guided-goal restoration to i
   const previousIdentity = `sha256:${"a".repeat(64)}`;
   const currentIdentity = `sha256:${"b".repeat(64)}`;
   const calls = [];
-  const state = { proposalCandidateSetIdentity: previousIdentity };
+  const currentPayload = {
+    stage: "confirmation_required",
+    fileId: "file-current",
+    prepared: { candidateSetIdentity: currentIdentity },
+  };
+  const currentCandidates = [{ id: "current-line", primitive: { kind: "segment" } }];
+  const state = {
+    activePayload: currentPayload,
+    displayedPayload: null,
+    proposalCandidateSetIdentity: previousIdentity,
+    reviewedCandidates: [{ id: "previous-line", primitive: { kind: "axis" } }],
+  };
   const initializeGuidedAnalysisForPrepared = widgetScriptFunction(
     "initializeGuidedAnalysisForPrepared",
     "function renderCandidates",
     {
       state,
       restoreGuidedAnalysisGoal() {
-        calls.push(["restore", state.proposalCandidateSetIdentity]);
+        calls.push([
+          "restore",
+          state.proposalCandidateSetIdentity,
+          state.reviewedCandidates[0].id,
+        ]);
       },
       renderGuidedAnalysisGoals() {
-        calls.push(["render", state.proposalCandidateSetIdentity]);
+        calls.push([
+          "render",
+          state.proposalCandidateSetIdentity,
+          state.reviewedCandidates[0].id,
+        ]);
       },
     },
   );
 
-  initializeGuidedAnalysisForPrepared({ candidateSetIdentity: currentIdentity });
+  initializeGuidedAnalysisForPrepared(
+    { candidateSetIdentity: currentIdentity },
+    currentCandidates,
+  );
 
   assert.equal(state.proposalCandidateSetIdentity, currentIdentity);
+  assert.equal(state.displayedPayload, currentPayload);
+  assert.equal(state.reviewedCandidates, currentCandidates);
   assert.deepEqual(calls, [
-    ["restore", currentIdentity],
-    ["render", currentIdentity],
+    ["restore", currentIdentity, "current-line"],
+    ["render", currentIdentity, "current-line"],
   ]);
+});
+
+test("completed guided choices use the displayed result identity while a prepare payload remains active", () => {
+  const completedIdentity = `sha256:${"c".repeat(64)}`;
+  const candidateSetIdentity = `sha256:${"d".repeat(64)}`;
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-shared",
+      prepared: { candidateSetIdentity },
+    },
+    displayedPayload: {
+      stage: "completed",
+      fileId: "file-shared",
+      result: { contentIdentity: completedIdentity },
+    },
+    proposalCandidateSetIdentity: candidateSetIdentity,
+  };
+  const guidedAnalysisScope = widgetScriptFunction(
+    "guidedAnalysisScope",
+    "function visibleKindsForGuidedAnalysisGoal",
+    { state },
+  );
+
+  assert.deepEqual(guidedAnalysisScope(), {
+    analysisIdentity: completedIdentity,
+    fileId: "file-shared",
+  });
 });
 
 test("triangle guided goal focuses explicit parent-guide families without enabling constructions", () => {
@@ -902,8 +954,12 @@ test("manual family filters become an identity-scoped custom guided state", () =
     {
       state,
       GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
-      CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT:
-        "Affichage personnalisé · vos filtres de familles sont conservés pour cette analyse seulement.",
+      markGuidedAnalysisCustom() {
+        state.guidedAnalysisGoal = null;
+        guidedButtonUpdates += 1;
+        guidedGoalStatus.textContent =
+          "Affichage personnalisé · vos filtres de familles sont conservés pour cette analyse seulement.";
+      },
       updateGuidedAnalysisGoalButtons() { guidedButtonUpdates += 1; },
       updateFamilyFilterButtons() {
         for (const kind of ["rectangle", "quadrilateral", "segment", "axis", "ellipse"]) {
@@ -933,6 +989,87 @@ test("manual family filters become an identity-scoped custom guided state", () =
       visibleKinds: ["segment", "ellipse"],
     },
   });
+});
+
+test("implicit manual-segment visibility changes clear a pressed guided preset", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /state\.visibleKinds\.add\("segment"\);markGuidedAnalysisCustom\(\)/u,
+  );
+  const state = {
+    confirming: false,
+    guidedAnalysisGoal: "frames-proportions",
+  };
+  const guidedGoalStatus = { textContent: "" };
+  let guidedButtonUpdates = 0;
+  const markGuidedAnalysisCustom = widgetScriptFunction(
+    "markGuidedAnalysisCustom",
+    "function toggleFamilyVisibility",
+    {
+      state,
+      updateGuidedAnalysisGoalButtons() { guidedButtonUpdates += 1; },
+      guidedGoalStatus,
+      CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT: "Affichage personnalisé",
+    },
+  );
+
+  markGuidedAnalysisCustom();
+
+  assert.equal(state.guidedAnalysisGoal, null);
+  assert.equal(guidedButtonUpdates, 1);
+  assert.equal(guidedGoalStatus.textContent, "Affichage personnalisé");
+});
+
+test("guided and family-filter choices are inert while confirmation locks the review", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+  );
+  assert.match(
+    html,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+  );
+  const state = {
+    confirming: true,
+    guidedAnalysisGoal: "general-geometry",
+    visibleKinds: new Set(["rectangle"]),
+  };
+  let persisted = 0;
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      guidedGoalStatus: { textContent: "" },
+      persistGuidedAnalysisGoal() { persisted += 1; },
+    },
+  );
+  const toggleFamilyVisibility = widgetScriptFunction(
+    "toggleFamilyVisibility",
+    "function renderFamilyFilters",
+    {
+      state,
+      GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      markGuidedAnalysisCustom() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      persistGuidedAnalysisGoal() { persisted += 1; },
+    },
+  );
+
+  applyGuidedAnalysisGoal("ellipses-lines");
+  toggleFamilyVisibility("segment");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.equal(persisted, 0);
 });
 
 test("widget restores a persisted manual segment only for the same file and marks deletion dirty", () => {
@@ -1429,6 +1566,7 @@ test("completed widget cache round-trips related candidates and rejects legacy o
   );
 
   const persisted = persistedStates.at(-1);
+  assert.equal(state.displayedPayload.result.contentIdentity, identity("b"));
   assert.deepEqual(persisted.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.completedVisualHarmony.constructionGuideState, constructionGuideState);
   assert.deepEqual(persisted.pixelRefinementState, pixelRefinementState);
@@ -3516,7 +3654,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",fileId:payloadSnapshot\.fileId,result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
     assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
