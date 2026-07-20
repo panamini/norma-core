@@ -235,6 +235,57 @@ test("measurement ratio preview rejects a duplicate A/B pair with explicit guida
   assert.doesNotMatch(measurementRatioPreview.textContent, /sera calculé/u);
 });
 
+test("measurement ratio preview ignores invalid restored references and completed review state", () => {
+  const invalidReference = {
+    kind: "quadrilateral-side",
+    candidateId: "shape",
+    sideIndex: 99,
+  };
+  const state = {
+    completed: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [invalidReference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  let canonicalCalls = 0;
+  let removedPreviews = 0;
+  let appendedPreviews = 0;
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [{ remove() { removedPreviews += 1; } }],
+        querySelector: () => ({ append() { appendedPreviews += 1; } }),
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: () => {
+        canonicalCalls += 1;
+        throw new Error("invalid restored references must not be canonicalized");
+      },
+      measurementReferenceGeometry: () => null,
+      measurementReferenceOption: () => null,
+    },
+  );
+
+  syncMeasurementRatioPreview();
+  assert.equal(canonicalCalls, 0);
+  assert.equal(appendedPreviews, 0);
+  assert.match(measurementRatioPreview.textContent, /Choisissez A puis B/u);
+
+  state.completed = true;
+  syncMeasurementRatioPreview();
+  assert.equal(removedPreviews, 2);
+  assert.equal(canonicalCalls, 0);
+  assert.equal(appendedPreviews, 0);
+  assert.match(measurementRatioPreview.textContent, /résultat vérifié/u);
+});
+
 test("measurement ratio selectors update only pending widget state", () => {
   const state = {
     measurementRatioRefs: [],
@@ -4085,8 +4136,14 @@ test("guided analysis entry exposes the short default and every goal without act
 
 test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
-  const state = widgetHydrationState();
+  const state = widgetHydrationState({
+    imageReady: true,
+    imageLoadFileId: "file-old",
+    imageLoadPayloadIdentity: "identity-old",
+    dimensions: { width: 320, height: 180 },
+  });
   const imageLoads = [];
+  const dimensionsDuringCandidateRender = [];
   const performImageLoad = (fileId, generation, payloadIdentity) => {
     const pending = deferred();
     imageLoads.push({ fileId, generation, payloadIdentity, pending });
@@ -4107,7 +4164,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
     resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
-    renderCandidates() {},
+    renderCandidates() { dimensionsDuringCandidateRender.push(state.dimensions); },
     loadImage,
     completedWidgetStateFor: (payload) => ({ candidateSetIdentity: payload.prepared.candidateSetIdentity }),
     revalidateCompleted: async (payload) => { revalidatedIdentities.push(payload.prepared.candidateSetIdentity); },
@@ -4130,6 +4187,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
   const secondHydration = hydrate(secondPayload);
   assert.equal(imageLoads.length, 2);
   assert.notEqual(imageLoads[0].payloadIdentity, imageLoads[1].payloadIdentity);
+  assert.deepEqual(dimensionsDuringCandidateRender, [null, null]);
 
   imageLoads[1].pending.resolve(true);
   await secondHydration;
