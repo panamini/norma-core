@@ -47,6 +47,7 @@ import {
   personalVisualHarmonyLineEnvelopeCanonicalizationChangedFiles,
   personalVisualHarmonyManualSegmentChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
+  personalVisualHarmonyObservabilityChangedFiles,
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
@@ -203,6 +204,32 @@ test("personal measurement-ratio clarity allowlist is exact and fail-closed", ()
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyMeasurementRatioClarityChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("personal observability allowlist is exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyObservabilityChangedFiles),
+    personalVisualHarmonyObservabilityChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyObservabilityChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyObservabilityChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of ["src/index.ts", "package.json", "pnpm-lock.yaml", "render.yaml"]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyObservabilityChangedFiles,
         extra,
       ]),
       null,
