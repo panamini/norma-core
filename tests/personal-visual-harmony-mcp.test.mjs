@@ -1543,6 +1543,7 @@ test("completed widget cache round-trips related candidates, guided scope, and r
     appendConstructionAnalysis() {},
     appendDeclaredMeasurementRatioReport() {},
     safeSvg: () => "",
+    syncCandidateLabelLayout() {},
     syncFamilyVisibility() {},
     syncConstructionVisibility() {},
     geometrySnapshot: () => reviewedCandidateGeometry,
@@ -2189,6 +2190,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       ellipseAxes: ellipseAxesForTest,
       visibleEllipseHandlePoint: (point) => ({ point, proxy: false }),
       supportingLineEndpoints() { throw new Error("line branch must remain unused"); },
+      syncCandidateLabelLayout() {},
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
     },
@@ -2246,6 +2248,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       ellipseAxes: ellipseAxesForTest,
       visibleEllipseHandlePoint: (point) => ({ point, proxy: false }),
       CSS: { escape: (value) => value },
+      syncCandidateLabelLayout: () => {},
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
       supportingLineEndpoints: () => null,
@@ -3812,6 +3815,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
     assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
+    assert.match(resource.contents[0].text, /const layoutCandidateLabels=function layoutPersonalVisualHarmonyCandidateLabelsV1/u);
+    assert.match(resource.contents[0].text, /function syncCandidateLabelLayout\(\)/u);
+    assert.match(resource.contents[0].text, /syncCandidateLabelLayout\(\);syncPixelProposalOverlay\(\)/u);
+    assert.match(resource.contents[0].text, /data-candidate-label-leader/u);
     assert.match(resource.contents[0].text, /document\.createElementNS\("http:\/\/www\.w3\.org\/2000\/svg","rect"\)/u);
     assert.match(resource.contents[0].text, /async function prepareReviewedPayload\(payload,candidateSnapshot\)/u);
     assert.match(resource.contents[0].text, /callAppTool\(PREPARE_TOOL,\{image,candidates:candidateSnapshot\}\)/u);

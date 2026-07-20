@@ -1629,6 +1629,90 @@ function imagePlaneRelationPriority(
   }[contactCharacter];
 }
 
+export interface PersonalVisualHarmonyLabelLayoutBoxV1 {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface PersonalVisualHarmonyLabelLayoutItemV1 {
+  readonly candidateId: string;
+  readonly preferredX: number;
+  readonly preferredY: number;
+  readonly width: number;
+}
+
+export interface PersonalVisualHarmonyLabelPlacementV1
+  extends PersonalVisualHarmonyLabelLayoutBoxV1 {
+  readonly candidateId: string;
+}
+
+export function layoutPersonalVisualHarmonyCandidateLabelsV1(input: {
+  readonly labels: readonly PersonalVisualHarmonyLabelLayoutItemV1[];
+  readonly obstacles?: readonly PersonalVisualHarmonyLabelLayoutBoxV1[];
+}): readonly PersonalVisualHarmonyLabelPlacementV1[] {
+  const margin = 8;
+  const labelHeight = 38;
+  const gap = 8;
+  const maximumY = 884;
+  const obstacles = (input.obstacles ?? []).filter(({ x, y, width, height }) => (
+    [x, y, width, height].every(Number.isFinite) && Math.min(width, height) > 0
+  ));
+  const placements: PersonalVisualHarmonyLabelPlacementV1[] = [];
+  const overlaps = (
+    first: PersonalVisualHarmonyLabelLayoutBoxV1,
+    second: PersonalVisualHarmonyLabelLayoutBoxV1,
+  ) => (
+    first.x < second.x + second.width + gap
+    && first.x + first.width + gap > second.x
+    && first.y < second.y + second.height + gap
+    && first.y + first.height + gap > second.y
+  );
+
+  for (const label of input.labels) {
+    const width = Math.min(480, Math.max(120, Number.isFinite(label.width) ? label.width : 120));
+    const maximumX = 1000 - margin - width;
+    const preferredX = Math.min(maximumX, Math.max(margin, label.preferredX));
+    const preferredY = Math.min(maximumY, Math.max(margin, label.preferredY));
+    const xSlots = [
+      preferredX,
+      Math.min(maximumX, Math.max(margin, label.preferredX - width - 16)),
+      margin,
+      maximumX,
+    ].filter((value, index, values) => values.indexOf(value) === index);
+    const ySlots = [preferredY];
+    for (let step = 1; step <= 20; step += 1) {
+      ySlots.push(
+        Math.min(maximumY, preferredY + (step * (labelHeight + gap))),
+        Math.max(margin, preferredY - (step * (labelHeight + gap))),
+      );
+    }
+    const uniqueYSlots = ySlots.filter((value, index, values) => values.indexOf(value) === index);
+    const candidates = uniqueYSlots.flatMap((y) => xSlots.map((x) => ({
+      candidateId: label.candidateId,
+      x,
+      y,
+      width,
+      height: labelHeight,
+    })));
+    const placement = candidates.find((candidate) => (
+      [...placements, ...obstacles].every((box) => !overlaps(candidate, box))
+    )) ?? candidates.find((candidate) => (
+      candidate.x === margin && placements.every((box) => !overlaps(candidate, box))
+    )) ?? {
+      candidateId: label.candidateId,
+      x: margin,
+      y: margin,
+      width,
+      height: labelHeight,
+    };
+    placements.push(placement);
+  }
+
+  return placements;
+}
+
 export function createPersonalVisualHarmonyOverlaySvgV1(input: {
   readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly result?: PersonalVisualHarmonyResultV1;
@@ -1653,6 +1737,27 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
       relationshipByCandidate.set(explanation.subjectCandidateId, explanation);
     }
   }
+  const candidateBadges = prepared.candidates.map((candidateValue, index) => {
+    const explanation = relationshipByCandidate.get(candidateValue.id);
+    const text = explanation === undefined
+      ? `${String(index + 1)} · ${candidateValue.label}`
+      : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
+    return {
+      candidateId: candidateValue.id,
+      preferredX: (candidateValue.x * 1000) + 8,
+      preferredY: (candidateValue.y * 1000) + 8,
+      text,
+      width: Math.min(480, Math.max(120, 22 + (text.length * 11))),
+    };
+  });
+  const candidateLabelPlacements = new Map(
+    layoutPersonalVisualHarmonyCandidateLabelsV1({
+      labels: candidateBadges,
+      obstacles: input.result === undefined
+        ? editableCandidateHandleBoxes(prepared.candidates)
+        : [],
+    }).map((placement) => [placement.candidateId, placement]),
+  );
   const candidateMarkup = prepared.candidates.map((candidateValue, index) => {
     const color = palette[index % palette.length] ?? "#f97316";
     const primitiveKind = primitiveKindFor(candidateValue);
@@ -1661,11 +1766,11 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
     const width = candidateValue.width * 1000;
     const height = candidateValue.height * 1000;
     const selected = selectedIds.has(candidateValue.id);
-    const explanation = relationshipByCandidate.get(candidateValue.id);
-    const badge = explanation === undefined
-      ? `${String(index + 1)} · ${candidateValue.label}`
-      : `${explanation.ratioLabel} · ${formatPercent(explanation.observedPercent)}`;
-    const badgeWidth = Math.min(360, Math.max(120, 22 + (badge.length * 8)));
+    const badge = candidateBadges[index];
+    const placement = candidateLabelPlacements.get(candidateValue.id);
+    if (badge === undefined || placement === undefined) {
+      throw new Error("Candidate label layout is incomplete.");
+    }
     const editable = input.result === undefined && primitiveKind !== "ellipse";
     const editHandles = editable ? candidateEditHandlesMarkup(candidateValue) : "";
     return [
@@ -1676,8 +1781,9 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
         selected,
         selected && enabledConstructionLayers.has("support-line-extensions"),
       ),
-      `<rect data-candidate-badge pointer-events="none" x="${numberAttr(x + 8)}" y="${numberAttr(y + 8)}" width="${numberAttr(badgeWidth)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
-      `<text data-candidate-label pointer-events="none" x="${numberAttr(x + 22)}" y="${numberAttr(y + 34)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge)}</text>`,
+      `<line data-candidate-label-leader pointer-events="none" x1="${numberAttr(x + 8)}" y1="${numberAttr(y + 8)}" x2="${numberAttr(placement.x)}" y2="${numberAttr(placement.y + 19)}" stroke="${color}" stroke-width="3" stroke-opacity="0.82"/>`,
+      `<rect data-candidate-badge pointer-events="none" x="${numberAttr(placement.x)}" y="${numberAttr(placement.y)}" width="${numberAttr(placement.width)}" height="38" rx="12" fill="#0f172a" fill-opacity="0.88"/>`,
+      `<text data-candidate-label pointer-events="none" x="${numberAttr(placement.x + 14)}" y="${numberAttr(placement.y + 26)}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(badge.text)}</text>`,
       editHandles,
       "</g>",
     ].join("");
@@ -2621,6 +2727,33 @@ function candidateEditHandlesMarkup(candidate: PersonalVisualHarmonyCandidateInp
     )).join("");
   }
   return `<rect data-resize-handle x="${numberAttr((candidate.x + candidate.width) * 1000 - 16)}" y="${numberAttr((candidate.y + candidate.height) * 1000 - 16)}" width="32" height="32" rx="8" fill="#f8fafc" stroke="#0f172a" stroke-width="5"/>`;
+}
+
+function editableCandidateHandleBoxes(
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+): readonly PersonalVisualHarmonyLabelLayoutBoxV1[] {
+  const pointBox = (point: PersonalVisualHarmonyPointV1) => ({
+    x: (point.x * 1000) - 15,
+    y: (point.y * 1000) - 15,
+    width: 30,
+    height: 30,
+  });
+  return candidates.flatMap((candidate) => {
+    const primitive = candidate.primitive;
+    if (primitive?.kind === "segment" || primitive?.kind === "axis") {
+      return [pointBox(primitive.start), pointBox(primitive.end)];
+    }
+    if (primitive?.kind === "quadrilateral") {
+      return primitive.vertices.map(pointBox);
+    }
+    if (primitive?.kind === "ellipse") return [];
+    return [{
+      x: ((candidate.x + candidate.width) * 1000) - 16,
+      y: ((candidate.y + candidate.height) * 1000) - 16,
+      width: 32,
+      height: 32,
+    }];
+  });
 }
 
 function extendLineToUnitSquare(

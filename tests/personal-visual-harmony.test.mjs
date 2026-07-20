@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
   createPersonalVisualHarmonyOverlaySvgV1,
+  layoutPersonalVisualHarmonyCandidateLabelsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
@@ -1772,4 +1773,95 @@ test("overlay is transparent, image-aligned, and escapes model-provided labels",
   assert.doesNotMatch(svg, /<script>/u);
   assert.doesNotMatch(svg, /file-private-demo-123/u);
   assert.doesNotMatch(svg, /<image\b/u);
+});
+
+test("overlay separates dense candidate labels deterministically", () => {
+  const denseRectangles = Array.from({ length: 7 }, (_, index) => ({
+    id: `dense-${index + 1}`,
+    label: `Guide structurel dense ${index + 1}`,
+    role: "structural-region",
+    reason: "Régression de lisibilité pour des guides proches.",
+    x: 0.54 + ((index % 2) * 0.04),
+    y: 0.18 + (Math.floor(index / 2) * 0.04),
+    width: 0.2,
+    height: 0.2,
+  }));
+  const observedLine = (id, label, start, end) => ({ ...lineGuide(id, start, end), label });
+  const mixedGuides = [
+    {
+      id: "large-frame",
+      label: "Grand cadre rouge gauche",
+      role: "structural-region",
+      reason: "Cadre visible.",
+      x: 0,
+      y: 0,
+      width: 0.544,
+      height: 0.543,
+    },
+    {
+      id: "small-frame",
+      label: "Module rectangulaire supérieur",
+      role: "structural-region",
+      reason: "Cadre visible.",
+      x: 0.544,
+      y: 0,
+      width: 0.126,
+      height: 0.127,
+    },
+    observedLine("vertical", "Grande séparation verticale", { x: 0.544, y: 0 }, { x: 0.544, y: 0.543 }),
+    observedLine("lower", "Grande ligne horizontale basse", { x: 0, y: 0.543 }, { x: 1, y: 0.543 }),
+    observedLine("right", "Séparation horizontale droite", { x: 0.544, y: 0.207 }, { x: 1, y: 0.207 }),
+    observedLine("inner-v", "Séparation verticale interne", { x: 0.67, y: 0 }, { x: 0.67, y: 0.207 }),
+    observedLine("inner-h", "Séparation horizontale interne", { x: 0.544, y: 0.127 }, { x: 0.67, y: 0.127 }),
+  ];
+
+  for (const candidates of [denseRectangles, mixedGuides]) {
+    const layoutInput = {
+      labels: candidates.map((candidate, index) => ({
+        candidateId: candidate.id,
+        preferredX: (candidate.x * 1000) + 8,
+        preferredY: (candidate.y * 1000) + 8,
+        width: 120 + (index * 20),
+      })),
+    };
+    assert.deepEqual(
+      layoutPersonalVisualHarmonyCandidateLabelsV1(layoutInput),
+      layoutPersonalVisualHarmonyCandidateLabelsV1(layoutInput),
+    );
+    const prepared = prepare(candidates);
+    const first = createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared });
+    const second = createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared });
+    const badges = [...first.matchAll(
+      /<rect data-candidate-badge[^>]* x="([^"]+)" y="([^"]+)" width="([^"]+)" height="38"/gu,
+    )].map((match) => ({
+      x: Number(match[1]), y: Number(match[2]), width: Number(match[3]), height: 38,
+    }));
+    const handles = [
+      ...[...first.matchAll(
+        /<rect data-resize-handle x="([^"]+)" y="([^"]+)" width="32" height="32"/gu,
+      )].map((match) => ({
+        x: Number(match[1]), y: Number(match[2]), width: 32, height: 32,
+      })),
+      ...[...first.matchAll(
+        /<circle data-point-handle="[^"]+" tabindex="0" cx="([^"]+)" cy="([^"]+)" r="15"/gu,
+      )].map((match) => ({
+        x: Number(match[1]) - 15, y: Number(match[2]) - 15, width: 30, height: 30,
+      })),
+    ];
+
+    assert.equal(first, second);
+    assert.equal(badges.length, candidates.length);
+    if (candidates === mixedGuides) assert.ok(Math.max(...badges.map((badge) => badge.width)) > 360);
+    for (const [index, badge] of badges.entries()) {
+      assert.ok(badge.x >= 8 && badge.x + badge.width <= 992);
+      assert.ok(badge.y >= 8 && badge.y + badge.height <= 922);
+      for (const previous of [...badges.slice(0, index), ...handles]) {
+        const overlaps = badge.x < previous.x + previous.width + 8
+          && badge.x + badge.width + 8 > previous.x
+          && badge.y < previous.y + previous.height + 8
+          && badge.y + badge.height + 8 > previous.y;
+        assert.equal(overlaps, false);
+      }
+    }
+  }
 });
