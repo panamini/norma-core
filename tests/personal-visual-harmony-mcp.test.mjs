@@ -2747,6 +2747,7 @@ test("widget revalidates completed state against the payload prepared during pix
   const state = widgetHydrationState({ pixelRefinementEnabled: true });
   const completedPayloads = [];
   const revalidatedPayloads = [];
+  const milestones = [];
   const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
     state,
     currentPayload: () => null,
@@ -2766,7 +2767,9 @@ test("widget revalidates completed state against the payload prepared during pix
     },
     revalidateCompleted: async (payload) => {
       revalidatedPayloads.push(payload);
+      state.completed = true;
     },
+    recordObservationMilestone: (_payload, milestone) => { milestones.push(milestone); },
     renderResult() { throw new Error("confirmation payload must not render a result"); },
   });
 
@@ -2774,6 +2777,136 @@ test("widget revalidates completed state against the payload prepared during pix
 
   assert.deepEqual(completedPayloads, [refreshedPayload]);
   assert.deepEqual(revalidatedPayloads, [refreshedPayload]);
+  assert.deepEqual(milestones, ["result-received"]);
+});
+
+test("successful cached revalidation records the fresh Core-visible correlation", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    prepared: { candidateSetIdentity: "sha256:prepared" },
+  };
+  const freshPayload = {
+    stage: "completed",
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:confirmed",
+      handler: "confirm",
+      handlerDurationMs: 25,
+    },
+  };
+  const completed = {
+    selectedCandidateIds: [],
+    confirmedVisualGuideCandidateIds: [],
+    constructionGuideState: { layers: [] },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  const state = widgetHydrationState({ activePayloadIdentity: "identity:current" });
+  const rendered = [];
+  const milestones = [];
+  const revalidateCompleted = widgetScriptFunction(
+    "revalidateCompleted",
+    "function recordObservationMilestone",
+    {
+      state,
+      reviewedCandidateSnapshot: () => [],
+      geometryChanged: () => false,
+      statusNode: { textContent: "" },
+      setReviewLocked() {},
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
+      callConfirmation: async () => ({ structuredContent: { headline: "done" }, hidden: freshPayload }),
+      findPayload: (response) => response.hidden,
+      renderResult: (nextPayload, structured, options) => {
+        rendered.push({ nextPayload, structured, options });
+        state.completed = true;
+      },
+      recordObservationMilestone: (nextPayload, milestone) => {
+        milestones.push({ nextPayload, milestone });
+      },
+      recordObservationMilestoneAfterPaint: (nextPayload, milestone) => {
+        milestones.push({ nextPayload, milestone });
+      },
+      renderCachedResult() { throw new Error("successful revalidation must not render cache"); },
+      confirmButton: { style: {} },
+      finishConfirmingPayload() {},
+    },
+  );
+
+  await revalidateCompleted(payload, completed, "identity:current");
+
+  assert.deepEqual(rendered, [{
+    nextPayload: freshPayload,
+    structured: { headline: "done" },
+    options: { persist: true, revalidated: true },
+  }]);
+  assert.deepEqual(milestones, [
+    { nextPayload: freshPayload, milestone: "result-received" },
+    { nextPayload: freshPayload, milestone: "core-visible" },
+  ]);
+});
+
+test("cached revalidation installs a re-prepared correlation before Core becomes visible", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    observability: { correlationId: "sha256:old" },
+    prepared: { candidateSetIdentity: "sha256:old" },
+  };
+  const rePreparedPayload = {
+    stage: "confirmation_required",
+    observability: { correlationId: "sha256:new" },
+    prepared: { candidateSetIdentity: "sha256:new" },
+  };
+  const freshPayload = {
+    stage: "completed",
+    observability: { correlationId: "sha256:new" },
+  };
+  const completed = {
+    selectedCandidateIds: [],
+    confirmedVisualGuideCandidateIds: [],
+    constructionGuideState: { layers: [] },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  const state = widgetHydrationState({ activePayloadIdentity: "identity:current" });
+  const milestones = [];
+  let activeCorrelation = "sha256:old";
+  const revalidateCompleted = widgetScriptFunction(
+    "revalidateCompleted",
+    "function recordObservationMilestone",
+    {
+      state,
+      reviewedCandidateSnapshot: () => [{ id: "adjusted" }],
+      geometryChanged: () => true,
+      statusNode: { textContent: "" },
+      setReviewLocked() {},
+      prepareReviewedPayload: async () => rePreparedPayload,
+      callConfirmation: async (analysisPayload) => {
+        assert.equal(analysisPayload, rePreparedPayload);
+        return { structuredContent: { headline: "done" }, hidden: freshPayload };
+      },
+      findPayload: (response) => response.hidden,
+      renderResult: () => { state.completed = true; },
+      recordObservationMilestone(nextPayload, milestone) {
+        activeCorrelation = nextPayload.observability.correlationId;
+        milestones.push({ nextPayload, milestone });
+      },
+      recordObservationMilestoneAfterPaint(nextPayload, milestone) {
+        if (activeCorrelation === nextPayload.observability.correlationId) {
+          milestones.push({ nextPayload, milestone });
+        }
+      },
+      renderCachedResult() { throw new Error("successful revalidation must not render cache"); },
+      confirmButton: { style: {} },
+      finishConfirmingPayload() {},
+    },
+  );
+
+  await revalidateCompleted(payload, completed, "identity:current");
+
+  assert.deepEqual(milestones, [
+    { nextPayload: freshPayload, milestone: "result-received" },
+    { nextPayload: freshPayload, milestone: "core-visible" },
+  ]);
 });
 
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
@@ -3519,8 +3652,8 @@ test("direct session confirmation idempotency ignores measurement property inser
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
     createSessionId: () => "session:test-personal-visual-harmony",
-  })) {
-  const server = createPersonalVisualHarmonyMcpServerV1({ service });
+  }), serverOptions = {}) {
+  const server = createPersonalVisualHarmonyMcpServerV1({ ...serverOptions, service });
   const client = new Client(
     { name: "norma-personal-visual-harmony-test", version: "1.0.0" },
     { capabilities: {} },
@@ -3536,6 +3669,303 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
     },
   };
 }
+
+test("prepare and confirm expose correlated handler timings only through app metadata", async () => {
+  const wallClockTimestamps = [1_000, 900, 2_000, 1_900];
+  const monotonicTimestamps = [10, 22, 100, 125];
+  const connected = await createConnectedClient(undefined, {
+    now: () => wallClockTimestamps.shift(),
+    monotonicNow: () => monotonicTimestamps.shift(),
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-private-observability",
+          mime_type: "image/png",
+        },
+        candidates: candidates(),
+      },
+    });
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    const correlationId = widgetMeta.prepared.candidateSetIdentity;
+    assert.deepEqual(widgetMeta.observability, {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId,
+      attemptId: 1,
+      handler: "prepare",
+      handlerEnteredAtMs: 1_000,
+      handlerCompletedAtMs: 900,
+      handlerDurationMs: 12,
+    });
+
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: correlationId,
+        selectedCandidateIds: ["major", "minor"],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 618,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-private-observability"),
+      },
+    });
+    assert.deepEqual(confirmed._meta.normaPersonalVisualHarmony.observability, {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId,
+      attemptId: 2,
+      handler: "confirm",
+      handlerEnteredAtMs: 2_000,
+      handlerCompletedAtMs: 1_900,
+      handlerDurationMs: 25,
+    });
+
+    for (const result of [prepared, confirmed]) {
+      assert.equal("observability" in result.structuredContent, false);
+      assert.doesNotMatch(
+        JSON.stringify([result.content, result.structuredContent]),
+        /handlerEnteredAtMs|handlerCompletedAtMs|personal-visual-harmony-observability/u,
+      );
+      assert.doesNotMatch(
+        JSON.stringify(result._meta.normaPersonalVisualHarmony.observability),
+        /file-private|download_url|candidate|primitive|overlay|selectedCandidate/u,
+      );
+    }
+    assert.deepEqual(wallClockTimestamps, []);
+    assert.deepEqual(monotonicTimestamps, []);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("widget observability writes only bounded scalar milestone attributes", () => {
+  const attributes = new Map();
+  const widgetHtml = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(widgetHtml, /function recordObservationMilestone\(payload,milestone,atMs=Date\.now\(\)\)/u);
+  assert.match(widgetHtml, /recordObservationMilestone\(payload,"result-received"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestone\(state\.payload,"widget-interactive"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestone\(analysisPayload,"confirmation-clicked",confirmationClickedAtMs\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(freshPayload,"core-visible"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(payload,"core-visible"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(completedPayload,"core-visible",/u);
+  assert.match(widgetHtml, /recordObservationMilestone\(payload,"follow-up-dispatched"\)/u);
+  const widgetScript = widgetHtml.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(widgetScript);
+  const observationHelperSource = widgetScript.slice(
+    widgetScript.indexOf("function recordObservationMilestone"),
+    widgetScript.indexOf("function completionFollowUpFacts"),
+  );
+  assert.doesNotMatch(
+    observationHelperSource,
+    /callAppTool|rpcRequest|postMessage|sendFollowUpMessage/u,
+  );
+  const recordObservationMilestone = widgetScriptFunction(
+    "recordObservationMilestone",
+    "function completionFollowUpFacts",
+    {
+      OBSERVABILITY_CONTRACT_ID: "norma.personal-visual-harmony-observability@1",
+      state: { observationPrepareAttemptKey: null },
+      document: {
+        documentElement: {
+          getAttribute(name) {
+            return attributes.get(name) ?? null;
+          },
+          getAttributeNames() {
+            return [...attributes.keys()];
+          },
+          removeAttribute(name) {
+            attributes.delete(name);
+          },
+          setAttribute(name, value) {
+            attributes.set(name, value);
+          },
+        },
+      },
+    },
+  );
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:correlation-only",
+      handler: "confirm",
+      handlerEnteredAtMs: 2_000,
+      handlerCompletedAtMs: 2_025,
+      handlerDurationMs: 25,
+    },
+    fileId: "must-not-be-observed",
+    prepared: { candidates: [{ primitive: { kind: "rectangle" } }] },
+  }, "core-visible", 2_040);
+
+  assert.deepEqual(Object.fromEntries(attributes), {
+    "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
+    "data-norma-observation-correlation": "sha256:correlation-only",
+    "data-norma-observation-confirm-handler-clock": "server",
+    "data-norma-observation-confirm-handler-duration-ms": "25",
+    "data-norma-observation-confirm-milestone-clock": "browser",
+    "data-norma-observation-confirm-core-visible-at-ms": "2040",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(Object.fromEntries(attributes)),
+    /must-not-be-observed|rectangle|candidate|primitive/u,
+  );
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      attemptId: 1,
+      handler: "prepare",
+      handlerEnteredAtMs: 2_980,
+      handlerCompletedAtMs: 2_992,
+      handlerDurationMs: 12,
+    },
+  }, "result-received", 3_000);
+
+  assert.deepEqual(Object.fromEntries(attributes), {
+    "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
+    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-prepare-handler-clock": "server",
+    "data-norma-observation-prepare-handler-duration-ms": "12",
+    "data-norma-observation-prepare-milestone-clock": "browser",
+    "data-norma-observation-prepare-result-received-at-ms": "3000",
+  });
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      attemptId: 1,
+      handler: "prepare",
+      handlerEnteredAtMs: 2_980,
+      handlerCompletedAtMs: 2_992,
+      handlerDurationMs: 12,
+    },
+  }, "widget-interactive", 3_020);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      handler: "confirm",
+      handlerEnteredAtMs: 3_030,
+      handlerCompletedAtMs: 3_040,
+      handlerDurationMs: 10,
+    },
+  }, "core-visible", 3_050);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      attemptId: 2,
+      handler: "prepare",
+      handlerEnteredAtMs: 4_000,
+      handlerCompletedAtMs: 4_012,
+      handlerDurationMs: 12,
+    },
+  }, "result-received", 4_020);
+
+  assert.deepEqual(Object.fromEntries(attributes), {
+    "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
+    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-prepare-handler-clock": "server",
+    "data-norma-observation-prepare-handler-duration-ms": "12",
+    "data-norma-observation-prepare-milestone-clock": "browser",
+    "data-norma-observation-prepare-result-received-at-ms": "4020",
+  });
+});
+
+test("widget records Core-visible only after a browser paint opportunity", () => {
+  const animationFrames = [];
+  const browserTasks = [];
+  const milestones = [];
+  const followUps = [];
+  let activeCorrelation = "sha256:paint";
+  const recordObservationMilestoneAfterPaint = widgetScriptFunction(
+    "recordObservationMilestoneAfterPaint",
+    "function completionFollowUpFacts",
+    {
+      requestAnimationFrame(callback) {
+        animationFrames.push(callback);
+      },
+      setTimeout(callback, delay) {
+        assert.equal(delay, 0);
+        browserTasks.push(callback);
+      },
+      document: {
+        documentElement: {
+          getAttribute(name) {
+            assert.equal(name, "data-norma-observation-correlation");
+            return activeCorrelation;
+          },
+        },
+      },
+      recordObservationMilestone(payload, milestone) {
+        milestones.push({ payload, milestone });
+      },
+    },
+  );
+  const payload = { observability: { correlationId: "sha256:paint" } };
+
+  recordObservationMilestoneAfterPaint(payload, "core-visible", () => {
+    followUps.push("dispatched");
+  });
+  assert.equal(animationFrames.length, 1);
+  assert.deepEqual(browserTasks, []);
+  assert.deepEqual(milestones, []);
+  assert.deepEqual(followUps, []);
+
+  animationFrames.shift()();
+  assert.equal(browserTasks.length, 1);
+  assert.deepEqual(milestones, []);
+  assert.deepEqual(followUps, []);
+
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched"]);
+
+  recordObservationMilestoneAfterPaint(payload, "core-visible", () => {
+    followUps.push("stale-dispatched");
+  });
+  activeCorrelation = "sha256:replacement";
+  animationFrames.shift()();
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched"]);
+
+  recordObservationMilestoneAfterPaint({}, "core-visible", () => {
+    followUps.push("metadata-free");
+  });
+  animationFrames.shift()();
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched", "metadata-free"]);
+});
+
+test("confirmation defers the follow-up until Core-visible without blocking", () => {
+  const widgetHtml = createPersonalVisualHarmonyWidgetHtmlV1();
+  const confirmationHandler = widgetHtml.match(
+    /confirmButton\.addEventListener\("click",async\(\)=>\{([\s\S]*?)\}\);\nlet bootstrapRetryCount/u,
+  )?.[1];
+  assert.ok(confirmationHandler);
+  const coreVisible = confirmationHandler.indexOf(
+    'recordObservationMilestoneAfterPaint(completedPayload,"core-visible",()=>{void sendCompletionFollowUp(completedPayload,structured)})',
+  );
+  const resultReceived = confirmationHandler.indexOf(
+    'recordObservationMilestone(completedPayload,"result-received")',
+  );
+  const render = confirmationHandler.indexOf("renderResult(completedPayload,structured)");
+  const followUp = confirmationHandler.indexOf(
+    "void sendCompletionFollowUp(completedPayload,structured)",
+  );
+  assert.ok(resultReceived >= 0);
+  assert.ok(render > resultReceived);
+  assert.ok(coreVisible > render);
+  assert.ok(followUp >= coreVisible);
+  assert.doesNotMatch(confirmationHandler, /await recordObservationMilestoneAfterPaint/u);
+});
 
 function unsupportedTupleSchemaPaths(value, path = "$", paths = []) {
   if (Array.isArray(value)) {
