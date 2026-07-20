@@ -4310,6 +4310,62 @@ test("image hydration discards a stale response before loading it", async () => 
   assert.equal(loadCount, 0);
 });
 
+test("prepare tool canonically derives segment and axis envelopes from explicit endpoints", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const proposedCandidates = mixedPrimitiveCandidates()
+      .filter(({ id }) => id === "diagonal" || id === "central-axis")
+      .map((candidate, index) => ({
+        ...candidate,
+        x: 0.01 + (index * 0.04),
+        y: 0.02 + (index * 0.04),
+        width: 0.03,
+        height: 0.04,
+      }));
+    const inputSnapshot = structuredClone(proposedCandidates);
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/line-envelope-canonicalization",
+          file_id: "file-line-envelope-canonicalization",
+          mime_type: "image/png",
+        },
+        candidates: proposedCandidates,
+      },
+    });
+
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    assert.deepEqual(proposedCandidates, inputSnapshot);
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.equal(payload.prepared.status, "confirmation_required");
+    assert.equal(payload.prepared.candidateEvidenceOnly, true);
+    assert.equal(payload.prepared.coreRun, false);
+    assert.deepEqual(
+      payload.prepared.candidates.map(({ x, y, width, height }) => ({ x, y, width, height })),
+      [
+        { x: 0.2, y: 0.2, width: 0.6, height: 0.6 },
+        { x: 0.5, y: 0.1, width: 0, height: 0.8 },
+      ],
+    );
+    const listed = await connected.client.listTools();
+    const prepareTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+    assert.match(
+      prepareTool.description,
+      /Norma canonically derives segment and axis envelopes from their explicit endpoints/u,
+    );
+    for (const field of ["x", "y", "width", "height"]) {
+      assert.match(
+        prepareTool.inputSchema.properties.candidates.items.properties[field].description,
+        /Norma canonically derives (?:this|segment, axis, ellipse, and quadrilateral) envelope/u,
+        field,
+      );
+    }
+  } finally {
+    await connected.close();
+  }
+});
+
 test("app-only bounded pixel proposals abstain without adopting geometry or running Core", async () => {
   const connected = await createConnectedClient();
   try {
