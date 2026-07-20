@@ -284,6 +284,11 @@ test("measurement ratio preview ignores invalid restored references and complete
   assert.equal(canonicalCalls, 0);
   assert.equal(appendedPreviews, 0);
   assert.match(measurementRatioPreview.textContent, /résultat vérifié/u);
+
+  state.measurementRatioEnabled = false;
+  syncMeasurementRatioPreview();
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Rapport terminé/u);
+  assert.match(measurementRatioPreview.textContent, /non demandé/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
