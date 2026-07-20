@@ -2231,6 +2231,7 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() { confirmed += 1; },
       invalidateTriangleConstruction() {
         state.constructionLayers.delete("triangles");
         state.constructionLayers.delete("triangle-medians");
@@ -2239,7 +2240,6 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       },
       updatePixelProposalUi() { proposalUiUpdates += 1; },
       persistReviewState() { persisted += 1; },
-      updateConfirm() { confirmed += 1; },
       statusNode: { textContent: "" },
     },
   );
@@ -2290,7 +2290,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       },
     }],
   };
-  let measurementControlUpdates = 0;
+  let measurementPreviewUpdates = 0;
   const syncOverlayGeometry = widgetScriptFunction(
     "syncOverlayGeometry",
     "function syncOverlaySelection",
@@ -2305,7 +2305,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       syncCandidateLabelLayout() {},
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
-      updateMeasurementRatioControls() { measurementControlUpdates += 1; },
+      syncMeasurementRatioPreview() { measurementPreviewUpdates += 1; },
     },
   );
 
@@ -2316,7 +2316,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
     rx: "200",
     ry: "100",
   });
-  assert.equal(measurementControlUpdates, 1);
+  assert.equal(measurementPreviewUpdates, 1);
 });
 
 test("widget preserves rotated ellipse rendering and includes it in opt-in pixel refinement", () => {
@@ -2365,7 +2365,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       syncCandidateLabelLayout: () => {},
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
-      updateMeasurementRatioControls: () => {},
+      syncMeasurementRatioPreview: () => {},
       supportingLineEndpoints: () => null,
     },
   );
@@ -2782,6 +2782,7 @@ test("widget re-prepares reviewed geometry before pixel proposals and stops on c
       candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() {},
       statusNode: { textContent: "" },
     },
@@ -2820,6 +2821,7 @@ test("widget re-prepares reviewed geometry before pixel proposals and stops on c
       candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() { throw new Error("late proposal must not persist"); },
       statusNode: { textContent: "" },
     },
@@ -2881,6 +2883,7 @@ test("widget fails closed when a local pixel crop cannot be planned", async () =
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() { persisted += 1; },
       statusNode,
     },
@@ -2977,6 +2980,7 @@ test("widget canonicalizes adopted quadrilaterals before refresh and revert comp
       clonePrimitive: structuredClone,
       document: { documentElement: { setAttribute() {} } },
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() {},
       updatePixelProposalUi() {},
       updateConfirm() {},
@@ -3789,7 +3793,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(state\.payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
-    assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
+    assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updateMeasurementRatioControls\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
     assert.match(resource.contents[0].text, /kind==="ellipse"&&item\.primitive&&shape/u);
     assert.match(resource.contents[0].text, /shape\.setAttribute\("rx",String\(item\.primitive\.radiusX\*1000\)\)/u);
     assert.match(resource.contents[0].text, /function blockPixelRefinementEdit\(event\)/u);
