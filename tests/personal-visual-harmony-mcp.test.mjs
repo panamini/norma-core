@@ -112,6 +112,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
       measurementRatioFirst: createSelect(),
       measurementRatioSecond: createSelect(),
       Option: class Option {},
+      syncMeasurementRatioPreview() {},
       updateConfirm() {},
     },
   );
@@ -122,6 +123,63 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   assert.deepEqual(state.measurementRatioRefs, [
     { kind: "segment", candidateId: "kept" },
   ]);
+});
+
+test("measurement ratio choices expose pixel lengths and spatial quadrilateral labels before confirmation", () => {
+  const state = {
+    dimensions: { width: 1_000, height: 500 },
+    reviewedCandidates: [{
+      id: "table",
+      label: "Face principale de la table",
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.9, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.2, y: 0.8 },
+        ],
+      },
+    }],
+  };
+  const measurementReferenceGeometry = widgetScriptFunction(
+    "measurementReferenceGeometry",
+    "function measurementReferenceLengthPixels",
+    { state },
+  );
+  const measurementReferenceLengthPixels = widgetScriptFunction(
+    "measurementReferenceLengthPixels",
+    "function measurementReferenceOption",
+    { state, measurementReferenceGeometry },
+  );
+  const measurementReferenceOption = widgetScriptFunction(
+    "measurementReferenceOption",
+    "function eligibleMeasurementReferences",
+    {
+      displayNumber: (value) => value.toLocaleString("fr-FR", { maximumFractionDigits: 3 }),
+      measurementReferenceGeometry,
+      measurementReferenceLengthPixels,
+    },
+  );
+
+  const top = { kind: "quadrilateral-side", candidateId: "table", sideIndex: 0 };
+  const right = { kind: "quadrilateral-side", candidateId: "table", sideIndex: 1 };
+
+  assert.equal(measurementReferenceGeometry(top).spatialLabel, "côté 1 · bord supérieur");
+  assert.equal(measurementReferenceGeometry(right).spatialLabel, "côté 2 · bord droit");
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-side",
+    candidateId: "table",
+    sideIndex: 4,
+  }), null);
+  assert.equal(measurementReferenceLengthPixels(top), 800);
+  assert.match(measurementReferenceOption(top), /bord supérieur · 800 px/u);
+  assert.match(measurementReferenceOption(right), /bord droit · 316[,.\s]228 px/u);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="measurementRatioPreview"[^>]*aria-live="polite"/u);
+  assert.match(html, /data-measurement-ratio-preview/u);
+  assert.match(html, /Le rapport harmonique sera calculé seulement après confirmation/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
@@ -2193,6 +2251,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       syncCandidateLabelLayout() {},
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
+      syncMeasurementRatioPreview() {},
     },
   );
 
@@ -2251,6 +2310,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       syncCandidateLabelLayout: () => {},
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
+      syncMeasurementRatioPreview: () => {},
       supportingLineEndpoints: () => null,
     },
   );
@@ -4171,7 +4231,7 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
       setImageHydrationStatus() {},
       statusNode: { textContent: "" },
       updatePixelProposalUi() { pixelUiUpdates += 1; },
-      updateConfirm() { confirmUpdates += 1; },
+      updateMeasurementRatioControls() { confirmUpdates += 1; },
     },
   );
 

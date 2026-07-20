@@ -46,6 +46,7 @@ import {
   personalVisualHarmonyGuidedAnalysisEntryChangedFiles,
   personalVisualHarmonyLineEnvelopeCanonicalizationChangedFiles,
   personalVisualHarmonyManualSegmentChangedFiles,
+  personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
@@ -180,6 +181,34 @@ test("declared image-plane measurement-ratio allowlist is exact and fail-closed"
     sharedExactApprovedChangedFiles([...declaredImagePlaneMeasurementRatiosChangedFiles, "src/index.ts"]),
     null,
   );
+});
+
+test("personal measurement-ratio clarity allowlist is exact and fail-closed", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyMeasurementRatioClarityChangedFiles),
+    personalVisualHarmonyMeasurementRatioClarityChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyMeasurementRatioClarityChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyMeasurementRatioClarityChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of ["src/index.ts", "package.json", "package-lock.json", "render.yaml"]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyMeasurementRatioClarityChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
 });
 
 test("personal widget ellipse and responsive allowlist is exact and fail-closed", () => {
