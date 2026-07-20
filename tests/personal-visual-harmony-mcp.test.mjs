@@ -2823,6 +2823,9 @@ test("successful cached revalidation records the fresh Core-visible correlation"
       recordObservationMilestone: (nextPayload, milestone) => {
         milestones.push({ nextPayload, milestone });
       },
+      recordObservationMilestoneAfterPaint: (nextPayload, milestone) => {
+        milestones.push({ nextPayload, milestone });
+      },
       renderCachedResult() { throw new Error("successful revalidation must not render cache"); },
       confirmButton: { style: {} },
       finishConfirmingPayload() {},
@@ -2836,7 +2839,74 @@ test("successful cached revalidation records the fresh Core-visible correlation"
     structured: { headline: "done" },
     options: { persist: true, revalidated: true },
   }]);
-  assert.deepEqual(milestones, [{ nextPayload: freshPayload, milestone: "core-visible" }]);
+  assert.deepEqual(milestones, [
+    { nextPayload: freshPayload, milestone: "result-received" },
+    { nextPayload: freshPayload, milestone: "core-visible" },
+  ]);
+});
+
+test("cached revalidation installs a re-prepared correlation before Core becomes visible", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    observability: { correlationId: "sha256:old" },
+    prepared: { candidateSetIdentity: "sha256:old" },
+  };
+  const rePreparedPayload = {
+    stage: "confirmation_required",
+    observability: { correlationId: "sha256:new" },
+    prepared: { candidateSetIdentity: "sha256:new" },
+  };
+  const freshPayload = {
+    stage: "completed",
+    observability: { correlationId: "sha256:new" },
+  };
+  const completed = {
+    selectedCandidateIds: [],
+    confirmedVisualGuideCandidateIds: [],
+    constructionGuideState: { layers: [] },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  const state = widgetHydrationState({ activePayloadIdentity: "identity:current" });
+  const milestones = [];
+  let activeCorrelation = "sha256:old";
+  const revalidateCompleted = widgetScriptFunction(
+    "revalidateCompleted",
+    "function recordObservationMilestone",
+    {
+      state,
+      reviewedCandidateSnapshot: () => [{ id: "adjusted" }],
+      geometryChanged: () => true,
+      statusNode: { textContent: "" },
+      setReviewLocked() {},
+      prepareReviewedPayload: async () => rePreparedPayload,
+      callConfirmation: async (analysisPayload) => {
+        assert.equal(analysisPayload, rePreparedPayload);
+        return { structuredContent: { headline: "done" }, hidden: freshPayload };
+      },
+      findPayload: (response) => response.hidden,
+      renderResult: () => { state.completed = true; },
+      recordObservationMilestone(nextPayload, milestone) {
+        activeCorrelation = nextPayload.observability.correlationId;
+        milestones.push({ nextPayload, milestone });
+      },
+      recordObservationMilestoneAfterPaint(nextPayload, milestone) {
+        if (activeCorrelation === nextPayload.observability.correlationId) {
+          milestones.push({ nextPayload, milestone });
+        }
+      },
+      renderCachedResult() { throw new Error("successful revalidation must not render cache"); },
+      confirmButton: { style: {} },
+      finishConfirmingPayload() {},
+    },
+  );
+
+  await revalidateCompleted(payload, completed, "identity:current");
+
+  assert.deepEqual(milestones, [
+    { nextPayload: freshPayload, milestone: "result-received" },
+    { nextPayload: freshPayload, milestone: "core-visible" },
+  ]);
 });
 
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
@@ -3601,9 +3671,11 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
 }
 
 test("prepare and confirm expose correlated handler timings only through app metadata", async () => {
-  const timestamps = [1_000, 1_012, 2_000, 2_025];
+  const wallClockTimestamps = [1_000, 900, 2_000, 1_900];
+  const monotonicTimestamps = [10, 22, 100, 125];
   const connected = await createConnectedClient(undefined, {
-    now: () => timestamps.shift(),
+    now: () => wallClockTimestamps.shift(),
+    monotonicNow: () => monotonicTimestamps.shift(),
   });
   try {
     const prepared = await connected.client.callTool({
@@ -3624,7 +3696,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       correlationId,
       handler: "prepare",
       handlerEnteredAtMs: 1_000,
-      handlerCompletedAtMs: 1_012,
+      handlerCompletedAtMs: 900,
       handlerDurationMs: 12,
     });
 
@@ -3645,7 +3717,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       correlationId,
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
-      handlerCompletedAtMs: 2_025,
+      handlerCompletedAtMs: 1_900,
       handlerDurationMs: 25,
     });
 
@@ -3660,7 +3732,8 @@ test("prepare and confirm expose correlated handler timings only through app met
         /file-private|download_url|candidate|primitive|overlay|selectedCandidate/u,
       );
     }
-    assert.deepEqual(timestamps, []);
+    assert.deepEqual(wallClockTimestamps, []);
+    assert.deepEqual(monotonicTimestamps, []);
   } finally {
     await connected.close();
   }
@@ -3673,7 +3746,9 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   assert.match(widgetHtml, /recordObservationMilestone\(payload,"result-received"\)/u);
   assert.match(widgetHtml, /recordObservationMilestone\(state\.payload,"widget-interactive"\)/u);
   assert.match(widgetHtml, /recordObservationMilestone\(analysisPayload,"confirmation-clicked",confirmationClickedAtMs\)/u);
-  assert.match(widgetHtml, /recordObservationMilestone\(completedPayload,"core-visible"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(freshPayload,"core-visible"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(payload,"core-visible"\)/u);
+  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(completedPayload,"core-visible",/u);
   assert.match(widgetHtml, /recordObservationMilestone\(payload,"follow-up-dispatched"\)/u);
   const widgetScript = widgetHtml.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
   assert.ok(widgetScript);
@@ -3752,6 +3827,82 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     "data-norma-observation-prepare-milestone-clock": "browser",
     "data-norma-observation-prepare-result-received-at-ms": "3000",
   });
+});
+
+test("widget records Core-visible only after a browser paint opportunity", () => {
+  const animationFrames = [];
+  const browserTasks = [];
+  const milestones = [];
+  const followUps = [];
+  let activeCorrelation = "sha256:paint";
+  const recordObservationMilestoneAfterPaint = widgetScriptFunction(
+    "recordObservationMilestoneAfterPaint",
+    "function completionFollowUpFacts",
+    {
+      requestAnimationFrame(callback) {
+        animationFrames.push(callback);
+      },
+      setTimeout(callback, delay) {
+        assert.equal(delay, 0);
+        browserTasks.push(callback);
+      },
+      document: {
+        documentElement: {
+          getAttribute(name) {
+            assert.equal(name, "data-norma-observation-correlation");
+            return activeCorrelation;
+          },
+        },
+      },
+      recordObservationMilestone(payload, milestone) {
+        milestones.push({ payload, milestone });
+      },
+    },
+  );
+  const payload = { observability: { correlationId: "sha256:paint" } };
+
+  recordObservationMilestoneAfterPaint(payload, "core-visible", () => {
+    followUps.push("dispatched");
+  });
+  assert.equal(animationFrames.length, 1);
+  assert.deepEqual(browserTasks, []);
+  assert.deepEqual(milestones, []);
+  assert.deepEqual(followUps, []);
+
+  animationFrames.shift()();
+  assert.equal(browserTasks.length, 1);
+  assert.deepEqual(milestones, []);
+  assert.deepEqual(followUps, []);
+
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched"]);
+
+  recordObservationMilestoneAfterPaint(payload, "core-visible", () => {
+    followUps.push("stale-dispatched");
+  });
+  activeCorrelation = "sha256:replacement";
+  animationFrames.shift()();
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched"]);
+});
+
+test("confirmation defers the follow-up until Core-visible without blocking", () => {
+  const widgetHtml = createPersonalVisualHarmonyWidgetHtmlV1();
+  const confirmationHandler = widgetHtml.match(
+    /confirmButton\.addEventListener\("click",async\(\)=>\{([\s\S]*?)\}\);\nlet bootstrapRetryCount/u,
+  )?.[1];
+  assert.ok(confirmationHandler);
+  const coreVisible = confirmationHandler.indexOf(
+    'recordObservationMilestoneAfterPaint(completedPayload,"core-visible",()=>{void sendCompletionFollowUp(completedPayload,structured)})',
+  );
+  const followUp = confirmationHandler.indexOf(
+    "void sendCompletionFollowUp(completedPayload,structured)",
+  );
+  assert.ok(coreVisible >= 0);
+  assert.ok(followUp >= coreVisible);
+  assert.doesNotMatch(confirmationHandler, /await recordObservationMilestoneAfterPaint/u);
 });
 
 function unsupportedTupleSchemaPaths(value, path = "$", paths = []) {
