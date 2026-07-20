@@ -3694,6 +3694,7 @@ test("prepare and confirm expose correlated handler timings only through app met
     assert.deepEqual(widgetMeta.observability, {
       contractId: "norma.personal-visual-harmony-observability@1",
       correlationId,
+      attemptId: 1,
       handler: "prepare",
       handlerEnteredAtMs: 1_000,
       handlerCompletedAtMs: 900,
@@ -3715,6 +3716,7 @@ test("prepare and confirm expose correlated handler timings only through app met
     assert.deepEqual(confirmed._meta.normaPersonalVisualHarmony.observability, {
       contractId: "norma.personal-visual-harmony-observability@1",
       correlationId,
+      attemptId: 2,
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
       handlerCompletedAtMs: 1_900,
@@ -3758,13 +3760,14 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   );
   assert.doesNotMatch(
     observationHelperSource,
-    /callAppTool|rpcRequest|postMessage|sendFollowUpMessage|handlerEnteredAtMs|handlerCompletedAtMs/u,
+    /callAppTool|rpcRequest|postMessage|sendFollowUpMessage/u,
   );
   const recordObservationMilestone = widgetScriptFunction(
     "recordObservationMilestone",
     "function completionFollowUpFacts",
     {
       OBSERVABILITY_CONTRACT_ID: "norma.personal-visual-harmony-observability@1",
+      state: { observationPrepareAttemptKey: null },
       document: {
         documentElement: {
           getAttribute(name) {
@@ -3814,7 +3817,10 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
       correlationId: "sha256:replacement",
+      attemptId: 1,
       handler: "prepare",
+      handlerEnteredAtMs: 2_980,
+      handlerCompletedAtMs: 2_992,
       handlerDurationMs: 12,
     },
   }, "result-received", 3_000);
@@ -3826,6 +3832,48 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     "data-norma-observation-prepare-handler-duration-ms": "12",
     "data-norma-observation-prepare-milestone-clock": "browser",
     "data-norma-observation-prepare-result-received-at-ms": "3000",
+  });
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      attemptId: 1,
+      handler: "prepare",
+      handlerEnteredAtMs: 2_980,
+      handlerCompletedAtMs: 2_992,
+      handlerDurationMs: 12,
+    },
+  }, "widget-interactive", 3_020);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      handler: "confirm",
+      handlerEnteredAtMs: 3_030,
+      handlerCompletedAtMs: 3_040,
+      handlerDurationMs: 10,
+    },
+  }, "core-visible", 3_050);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: "sha256:replacement",
+      attemptId: 2,
+      handler: "prepare",
+      handlerEnteredAtMs: 4_000,
+      handlerCompletedAtMs: 4_012,
+      handlerDurationMs: 12,
+    },
+  }, "result-received", 4_020);
+
+  assert.deepEqual(Object.fromEntries(attributes), {
+    "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
+    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-prepare-handler-clock": "server",
+    "data-norma-observation-prepare-handler-duration-ms": "12",
+    "data-norma-observation-prepare-milestone-clock": "browser",
+    "data-norma-observation-prepare-result-received-at-ms": "4020",
   });
 });
 
@@ -3886,6 +3934,14 @@ test("widget records Core-visible only after a browser paint opportunity", () =>
   browserTasks.shift()();
   assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
   assert.deepEqual(followUps, ["dispatched"]);
+
+  recordObservationMilestoneAfterPaint({}, "core-visible", () => {
+    followUps.push("metadata-free");
+  });
+  animationFrames.shift()();
+  browserTasks.shift()();
+  assert.deepEqual(milestones, [{ payload, milestone: "core-visible" }]);
+  assert.deepEqual(followUps, ["dispatched", "metadata-free"]);
 });
 
 test("confirmation defers the follow-up until Core-visible without blocking", () => {
@@ -3897,10 +3953,16 @@ test("confirmation defers the follow-up until Core-visible without blocking", ()
   const coreVisible = confirmationHandler.indexOf(
     'recordObservationMilestoneAfterPaint(completedPayload,"core-visible",()=>{void sendCompletionFollowUp(completedPayload,structured)})',
   );
+  const resultReceived = confirmationHandler.indexOf(
+    'recordObservationMilestone(completedPayload,"result-received")',
+  );
+  const render = confirmationHandler.indexOf("renderResult(completedPayload,structured)");
   const followUp = confirmationHandler.indexOf(
     "void sendCompletionFollowUp(completedPayload,structured)",
   );
-  assert.ok(coreVisible >= 0);
+  assert.ok(resultReceived >= 0);
+  assert.ok(render > resultReceived);
+  assert.ok(coreVisible > render);
   assert.ok(followUp >= coreVisible);
   assert.doesNotMatch(confirmationHandler, /await recordObservationMilestoneAfterPaint/u);
 });
