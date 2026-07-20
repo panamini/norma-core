@@ -112,6 +112,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
       measurementRatioFirst: createSelect(),
       measurementRatioSecond: createSelect(),
       Option: class Option {},
+      syncMeasurementRatioPreview() {},
       updateConfirm() {},
     },
   );
@@ -122,6 +123,172 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   assert.deepEqual(state.measurementRatioRefs, [
     { kind: "segment", candidateId: "kept" },
   ]);
+});
+
+test("measurement ratio choices expose pixel lengths and spatial quadrilateral labels before confirmation", () => {
+  const state = {
+    dimensions: { width: 1_000, height: 500 },
+    reviewedCandidates: [{
+      id: "table",
+      label: "Face principale de la table",
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.9, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.2, y: 0.8 },
+        ],
+      },
+    }],
+  };
+  const measurementReferenceGeometry = widgetScriptFunction(
+    "measurementReferenceGeometry",
+    "function measurementReferenceLengthPixels",
+    { state },
+  );
+  const measurementReferenceLengthPixels = widgetScriptFunction(
+    "measurementReferenceLengthPixels",
+    "function measurementReferenceOption",
+    { state, measurementReferenceGeometry },
+  );
+  const measurementReferenceOption = widgetScriptFunction(
+    "measurementReferenceOption",
+    "function eligibleMeasurementReferences",
+    {
+      displayNumber: (value) => value.toLocaleString("fr-FR", { maximumFractionDigits: 3 }),
+      measurementReferenceGeometry,
+      measurementReferenceLengthPixels,
+    },
+  );
+
+  const top = { kind: "quadrilateral-side", candidateId: "table", sideIndex: 0 };
+  const right = { kind: "quadrilateral-side", candidateId: "table", sideIndex: 1 };
+
+  assert.equal(measurementReferenceGeometry(top).spatialLabel, "côté 1 · bord supérieur");
+  assert.equal(measurementReferenceGeometry(right).spatialLabel, "côté 2 · bord droit");
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-side",
+    candidateId: "table",
+    sideIndex: 4,
+  }), null);
+  assert.equal(measurementReferenceLengthPixels(top), 800);
+  assert.match(measurementReferenceOption(top), /bord supérieur · 800 px/u);
+  assert.match(measurementReferenceOption(right), /bord droit · 316[,.\s]228 px/u);
+
+  state.reviewedCandidates[0].primitive.vertices = [
+    { x: 0.5, y: 0.1 },
+    { x: 0.9, y: 0.5 },
+    { x: 0.5004, y: 0.9 },
+    { x: 0.1, y: 0.5 },
+  ];
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-diagonal",
+    candidateId: "table",
+    diagonalIndex: 0,
+  }).spatialLabel, "diagonale 1 · verticale");
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-diagonal",
+    candidateId: "table",
+    diagonalIndex: 1,
+  }).spatialLabel, "diagonale 2 · horizontale");
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="measurementRatioPreview"[^>]*aria-live="polite"/u);
+  assert.match(html, /data-measurement-ratio-preview/u);
+  assert.match(html, /Le rapport harmonique sera calculé seulement après confirmation/u);
+});
+
+test("measurement ratio preview rejects a duplicate A/B pair with explicit guidance", () => {
+  const reference = { kind: "segment", candidateId: "same" };
+  const state = {
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [reference, reference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [],
+        querySelector: () => null,
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: (value) => value,
+      measurementReferenceGeometry: () => ({
+        start: { x: 0.1, y: 0.1 },
+        end: { x: 0.9, y: 0.1 },
+      }),
+      measurementReferenceOption: () => "Guide · longueur du segment · 800 px",
+    },
+  );
+
+  syncMeasurementRatioPreview();
+
+  assert.match(measurementRatioPreview.textContent, /Choisissez deux longueurs distinctes/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /sera calculé/u);
+});
+
+test("measurement ratio preview ignores invalid restored references and completed review state", () => {
+  const invalidReference = {
+    kind: "quadrilateral-side",
+    candidateId: "shape",
+    sideIndex: 99,
+  };
+  const state = {
+    completed: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [invalidReference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  let canonicalCalls = 0;
+  let removedPreviews = 0;
+  let appendedPreviews = 0;
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [{ remove() { removedPreviews += 1; } }],
+        querySelector: () => ({ append() { appendedPreviews += 1; } }),
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: () => {
+        canonicalCalls += 1;
+        throw new Error("invalid restored references must not be canonicalized");
+      },
+      measurementReferenceGeometry: () => null,
+      measurementReferenceOption: () => null,
+    },
+  );
+
+  syncMeasurementRatioPreview();
+  assert.equal(canonicalCalls, 0);
+  assert.equal(appendedPreviews, 0);
+  assert.match(measurementRatioPreview.textContent, /Choisissez A puis B/u);
+
+  state.completed = true;
+  syncMeasurementRatioPreview();
+  assert.equal(removedPreviews, 2);
+  assert.equal(canonicalCalls, 0);
+  assert.equal(appendedPreviews, 0);
+  assert.match(measurementRatioPreview.textContent, /résultat vérifié/u);
+
+  state.measurementRatioEnabled = false;
+  syncMeasurementRatioPreview();
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Rapport terminé/u);
+  assert.match(measurementRatioPreview.textContent, /non demandé/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
@@ -2120,6 +2287,7 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() { confirmed += 1; },
       invalidateTriangleConstruction() {
         state.constructionLayers.delete("triangles");
         state.constructionLayers.delete("triangle-medians");
@@ -2128,7 +2296,6 @@ test("widget pixel proposals remain separate until an explicit adoption click", 
       },
       updatePixelProposalUi() { proposalUiUpdates += 1; },
       persistReviewState() { persisted += 1; },
-      updateConfirm() { confirmed += 1; },
       statusNode: { textContent: "" },
     },
   );
@@ -2179,6 +2346,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       },
     }],
   };
+  let measurementPreviewUpdates = 0;
   const syncOverlayGeometry = widgetScriptFunction(
     "syncOverlayGeometry",
     "function syncOverlaySelection",
@@ -2193,6 +2361,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       syncCandidateLabelLayout() {},
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
+      syncMeasurementRatioPreview() { measurementPreviewUpdates += 1; },
     },
   );
 
@@ -2203,6 +2372,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
     rx: "200",
     ry: "100",
   });
+  assert.equal(measurementPreviewUpdates, 1);
 });
 
 test("widget preserves rotated ellipse rendering and includes it in opt-in pixel refinement", () => {
@@ -2251,6 +2421,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       syncCandidateLabelLayout: () => {},
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
+      syncMeasurementRatioPreview: () => {},
       supportingLineEndpoints: () => null,
     },
   );
@@ -2667,6 +2838,7 @@ test("widget re-prepares reviewed geometry before pixel proposals and stops on c
       candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() {},
       statusNode: { textContent: "" },
     },
@@ -2705,6 +2877,7 @@ test("widget re-prepares reviewed geometry before pixel proposals and stops on c
       candidateWithPrimitive: (candidate, primitive) => ({ ...candidate, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() { throw new Error("late proposal must not persist"); },
       statusNode: { textContent: "" },
     },
@@ -2766,6 +2939,7 @@ test("widget fails closed when a local pixel crop cannot be planned", async () =
       candidateWithPrimitive: (item, primitive) => ({ ...item, primitive }),
       clonePrimitive: structuredClone,
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() { persisted += 1; },
       statusNode,
     },
@@ -2862,6 +3036,7 @@ test("widget canonicalizes adopted quadrilaterals before refresh and revert comp
       clonePrimitive: structuredClone,
       document: { documentElement: { setAttribute() {} } },
       syncOverlayGeometry() {},
+      updateMeasurementRatioControls() {},
       persistReviewState() {},
       updatePixelProposalUi() {},
       updateConfirm() {},
@@ -3674,7 +3849,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /if\(state\.pixelRefinementEnabled\)await refreshPixelRefinements\(state\.payload,identity\)/u);
     assert.match(resource.contents[0].text, /Adopter cette proposition/u);
     assert.match(resource.contents[0].text, /function applyPixelProposal\(candidateId\)/u);
-    assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
+    assert.match(resource.contents[0].text, /syncOverlayGeometry\(\);updateMeasurementRatioControls\(\);updatePixelProposalUi\(\);persistReviewState\(\)/u);
     assert.match(resource.contents[0].text, /kind==="ellipse"&&item\.primitive&&shape/u);
     assert.match(resource.contents[0].text, /shape\.setAttribute\("rx",String\(item\.primitive\.radiusX\*1000\)\)/u);
     assert.match(resource.contents[0].text, /function blockPixelRefinementEdit\(event\)/u);
@@ -3966,8 +4141,14 @@ test("guided analysis entry exposes the short default and every goal without act
 
 test("same-file payload replacement invalidates the older widget hydration continuation", async () => {
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
-  const state = widgetHydrationState();
+  const state = widgetHydrationState({
+    imageReady: true,
+    imageLoadFileId: "file-old",
+    imageLoadPayloadIdentity: "identity-old",
+    dimensions: { width: 320, height: 180 },
+  });
   const imageLoads = [];
+  const dimensionsDuringCandidateRender = [];
   const performImageLoad = (fileId, generation, payloadIdentity) => {
     const pending = deferred();
     imageLoads.push({ fileId, generation, payloadIdentity, pending });
@@ -3988,7 +4169,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
     resetManualSegmentGesture() {},
     overlay: { innerHTML: "" },
     safeSvg: (value) => value,
-    renderCandidates() {},
+    renderCandidates() { dimensionsDuringCandidateRender.push(state.dimensions); },
     loadImage,
     completedWidgetStateFor: (payload) => ({ candidateSetIdentity: payload.prepared.candidateSetIdentity }),
     revalidateCompleted: async (payload) => { revalidatedIdentities.push(payload.prepared.candidateSetIdentity); },
@@ -4011,6 +4192,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
   const secondHydration = hydrate(secondPayload);
   assert.equal(imageLoads.length, 2);
   assert.notEqual(imageLoads[0].payloadIdentity, imageLoads[1].payloadIdentity);
+  assert.deepEqual(dimensionsDuringCandidateRender, [null, null]);
 
   imageLoads[1].pending.resolve(true);
   await secondHydration;
@@ -4171,7 +4353,7 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
       setImageHydrationStatus() {},
       statusNode: { textContent: "" },
       updatePixelProposalUi() { pixelUiUpdates += 1; },
-      updateConfirm() { confirmUpdates += 1; },
+      updateMeasurementRatioControls() { confirmUpdates += 1; },
     },
   );
 
