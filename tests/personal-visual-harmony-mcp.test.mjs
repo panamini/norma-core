@@ -176,10 +176,63 @@ test("measurement ratio choices expose pixel lengths and spatial quadrilateral l
   assert.match(measurementReferenceOption(top), /bord supérieur · 800 px/u);
   assert.match(measurementReferenceOption(right), /bord droit · 316[,.\s]228 px/u);
 
+  state.reviewedCandidates[0].primitive.vertices = [
+    { x: 0.5, y: 0.1 },
+    { x: 0.9, y: 0.5 },
+    { x: 0.5004, y: 0.9 },
+    { x: 0.1, y: 0.5 },
+  ];
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-diagonal",
+    candidateId: "table",
+    diagonalIndex: 0,
+  }).spatialLabel, "diagonale 1 · verticale");
+  assert.equal(measurementReferenceGeometry({
+    kind: "quadrilateral-diagonal",
+    candidateId: "table",
+    diagonalIndex: 1,
+  }).spatialLabel, "diagonale 2 · horizontale");
+
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="measurementRatioPreview"[^>]*aria-live="polite"/u);
   assert.match(html, /data-measurement-ratio-preview/u);
   assert.match(html, /Le rapport harmonique sera calculé seulement après confirmation/u);
+});
+
+test("measurement ratio preview rejects a duplicate A/B pair with explicit guidance", () => {
+  const reference = { kind: "segment", candidateId: "same" };
+  const state = {
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [reference, reference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [],
+        querySelector: () => null,
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: (value) => value,
+      measurementReferenceGeometry: () => ({
+        start: { x: 0.1, y: 0.1 },
+        end: { x: 0.9, y: 0.1 },
+      }),
+      measurementReferenceOption: () => "Guide · longueur du segment · 800 px",
+    },
+  );
+
+  syncMeasurementRatioPreview();
+
+  assert.match(measurementRatioPreview.textContent, /Choisissez deux longueurs distinctes/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /sera calculé/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
@@ -2237,6 +2290,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       },
     }],
   };
+  let measurementControlUpdates = 0;
   const syncOverlayGeometry = widgetScriptFunction(
     "syncOverlayGeometry",
     "function syncOverlaySelection",
@@ -2251,7 +2305,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
       syncCandidateLabelLayout() {},
       syncPixelProposalOverlay() {},
       syncConstructionVisibility() {},
-      syncMeasurementRatioPreview() {},
+      updateMeasurementRatioControls() { measurementControlUpdates += 1; },
     },
   );
 
@@ -2262,6 +2316,7 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
     rx: "200",
     ry: "100",
   });
+  assert.equal(measurementControlUpdates, 1);
 });
 
 test("widget preserves rotated ellipse rendering and includes it in opt-in pixel refinement", () => {
@@ -2310,7 +2365,7 @@ test("widget preserves rotated ellipse rendering and includes it in opt-in pixel
       syncCandidateLabelLayout: () => {},
       syncPixelProposalOverlay: () => {},
       syncConstructionVisibility: () => {},
-      syncMeasurementRatioPreview: () => {},
+      updateMeasurementRatioControls: () => {},
       supportingLineEndpoints: () => null,
     },
   );
