@@ -279,7 +279,7 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
 });
 
-test("candidate validation stays closed while ellipse and quadrilateral envelopes are canonicalized", () => {
+test("candidate validation stays closed while explicit primitive envelopes are canonicalized", () => {
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], width: 1.1 }]),
     /normalized primitive bounds/u,
@@ -296,12 +296,108 @@ test("candidate validation stays closed while ellipse and quadrilateral envelope
     () => prepare([{ ...goldenCandidates()[0], primitive: { kind: "polygon" } }]),
     /unsupported primitive/u,
   );
+  const segment = mixedPrimitiveCandidates().find(({ id }) => id === "diagonal");
+  const mismatchedSegment = {
+    ...segment,
+    x: 0.01,
+    y: 0.02,
+    width: 0.03,
+    height: 0.04,
+  };
+  const segmentInputSnapshot = structuredClone(mismatchedSegment);
+  const canonicalSegment = prepare([mismatchedSegment]);
+  const repeatedSegment = prepare([mismatchedSegment]);
+  const reversedSegment = prepare([{
+    ...mismatchedSegment,
+    primitive: {
+      ...mismatchedSegment.primitive,
+      start: mismatchedSegment.primitive.end,
+      end: mismatchedSegment.primitive.start,
+    },
+  }]);
+  assert.deepEqual(
+    canonicalSegment.candidates[0],
+    {
+      ...segment,
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+    },
+  );
+  assert.equal(canonicalSegment.candidateSetIdentity, repeatedSegment.candidateSetIdentity);
+  assert.deepEqual(mismatchedSegment, segmentInputSnapshot);
+  assert.deepEqual(
+    {
+      x: reversedSegment.candidates[0].x,
+      y: reversedSegment.candidates[0].y,
+      width: reversedSegment.candidates[0].width,
+      height: reversedSegment.candidates[0].height,
+    },
+    { x: 0.2, y: 0.2, width: 0.6, height: 0.6 },
+  );
+
+  const axis = mixedPrimitiveCandidates().find(({ id }) => id === "central-axis");
+  const mismatchedAxis = {
+    ...axis,
+    x: 0.1,
+    y: 0.2,
+    width: 0.3,
+    height: 0.4,
+  };
+  const canonicalAxis = prepare([mismatchedAxis]).candidates[0];
+  const reversedAxis = prepare([{
+    ...mismatchedAxis,
+    primitive: {
+      ...mismatchedAxis.primitive,
+      start: mismatchedAxis.primitive.end,
+      end: mismatchedAxis.primitive.start,
+    },
+  }]).candidates[0];
+  assert.deepEqual(
+    {
+      x: canonicalAxis.x,
+      y: canonicalAxis.y,
+      width: canonicalAxis.width,
+      height: canonicalAxis.height,
+    },
+    { x: 0.5, y: 0.1, width: 0, height: 0.8 },
+  );
+  assert.deepEqual(
+    {
+      x: reversedAxis.x,
+      y: reversedAxis.y,
+      width: reversedAxis.width,
+      height: reversedAxis.height,
+    },
+    { x: 0.5, y: 0.1, width: 0, height: 0.8 },
+  );
   assert.throws(
     () => prepare([{
-      ...mixedPrimitiveCandidates().find(({ id }) => id === "diagonal"),
-      width: 0.5,
+      ...segment,
+      primitive: { ...segment.primitive, unexpected: true },
     }]),
-    /line bounds must match its endpoints/u,
+    /line primitive must use exact fields/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...segment,
+      primitive: {
+        ...segment.primitive,
+        start: { x: Number.NaN, y: 0.8 },
+      },
+    }]),
+    /normalized point inside the image/u,
+  );
+  assert.throws(
+    () => prepare([{
+      ...axis,
+      primitive: {
+        ...axis.primitive,
+        end: { x: 0.5, y: 1.1 },
+      },
+    }]),
+    /normalized point inside the image/u,
   );
   assert.throws(
     () => prepare([{

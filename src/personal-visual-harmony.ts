@@ -2188,6 +2188,14 @@ function canonicalBoundsForPrimitive(
   bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
   primitive: PersonalVisualHarmonyPrimitiveV1 | undefined,
 ): Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height"> {
+  if (primitive?.kind === "segment" || primitive?.kind === "axis") {
+    return {
+      x: canonicalNumber(Math.min(primitive.start.x, primitive.end.x)),
+      y: canonicalNumber(Math.min(primitive.start.y, primitive.end.y)),
+      width: canonicalNumber(Math.abs(primitive.end.x - primitive.start.x)),
+      height: canonicalNumber(Math.abs(primitive.end.y - primitive.start.y)),
+    };
+  }
   if (primitive?.kind === "ellipse") {
     const { halfWidth, halfHeight } = rotatedEllipseNormalizedHalfExtents(primitive);
     const minX = Math.max(0, primitive.center.x - halfWidth);
@@ -2283,7 +2291,6 @@ function validateCandidatePrimitive(
     if (start.x === end.x && start.y === end.y) {
       throw new Error(`Visual harmony candidate ${String(candidateIndex)} line primitive requires distinct endpoints.`);
     }
-    requireLineEnvelope(bounds, start, end, candidateIndex);
     return { kind: value.kind, start, end };
   }
   if (value.kind === "quadrilateral") {
@@ -2462,21 +2469,6 @@ function requirePositiveRectangleBounds(
 ): void {
   if (bounds.width <= 0 || bounds.height <= 0) {
     throw new Error(`Visual harmony candidate ${String(candidateIndex)} rectangle must have positive normalized bounds.`);
-  }
-}
-
-function requireLineEnvelope(
-  bounds: Pick<PersonalVisualHarmonyCandidateInputV1, "x" | "y" | "width" | "height">,
-  start: PersonalVisualHarmonyPointV1,
-  end: PersonalVisualHarmonyPointV1,
-  candidateIndex: number,
-): void {
-  const tolerance = 0.000001;
-  if (Math.abs(bounds.x - Math.min(start.x, end.x)) > tolerance
-    || Math.abs(bounds.y - Math.min(start.y, end.y)) > tolerance
-    || Math.abs(bounds.width - Math.abs(end.x - start.x)) > tolerance
-    || Math.abs(bounds.height - Math.abs(end.y - start.y)) > tolerance) {
-    throw new Error(`Visual harmony candidate ${String(candidateIndex)} line bounds must match its endpoints.`);
   }
 }
 
