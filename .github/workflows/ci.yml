@@ -39,9 +39,11 @@ jobs:
           BASELINE_COMMIT="$(git merge-base HEAD "${{ github.event.pull_request.base.sha }}")"
           semgrep scan --config auto --baseline-commit "$BASELINE_COMMIT" --error
 
-      - name: Run Semgrep CE full scan
+      - name: Run Semgrep CE on pushed changes
         if: github.event_name != 'pull_request'
-        run: semgrep scan --config auto --error
+        run: |
+          BASELINE_COMMIT="$(git rev-parse HEAD^)"
+          semgrep scan --config auto --baseline-commit "$BASELINE_COMMIT" --error
 
   verify:
     runs-on: ubuntu-latest
