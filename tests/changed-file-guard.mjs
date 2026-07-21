@@ -817,7 +817,7 @@ const semgrepCiGuardMaintenanceFiles = new Set([
 ]);
 
 const semgrepCiGuardSelfMaintenanceFiles = new Set([
-  ...semgrepCiGuardMaintenanceFiles,
+  ".github/workflows/ci.yml",
   "tests/changed-file-guard.mjs",
 ]);
 
