@@ -45,8 +45,13 @@ jobs:
         run: |
           before="${{ github.event.before }}"
 
-          if [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+          if [[ -n "$before" && ! "$before" =~ ^0+$ ]] \
+            && git cat-file -e "${before}^{commit}" >/dev/null 2>&1 \
+            && git merge-base "$before" HEAD >/dev/null 2>&1; then
             baseline_commit="$before"
+          elif [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+            semgrep scan --config auto --error
+            exit 0
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
             baseline_commit="$(git rev-parse HEAD^)"
           else
@@ -102,8 +107,13 @@ jobs:
           before="${{ github.event.before }}"
           current="${{ github.sha }}"
 
-          if [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+          if [[ -n "$before" && ! "$before" =~ ^0+$ ]] \
+            && git cat-file -e "${before}^{commit}" >/dev/null 2>&1 \
+            && git merge-base "$before" "$current" >/dev/null 2>&1; then
             git diff --check "$before...$current"
+          elif [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+            empty_tree="$(git hash-object -t tree /dev/null)"
+            git diff --check "$empty_tree" "$current"
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
             git diff --check "HEAD^...HEAD"
           else
