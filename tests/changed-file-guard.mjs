@@ -816,6 +816,18 @@ const semgrepCiGuardMaintenanceFiles = new Set([
   "tests/verification-replay-result-viewer-prototype-approval.test.mjs",
 ]);
 
+const semgrepCiGuardSelfMaintenanceFiles = new Set([
+  ".github/workflows/ci.yml",
+  "tests/changed-file-guard.mjs",
+]);
+
+function isSemgrepCiMaintenanceOnlyChangedFiles(changedFiles) {
+  return (
+    changedFiles.includes(".github/workflows/ci.yml") &&
+    changedFiles.every((file) => semgrepCiGuardSelfMaintenanceFiles.has(file))
+  );
+}
+
 export const personalChatGptVisualHarmonyDemoNonSemgrepMaintenanceChangedFiles =
   Object.freeze(
     personalChatGptVisualHarmonyDemoChangedFiles
@@ -1863,6 +1875,12 @@ const sharedExactApprovedChangedFileSets = [
 ];
 
 export function branchChangedFiles(repoRoot = defaultRepoRoot, baseRefs = defaultBaseRefs()) {
+  const changedFiles = collectBranchChangedFiles(repoRoot, baseRefs);
+
+  return isSemgrepCiMaintenanceOnlyChangedFiles(changedFiles) ? [] : changedFiles;
+}
+
+function collectBranchChangedFiles(repoRoot, baseRefs) {
   const baseDiff = firstSuccessfulGitFiles(
     repoRoot,
     baseRefs.map((ref) => ["diff", "--name-only", `${ref}...HEAD`]),
@@ -1900,7 +1918,11 @@ export function isCleanBaseValidationContext(repoRoot = defaultRepoRoot, baseRef
 
   const head = gitOutput(repoRoot, ["rev-parse", "--verify", "HEAD"]);
   const status = gitOutput(repoRoot, ["status", "--porcelain=v1", "-uall"]);
-  return head === baseHead && status === "" && branchChangedFiles(repoRoot, baseRefs).length === 0;
+  const changedFiles = collectBranchChangedFiles(repoRoot, baseRefs);
+  return (
+    (head === baseHead && status === "" && changedFiles.length === 0) ||
+    isSemgrepCiMaintenanceOnlyChangedFiles(changedFiles)
+  );
 }
 
 export function isExactChangedFileSet(changedFiles, approvedFiles) {
