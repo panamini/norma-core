@@ -271,6 +271,10 @@ export type PersonalVisualHarmonyMeasurementLengthReferenceV1 =
       readonly candidateId: string;
     }
   | {
+      readonly kind: "axis";
+      readonly candidateId: string;
+    }
+  | {
       readonly kind: "quadrilateral-side";
       readonly candidateId: string;
       readonly sideIndex: 0 | 1 | 2 | 3;
@@ -677,9 +681,9 @@ function validateMeasurementLengthReference(
   if (!isRecord(reference) || !CANDIDATE_ID_PATTERN.test(reference.candidateId)) {
     throw new Error("Declared measurement reference requires a safe candidate id.");
   }
-  if (reference.kind === "segment") {
+  if (reference.kind === "segment" || reference.kind === "axis") {
     if (!hasExactFields(reference, ["kind", "candidateId"])) {
-      throw new Error("Declared segment measurement reference must expose exact fields.");
+      throw new Error(`Declared ${reference.kind} measurement reference must expose exact fields.`);
     }
     return;
   }
@@ -716,9 +720,9 @@ function resolveMeasurementLengthEvidence(
     throw new Error("Declared measurement reference must belong to a confirmed visual guide.");
   }
   let lengthPixels: number;
-  if (reference.kind === "segment") {
-    if (candidate.primitive?.kind !== "segment") {
-      throw new Error("Declared segment measurement reference does not match candidate geometry.");
+  if (reference.kind === "segment" || reference.kind === "axis") {
+    if (candidate.primitive?.kind !== reference.kind) {
+      throw new Error(`Declared ${reference.kind} measurement reference does not match candidate geometry.`);
     }
     lengthPixels = Math.hypot(
       (candidate.primitive.end.x - candidate.primitive.start.x) * sourcePixelWidth,

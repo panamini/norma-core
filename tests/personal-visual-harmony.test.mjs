@@ -1754,6 +1754,78 @@ test("an explicit confirmed image-plane length pair produces one separate non-au
   );
 });
 
+test("two confirmed axes produce an explicit non-authoritative length report without geometry conversion", () => {
+  const axes = [
+    {
+      id: "horizontal-axis",
+      label: "Axe horizontal principal",
+      role: "structural-region",
+      reason: "Axe visible confirmé",
+      x: 0.1,
+      y: 0.4,
+      width: 0.8,
+      height: 0,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.1, y: 0.4 },
+        end: { x: 0.9, y: 0.4 },
+      },
+    },
+    {
+      id: "vertical-axis",
+      label: "Axe vertical principal",
+      role: "structural-region",
+      reason: "Axe visible confirmé",
+      x: 0.3,
+      y: 0.1,
+      width: 0,
+      height: 0.8,
+      primitive: {
+        kind: "axis",
+        start: { x: 0.3, y: 0.1 },
+        end: { x: 0.3, y: 0.9 },
+      },
+    },
+  ];
+  const prepared = prepare([...goldenCandidates(), ...axes]);
+  const confirmation = confirm(prepared, {
+    confirmedVisualGuideCandidateIds: axes.map(({ id }) => id),
+    measurementRatioRequest: {
+      requestId: "declared-ratio:axes",
+      measurements: axes.map(({ id }) => ({ kind: "axis", candidateId: id })),
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+  });
+  const report = confirmation.declaredMeasurementRatioReport;
+
+  assert.ok(report);
+  assert.deepEqual(
+    report.measurements.map(({ reference }) => reference),
+    [
+      { kind: "axis", candidateId: "horizontal-axis" },
+      { kind: "axis", candidateId: "vertical-axis" },
+    ],
+  );
+  assert.deepEqual(
+    report.measurements.map(({ lengthPixels }) => lengthPixels),
+    [800, 400],
+  );
+  assert.equal(report.observedDominantShare, 0.666666666667);
+  assert.equal(report.match?.ratio.ratioId, "2/3");
+  assert.equal(report.coreAuthority, false);
+  assert.equal(report.originalGeometryUnchanged, true);
+  assert.deepEqual(
+    prepared.candidates.filter(({ id }) => axes.some((axis) => axis.id === id)).map(({ primitive }) => primitive.kind),
+    ["axis", "axis"],
+  );
+});
+
 test("overlay is transparent, image-aligned, and escapes model-provided labels", () => {
   const prepared = prepare([
     {
