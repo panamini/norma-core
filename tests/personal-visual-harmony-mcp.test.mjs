@@ -125,6 +125,75 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   ]);
 });
 
+test("measurement ratio choices expose two confirmed axes without changing their geometry kind", () => {
+  const state = {
+    dimensions: { width: 1_000, height: 500 },
+    reviewedCandidates: [
+      {
+        id: "horizontal-axis",
+        label: "Axe horizontal principal",
+        primitive: {
+          kind: "axis",
+          start: { x: 0.1, y: 0.4 },
+          end: { x: 0.9, y: 0.4 },
+        },
+      },
+      {
+        id: "vertical-axis",
+        label: "Axe vertical principal",
+        primitive: {
+          kind: "axis",
+          start: { x: 0.3, y: 0.1 },
+          end: { x: 0.3, y: 0.9 },
+        },
+      },
+    ],
+    selectedGuides: new Set(["horizontal-axis", "vertical-axis"]),
+  };
+  const measurementReferenceGeometry = widgetScriptFunction(
+    "measurementReferenceGeometry",
+    "function measurementReferenceLengthPixels",
+    { state },
+  );
+  const measurementReferenceLengthPixels = widgetScriptFunction(
+    "measurementReferenceLengthPixels",
+    "function measurementReferenceOption",
+    { state, measurementReferenceGeometry },
+  );
+  const measurementReferenceOption = widgetScriptFunction(
+    "measurementReferenceOption",
+    "function eligibleMeasurementReferences",
+    {
+      displayNumber: String,
+      measurementReferenceGeometry,
+      measurementReferenceLengthPixels,
+    },
+  );
+  const eligibleMeasurementReferences = widgetScriptFunction(
+    "eligibleMeasurementReferences",
+    "function syncMeasurementRatioPreview",
+    {
+      state,
+      primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
+      measurementReferenceOption,
+    },
+  );
+
+  const choices = eligibleMeasurementReferences();
+
+  assert.deepEqual(
+    choices.map(({ reference }) => reference),
+    [
+      { kind: "axis", candidateId: "horizontal-axis" },
+      { kind: "axis", candidateId: "vertical-axis" },
+    ],
+  );
+  assert.match(choices[0].label, /longueur de l’axe · 800 px/u);
+  assert.match(choices[1].label, /longueur de l’axe · 400 px/u);
+  assert.equal(state.reviewedCandidates[0].primitive.kind, "axis");
+  assert.equal(state.reviewedCandidates[1].primitive.kind, "axis");
+});
+
 test("measurement ratio choices expose pixel lengths and spatial quadrilateral labels before confirmation", () => {
   const state = {
     dimensions: { width: 1_000, height: 500 },
@@ -4071,6 +4140,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(measurementRatioInput.properties.measurements.minItems, 2);
     assert.equal(measurementRatioInput.properties.measurements.maxItems, 2);
     assert.equal(Array.isArray(measurementRatioInput.properties.measurements.items), false);
+    assert.match(JSON.stringify(measurementRatioInput.properties.measurements.items), /"const":"axis"/u);
     assert.equal(measurementRatioInput.properties.ratioPackRefs.minItems, 2);
     assert.equal(measurementRatioInput.properties.ratioPackRefs.maxItems, 2);
     assert.equal(Array.isArray(measurementRatioInput.properties.ratioPackRefs.items), false);
