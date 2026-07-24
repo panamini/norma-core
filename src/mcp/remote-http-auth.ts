@@ -155,7 +155,14 @@ function verifiedAccess(
   if (subject === "") {
     throw new RemoteMcpAuthenticationError();
   }
-  if (payload.aud !== config.audience || typeof payload.exp !== "number") {
+  // Scalekit may include both the configured resource URL and its generated
+  // resource id; accepting the configured audience remains exact and fail-closed.
+  const audiences = typeof payload.aud === "string"
+    ? [payload.aud]
+    : Array.isArray(payload.aud) && payload.aud.every((entry) => typeof entry === "string")
+      ? payload.aud
+      : [];
+  if (!audiences.includes(config.audience) || typeof payload.exp !== "number") {
     throw new RemoteMcpAuthenticationError();
   }
 
