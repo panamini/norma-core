@@ -55,7 +55,7 @@ export function createRemoteMcpAccessTokenVerifier(
       const keyResolver = await keyResolverPromise;
       const verified = await jwtVerify(token, keyResolver, {
         algorithms: ["RS256"],
-        issuer: config.issuer.href,
+        issuer: config.issuerClaim,
         audience: config.audience,
         clockTolerance: 0,
       });
@@ -94,14 +94,18 @@ async function discoverJwksUrl(
   config: RemoteMcpRuntimeConfig,
   fetchImplementation: typeof fetch,
 ): Promise<URL> {
-  const discoveryUrl = new URL(".well-known/openid-configuration", config.issuer);
+  const issuerBase = new URL(config.issuer.href);
+  if (!issuerBase.pathname.endsWith("/")) {
+    issuerBase.pathname = `${issuerBase.pathname}/`;
+  }
+  const discoveryUrl = new URL(".well-known/openid-configuration", issuerBase);
   const response = await sameOriginFetch(config, discoveryUrl, fetchImplementation);
   if (!response.ok) {
     throw new RemoteMcpAuthenticationError();
   }
 
   const metadata = await response.json() as unknown;
-  if (!isRecord(metadata) || metadata.issuer !== config.issuer.href || typeof metadata.jwks_uri !== "string") {
+  if (!isRecord(metadata) || metadata.issuer !== config.issuerClaim || typeof metadata.jwks_uri !== "string") {
     throw new RemoteMcpAuthenticationError();
   }
   return new URL(metadata.jwks_uri);

@@ -118,14 +118,14 @@ test("PR259 maps Scalekit environment, JWKS, authorization server, and resource 
   const config = loadRemoteMcpRuntimeConfig({
     NODE_ENV: "production",
     NORMA_MCP_PUBLIC_URL: "https://norma-sandbox.example/",
-    NORMA_MCP_AUTH_ISSUER: "https://twoweeks.scalekit.dev/",
+    NORMA_MCP_AUTH_ISSUER: "https://twoweeks.scalekit.dev",
     NORMA_MCP_AUTH_JWKS_URL: "https://twoweeks.scalekit.dev/keys",
     NORMA_MCP_AUTHORIZATION_SERVER_URL: "https://twoweeks.scalekit.dev/resources/res_sandbox",
     NORMA_MCP_AUTH_SCOPE: "norma:structured_analyze",
     NORMA_MCP_AUTH_AUDIENCE: "https://norma-sandbox.example/mcp",
     NORMA_MCP_AUDIT_HASH_KEY: "sandbox-only-audit-key-that-is-at-least-32-characters",
   });
-  assert.equal(config.issuer.href, "https://twoweeks.scalekit.dev/");
+  assert.equal(config.issuerClaim, "https://twoweeks.scalekit.dev");
   assert.equal(config.jwksUrl.href, "https://twoweeks.scalekit.dev/keys");
   assert.equal(config.authorizationServerUrl.href, "https://twoweeks.scalekit.dev/resources/res_sandbox");
   assert.equal(config.authorizationScope, "norma:structured_analyze");
