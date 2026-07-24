@@ -74,6 +74,10 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
     openWorldHint: false,
     idempotentHint: true,
   });
+  assert.deepEqual(list.json.result.tools[0].securitySchemes, [{
+    type: "oauth2",
+    scopes: ["norma:structured_analyze"],
+  }]);
 
   const input = JSON.parse(await readFile(
     join(repoRoot, "examples", "structured-analyze", "scenarios", "alignment-basic.json"),
