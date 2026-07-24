@@ -38,6 +38,10 @@ import type { RemoteMcpRuntimeConfig } from "./remote-http-config.js";
 import { RemoteMcpAdmissionController } from "./remote-http-limits.js";
 
 const REMOTE_TOOL_NAME = "norma.analyzeStructuredCompositionV1";
+const REMOTE_TOOL_SECURITY_SCHEMES = [{
+  type: "oauth2",
+  scopes: ["norma:structured_analyze"],
+}] as const;
 const JSON_CONTENT_TYPE = "application/json; charset=utf-8";
 const MCP_PATH = "/mcp";
 const HEALTH_PATH = "/healthz";
@@ -341,7 +345,12 @@ function createRequestMcpServer(): McpServer {
     { name: REMOTE_MCP_SERVER_NAME, version: REMOTE_MCP_SERVER_VERSION },
     { capabilities: { tools: { listChanged: false } } },
   );
-  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [STRUCTURED_ANALYSIS_MCP_TOOL] }));
+  server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: [{
+      ...STRUCTURED_ANALYSIS_MCP_TOOL,
+      securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES,
+    }],
+  }));
   server.setRequestHandler(CallToolRequestSchema, (request) => {
     if (request.params.name !== REMOTE_TOOL_NAME) {
       throw new McpError(ErrorCode.InvalidParams, "Invalid params");
