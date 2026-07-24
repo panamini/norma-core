@@ -23,6 +23,8 @@ export interface RemoteMcpRuntimeConfig {
   readonly publicUrl: URL;
   readonly resourceUrl: URL;
   readonly issuer: URL;
+  readonly authorizationServerUrl: URL;
+  readonly jwksUrl: URL | undefined;
   readonly audience: string;
   readonly auditHashKey: string;
   readonly allowedOrigins: ReadonlySet<string>;
@@ -40,26 +42,47 @@ export function loadRemoteMcpRuntimeConfig(
   if (publicUrl.pathname !== "/" || publicUrl.search !== "" || publicUrl.hash !== "") {
     throw new Error("NORMA_MCP_PUBLIC_URL must be an origin URL");
   }
+  const resourceUrl = new URL("/mcp", publicUrl);
 
   const issuer = parseConfiguredUrl(
-    required(environment.NORMA_MCP_AUTH0_ISSUER, "NORMA_MCP_AUTH0_ISSUER"),
-    "NORMA_MCP_AUTH0_ISSUER",
+    required(
+      environment.NORMA_MCP_AUTH_ISSUER ?? environment.NORMA_MCP_AUTH0_ISSUER,
+      "NORMA_MCP_AUTH_ISSUER",
+    ),
+    "NORMA_MCP_AUTH_ISSUER",
     nodeEnv,
   );
   if (issuer.search !== "" || issuer.hash !== "") {
-    throw new Error("NORMA_MCP_AUTH0_ISSUER must not contain query or fragment data");
+    throw new Error("NORMA_MCP_AUTH_ISSUER must not contain query or fragment data");
   }
   if (!issuer.pathname.endsWith("/")) {
     issuer.pathname = `${issuer.pathname}/`;
   }
 
-  const audience = required(environment.NORMA_MCP_AUTH0_AUDIENCE, "NORMA_MCP_AUTH0_AUDIENCE");
+  const authorizationServerUrl = parseConfiguredUrl(
+    environment.NORMA_MCP_AUTHORIZATION_SERVER_URL ?? issuer.href,
+    "NORMA_MCP_AUTHORIZATION_SERVER_URL",
+    nodeEnv,
+  );
+  if (authorizationServerUrl.search !== "" || authorizationServerUrl.hash !== "") {
+    throw new Error("NORMA_MCP_AUTHORIZATION_SERVER_URL must not contain query or fragment data");
+  }
+
+  const jwksUrl = environment.NORMA_MCP_AUTH_JWKS_URL === undefined
+    ? undefined
+    : parseConfiguredUrl(environment.NORMA_MCP_AUTH_JWKS_URL, "NORMA_MCP_AUTH_JWKS_URL", nodeEnv);
+  const audience = required(
+    environment.NORMA_MCP_AUTH_AUDIENCE ?? environment.NORMA_MCP_AUTH0_AUDIENCE,
+    "NORMA_MCP_AUTH_AUDIENCE",
+  );
+  if (audience !== resourceUrl.href) {
+    throw new Error("NORMA_MCP_AUTH_AUDIENCE must exactly match the MCP resource URL");
+  }
   const auditHashKey = required(environment.NORMA_MCP_AUDIT_HASH_KEY, "NORMA_MCP_AUDIT_HASH_KEY");
   if (auditHashKey.length < 32) {
     throw new Error("NORMA_MCP_AUDIT_HASH_KEY must contain at least 32 characters");
   }
 
-  const resourceUrl = new URL("/mcp", publicUrl);
   const allowedOrigins = parseAllowedOrigins(environment.NORMA_MCP_ALLOWED_ORIGINS, nodeEnv);
 
   return {
@@ -68,6 +91,8 @@ export function loadRemoteMcpRuntimeConfig(
     publicUrl,
     resourceUrl,
     issuer,
+    authorizationServerUrl,
+    jwksUrl,
     audience,
     auditHashKey,
     allowedOrigins,
