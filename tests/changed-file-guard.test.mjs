@@ -158,6 +158,7 @@ import {
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,
+  pr263ScalekitIssuerCompatibilityChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
@@ -294,6 +295,25 @@ test("PR262 protected-resource root alias is an exact sandbox set", () => {
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([...pr262McpProtectedResourceRootAliasChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("PR263 Scalekit issuer compatibility is an exact auth sandbox set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(pr263ScalekitIssuerCompatibilityChangedFiles),
+    pr263ScalekitIssuerCompatibilityChangedFiles,
+  );
+  for (const forbiddenFile of [
+    "src/mcp/remote-http-server.ts",
+    "package.json",
+    "railway.json",
+    "supabase/config.toml",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...pr263ScalekitIssuerCompatibilityChangedFiles, forbiddenFile]),
       null,
       forbiddenFile,
     );

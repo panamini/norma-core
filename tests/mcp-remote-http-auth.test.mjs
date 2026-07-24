@@ -137,6 +137,36 @@ test("PR137 rejects cross-origin JWKS discovery metadata", async (t) => {
   );
 });
 
+test("PR263 preserves a provider issuer without a trailing slash", async (t) => {
+  const key = await signingKey("scalekit-issuer-key");
+  let issuer = "";
+  const authServer = createServer((request, response) => {
+    if (request.url === "/.well-known/openid-configuration") {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ issuer, jwks_uri: `${issuer}/jwks.json` }));
+      return;
+    }
+    if (request.url === "/jwks.json") {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ keys: [key.publicJwk] }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end();
+  });
+  await listen(authServer);
+  t.after(() => close(authServer));
+  const address = authServer.address();
+  assert.ok(address && typeof address === "object");
+  issuer = `http://127.0.0.1:${address.port}`;
+
+  const config = testConfig(issuer, { jwksUrl: undefined });
+  const token = await signedToken(key, config, {});
+  const access = await createRemoteMcpAccessTokenVerifier(config)(token);
+
+  assert.equal(access.clientId, "client-a");
+});
+
 async function signingKey(kid) {
   const pair = await generateKeyPair("RS256", { extractable: true });
   return {
@@ -155,7 +185,7 @@ async function signedToken(key, config, overrides) {
   };
   const jwt = new SignJWT(payload)
     .setProtectedHeader({ alg: "RS256", kid: key.kid })
-    .setIssuer(overrides.issuer ?? config.issuer.href)
+    .setIssuer(overrides.issuer ?? config.issuerClaim)
     .setAudience(overrides.audience ?? config.audience)
     .setSubject(overrides.subject ?? "auth0|subject-a")
     .setIssuedAt(now)
@@ -173,6 +203,7 @@ function testConfig(issuer, overrides = {}) {
     publicUrl: new URL("http://127.0.0.1/"),
     resourceUrl: new URL("http://127.0.0.1/mcp"),
     issuer: new URL(issuer),
+    issuerClaim: issuer,
     authorizationServerUrl: new URL("https://auth.example/resources/norma"),
     jwksUrl: Object.hasOwn(overrides, "jwksUrl") ? overrides.jwksUrl : new URL(`${issuer}jwks.json`),
     authorizationScope: overrides.authorizationScope ?? "norma:structured-analyze",

@@ -23,6 +23,7 @@ export interface RemoteMcpRuntimeConfig {
   readonly publicUrl: URL;
   readonly resourceUrl: URL;
   readonly issuer: URL;
+  readonly issuerClaim: string;
   readonly authorizationServerUrl: URL;
   readonly jwksUrl: URL | undefined;
   readonly authorizationScope: string;
@@ -45,21 +46,18 @@ export function loadRemoteMcpRuntimeConfig(
   }
   const resourceUrl = new URL("/mcp", publicUrl);
 
+  const issuerInput = required(
+    environment.NORMA_MCP_AUTH_ISSUER ?? environment.NORMA_MCP_AUTH0_ISSUER,
+    "NORMA_MCP_AUTH_ISSUER",
+  );
   const issuer = parseConfiguredUrl(
-    required(
-      environment.NORMA_MCP_AUTH_ISSUER ?? environment.NORMA_MCP_AUTH0_ISSUER,
-      "NORMA_MCP_AUTH_ISSUER",
-    ),
+    issuerInput,
     "NORMA_MCP_AUTH_ISSUER",
     nodeEnv,
   );
   if (issuer.search !== "" || issuer.hash !== "") {
     throw new Error("NORMA_MCP_AUTH_ISSUER must not contain query or fragment data");
   }
-  if (!issuer.pathname.endsWith("/")) {
-    issuer.pathname = `${issuer.pathname}/`;
-  }
-
   const authorizationServerUrl = parseConfiguredUrl(
     environment.NORMA_MCP_AUTHORIZATION_SERVER_URL ?? issuer.href,
     "NORMA_MCP_AUTHORIZATION_SERVER_URL",
@@ -96,6 +94,7 @@ export function loadRemoteMcpRuntimeConfig(
     publicUrl,
     resourceUrl,
     issuer,
+    issuerClaim: issuerInput.endsWith("/") ? issuer.href : issuer.href.slice(0, -1),
     authorizationServerUrl,
     jwksUrl,
     authorizationScope,
