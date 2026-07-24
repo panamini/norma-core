@@ -1092,6 +1092,14 @@ export const performanceTruthHarnessChangedFiles = Object.freeze([
   "tests/performance-truth-harness.test.mjs",
 ].sort());
 
+export const pr258RlsBoundaryMcpSandboxQualificationChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-24-railway-supabase-oauth-provider-qualification.md",
+  "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/pr258-rls-boundary-mcp-sandbox-qualification.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1884,6 +1892,7 @@ const sharedExactApprovedChangedFileSets = [
   postR25RoadmapTruthSyncChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   performanceTruthHarnessChangedFiles,
+  pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
