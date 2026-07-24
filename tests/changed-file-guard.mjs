@@ -1084,6 +1084,14 @@ export const structuredAnalyzeScenarioRegressionHarnessChangedFiles = Object.fre
   "tests/structured-analyze-scenario-regression.test.mjs",
 ].sort());
 
+export const performanceTruthHarnessChangedFiles = Object.freeze([
+  "docs/audits/2026-07-24-pr257-performance-truth-harness.md",
+  "src/performance-truth-harness.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/performance-truth-harness.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1875,6 +1883,7 @@ const sharedExactApprovedChangedFileSets = [
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
   postR25RoadmapTruthSyncChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
+  performanceTruthHarnessChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
