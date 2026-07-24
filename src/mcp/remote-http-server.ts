@@ -46,6 +46,7 @@ const JSON_CONTENT_TYPE = "application/json; charset=utf-8";
 const MCP_PATH = "/mcp";
 const HEALTH_PATH = "/healthz";
 const READY_PATH = "/readyz";
+const ROOT_PROTECTED_RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
 
 type RemoteMcpStableErrorCode =
   | "authentication_required"
@@ -133,7 +134,10 @@ async function routeRequest(
     return;
   }
 
-  if (method === "GET" && pathname === protectedResourceMetadataPath(config)) {
+  if (
+    method === "GET" &&
+    (pathname === ROOT_PROTECTED_RESOURCE_METADATA_PATH || pathname === protectedResourceMetadataPath(config))
+  ) {
     sendJson(response, 200, {
       resource: config.resourceUrl.href,
       authorization_servers: [config.authorizationServerUrl.href],
