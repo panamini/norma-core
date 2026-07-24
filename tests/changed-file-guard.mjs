@@ -1133,6 +1133,13 @@ export const pr261RemoteMcpOAuthToolSecurityChangedFiles = Object.freeze([
   "tests/mcp-remote-http-runtime.test.mjs",
 ].sort());
 
+export const pr262McpProtectedResourceRootAliasChangedFiles = Object.freeze([
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1929,6 +1936,7 @@ const sharedExactApprovedChangedFileSets = [
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
+  pr262McpProtectedResourceRootAliasChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

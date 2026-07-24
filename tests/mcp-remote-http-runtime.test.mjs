@@ -50,6 +50,13 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
     scopes_supported: ["norma:structured-analyze"],
     bearer_methods_supported: ["header"],
   });
+  assert.deepEqual(
+    (await request(port, {
+      method: "GET",
+      path: "/.well-known/oauth-protected-resource",
+    })).json,
+    metadata.json,
+  );
 
   const missingAuth = await mcpRequest(port, initializeRequest(protocol), { authorization: undefined });
   assert.equal(missingAuth.status, 401);
