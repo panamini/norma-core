@@ -27,6 +27,7 @@ export interface RemoteMcpRuntimeConfig {
   readonly authorizationServerUrl: URL;
   readonly jwksUrl: URL | undefined;
   readonly authorizationScope: string;
+  readonly tenantClaim: string | undefined;
   readonly audience: string;
   readonly auditHashKey: string;
   readonly allowedOrigins: ReadonlySet<string>;
@@ -74,6 +75,9 @@ export function loadRemoteMcpRuntimeConfig(
     environment.NORMA_MCP_AUTH_SCOPE ?? REMOTE_MCP_REQUIRED_SCOPE,
     "NORMA_MCP_AUTH_SCOPE",
   );
+  const tenantClaim = environment.NORMA_MCP_AUTH_TENANT_CLAIM === undefined
+    ? undefined
+    : parseJwtClaimName(environment.NORMA_MCP_AUTH_TENANT_CLAIM, "NORMA_MCP_AUTH_TENANT_CLAIM");
   const audience = required(
     environment.NORMA_MCP_AUTH_AUDIENCE ?? environment.NORMA_MCP_AUTH0_AUDIENCE,
     "NORMA_MCP_AUTH_AUDIENCE",
@@ -100,10 +104,18 @@ export function loadRemoteMcpRuntimeConfig(
     authorizationServerUrl,
     jwksUrl,
     authorizationScope,
+    tenantClaim,
     audience,
     auditHashKey,
     allowedOrigins,
   };
+}
+
+function parseJwtClaimName(value: string, name: string): string {
+  if (value.trim() === "" || /[\s\u0000-\u001F\u007F]/u.test(value)) {
+    throw new Error(`${name} must contain one non-empty JWT claim name`);
+  }
+  return value;
 }
 
 function parseOAuthScope(value: string, name: string): string {

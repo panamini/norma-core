@@ -30,6 +30,8 @@ import type {
   RemoteMcpAccessTokenVerifier,
   VerifiedRemoteMcpAccess,
 } from "./remote-http-auth.js";
+import { AuthorizationDataAccessDeniedError } from "./remote-http-authorization-data.js";
+import type { AuthorizationDataAdapter } from "./remote-http-authorization-data.js";
 import {
   loadRemoteMcpRuntimeConfig,
   REMOTE_MCP_MAX_ARRAY_ELEMENTS,
@@ -68,6 +70,8 @@ type RemoteMcpStableErrorCode =
   | "json_string_exceeded"
   | "json_array_elements_exceeded"
   | "protocol_rejected"
+  | "authorization_context_required"
+  | "authorization_context_denied"
   | "authenticated_capacity"
   | "subject_rate"
   | "subject_concurrency"
@@ -98,6 +102,7 @@ export interface RemoteMcpRuntimeDependencies {
   readonly verifyAccessToken?: RemoteMcpAccessTokenVerifier;
   readonly admissionController?: RemoteMcpAdmissionController;
   readonly personalVisualHarmonyService?: PersonalVisualHarmonySessionServiceV1;
+  readonly authorizationDataAdapter?: AuthorizationDataAdapter;
   readonly log?: (event: RemoteMcpLogEvent) => void;
 }
 
@@ -109,6 +114,7 @@ export function createRemoteMcpHttpServer(
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
   const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
     ?? new PersonalVisualHarmonySessionServiceV1();
+  const authorizationDataAdapter = dependencies.authorizationDataAdapter;
   const log = dependencies.log ?? ((event: RemoteMcpLogEvent) => console.log(JSON.stringify(event)));
 
   return createServer(async (request, response) => {
@@ -118,6 +124,7 @@ export function createRemoteMcpHttpServer(
         verifyAccessToken,
         admissionController,
         personalVisualHarmonyService,
+        authorizationDataAdapter,
         log,
         request,
         response,
@@ -142,6 +149,7 @@ async function routeRequest(
   verifyAccessToken: RemoteMcpAccessTokenVerifier,
   admissionController: RemoteMcpAdmissionController,
   personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
+  authorizationDataAdapter: AuthorizationDataAdapter | undefined,
   log: (event: RemoteMcpLogEvent) => void,
   request: IncomingMessage,
   response: ServerResponse,
@@ -224,6 +232,7 @@ async function routeRequest(
     requestId,
     access,
     personalVisualHarmonyService,
+    authorizationDataAdapter,
     log,
     startedAt,
     abortController.signal,
@@ -262,6 +271,7 @@ async function handleAuthenticatedPost(
   requestId: string,
   access: VerifiedRemoteMcpAccess,
   personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
+  authorizationDataAdapter: AuthorizationDataAdapter | undefined,
   log: (event: RemoteMcpLogEvent) => void,
   startedAt: number,
   abortSignal: AbortSignal,
@@ -311,6 +321,12 @@ async function handleAuthenticatedPost(
     return;
   }
 
+  if (authorizationDataAdapter !== undefined && access.authorizationContext === undefined) {
+    sendJson(response, 403, stableError("authorization_context_required", requestId));
+    logEvent(log, requestId, startedAt, 403, "authorization_context_required", access, access.scopes, body.byteLength, protocolVersion);
+    return;
+  }
+
   const tool = remoteMcpLogTool(parsedBody);
   const mcpServer = createRequestMcpServer(personalVisualHarmonyService, access.subjectId);
   const transport = new StreamableHTTPServerTransport({
@@ -353,18 +369,34 @@ async function handleAuthenticatedPost(
   authenticatedRequest.auth = authBase;
 
   try {
-    assertRemoteMcpNotAborted(abortSignal);
-    // SDK 1.29.0's optional callback types are not exactOptionalPropertyTypes-clean.
-    await mcpServer.connect(transport as never);
-    assertRemoteMcpNotAborted(abortSignal);
-    await transport.handleRequest(authenticatedRequest, response, parsedBody);
-    assertRemoteMcpNotAborted(abortSignal);
+    const handleTransportRequest = async (): Promise<void> => {
+      assertRemoteMcpNotAborted(abortSignal);
+      // SDK 1.29.0's optional callback types are not exactOptionalPropertyTypes-clean.
+      await mcpServer.connect(transport as never);
+      assertRemoteMcpNotAborted(abortSignal);
+      await transport.handleRequest(authenticatedRequest, response, parsedBody);
+      assertRemoteMcpNotAborted(abortSignal);
+    };
+    if (authorizationDataAdapter === undefined) {
+      await handleTransportRequest();
+    } else {
+      await authorizationDataAdapter.withTransaction(access.authorizationContext, handleTransportRequest);
+    }
     if (!response.headersSent && !response.writableEnded) {
       sendJson(response, 500, stableError("internal_error", requestId));
       logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, body.byteLength, protocolVersion, tool);
       return;
     }
     logEvent(log, requestId, startedAt, response.statusCode, undefined, access, access.scopes, body.byteLength, protocolVersion, tool);
+  } catch (error) {
+    if (error instanceof AuthorizationDataAccessDeniedError) {
+      if (!response.headersSent && !response.writableEnded) {
+        sendJson(response, 403, stableError("authorization_context_denied", requestId));
+      }
+      logEvent(log, requestId, startedAt, 403, "authorization_context_denied", access, access.scopes, body.byteLength, protocolVersion, tool);
+      return;
+    }
+    throw error;
   } finally {
     abortSignal.removeEventListener("abort", abortListener);
     await closeResources();

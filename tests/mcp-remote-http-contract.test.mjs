@@ -49,6 +49,7 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     NORMA_MCP_AUTH_ISSUER: "https://tenant.eu.auth0.com/",
     NORMA_MCP_AUTH_JWKS_URL: "https://tenant.eu.auth0.com/.well-known/jwks.json",
     NORMA_MCP_AUTHORIZATION_SERVER_URL: "https://tenant.eu.auth0.com/",
+    NORMA_MCP_AUTH_TENANT_CLAIM: "tenant_id",
     NORMA_MCP_AUTH_AUDIENCE: "https://mcp.norma.example/mcp",
     NORMA_MCP_AUDIT_HASH_KEY: "production-placeholder-key-with-32-characters",
   };
@@ -58,6 +59,7 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   assert.equal(config.authorizationServerUrl.href, "https://tenant.eu.auth0.com/");
   assert.equal(config.jwksUrl.href, "https://tenant.eu.auth0.com/.well-known/jwks.json");
   assert.equal(config.authorizationScope, "norma:structured-analyze");
+  assert.equal(config.tenantClaim, "tenant_id");
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
 
@@ -81,6 +83,10 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     ...environment,
     NORMA_MCP_AUDIT_HASH_KEY: "short",
   }), /32/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_TENANT_CLAIM: "tenant id",
+  }), /claim name/u);
 
   const testConfig = loadRemoteMcpRuntimeConfig({
     ...environment,

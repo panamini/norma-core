@@ -12,6 +12,7 @@ import {
   REMOTE_MCP_REQUIRED_SCOPE,
 } from "./remote-http-config.js";
 import type { RemoteMcpRuntimeConfig } from "./remote-http-config.js";
+import type { AuthenticatedRequestContext } from "./remote-http-authorization-data.js";
 
 export interface VerifiedRemoteMcpAccess {
   readonly rawToken: string;
@@ -19,6 +20,7 @@ export interface VerifiedRemoteMcpAccess {
   readonly scopes: readonly string[];
   readonly clientId: string;
   readonly expiresAt: number;
+  readonly authorizationContext?: AuthenticatedRequestContext;
 }
 
 export type RemoteMcpAccessTokenVerifier = (token: string) => Promise<VerifiedRemoteMcpAccess>;
@@ -177,14 +179,38 @@ function verifiedAccess(
     typeof payload.client_id === "string" && payload.client_id.trim() !== ""
       ? payload.client_id
       : "oauth-client";
+  const authorizationContext = config.tenantClaim === undefined
+    ? undefined
+    : createAuthorizationContext(config, config.tenantClaim, payload, subject, scopes);
   const base = {
     rawToken: token,
     subjectId: createHmac("sha256", config.auditHashKey).update(subject).digest("hex"),
     scopes,
     clientId,
     expiresAt: payload.exp,
+    ...(authorizationContext === undefined ? {} : { authorizationContext }),
   };
   return base;
+}
+
+function createAuthorizationContext(
+  config: RemoteMcpRuntimeConfig,
+  tenantClaim: string,
+  payload: JWTPayload,
+  subject: string,
+  scopes: readonly string[],
+): AuthenticatedRequestContext {
+  const tenantValue = payload[tenantClaim];
+  if (typeof tenantValue !== "string" || tenantValue.trim() === "") {
+    throw new RemoteMcpAuthenticationError();
+  }
+  return Object.freeze({
+    subject,
+    tenant: tenantValue.trim(),
+    scopes: Object.freeze([...scopes]),
+    audience: config.audience,
+    expiresAt: payload.exp as number,
+  });
 }
 
 function validateResourceClaim(config: RemoteMcpRuntimeConfig, resource: unknown): void {
