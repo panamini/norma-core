@@ -70,18 +70,7 @@ async function createKeyResolver(
   config: RemoteMcpRuntimeConfig,
   fetchImplementation: typeof fetch,
 ): Promise<ReturnType<typeof createRemoteJWKSet>> {
-  const discoveryUrl = new URL(".well-known/openid-configuration", config.issuer);
-  const response = await sameOriginFetch(config, discoveryUrl, fetchImplementation);
-  if (!response.ok) {
-    throw new RemoteMcpAuthenticationError();
-  }
-
-  const metadata = await response.json() as unknown;
-  if (!isRecord(metadata) || metadata.issuer !== config.issuer.href || typeof metadata.jwks_uri !== "string") {
-    throw new RemoteMcpAuthenticationError();
-  }
-
-  const jwksUrl = new URL(metadata.jwks_uri);
+  const jwksUrl = config.jwksUrl ?? await discoverJwksUrl(config, fetchImplementation);
   assertIssuerOrigin(config, jwksUrl);
   return createRemoteJWKSet(jwksUrl, {
     timeoutDuration: REMOTE_MCP_JWKS_TIMEOUT_MS,
@@ -99,6 +88,23 @@ async function createKeyResolver(
       return jwksResponse;
     },
   });
+}
+
+async function discoverJwksUrl(
+  config: RemoteMcpRuntimeConfig,
+  fetchImplementation: typeof fetch,
+): Promise<URL> {
+  const discoveryUrl = new URL(".well-known/openid-configuration", config.issuer);
+  const response = await sameOriginFetch(config, discoveryUrl, fetchImplementation);
+  if (!response.ok) {
+    throw new RemoteMcpAuthenticationError();
+  }
+
+  const metadata = await response.json() as unknown;
+  if (!isRecord(metadata) || metadata.issuer !== config.issuer.href || typeof metadata.jwks_uri !== "string") {
+    throw new RemoteMcpAuthenticationError();
+  }
+  return new URL(metadata.jwks_uri);
 }
 
 async function sameOriginFetch(

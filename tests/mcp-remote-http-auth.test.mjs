@@ -45,7 +45,7 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   assert.ok(address && typeof address === "object");
   issuer = `http://127.0.0.1:${address.port}/`;
 
-  const config = testConfig(issuer);
+  const config = testConfig(issuer, { jwksUrl: new URL(`${issuer}jwks.json`) });
   const verifier = createRemoteMcpAccessTokenVerifier(config);
   const valid = await signedToken(first, config, {});
   const access = await verifier(valid);
@@ -86,12 +86,13 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   await assert.rejects(() => verifier(correctAudienceWrongResource), RemoteMcpAuthenticationError);
 
   transientDiscoveryFailures = 1;
-  const retryingVerifier = createRemoteMcpAccessTokenVerifier(config);
+  const discoveredConfig = testConfig(issuer, { jwksUrl: undefined });
+  const retryingVerifier = createRemoteMcpAccessTokenVerifier(discoveredConfig);
   await assert.rejects(() => retryingVerifier(valid), RemoteMcpAuthenticationError);
   assert.equal((await retryingVerifier(valid)).subjectId, access.subjectId);
 
   redirectDiscovery = true;
-  const redirectVerifier = createRemoteMcpAccessTokenVerifier(config);
+  const redirectVerifier = createRemoteMcpAccessTokenVerifier(testConfig(issuer, { jwksUrl: undefined }));
   await assert.rejects(() => redirectVerifier(valid), RemoteMcpAuthenticationError);
 });
 
@@ -147,13 +148,15 @@ async function signedToken(key, config, overrides) {
   return jwt.sign(key.privateKey);
 }
 
-function testConfig(issuer) {
+function testConfig(issuer, overrides = {}) {
   return {
     port: 3000,
     nodeEnv: "test",
     publicUrl: new URL("http://127.0.0.1/"),
     resourceUrl: new URL("http://127.0.0.1/mcp"),
     issuer: new URL(issuer),
+    authorizationServerUrl: new URL("https://auth.example/resources/norma"),
+    jwksUrl: Object.hasOwn(overrides, "jwksUrl") ? overrides.jwksUrl : new URL(`${issuer}jwks.json`),
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),

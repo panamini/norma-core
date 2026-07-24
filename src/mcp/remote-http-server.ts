@@ -133,7 +133,7 @@ async function routeRequest(
   if (method === "GET" && pathname === protectedResourceMetadataPath(config)) {
     sendJson(response, 200, {
       resource: config.resourceUrl.href,
-      authorization_servers: [config.issuer.href],
+      authorization_servers: [config.authorizationServerUrl.href],
       scopes_supported: [REMOTE_MCP_REQUIRED_SCOPE],
       bearer_methods_supported: ["header"],
     });

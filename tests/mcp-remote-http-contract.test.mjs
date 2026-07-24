@@ -46,13 +46,17 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     PORT: "3100",
     NODE_ENV: "production",
     NORMA_MCP_PUBLIC_URL: "https://mcp.norma.example/",
-    NORMA_MCP_AUTH0_ISSUER: "https://tenant.eu.auth0.com/",
-    NORMA_MCP_AUTH0_AUDIENCE: "https://mcp.norma.example/api",
+    NORMA_MCP_AUTH_ISSUER: "https://tenant.eu.auth0.com/",
+    NORMA_MCP_AUTH_JWKS_URL: "https://tenant.eu.auth0.com/.well-known/jwks.json",
+    NORMA_MCP_AUTHORIZATION_SERVER_URL: "https://tenant.eu.auth0.com/",
+    NORMA_MCP_AUTH_AUDIENCE: "https://mcp.norma.example/mcp",
     NORMA_MCP_AUDIT_HASH_KEY: "production-placeholder-key-with-32-characters",
   };
   const config = loadRemoteMcpRuntimeConfig(environment);
   assert.equal(config.port, 3100);
   assert.equal(config.resourceUrl.href, "https://mcp.norma.example/mcp");
+  assert.equal(config.authorizationServerUrl.href, "https://tenant.eu.auth0.com/");
+  assert.equal(config.jwksUrl.href, "https://tenant.eu.auth0.com/.well-known/jwks.json");
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
 
@@ -66,8 +70,12 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   }), /Wildcard/u);
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
-    NORMA_MCP_AUTH0_AUDIENCE: "",
+    NORMA_MCP_AUTH_AUDIENCE: "",
   }), /required/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_AUDIENCE: "https://mcp.norma.example/api",
+  }), /exactly match/u);
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
     NORMA_MCP_AUDIT_HASH_KEY: "short",
@@ -77,10 +85,48 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     ...environment,
     NODE_ENV: "test",
     NORMA_MCP_PUBLIC_URL: "http://127.0.0.1:3000/",
-    NORMA_MCP_AUTH0_ISSUER: "http://127.0.0.1:4000/",
+    NORMA_MCP_AUTH_ISSUER: "http://127.0.0.1:4000/",
+    NORMA_MCP_AUTH_JWKS_URL: "http://127.0.0.1:4000/keys",
+    NORMA_MCP_AUTH_AUDIENCE: "http://127.0.0.1:3000/mcp",
     NORMA_MCP_ALLOWED_ORIGINS: "http://127.0.0.1:5000",
   });
   assert.deepEqual([...testConfig.allowedOrigins], ["http://127.0.0.1:5000"]);
+});
+
+test("PR258 keeps Auth0 environment names as a rollback-only compatibility alias", () => {
+  const config = loadRemoteMcpRuntimeConfig({
+    NODE_ENV: "test",
+    NORMA_MCP_PUBLIC_URL: "http://127.0.0.1:3000/",
+    NORMA_MCP_AUTH0_ISSUER: "http://127.0.0.1:4000/",
+    NORMA_MCP_AUTH0_AUDIENCE: "http://127.0.0.1:3000/mcp",
+    NORMA_MCP_AUDIT_HASH_KEY: "test-only-audit-key-that-is-at-least-32-characters",
+  });
+  assert.equal(config.issuer.href, "http://127.0.0.1:4000/");
+  assert.equal(config.audience, "http://127.0.0.1:3000/mcp");
+  assert.equal(config.jwksUrl, undefined);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    NODE_ENV: "test",
+    NORMA_MCP_PUBLIC_URL: "http://127.0.0.1:3000/",
+    NORMA_MCP_AUTH0_ISSUER: "http://127.0.0.1:4000/",
+    NORMA_MCP_AUTH0_AUDIENCE: "http://127.0.0.1:3000/api",
+    NORMA_MCP_AUDIT_HASH_KEY: "test-only-audit-key-that-is-at-least-32-characters",
+  }), /exactly match/u);
+});
+
+test("PR259 maps Scalekit environment, JWKS, authorization server, and resource audience without provider naming", () => {
+  const config = loadRemoteMcpRuntimeConfig({
+    NODE_ENV: "production",
+    NORMA_MCP_PUBLIC_URL: "https://norma-sandbox.example/",
+    NORMA_MCP_AUTH_ISSUER: "https://twoweeks.scalekit.dev/",
+    NORMA_MCP_AUTH_JWKS_URL: "https://twoweeks.scalekit.dev/keys",
+    NORMA_MCP_AUTHORIZATION_SERVER_URL: "https://twoweeks.scalekit.dev/resources/res_sandbox",
+    NORMA_MCP_AUTH_AUDIENCE: "https://norma-sandbox.example/mcp",
+    NORMA_MCP_AUDIT_HASH_KEY: "sandbox-only-audit-key-that-is-at-least-32-characters",
+  });
+  assert.equal(config.issuer.href, "https://twoweeks.scalekit.dev/");
+  assert.equal(config.jwksUrl.href, "https://twoweeks.scalekit.dev/keys");
+  assert.equal(config.authorizationServerUrl.href, "https://twoweeks.scalekit.dev/resources/res_sandbox");
+  assert.equal(config.audience, config.resourceUrl.href);
 });
 
 test("PR137 runtime source contains no provider file shell storage upload or public export widening", async () => {

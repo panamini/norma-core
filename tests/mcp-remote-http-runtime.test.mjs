@@ -46,7 +46,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(metadata.status, 200);
   assert.deepEqual(metadata.json, {
     resource: "http://127.0.0.1/mcp",
-    authorization_servers: ["https://tenant.example/"],
+    authorization_servers: ["https://tenant.example/resources/norma"],
     scopes_supported: ["norma:structured-analyze"],
     bearer_methods_supported: ["header"],
   });
@@ -317,6 +317,8 @@ function runtimeConfig() {
     publicUrl: new URL("http://127.0.0.1/"),
     resourceUrl: new URL("http://127.0.0.1/mcp"),
     issuer: new URL("https://tenant.example/"),
+    authorizationServerUrl: new URL("https://tenant.example/resources/norma"),
+    jwksUrl: new URL("https://tenant.example/keys"),
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),
