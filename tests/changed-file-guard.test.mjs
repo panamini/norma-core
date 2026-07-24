@@ -154,7 +154,7 @@ import {
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   performanceTruthHarnessChangedFiles,
-  pr258RlsBoundaryAuth0SandboxQualificationChangedFiles,
+  pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
@@ -194,8 +194,8 @@ test("PR257 performance truth harness is an exact provider-free scoped set", () 
 
 test("PR258 RLS boundary and Auth0 sandbox qualification is an exact preparation-only set", () => {
   assert.deepEqual(
-    sharedExactApprovedChangedFiles(pr258RlsBoundaryAuth0SandboxQualificationChangedFiles),
-    pr258RlsBoundaryAuth0SandboxQualificationChangedFiles,
+    sharedExactApprovedChangedFiles(pr258RlsBoundaryMcpSandboxQualificationChangedFiles),
+    pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   );
   for (const forbiddenFile of [
     "src/mcp/remote-http-auth.ts",
@@ -206,7 +206,7 @@ test("PR258 RLS boundary and Auth0 sandbox qualification is an exact preparation
     "supabase/config.toml",
   ]) {
     assert.equal(
-      sharedExactApprovedChangedFiles([...pr258RlsBoundaryAuth0SandboxQualificationChangedFiles, forbiddenFile]),
+      sharedExactApprovedChangedFiles([...pr258RlsBoundaryMcpSandboxQualificationChangedFiles, forbiddenFile]),
       null,
       forbiddenFile,
     );
@@ -3505,7 +3505,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   const isPr257Set = isExactChangedFileSet(changedFiles, performanceTruthHarnessChangedFiles);
   const isPr258Set = isExactChangedFileSet(
     changedFiles,
-    pr258RlsBoundaryAuth0SandboxQualificationChangedFiles,
+    pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   );
   const isPr138Set = isExactChangedFileSet(
     changedFiles,
@@ -3610,7 +3610,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       : isPr257Set
       ? performanceTruthHarnessChangedFiles
       : isPr258Set
-      ? pr258RlsBoundaryAuth0SandboxQualificationChangedFiles
+      ? pr258RlsBoundaryMcpSandboxQualificationChangedFiles
       : isPr138Set
       ? remoteMcpRenderPrivateBetaDeploymentChangedFiles
       : isPr137aSet
