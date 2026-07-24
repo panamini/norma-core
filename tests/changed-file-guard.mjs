@@ -1092,6 +1092,13 @@ export const performanceTruthHarnessChangedFiles = Object.freeze([
   "tests/performance-truth-harness.test.mjs",
 ].sort());
 
+export const pr258RlsBoundaryAuth0SandboxQualificationChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-24-pr258-rls-boundary-auth0-sandbox-qualification.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/pr258-rls-boundary-auth0-sandbox-qualification.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1884,6 +1891,7 @@ const sharedExactApprovedChangedFileSets = [
   postR25RoadmapTruthSyncChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
   performanceTruthHarnessChangedFiles,
+  pr258RlsBoundaryAuth0SandboxQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
