@@ -56,6 +56,32 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   assert.equal(access.rawToken, valid);
   assert.equal(access.clientId, "client-a");
 
+  const contextConfig = testConfig(issuer, {
+    jwksUrl: new URL(`${issuer}jwks.json`),
+    tenantClaim: "tenant_id",
+  });
+  const contextAccess = await createRemoteMcpAccessTokenVerifier(contextConfig)(await signedToken(first, contextConfig, {
+    claims: { tenant_id: "tenant-a" },
+  }));
+  assert.deepEqual(contextAccess.authorizationContext, {
+    subject: "auth0|subject-a",
+    tenant: "tenant-a",
+    scopes: ["norma:structured-analyze"],
+    audience: contextConfig.audience,
+    expiresAt: contextAccess.expiresAt,
+  });
+  assert.equal(Object.hasOwn(contextAccess.authorizationContext, "rawToken"), false);
+  await assert.rejects(
+    async () => createRemoteMcpAccessTokenVerifier(contextConfig)(await signedToken(first, contextConfig, {})),
+    RemoteMcpAuthenticationError,
+  );
+  await assert.rejects(
+    async () => createRemoteMcpAccessTokenVerifier(contextConfig)(await signedToken(first, contextConfig, {
+      claims: { tenant_id: ["tenant-a", "tenant-b"] },
+    })),
+    RemoteMcpAuthenticationError,
+  );
+
   const scalekitConfig = testConfig(issuer, {
     jwksUrl: new URL(`${issuer}jwks.json`),
     authorizationScope: "norma:structured_analyze",
@@ -187,6 +213,7 @@ async function signedToken(key, config, overrides) {
     scope: overrides.scope ?? "norma:structured-analyze",
     resource: overrides.resource ?? config.resourceUrl.href,
     client_id: "client-a",
+    ...(overrides.claims ?? {}),
   };
   const jwt = new SignJWT(payload)
     .setProtectedHeader({ alg: "RS256", kid: key.kid })
@@ -212,6 +239,7 @@ function testConfig(issuer, overrides = {}) {
     authorizationServerUrl: new URL("https://auth.example/resources/norma"),
     jwksUrl: Object.hasOwn(overrides, "jwksUrl") ? overrides.jwksUrl : new URL(`${issuer}jwks.json`),
     authorizationScope: overrides.authorizationScope ?? "norma:structured-analyze",
+    tenantClaim: overrides.tenantClaim,
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),

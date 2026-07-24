@@ -1112,6 +1112,21 @@ export const pr259ProviderNeutralMcpAuthAdapterChangedFiles = Object.freeze([
   "tests/mcp-remote-http-runtime.test.mjs",
 ].sort());
 
+export const pr266ProviderNeutralAuthorizationDataBoundaryChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-25-pr266-provider-neutral-authorization-data-boundary.md",
+  "src/mcp/remote-http-auth.ts",
+  "src/mcp/remote-http-authorization-data.ts",
+  "src/mcp/remote-http-config.ts",
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/current-remote-mcp-boundary.mjs",
+  "tests/mcp-remote-http-auth.test.mjs",
+  "tests/mcp-remote-http-contract.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+  "tests/remote-http-authorization-data.test.mjs",
+].sort());
+
 export const scalekitScopeAliasQualificationChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
   "docs/decisions/2026-07-24-pr259-provider-neutral-mcp-auth-adapter.md",
@@ -1959,6 +1974,7 @@ const sharedExactApprovedChangedFileSets = [
   performanceTruthHarnessChangedFiles,
   pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
+  pr266ProviderNeutralAuthorizationDataBoundaryChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,

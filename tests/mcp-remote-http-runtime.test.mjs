@@ -20,6 +20,7 @@ import {
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_WIDGET_URI,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
+import { createInMemoryRlsDataAdapter } from "../dist/src/mcp/remote-http-authorization-data.js";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const analyzeToolName = "norma.analyzeStructuredCompositionV1";
@@ -183,6 +184,53 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(serializedLogs.includes("valid-subject-a"), false);
   assert.equal(serializedLogs.includes(input.analysisId), false);
   assert.equal(serializedLogs.includes("auth0|subject-a"), false);
+});
+
+test("PR266 passes provider-neutral auth context to the injected data boundary and denies missing context", async (t) => {
+  const logs = [];
+  const observedContexts = [];
+  const innerAdapter = createInMemoryRlsDataAdapter([
+    { id: "record-a", tenant: "tenant-subject-a", payload: { value: "A" } },
+  ], "norma:structured-analyze");
+  const authorizationDataAdapter = {
+    async withTransaction(context, operation) {
+      observedContexts.push(context);
+      return innerAdapter.withTransaction(context, operation);
+    },
+  };
+  const server = createRemoteMcpHttpServer(runtimeConfig(), {
+    verifyAccessToken: deterministicVerifier,
+    authorizationDataAdapter,
+    log: (event) => logs.push(event),
+  });
+  await listen(server);
+  t.after(() => close(server));
+  const port = server.address().port;
+
+  const allowed = await mcpRequest(port, initializeRequest(protocol));
+  assert.equal(allowed.status, 200);
+  assert.equal(observedContexts.length, 1);
+  assert.equal(observedContexts[0].subject, "provider-subject-a");
+  assert.equal(observedContexts[0].tenant, "tenant-subject-a");
+  assert.equal(JSON.stringify(observedContexts[0]).includes("valid-subject-a"), false);
+  assert.equal(JSON.stringify(logs).includes("valid-subject-a"), false);
+
+  const deniedServer = createRemoteMcpHttpServer(runtimeConfig(), {
+    verifyAccessToken: async () => ({
+      rawToken: "valid-without-context",
+      subjectId: "pseudonymous-without-context",
+      scopes: ["norma:structured-analyze"],
+      clientId: "test-client",
+      expiresAt: Math.floor(Date.now() / 1_000) + 300,
+    }),
+    authorizationDataAdapter: innerAdapter,
+    log: () => {},
+  });
+  await listen(deniedServer);
+  t.after(() => close(deniedServer));
+  const denied = await mcpRequest(deniedServer.address().port, initializeRequest(protocol));
+  assert.equal(denied.status, 403);
+  assert.equal(denied.json.error.code, "authorization_context_required");
 });
 
 test("PR265 keeps visual sessions isolated by authenticated subject", async (t) => {
@@ -500,12 +548,20 @@ function runtimeConfig() {
 
 async function deterministicVerifier(token) {
   if (!token.startsWith("valid-")) throw new Error("invalid token");
+  const subject = token.slice("valid-".length);
   return {
     rawToken: token,
-    subjectId: `pseudonymous-${token.slice("valid-".length)}`,
+    subjectId: `pseudonymous-${subject}`,
     scopes: ["norma:structured-analyze"],
     clientId: "test-client",
     expiresAt: Math.floor(Date.now() / 1000) + 300,
+    authorizationContext: {
+      subject: `provider-${subject}`,
+      tenant: `tenant-${subject}`,
+      scopes: ["norma:structured-analyze"],
+      audience: "https://norma.example/api",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    },
   };
 }
 

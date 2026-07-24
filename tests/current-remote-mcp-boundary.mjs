@@ -11,6 +11,7 @@ export const currentMcpRuntimeSourceFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-http-server.ts",
   "src/mcp/private-dev-local-visual-mcp-protocol.ts",
   "src/mcp/remote-http-auth.ts",
+  "src/mcp/remote-http-authorization-data.ts",
   "src/mcp/remote-http-config.ts",
   "src/mcp/remote-http-limits.ts",
   "src/mcp/remote-http-server.ts",
