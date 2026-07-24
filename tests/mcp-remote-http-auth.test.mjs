@@ -66,6 +66,11 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   });
   const normalized = await scalekitVerifier(scalekitToken);
   assert.deepEqual(normalized.scopes, ["norma:structured-analyze"]);
+  const audienceArrayToken = await signedToken(first, scalekitConfig, {
+    audience: [scalekitConfig.audience, "res_135600270506722306"],
+    scope: "norma:structured_analyze",
+  });
+  assert.equal((await scalekitVerifier(audienceArrayToken)).clientId, "client-a");
   const canonicalTokenWithAliasConfig = await signedToken(first, scalekitConfig, {
     scope: "norma:structured-analyze",
   });
@@ -79,7 +84,7 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
 
   for (const token of [
     await signedToken(first, config, { audience: "wrong-audience" }),
-    await signedToken(first, config, { audience: [config.audience, "https://other.example/api"] }),
+    await signedToken(first, config, { audience: ["wrong-audience", "https://other.example/api"] }),
     await signedToken(first, config, { resource: "http://127.0.0.1/wrong" }),
     await signedToken(first, config, { scope: "other:scope" }),
     await signedToken(first, config, { issuer: `${issuer}wrong/` }),
