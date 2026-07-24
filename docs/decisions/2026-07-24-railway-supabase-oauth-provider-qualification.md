@@ -4,6 +4,7 @@
 - **Statut :** `SHORTLISTED_PENDING_SANDBOX`
 - **Périmètre :** livrable documentaire uniquement
 - **Contrat d’autorisation à qualifier :** scope exact `norma:structured-analyze`, PKCE S256, propagation de `resource` vers `aud`, et vérification stricte du JWT
+- **Résultat Scalekit :** alias fournisseur explicite requis ; contrat canonique Norma conservé
 
 ## Contexte
 
@@ -32,12 +33,14 @@ doit être qualifié indépendamment de la cible Supabase PostgreSQL/RLS.
 Auth0 est la baseline correspondant au chemin actuel. Les challengers sont Scalekit,
 WorkOS, Clerk, Stytch et Supabase OAuth.
 
-Cette ADR ne crée aucune ressource, n’effectue aucune migration et ne modifie pas le
-contrat runtime. PR258 reste limité à la documentation et aux tests de garde ; il ne
-déclenche aucune qualification live. Les résultats ci-dessous combinent la
-documentation officielle et des retours opérationnels publics de r/mcp consultés le
-2026-07-24 ; les retours Reddit sont des signaux anecdotiques et ne remplacent pas
-la preuve d’intégration live avec Norma.
+Cette ADR ne crée aucune ressource de production, n’effectue aucune migration et ne
+modifie pas le contrat canonique runtime. Le sandbox Scalekit existant a été
+configuré et contrôlé le 2026-07-24 ; son nom de permission externe utilise un
+underscore, et l’adapter le normalise vers le scope canonique Norma avec tiret.
+Les résultats ci-dessous combinent la documentation officielle, ce contrôle sandbox
+borné et des retours opérationnels publics de r/mcp consultés le 2026-07-24 ; les
+retours Reddit sont des signaux anecdotiques et ne remplacent pas la preuve du flux
+complet avec Norma.
 
 ## Décision de shortlist
 
@@ -45,12 +48,12 @@ la preuve d’intégration live avec Norma.
    CPU.
 2. Conserver Supabase PostgreSQL/RLS comme cible probable de données, sans sélectionner
    Supabase Auth/OAuth.
-3. Choisir **Scalekit pour le premier sandbox** : l’objectif prioritaire est de
-   connecter ChatGPT au MCP Norma par le chemin le plus simple, et Scalekit expose
-   explicitement les capacités MCP nécessaires au contrat exact.
-4. Garder **Auth0 comme fallback** : il reste la baseline du chemin actuel et doit
-   exécuter le même test, sans assouplissement du contrat, si Scalekit échoue un
-   critère bloquant.
+3. Conserver **Scalekit comme premier sandbox** avec une frontière d’adaptation
+   explicite : l’OAuth externe utilise `norma:structured_analyze`, puis l’adapter
+   expose au cœur Norma le scope canonique `norma:structured-analyze`.
+4. Garder **Auth0 comme fallback** uniquement si cette correspondance exacte,
+   la validation JWT ou le chemin Railway → Supabase échoue ; aucun changement
+   de fournisseur n’est déclenché pour le seul tiret.
 5. Ne verrouiller aucun fournisseur pour la production avant une preuve complète.
    Le choix final sera le fournisseur qui passe le contrat avec le moins de
    configuration et de risques réels.
@@ -67,13 +70,17 @@ la preuve d’intégration live avec Norma.
 
 ## Alternatives considérées
 
-### Scalekit — premier sandbox recommandé
+### Scalekit — premier sandbox exécuté, alias fournisseur requis
 
 Scalekit documente pour MCP OAuth 2.1 la découverte, DCR/CIMD, PKCE, les scopes
 métier et la configuration du Server URL comme audience du token MCP. Il est donc le
-premier candidat à tester pour le chemin ChatGPT → MCP Norma le plus simple. Le scope
-exact `norma:structured-analyze`, sa présence dans le JWT et son intégration
-Railway → Supabase RLS restent à prouver sur le flux complet.
+premier candidat qui a été testé pour le chemin ChatGPT → MCP Norma le plus simple.
+Le sandbox existant a confirmé les métadonnées DCR/CIMD et PKCE S256. Scalekit
+refuse le nom externe `norma:structured-analyze`, mais accepte
+`norma:structured_analyze`. L’adapter provider-neutre utilise donc ce dernier
+comme scope OAuth configuré, le vérifie exactement, puis le normalise vers le
+scope canonique interne `norma:structured-analyze`. Le JWT, `resource` → `aud`,
+le cycle de vie et Railway → Supabase RLS restent à prouver.
 
 ### Auth0 — fallback et baseline actuelle
 
@@ -129,10 +136,29 @@ modifient l’ordre de préférence et les risques pratiques :
 - un test du même MCP en ChatGPT et Claude montre que le protocole peut fonctionner
   dans les deux clients alors que l’UX et les comportements OAuth diffèrent.
 
-Conséquence : Scalekit passe en premier sandbox pour réduire la configuration du
-chemin ChatGPT → MCP ; Auth0 est le fallback grâce à la baseline existante ; WorkOS
-reste conditionnel. Aucun retour Reddit ne prouve le scope exact
+Conséquence : Scalekit a été essayé en premier pour réduire la configuration du
+chemin ChatGPT → MCP ; l’alias explicite résout son écart de nommage sans changer
+de fournisseur. Auth0 reste le fallback seulement en cas d’échec end-to-end.
+WorkOS reste conditionnel. Aucun retour Reddit ne prouve le scope exact
 `norma:structured-analyze`, le mapping RLS Norma ou le coût réel.
+
+## Preuve sandbox Scalekit et décision de suite
+
+Le contrôle du 2026-07-24 a observé, sur la ressource Scalekit existante :
+
+- URL MCP Railway configurée et permission underscore activée ;
+- DCR et CIMD activés ;
+- métadonnées Authorization Server avec `S256`, issuer, JWKS, registration et
+  revocation endpoints ;
+- rejet explicite de `norma:structured-analyze` par l’interface de permission ;
+- confirmation dans la documentation API Scalekit que les noms suivent une
+  convention alphanumérique avec `:` et `_`, sans tiret.
+
+Le verdict du nommage est `PASS VIA EXPLICIT ADAPTER MAPPING` : le scope OAuth
+Scalekit est vérifié exactement, puis converti une seule fois vers le scope
+canonique Norma. Les critères JWT émis, `resource` → `aud`,
+consentement/refresh/révocation exécutés, Railway → RLS, isolation tenant, coût
+réel et rollback restent `UNPROVEN`. Le contrat canonique Norma n’est pas renommé.
 
 ## Matrice PASS / FAIL / UNPROVEN
 
@@ -148,7 +174,7 @@ reste conditionnel. Aucun retour Reddit ne prouve le scope exact
 
 | Fournisseur | Découverte OAuth | DCR | CIMD | Client ChatGPT prédéfini | PKCE S256 | `resource` → `aud` | Scope exact `norma:structured-analyze` | JWKS + issuer + audience + exp + scopes | Consentement + refresh + révocation | Supabase PostgreSQL/RLS | Coût réel du chemin nécessaire | Adapter / migration / rollback | Verdict actuel |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Scalekit | PASS | PASS | PASS | UNPROVEN | PASS | PASS, Server URL configurée comme audience MCP | UNPROVEN, scopes métier documentés mais scope Norma exact à prouver dans le JWT | PASS, validation `iss`, `aud`, `exp`, `scope` et JWKS documentée | PASS | UNPROVEN : chemin Railway → Supabase RLS à exécuter | UNPROVEN : chemin commercial exact non chiffré | UNPROVEN | **FIRST_SANDBOX** |
+| Scalekit | PASS | PASS | PASS | UNPROVEN | PASS | UNPROVEN : Server URL configurée comme audience, JWT non exercé | **PASS VIA ADAPTER**, `norma:structured_analyze` externe → `norma:structured-analyze` canonique | PASS documentaire, validation live du JWT non exercée | PASS documentaire, cycle de vie live non exercé | UNPROVEN : chemin Railway → Supabase RLS à exécuter | UNPROVEN : chemin commercial exact non chiffré | PASS local, live à exécuter | **FIRST_SANDBOX — CONTINUE** |
 | Auth0 | PASS | PASS | PASS | UNPROVEN | PASS | PASS, sous Resource Parameter Compatibility Profile | UNPROVEN | PASS, capacité documentée ; fixture Norma à exécuter | PASS | PASS, fournisseur tiers pris en charge par Supabase | UNPROVEN : tarifs publiés, chemin exact non chiffré | UNPROVEN | **FALLBACK** |
 | WorkOS | PASS | PASS | PASS | UNPROVEN | PASS | PASS, ressource reflétée dans `aud` selon AuthKit | UNPROVEN | PASS, claims et validation documentés ; fixture Norma à exécuter | PASS | **UNPROVEN jusqu’à confirmation écrite** | UNPROVEN : prix publié, chemin exact non chiffré | UNPROVEN | **CONDITIONAL** |
 | Clerk | PASS | PASS | UNPROVEN | UNPROVEN | PASS | UNPROVEN | **FAIL**, scopes personnalisés indisponibles actuellement | PASS pour les JWT Clerk ; vérification Norma complète à exécuter | PASS | PASS, intégration Supabase documentée | UNPROVEN : plan requis pour le chemin MCP exact | UNPROVEN | **FAIL pour le contrat actuel** |
@@ -169,7 +195,7 @@ serait une décision distincte et ne doit pas être implicite.
 
 ## Décision RLS préalable
 
-Avant le sandbox Scalekit, confirmer la frontière d’autorisation provisoire :
+Avant de compléter le sandbox Scalekit, confirmer la frontière d’autorisation provisoire :
 
 1. **JWT MCP accepté directement par Supabase** : Supabase vérifie l’issuer/JWKS du
    fournisseur, l’audience et les claims utiles ; les politiques PostgreSQL/RLS
@@ -182,8 +208,8 @@ Avant le sandbox Scalekit, confirmer la frontière d’autorisation provisoire :
 Le parcours prioritaire retient la frontière Railway pour éviter de faire dépendre le
 premier chemin ChatGPT → MCP d’une acceptation directe du JWT par Supabase. Une
 qualification directe Supabase reste possible seulement comme variante séparée. Le
-sandbox Scalekit, puis le fallback Auth0 si nécessaire, doit exécuter le même chemin
-Railway → Supabase RLS ; il ne doit pas faire progresser simultanément deux frontières.
+le sandbox Scalekit doit exécuter le même chemin Railway → Supabase RLS ; il ne doit
+pas faire progresser simultanément deux frontières.
 
 ## Coût : état comparable mais non décisionnel
 
@@ -206,7 +232,10 @@ créée dans cette gate.
 
 ## Plan minimal de qualification sandbox
 
-Ce plan est prescriptif mais n’est pas exécuté dans cette gate.
+Le nommage Scalekit est traité par l’alias explicite de l’adapter. Le plan restant
+est donc la qualification complète Scalekit dans le même sandbox isolé ; Auth0 ne
+sera exécuté qu’en fallback si un critère bloquant échoue. Aucune ressource de
+production ni migration n’est impliquée.
 
 ### 0. Décider la frontière RLS
 
@@ -306,31 +335,33 @@ suivants dans un flux sandbox reproduisible :
 1. découverte MCP/OAuth et client compatible ;
 2. PKCE S256 ;
 3. `resource` propagée à `aud` ;
-4. scope exact `norma:structured-analyze` ;
+4. scope fournisseur configuré vérifié exactement, puis mapping un-à-un vers le
+   scope canonique `norma:structured-analyze` ;
 5. vérification JWKS, issuer, audience, expiration et scopes ;
 6. consentement, refresh et révocation ;
 7. chemin Railway → RLS Supabase sans service key et avec isolation tenant ;
 8. rollback par adapter fournisseur-neutre ;
 9. coût réel chiffré et accepté.
 
-Un seul `FAIL` sur le scope ou sur `resource` → `aud` maintient le fournisseur hors
-contrat, sauf décision explicite de modifier le contrat Norma.
+Un seul `FAIL` sur le scope fournisseur, son mapping un-à-un, ou sur
+`resource` → `aud` maintient le fournisseur hors contrat. Le mapping doit être
+explicitement configuré et testé ; il ne peut pas être implicite.
 
 ## Recommandation finale
 
 **Aucun fournisseur OAuth/MCP n’est recommandé pour la production.**
 
-Le premier sandbox est **Scalekit**, pour tester le chemin ChatGPT → MCP Norma avec le
-moins de configuration possible. **Auth0** est le fallback et doit recevoir exactement
-le même test si Scalekit échoue un critère bloquant. Le fournisseur retenu ensuite sera
-celui qui passe le contrat complet avec le moins de configuration et de risques ; aucun
-verdict ne sera inféré de la documentation seule. WorkOS reste conditionnel ; Stytch
-reste en réserve ; Clerk et Supabase OAuth restent hors contrat actuel.
+Scalekit reste le premier sandbox : son scope externe underscore est adapté
+explicitement vers le scope canonique Norma avec tiret. **Auth0** reste le fallback
+et ne sera exécuté que si Scalekit échoue la matrice complète. Aucun fournisseur
+OAuth/MCP n’est recommandé pour la production tant que le flux complet n’est pas
+prouvé. WorkOS reste conditionnel ; Stytch reste en réserve ; Clerk et Supabase
+OAuth restent hors contrat actuel.
 
-La prochaine action autorisée est uniquement : (1) qualifier Scalekit dans un sandbox
-isolé, (2) qualifier Auth0 si nécessaire, puis (3) documenter la décision finale. Elle
-ne comprend aucune ressource de production, migration, déploiement ou verrouillage
-implicite du fournisseur.
+La prochaine action est de compléter la qualification Scalekit avec la même matrice,
+en configurant `NORMA_MCP_AUTH_SCOPE=norma:structured_analyze`. L’exécution reste
+sandbox-only et ne comprend aucune ressource de production, migration, déploiement
+ou verrouillage implicite du fournisseur.
 
 ## Sources officielles consultées
 
@@ -345,6 +376,8 @@ implicite du fournisseur.
 - [Scalekit — MCP OAuth 2.1 quickstart](https://docs.scalekit.com/authenticate/mcp/quickstart/)
 - [Scalekit — MCP client management, DCR/CIMD and revocation](https://docs.scalekit.com/authenticate/mcp/managing-mcp-clients/)
 - [Scalekit — JWT validation, JWKS, audience and scopes](https://docs.scalekit.com/authenticate/mcp/xmcp-quickstart/)
+- [Scalekit — API permissions and naming](https://docs.scalekit.com/apis/?product=agentkit)
+- [Observed Scalekit authorization-server metadata](https://twoweeks.scalekit.dev/resources/res_135600270506722306/.well-known/oauth-authorization-server)
 - [Clerk — OAuth implementation](https://clerk.com/docs/guides/configure/auth-strategies/oauth/how-clerk-implements-oauth)
 - [Clerk — Scoped access](https://clerk.com/docs/guides/configure/auth-strategies/oauth/scoped-access)
 - [Clerk — OAuth improvements and custom-scope status](https://clerk.com/changelog/2025-06-13-oauth-improvements)
@@ -373,7 +406,10 @@ implicite du fournisseur.
 
 - Documentation ajoutée uniquement ; aucun fichier de code ou de configuration runtime
   n’est modifié par cette ADR.
-- Aucune ressource Railway, OAuth, Clerk, Auth0, WorkOS, Stytch ou Supabase n’est créée.
+- Aucune nouvelle ressource Railway, Auth0, WorkOS, Clerk, Stytch ou Supabase n’est
+  créée. Le contrôle utilise une ressource Scalekit sandbox existante ; aucune
+  ressource de production n’est créée.
 - Aucune migration de schéma, de comptes, de claims ou de RLS n’est effectuée.
-- PR258 ne contient qu’une préparation documentaire et des tests de garde ; il ne lance
-  aucune qualification live.
+- PR258 reste un contrat documentaire et ne lance aucune qualification de production.
+  Le résultat Scalekit ci-dessus est une qualification sandbox bornée effectuée
+  séparément sur une ressource existante.

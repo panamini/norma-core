@@ -30,7 +30,6 @@ import {
   REMOTE_MCP_MAX_REQUEST_BYTES,
   REMOTE_MCP_MAX_STRING_LENGTH,
   REMOTE_MCP_REQUEST_TIMEOUT_MS,
-  REMOTE_MCP_REQUIRED_SCOPE,
   REMOTE_MCP_SERVER_NAME,
   REMOTE_MCP_SERVER_VERSION,
   REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS,
@@ -134,7 +133,7 @@ async function routeRequest(
     sendJson(response, 200, {
       resource: config.resourceUrl.href,
       authorization_servers: [config.authorizationServerUrl.href],
-      scopes_supported: [REMOTE_MCP_REQUIRED_SCOPE],
+      scopes_supported: [config.authorizationScope],
       bearer_methods_supported: ["header"],
     });
     return;
@@ -507,7 +506,7 @@ function bearerToken(header: string | readonly string[] | undefined): string | n
 
 function bearerChallenge(config: RemoteMcpRuntimeConfig): string {
   const metadataUrl = new URL(protectedResourceMetadataPath(config), config.publicUrl);
-  return `Bearer resource_metadata="${metadataUrl.href}", scope="${REMOTE_MCP_REQUIRED_SCOPE}"`;
+  return `Bearer resource_metadata="${metadataUrl.href}", scope="${config.authorizationScope}"`;
 }
 
 function protectedResourceMetadataPath(config: RemoteMcpRuntimeConfig): string {

@@ -4,16 +4,24 @@
 
 `SHORTLISTED_PENDING_SANDBOX` / preparation-only.
 
+Latest qualification result: the existing Scalekit sandbox needs an explicit
+provider-scope alias; the canonical Norma scope remains unchanged.
+
 This document is the narrow PR258 contract for the RLS boundary and the first
 Scalekit sandbox qualification. It does not select a production authorization
 provider, create a cloud or OAuth resource, add a migration, deploy a service,
 or authorize a live provider call.
 
+An existing Scalekit sandbox was configured and checked separately on
+2026-07-24. Its bounded result is recorded below. This does not authorize a
+production resource, migration, deployment, or provider lock.
+
 The current shortlist remains:
 
 - Scalekit is the first sandbox candidate because the priority is the simplest
-  ChatGPT-to-MCP connection path.
-- Auth0 is the fallback candidate if Scalekit fails a blocking criterion.
+  ChatGPT-to-MCP connection path; its provider-scope alias path is now defined.
+- Auth0 is the fallback candidate only if the explicit Scalekit adapter
+  mapping fails end-to-end qualification.
 - WorkOS remains conditional on written confirmation of the custom scope, its
   presence in the MCP JWT, and Supabase RLS compatibility.
 - No provider is locked for production before sandbox proof and a separate
@@ -109,8 +117,10 @@ The exact matrix is:
 4. **Resource to audience** — the canonical MCP resource is propagated into
    the authorization request and the issued token has the exact expected
    `aud`; a wrong or missing resource/audience fails.
-5. **Scope** — the issued and verified token contains exactly the required
-   `norma:structured-analyze` scope for the approved tool path.
+5. **Scope** — the issued token contains exactly the configured provider scope,
+   and the provider-neutral adapter maps that one value to Norma's canonical
+   `norma:structured-analyze` context. The mapping is explicit, one-to-one, and
+   fail-closed; it is not substring matching or a contract relaxation.
 6. **Token verification** — JWKS, issuer, audience, expiration, subject, and
    scopes are verified; wrong signature, issuer, audience, expiry, subject,
    resource, or scope fails closed.
@@ -135,9 +145,34 @@ unapproved ChatGPT registration, a token cannot carry the exact authorization
 context, RLS cannot bind to one transaction, any cross-tenant or bypass-RLS
 path is observed, or rollback would require an irreversible migration.
 
-No Scalekit or Auth0 provider implementation, resource, configuration, token
-flow, or live OAuth call is part of PR258. WorkOS remains comparison/qualification
-work only and is not implemented.
+No provider implementation, production resource, migration, deployment, or
+runtime provider lock is part of PR258. The result below records a bounded
+configuration check of an already-existing Scalekit sandbox performed outside
+the PR; it is not a full OAuth or RLS qualification. WorkOS remains
+comparison/qualification work only and is not implemented.
+
+## Observed Scalekit sandbox result (2026-07-24)
+
+The existing sandbox resource was configured for the Railway MCP URL with DCR
+and CIMD enabled. Its authorization-server metadata returned the expected
+issuer, JWKS URI, registration endpoint, revocation endpoint, and
+`code_challenge_methods_supported: ["S256"]`. The metadata also exposed the
+configured permission `norma:structured_analyze`.
+
+The exact Norma scope `norma:structured-analyze` could not be added: the
+Scalekit permission form rejected it and stated that permission names allow
+letters, numbers, underscores, and colons, but not special characters. The
+official Scalekit API documentation describes the same alphanumeric,
+colon-and-underscore naming convention, and says permission names are
+immutable.
+
+The provider naming mismatch is resolved by the adapter boundary: Scalekit
+advertises and issues `norma:structured_analyze`, while Norma's internal
+authenticated context remains `norma:structured-analyze`. This is not a change
+to the core contract and does not prove the issued token, resource-to-audience
+mapping, consent lifecycle, Railway-to-Supabase RLS, or tenant isolation. The
+full Scalekit matrix continues; Auth0 remains fallback only if this mapping
+fails in the end-to-end sandbox.
 
 ## Proof classification
 
@@ -149,9 +184,14 @@ work only and is not implemented.
   production.
 - Supabase documents third-party Auth0 support, asymmetric JWTs, a literal
   `role` claim for the authenticated Postgres role, and an ID-token example.
-- Scalekit documents MCP OAuth 2.1 discovery, DCR/CIMD, PKCE, scoped tokens,
-  token validation, and client consent/revocation workflows; these are vendor
-  documentation claims, not live qualification evidence.
+- An existing Scalekit sandbox exposed the Railway MCP resource, DCR/CIMD
+  configuration, PKCE S256 metadata, JWKS/issuer metadata, registration and
+  revocation endpoints, and the underscore-form permission. This is bounded
+  sandbox evidence, not proof of an issued token or end-to-end authorization.
+- Scalekit rejects the hyphenated external permission name in the configured
+  sandbox; official API documentation confirms the provider naming restriction.
+  The adapter now has an explicit `norma:structured_analyze` to
+  `norma:structured-analyze` normalization boundary.
 - Railway's PostgreSQL documentation describes a database service and
   connection variables, not JWT/RLS authorization; the conclusion that the
   Railway API must own this boundary is therefore an architectural inference,
@@ -161,14 +201,13 @@ work only and is not implemented.
 
 ### Still unproven and intentionally deferred
 
-- any Scalekit or Auth0 tenant, application, API, custom action, or OAuth
-  resource;
+- any Auth0 tenant, application, API, custom action, or OAuth resource;
 - any Supabase project/integration, PostgreSQL schema, RLS policy, or migration;
 - any Railway service, database, deployment, secret, or network configuration;
 - exact tenant/account claim mapping for the first sandbox;
 - any ChatGPT DCR, CIMD, or predefined-client path;
-- any discovery, PKCE, resource/audience, scope, JWKS, lifecycle, or revocation
-  result for either candidate;
+- any issued-token proof for resource/audience, scope, JWKS, lifecycle, or
+  revocation for either candidate;
 - live two-tenant RLS isolation and pooled-connection reset behavior;
 - production provider selection or public/commercial readiness.
 
@@ -185,6 +224,8 @@ work only and is not implemented.
 - [Scalekit MCP authentication overview](https://docs.scalekit.com/authenticate/mcp/overview/)
 - [Scalekit MCP OAuth quickstart](https://docs.scalekit.com/authenticate/mcp/quickstart/)
 - [Scalekit MCP client management](https://docs.scalekit.com/authenticate/mcp/managing-mcp-clients/)
+- [Scalekit API permissions and naming](https://docs.scalekit.com/apis/?product=agentkit)
+- [Observed Scalekit authorization-server metadata](https://twoweeks.scalekit.dev/resources/res_135600270506722306/.well-known/oauth-authorization-server)
 
 The compute topology remains provider-neutral: Core stays local/offline,
 Railway is the prospective CPU/control plane, and no GPU or external resource

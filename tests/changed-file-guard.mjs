@@ -1112,6 +1112,20 @@ export const pr259ProviderNeutralMcpAuthAdapterChangedFiles = Object.freeze([
   "tests/mcp-remote-http-runtime.test.mjs",
 ].sort());
 
+export const scalekitScopeAliasQualificationChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
+  "docs/decisions/2026-07-24-pr259-provider-neutral-mcp-auth-adapter.md",
+  "docs/decisions/2026-07-24-railway-supabase-oauth-provider-qualification.md",
+  "src/mcp/remote-http-auth.ts",
+  "src/mcp/remote-http-config.ts",
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-auth.test.mjs",
+  "tests/mcp-remote-http-contract.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1906,6 +1920,7 @@ const sharedExactApprovedChangedFileSets = [
   performanceTruthHarnessChangedFiles,
   pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
+  scalekitScopeAliasQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,

@@ -56,6 +56,24 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   assert.equal(access.rawToken, valid);
   assert.equal(access.clientId, "client-a");
 
+  const scalekitConfig = testConfig(issuer, {
+    jwksUrl: new URL(`${issuer}jwks.json`),
+    authorizationScope: "norma:structured_analyze",
+  });
+  const scalekitVerifier = createRemoteMcpAccessTokenVerifier(scalekitConfig);
+  const scalekitToken = await signedToken(first, scalekitConfig, {
+    scope: "norma:structured_analyze",
+  });
+  const normalized = await scalekitVerifier(scalekitToken);
+  assert.deepEqual(normalized.scopes, ["norma:structured-analyze"]);
+  const canonicalTokenWithAliasConfig = await signedToken(first, scalekitConfig, {
+    scope: "norma:structured-analyze",
+  });
+  await assert.rejects(
+    () => scalekitVerifier(canonicalTokenWithAliasConfig),
+    RemoteMcpAuthenticationError,
+  );
+
   const secondKeyToken = await signedToken(second, config, {});
   assert.equal((await verifier(secondKeyToken)).subjectId, access.subjectId);
 
@@ -157,6 +175,7 @@ function testConfig(issuer, overrides = {}) {
     issuer: new URL(issuer),
     authorizationServerUrl: new URL("https://auth.example/resources/norma"),
     jwksUrl: Object.hasOwn(overrides, "jwksUrl") ? overrides.jwksUrl : new URL(`${issuer}jwks.json`),
+    authorizationScope: overrides.authorizationScope ?? "norma:structured-analyze",
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),

@@ -24,6 +24,7 @@ Use a provider-neutral resource-server adapter with these generic inputs:
 | `NORMA_MCP_AUTH_ISSUER` | JWT `iss` expected from the selected provider |
 | `NORMA_MCP_AUTH_JWKS_URL` | Optional explicit JWKS URL; use this for Scalekit (`<environment>/keys`) |
 | `NORMA_MCP_AUTHORIZATION_SERVER_URL` | Authorization server advertised in Protected Resource Metadata; it may differ from the JWT issuer |
+| `NORMA_MCP_AUTH_SCOPE` | Provider-facing OAuth scope advertised/requested by the MCP client; defaults to the canonical Norma scope |
 | `NORMA_MCP_AUTH_AUDIENCE` | Exact expected JWT audience; for the sandbox it must equal the MCP resource URL |
 | `NORMA_MCP_AUDIT_HASH_KEY` | Secret-manager value of at least 32 characters; never committed or logged |
 | `NORMA_MCP_ALLOWED_ORIGINS` | Optional exact HTTPS Origin allowlist; wildcard remains forbidden |
@@ -34,9 +35,12 @@ OIDC discovery for the Auth0 fallback. The old `NORMA_MCP_AUTH0_ISSUER` and
 rollback; new sandbox configuration must use the generic names.
 
 The adapter continues to fail closed on signature, issuer, exact audience,
-resource claim, expiration, not-before, subject, or
-`norma:structured-analyze` scope failures. It does not add raw-token logging,
-a Scalekit SDK dependency, or a client secret to the resource server.
+resource claim, expiration, not-before, subject, or provider-facing scope
+failures. It normalizes the one configured provider scope to Norma's canonical
+`norma:structured-analyze` context only after an exact scope match; it never
+accepts the canonical value as a substitute when a provider alias is configured.
+It does not add raw-token logging, a Scalekit SDK dependency, or a client secret
+to the resource server.
 
 ## Scalekit sandbox mapping
 
@@ -47,6 +51,7 @@ NORMA_MCP_PUBLIC_URL=https://<railway-host>/
 NORMA_MCP_AUTH_ISSUER=https://<scalekit-environment>/
 NORMA_MCP_AUTH_JWKS_URL=https://<scalekit-environment>/keys
 NORMA_MCP_AUTHORIZATION_SERVER_URL=https://<scalekit-resource-authorization-server>
+NORMA_MCP_AUTH_SCOPE=norma:structured_analyze
 NORMA_MCP_AUTH_AUDIENCE=https://<railway-host>/mcp
 NORMA_MCP_AUDIT_HASH_KEY=<secret-manager-only>
 ```
@@ -54,6 +59,11 @@ NORMA_MCP_AUDIT_HASH_KEY=<secret-manager-only>
 `NORMA_MCP_AUTHORIZATION_SERVER_URL` must be copied from Scalekit Protected
 Resource Metadata. `NORMA_MCP_AUTH_AUDIENCE` must match the Scalekit Server URL
 exactly; no trailing-slash normalization is implicit for the resource URL.
+`NORMA_MCP_AUTH_SCOPE` is the Scalekit permission name that ChatGPT requests.
+Scalekit cannot use the hyphenated identifier, so the sandbox maps its exact
+`norma:structured_analyze` permission to Norma's canonical internal
+`norma:structured-analyze` scope at the adapter boundary. No substring matching,
+scope rewriting from prompt data, or broader permission is allowed.
 
 ## Boundary
 
