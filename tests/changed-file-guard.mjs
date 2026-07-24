@@ -1158,6 +1158,7 @@ export const pr264ScalekitCompositeAudienceChangedFiles = Object.freeze([
 
 export const pr265RemoteVisualMcpSandboxChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-pr265-remote-visual-mcp-sandbox.md",
+  "src/mcp/personal-visual-harmony-app.ts",
   "src/mcp/remote-http-server.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",

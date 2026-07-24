@@ -18,6 +18,9 @@ import {
 } from "./stdio-protocol.js";
 import {
   createPersonalVisualHarmonyMcpServerV1,
+  PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+  PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PersonalVisualHarmonySessionServiceV1,
 } from "./personal-visual-harmony-app.js";
 import {
@@ -75,7 +78,12 @@ export interface RemoteMcpLogEvent {
   readonly requestId: string;
   readonly timestamp: string;
   readonly route: "/mcp";
-  readonly tool: typeof REMOTE_TOOL_NAME | "mcp";
+  readonly tool:
+    | typeof REMOTE_TOOL_NAME
+    | typeof PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL
+    | "mcp";
   readonly outcome: "allow" | "deny";
   readonly status: number;
   readonly errorCode?: RemoteMcpStableErrorCode;
@@ -303,7 +311,8 @@ async function handleAuthenticatedPost(
     return;
   }
 
-  const mcpServer = createRequestMcpServer(personalVisualHarmonyService);
+  const tool = remoteMcpLogTool(parsedBody);
+  const mcpServer = createRequestMcpServer(personalVisualHarmonyService, access.subjectId);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -352,18 +361,28 @@ async function handleAuthenticatedPost(
     assertRemoteMcpNotAborted(abortSignal);
     if (!response.headersSent && !response.writableEnded) {
       sendJson(response, 500, stableError("internal_error", requestId));
-      logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, body.byteLength, protocolVersion);
+      logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, body.byteLength, protocolVersion, tool);
       return;
     }
-    logEvent(log, requestId, startedAt, response.statusCode, undefined, access, access.scopes, body.byteLength, protocolVersion);
+    logEvent(log, requestId, startedAt, response.statusCode, undefined, access, access.scopes, body.byteLength, protocolVersion, tool);
   } finally {
     abortSignal.removeEventListener("abort", abortListener);
     await closeResources();
   }
 }
 
-function createRequestMcpServer(service: PersonalVisualHarmonySessionServiceV1): McpServer {
-  const server = createPersonalVisualHarmonyMcpServerV1({ service });
+function createRequestMcpServer(
+  service: PersonalVisualHarmonySessionServiceV1,
+  subjectId: string,
+): McpServer {
+  const server = createPersonalVisualHarmonyMcpServerV1({
+    service,
+    subjectId,
+    serverInfo: {
+      name: REMOTE_MCP_SERVER_NAME,
+      version: REMOTE_MCP_SERVER_VERSION,
+    },
+  });
   const requestHandlers = (server.server as unknown as {
     readonly _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<Record<string, unknown>>>;
   })._requestHandlers;
@@ -614,13 +633,14 @@ function logEvent(
   scopes: readonly string[],
   payloadBytes: number,
   protocolVersion: string | undefined,
+  tool: RemoteMcpLogEvent["tool"] = "mcp",
 ): void {
   const duration = Date.now() - startedAt;
   const base = {
     requestId,
     timestamp: new Date().toISOString(),
     route: "/mcp" as const,
-    tool: REMOTE_TOOL_NAME as typeof REMOTE_TOOL_NAME,
+    tool,
     outcome: errorCode === undefined && status < 400 ? "allow" as const : "deny" as const,
     status,
     scopes,
@@ -633,6 +653,20 @@ function logEvent(
     ...(access === undefined ? {} : { subjectId: access.subjectId }),
     ...(protocolVersion === undefined ? {} : { protocolVersion }),
   });
+}
+
+function remoteMcpLogTool(body: unknown): RemoteMcpLogEvent["tool"] {
+  if (!isRecord(body) || body.method !== "tools/call" || !isRecord(body.params)) {
+    return "mcp";
+  }
+  const name = body.params.name;
+  if (name === REMOTE_TOOL_NAME
+    || name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL) {
+    return name;
+  }
+  return "mcp";
 }
 
 function latencyBucket(duration: number): RemoteMcpLogEvent["latencyBucket"] {

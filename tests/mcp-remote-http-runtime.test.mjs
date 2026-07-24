@@ -71,6 +71,10 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   const initialized = await mcpRequest(port, initializeRequest(protocol));
   assert.equal(initialized.status, 200);
   assert.equal(initialized.json.result.protocolVersion, protocol);
+  assert.deepEqual(initialized.json.result.serverInfo, {
+    name: "norma-core-remote-mcp",
+    version: "0.1.0-pr137",
+  });
   assert.equal(initialized.headers["mcp-session-id"], undefined);
 
   const list = await mcpRequest(port, {
@@ -172,10 +176,76 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(remote.headers["mcp-session-id"], undefined);
 
   assert.ok(logs.some((event) => event.outcome === "allow" && event.protocolVersion === protocol));
+  assert.ok(logs.some((event) => event.tool === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL && event.outcome === "allow"));
+  assert.ok(logs.some((event) => event.tool === analyzeToolName && event.outcome === "allow"));
+  assert.ok(logs.some((event) => event.tool === "mcp" && event.outcome === "allow"));
   const serializedLogs = JSON.stringify(logs);
   assert.equal(serializedLogs.includes("valid-subject-a"), false);
   assert.equal(serializedLogs.includes(input.analysisId), false);
   assert.equal(serializedLogs.includes("auth0|subject-a"), false);
+});
+
+test("PR265 keeps visual sessions isolated by authenticated subject", async (t) => {
+  const server = createRemoteMcpHttpServer(runtimeConfig(), {
+    verifyAccessToken: deterministicVerifier,
+    log: () => {},
+  });
+  await listen(server);
+  t.after(() => close(server));
+  const port = server.address().port;
+
+  const prepared = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "prepare-subject-a",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/remote-visual-image",
+          file_id: "remote-visual-image",
+          mime_type: "image/png",
+        },
+        candidates: [{
+          id: "frame",
+          label: "Cadre visible",
+          role: "frame",
+          reason: "Bords visibles du cadre de l’image.",
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        }],
+      },
+    },
+  });
+  const visual = prepared.json.result._meta.normaPersonalVisualHarmony;
+  const crossSubject = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "confirm-subject-b",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: visual.sessionId,
+        candidateSetIdentity: visual.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["frame"],
+        confirmedVisualGuideCandidateIds: [],
+        constructionLayers: [],
+        sourcePixelWidth: 8,
+        sourcePixelHeight: 8,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          fileId: visual.fileId,
+          sourceImageMediaType: visual.sourceImageMediaType,
+          candidates: visual.prepared.candidates,
+        },
+      },
+    },
+  }, { authorization: "Bearer valid-subject-b" });
+  assert.equal(crossSubject.status, 200);
+  assert.equal(crossSubject.json.result.isError, true);
+  assert.match(JSON.stringify(crossSubject.json.result), /different subject/u);
 });
 
 test("PR259 advertises a provider scope alias while retaining Norma's canonical scope", async (t) => {

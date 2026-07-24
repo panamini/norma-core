@@ -30,21 +30,27 @@ and its `ui://widget/norma-personal-visual-harmony-v1.html` resource.
 - The exact existing scope is reused; no new provider scope is introduced.
 - The tool list contains the three visual-harmony tools plus
   `norma.analyzeStructuredCompositionV1`.
+- The remote endpoint keeps its existing MCP initialize identity and version;
+  adding the visual surface does not turn it into the personal-demo server.
 - Visual tools advertise the existing output template and widget resource.
 - The widget resource is read-only server content; image bytes remain owned by
   ChatGPT and are not downloaded by the server.
 - The visual session service is shared by requests inside the sandbox process
-  so preparation can be followed by explicit refinement or confirmation.
+  so preparation can be followed by explicit refinement or confirmation, but
+  every session is bound to the authenticated OAuth subject.
+- Audit events identify the actual visual tool for tool calls and use `mcp` for
+  non-tool requests.
 - The remote endpoint remains stateless at the MCP transport layer and does not
   create durable sessions or persistence.
 
 ## Verification and rollback
 
 The contract test must prove authenticated tools/list, resource listing and
-resource reading, visual preparation without a Core run, and preservation of
-the existing structured-analysis parity test. A failed sandbox check rolls
-back by restoring the previous Railway start/runtime commit; no database or
-provider migration is involved.
+resource reading, visual preparation without a Core run, preserved remote
+initialize identity, actual-tool audit events, cross-subject session rejection,
+and preservation of the existing structured-analysis parity test. A failed
+sandbox check rolls back by restoring the previous Railway start/runtime
+commit; no database or provider migration is involved.
 
 ## Non-goals
 
