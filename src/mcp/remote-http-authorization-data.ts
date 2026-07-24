@@ -23,6 +23,37 @@ export interface AuthorizationDataAdapter {
   ) => Promise<T>;
 }
 
+export interface PostgreSqlAuthorizationConnection {
+  readonly query: (
+    sql: string,
+    values?: readonly unknown[],
+  ) => Promise<unknown>;
+  readonly release: (error?: Error) => void;
+}
+
+export interface PostgreSqlAuthorizationPool {
+  readonly connect: () => Promise<PostgreSqlAuthorizationConnection>;
+}
+
+export interface PostgreSqlAuthorizationSettingNames {
+  readonly subject: string;
+  readonly tenant: string;
+  readonly scopes: string;
+  readonly audience: string;
+  readonly expiresAt: string;
+}
+
+export interface PostgreSqlAuthorizationDataAdapterOptions {
+  readonly pool: PostgreSqlAuthorizationPool;
+  readonly requiredScope: string;
+  readonly settingNames: PostgreSqlAuthorizationSettingNames;
+  readonly readRecord: (
+    connection: PostgreSqlAuthorizationConnection,
+    recordId: string,
+  ) => Promise<AuthorizationDataRecord | null>;
+  readonly nowSeconds?: () => number;
+}
+
 const AUTHENTICATED_REQUEST_CONTEXT_KEYS = [
   "audience",
   "expiresAt",
@@ -101,6 +132,105 @@ export function createInMemoryRlsDataAdapter(
       }
     },
   };
+}
+
+export function createPostgreSqlAuthorizationDataAdapter(
+  options: PostgreSqlAuthorizationDataAdapterOptions,
+): AuthorizationDataAdapter {
+  const settingEntries = authorizationSettingEntries(options.settingNames);
+
+  return {
+    async withTransaction(context, operation) {
+      assertValidAuthenticatedRequestContext(
+        context,
+        options.requiredScope,
+        options.nowSeconds?.() ?? Math.floor(Date.now() / 1_000),
+      );
+
+      const connection = await options.pool.connect();
+      let transactionStarted = false;
+      let closed = false;
+      let releaseError: Error | undefined;
+      const transaction: AuthorizationDataTransaction = Object.freeze({
+        async readRecord(recordId: string): Promise<AuthorizationDataRecord | null> {
+          if (closed) {
+            throw new AuthorizationDataAccessDeniedError("Authorization transaction is closed");
+          }
+          return await options.readRecord(connection, recordId);
+        },
+      });
+
+      try {
+        await connection.query("BEGIN");
+        transactionStarted = true;
+        const contextValues = authorizationContextValues(context);
+        for (const [contextKey, settingName] of settingEntries) {
+          await connection.query(
+            "SELECT set_config($1, $2, true)",
+            [settingName, contextValues[contextKey]],
+          );
+        }
+        const result = await operation(transaction);
+        await connection.query("COMMIT");
+        return result;
+      } catch (error) {
+        if (transactionStarted) {
+          try {
+            await connection.query("ROLLBACK");
+          } catch (rollbackError) {
+            releaseError = toError(rollbackError);
+            throw new AggregateError(
+              [error, rollbackError],
+              "Authorization transaction and rollback failed",
+            );
+          }
+        } else {
+          releaseError = toError(error);
+        }
+        throw error;
+      } finally {
+        closed = true;
+        connection.release(releaseError);
+      }
+    },
+  };
+}
+
+function authorizationSettingEntries(
+  settingNames: PostgreSqlAuthorizationSettingNames,
+): ReadonlyArray<readonly [keyof PostgreSqlAuthorizationSettingNames, string]> {
+  const entries = Object.entries(settingNames) as Array<
+    [keyof PostgreSqlAuthorizationSettingNames, string]
+  >;
+  const keys = entries.map(([key]) => key).sort();
+  if (keys.length !== AUTHENTICATED_REQUEST_CONTEXT_KEYS.length
+    || keys.some((key, index) => key !== AUTHENTICATED_REQUEST_CONTEXT_KEYS[index])
+    || entries.some(([, name]) => !isValidPostgreSqlSettingName(name))
+    || new Set(entries.map(([, name]) => name)).size !== entries.length) {
+    throw new Error("PostgreSQL authorization setting names are invalid");
+  }
+  return Object.freeze(entries.map(([key, value]) => Object.freeze([key, value] as const)));
+}
+
+function authorizationContextValues(
+  context: AuthenticatedRequestContext,
+): Readonly<Record<keyof PostgreSqlAuthorizationSettingNames, string>> {
+  return Object.freeze({
+    subject: context.subject,
+    tenant: context.tenant,
+    scopes: JSON.stringify(context.scopes),
+    audience: context.audience,
+    expiresAt: String(context.expiresAt),
+  });
+}
+
+function isValidPostgreSqlSettingName(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/u.test(value);
+}
+
+function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error("PostgreSQL rollback failed");
 }
 
 function isNonEmptyString(value: unknown): value is string {
