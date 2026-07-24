@@ -1139,6 +1139,7 @@ const ConfirmOutputSchema = z.object({
 
 interface PersonalVisualHarmonySessionV1 {
   readonly sessionId: string;
+  readonly subjectId?: string;
   readonly fileId: string;
   readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly createdAtMs: number;
@@ -1156,6 +1157,9 @@ export interface PersonalVisualHarmonySessionServiceOptionsV1 {
   readonly maxSessions?: number;
 }
 
+const PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE =
+  "Visual harmony session belongs to a different subject.";
+
 export class PersonalVisualHarmonySessionServiceV1 {
   private readonly sessions = new Map<string, PersonalVisualHarmonySessionV1>();
   private readonly now: () => number;
@@ -1171,6 +1175,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
   }
 
   prepare(input: {
+    readonly subjectId?: string;
     readonly fileId: string;
     readonly mediaType?: string | null;
     readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
@@ -1197,6 +1202,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
     this.sessions.set(sessionId, {
       sessionId,
+      ...(input.subjectId === undefined ? {} : { subjectId: input.subjectId }),
       fileId: input.fileId,
       prepared,
       createdAtMs: now,
@@ -1210,6 +1216,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
   }
 
   refinePixels(input: {
+    readonly subjectId?: string;
     readonly sessionId: string;
     readonly candidateSetIdentity: string;
     readonly candidateId: string;
@@ -1226,6 +1233,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     this.pruneExpired(now);
     const session = this.sessions.get(input.sessionId);
     if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
     if (input.candidateSetIdentity !== session.prepared.candidateSetIdentity) {
       throw new Error("Visual harmony candidate identity is stale or does not match this session.");
     }
@@ -1248,6 +1258,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
   }
 
   confirm(input: {
+    readonly subjectId?: string;
     readonly sessionId: string;
     readonly candidateSetIdentity: string;
     readonly selectedCandidateIds: readonly string[];
@@ -1266,6 +1277,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     const session = this.sessions.get(input.sessionId);
     if (session === undefined) {
       throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    }
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
     }
     if (input.candidateSetIdentity !== session.prepared.candidateSetIdentity) {
       throw new Error("Visual harmony candidate identity is stale or does not match this session.");
@@ -1381,17 +1395,23 @@ function decodeCanonicalLuminanceBase64(value: string | undefined): readonly num
 
 export function createPersonalVisualHarmonyMcpServerV1(options: {
   readonly service?: PersonalVisualHarmonySessionServiceV1;
+  readonly subjectId?: string;
+  readonly serverInfo?: {
+    readonly name: string;
+    readonly version: string;
+  };
   readonly now?: () => number;
   readonly monotonicNow?: () => number;
 } = {}): McpServer {
   const service = options.service ?? new PersonalVisualHarmonySessionServiceV1();
+  const subjectId = options.subjectId;
   const now = options.now ?? (() => Date.now());
   const monotonicNow = options.monotonicNow ?? (() => performance.now());
   let observationAttemptSequence = 0;
   const server = new McpServer(
     {
-      name: PERSONAL_VISUAL_HARMONY_MCP_SERVER_NAME,
-      version: PERSONAL_VISUAL_HARMONY_MCP_SERVER_VERSION,
+      name: options.serverInfo?.name ?? PERSONAL_VISUAL_HARMONY_MCP_SERVER_NAME,
+      version: options.serverInfo?.version ?? PERSONAL_VISUAL_HARMONY_MCP_SERVER_VERSION,
     },
     {
       capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
@@ -1479,6 +1499,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       const handlerEnteredAtMs = now();
       const handlerStartedAtMonotonicMs = monotonicNow();
       const prepared = service.prepare({
+        ...(subjectId === undefined ? {} : { subjectId }),
         fileId: image.file_id,
         ...(image.mime_type === undefined ? {} : { mediaType: image.mime_type }),
         candidates: asPersonalVisualHarmonyCandidates(candidates),
@@ -1565,7 +1586,11 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       let effectiveSessionId = sessionId;
       let refined;
       try {
-        refined = service.refinePixels({ sessionId, ...refinementInput });
+        refined = service.refinePixels({
+          ...(subjectId === undefined ? {} : { subjectId }),
+          sessionId,
+          ...refinementInput,
+        });
       } catch (error) {
         if (!(error instanceof Error) || error.message !== MISSING_OR_EXPIRED_SESSION_MESSAGE) throw error;
         const candidateMediaTypes = recovery.sourceImageMediaType === null
@@ -1590,6 +1615,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           throw new Error("Recovered visual harmony candidate identity does not match the pixel proposal.");
         }
         const recovered = service.prepare({
+          ...(subjectId === undefined ? {} : { subjectId }),
           fileId: recovery.fileId,
           mediaType: matchingMediaType,
           candidates: asPersonalVisualHarmonyCandidates(recovery.candidates),
@@ -1597,7 +1623,11 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             ? {}
             : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
-        refined = service.refinePixels({ sessionId: recovered.sessionId, ...refinementInput });
+        refined = service.refinePixels({
+          ...(subjectId === undefined ? {} : { subjectId }),
+          sessionId: recovered.sessionId,
+          ...refinementInput,
+        });
         effectiveSessionId = recovered.sessionId;
         sessionRecovered = true;
       }
@@ -1668,7 +1698,11 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       let effectiveSessionId = sessionId;
       let confirmed;
       try {
-        confirmed = service.confirm({ sessionId, ...confirmationInput });
+        confirmed = service.confirm({
+          ...(subjectId === undefined ? {} : { subjectId }),
+          sessionId,
+          ...confirmationInput,
+        });
       } catch (error) {
         if (!(error instanceof Error) || error.message !== MISSING_OR_EXPIRED_SESSION_MESSAGE) {
           throw error;
@@ -1695,6 +1729,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           throw new Error("Recovered visual harmony candidate identity does not match the confirmed review.");
         }
         const recovered = service.prepare({
+          ...(subjectId === undefined ? {} : { subjectId }),
           fileId: recovery.fileId,
           mediaType: matchingMediaType,
           candidates: asPersonalVisualHarmonyCandidates(recovery.candidates),
@@ -1703,6 +1738,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
         confirmed = service.confirm({
+          ...(subjectId === undefined ? {} : { subjectId }),
           sessionId: recovered.sessionId,
           ...confirmationInput,
         });

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 
-import { Server as McpServer } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { StreamableHTTPServerTransportOptions } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
@@ -16,6 +16,13 @@ import {
   handleMcpJsonRpcRequest,
   STRUCTURED_ANALYSIS_MCP_TOOL,
 } from "./stdio-protocol.js";
+import {
+  createPersonalVisualHarmonyMcpServerV1,
+  PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+  PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+  PersonalVisualHarmonySessionServiceV1,
+} from "./personal-visual-harmony-app.js";
 import {
   createRemoteMcpAccessTokenVerifier,
 } from "./remote-http-auth.js";
@@ -71,7 +78,12 @@ export interface RemoteMcpLogEvent {
   readonly requestId: string;
   readonly timestamp: string;
   readonly route: "/mcp";
-  readonly tool: typeof REMOTE_TOOL_NAME | "mcp";
+  readonly tool:
+    | typeof REMOTE_TOOL_NAME
+    | typeof PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL
+    | "mcp";
   readonly outcome: "allow" | "deny";
   readonly status: number;
   readonly errorCode?: RemoteMcpStableErrorCode;
@@ -85,6 +97,7 @@ export interface RemoteMcpLogEvent {
 export interface RemoteMcpRuntimeDependencies {
   readonly verifyAccessToken?: RemoteMcpAccessTokenVerifier;
   readonly admissionController?: RemoteMcpAdmissionController;
+  readonly personalVisualHarmonyService?: PersonalVisualHarmonySessionServiceV1;
   readonly log?: (event: RemoteMcpLogEvent) => void;
 }
 
@@ -94,11 +107,21 @@ export function createRemoteMcpHttpServer(
 ): Server {
   const verifyAccessToken = dependencies.verifyAccessToken ?? createRemoteMcpAccessTokenVerifier(config);
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
+  const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
+    ?? new PersonalVisualHarmonySessionServiceV1();
   const log = dependencies.log ?? ((event: RemoteMcpLogEvent) => console.log(JSON.stringify(event)));
 
   return createServer(async (request, response) => {
     try {
-      await routeRequest(config, verifyAccessToken, admissionController, log, request, response);
+      await routeRequest(
+        config,
+        verifyAccessToken,
+        admissionController,
+        personalVisualHarmonyService,
+        log,
+        request,
+        response,
+      );
     } catch {
       if (!response.headersSent && !response.writableEnded) {
         sendJson(response, 500, stableError("internal_error", randomUUID()));
@@ -118,6 +141,7 @@ async function routeRequest(
   config: RemoteMcpRuntimeConfig,
   verifyAccessToken: RemoteMcpAccessTokenVerifier,
   admissionController: RemoteMcpAdmissionController,
+  personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
   log: (event: RemoteMcpLogEvent) => void,
   request: IncomingMessage,
   response: ServerResponse,
@@ -199,6 +223,7 @@ async function routeRequest(
     response,
     requestId,
     access,
+    personalVisualHarmonyService,
     log,
     startedAt,
     abortController.signal,
@@ -236,6 +261,7 @@ async function handleAuthenticatedPost(
   response: ServerResponse,
   requestId: string,
   access: VerifiedRemoteMcpAccess,
+  personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
   log: (event: RemoteMcpLogEvent) => void,
   startedAt: number,
   abortSignal: AbortSignal,
@@ -285,7 +311,8 @@ async function handleAuthenticatedPost(
     return;
   }
 
-  const mcpServer = createRequestMcpServer();
+  const tool = remoteMcpLogTool(parsedBody);
+  const mcpServer = createRequestMcpServer(personalVisualHarmonyService, access.subjectId);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -334,30 +361,65 @@ async function handleAuthenticatedPost(
     assertRemoteMcpNotAborted(abortSignal);
     if (!response.headersSent && !response.writableEnded) {
       sendJson(response, 500, stableError("internal_error", requestId));
-      logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, body.byteLength, protocolVersion);
+      logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, body.byteLength, protocolVersion, tool);
       return;
     }
-    logEvent(log, requestId, startedAt, response.statusCode, undefined, access, access.scopes, body.byteLength, protocolVersion);
+    logEvent(log, requestId, startedAt, response.statusCode, undefined, access, access.scopes, body.byteLength, protocolVersion, tool);
   } finally {
     abortSignal.removeEventListener("abort", abortListener);
     await closeResources();
   }
 }
 
-function createRequestMcpServer(): McpServer {
-  const server = new McpServer(
-    { name: REMOTE_MCP_SERVER_NAME, version: REMOTE_MCP_SERVER_VERSION },
-    { capabilities: { tools: { listChanged: false } } },
-  );
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: [{
-      ...STRUCTURED_ANALYSIS_MCP_TOOL,
-      securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES,
-    }],
-  }));
-  server.setRequestHandler(CallToolRequestSchema, (request) => {
+function createRequestMcpServer(
+  service: PersonalVisualHarmonySessionServiceV1,
+  subjectId: string,
+): McpServer {
+  const server = createPersonalVisualHarmonyMcpServerV1({
+    service,
+    subjectId,
+    serverInfo: {
+      name: REMOTE_MCP_SERVER_NAME,
+      version: REMOTE_MCP_SERVER_VERSION,
+    },
+  });
+  const requestHandlers = (server.server as unknown as {
+    readonly _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<Record<string, unknown>>>;
+  })._requestHandlers;
+  const personalListHandler = requestHandlers.get("tools/list");
+  const personalCallHandler = requestHandlers.get("tools/call");
+  if (personalListHandler === undefined || personalCallHandler === undefined) {
+    throw new Error("Personal visual harmony MCP handlers are unavailable.");
+  }
+
+  server.server.removeRequestHandler("tools/list");
+  server.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+    const personalResult = await personalListHandler(request, extra) as {
+      readonly tools: readonly Record<string, unknown>[];
+    };
+    return {
+      tools: [
+        ...personalResult.tools.map((tool) => ({
+          ...tool,
+          securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES,
+          _meta: {
+            ...(typeof tool._meta === "object" && tool._meta !== null ? tool._meta : {}),
+            securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES,
+          },
+        })),
+        {
+          ...STRUCTURED_ANALYSIS_MCP_TOOL,
+          securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES,
+          _meta: { securitySchemes: REMOTE_TOOL_SECURITY_SCHEMES },
+        },
+      ],
+    };
+  });
+
+  server.server.removeRequestHandler("tools/call");
+  server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     if (request.params.name !== REMOTE_TOOL_NAME) {
-      throw new McpError(ErrorCode.InvalidParams, "Invalid params");
+      return await personalCallHandler(request, extra);
     }
     const localResponse = handleMcpJsonRpcRequest({
       jsonrpc: "2.0",
@@ -571,13 +633,14 @@ function logEvent(
   scopes: readonly string[],
   payloadBytes: number,
   protocolVersion: string | undefined,
+  tool: RemoteMcpLogEvent["tool"] = "mcp",
 ): void {
   const duration = Date.now() - startedAt;
   const base = {
     requestId,
     timestamp: new Date().toISOString(),
     route: "/mcp" as const,
-    tool: REMOTE_TOOL_NAME as typeof REMOTE_TOOL_NAME,
+    tool,
     outcome: errorCode === undefined && status < 400 ? "allow" as const : "deny" as const,
     status,
     scopes,
@@ -590,6 +653,20 @@ function logEvent(
     ...(access === undefined ? {} : { subjectId: access.subjectId }),
     ...(protocolVersion === undefined ? {} : { protocolVersion }),
   });
+}
+
+function remoteMcpLogTool(body: unknown): RemoteMcpLogEvent["tool"] {
+  if (!isRecord(body) || body.method !== "tools/call" || !isRecord(body.params)) {
+    return "mcp";
+  }
+  const name = body.params.name;
+  if (name === REMOTE_TOOL_NAME
+    || name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL) {
+    return name;
+  }
+  return "mcp";
 }
 
 function latencyBucket(duration: number): RemoteMcpLogEvent["latencyBucket"] {
