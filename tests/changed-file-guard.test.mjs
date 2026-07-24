@@ -192,7 +192,7 @@ test("PR257 performance truth harness is an exact provider-free scoped set", () 
   }
 });
 
-test("PR258 RLS boundary and Auth0 sandbox qualification is an exact preparation-only set", () => {
+test("PR258 RLS boundary and MCP sandbox qualification is an exact preparation-only set", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(pr258RlsBoundaryMcpSandboxQualificationChangedFiles),
     pr258RlsBoundaryMcpSandboxQualificationChangedFiles,

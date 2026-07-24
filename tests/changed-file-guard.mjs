@@ -1093,6 +1093,7 @@ export const performanceTruthHarnessChangedFiles = Object.freeze([
 ].sort());
 
 export const pr258RlsBoundaryMcpSandboxQualificationChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-24-railway-supabase-oauth-provider-qualification.md",
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
