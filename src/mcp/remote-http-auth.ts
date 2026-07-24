@@ -55,7 +55,7 @@ export function createRemoteMcpAccessTokenVerifier(
       const keyResolver = await keyResolverPromise;
       const verified = await jwtVerify(token, keyResolver, {
         algorithms: ["RS256"],
-      issuer: config.issuerClaim,
+        issuer: config.issuerClaim,
         audience: config.audience,
         clockTolerance: 0,
       });

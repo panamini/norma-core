@@ -94,7 +94,9 @@ export function loadRemoteMcpRuntimeConfig(
     publicUrl,
     resourceUrl,
     issuer,
-    issuerClaim: issuerInput.endsWith("/") ? issuer.href : issuer.href.slice(0, -1),
+    issuerClaim: issuerInput.endsWith("/") || !issuer.href.endsWith("/")
+      ? issuer.href
+      : issuer.href.slice(0, -1),
     authorizationServerUrl,
     jwksUrl,
     authorizationScope,
