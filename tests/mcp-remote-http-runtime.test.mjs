@@ -101,6 +101,29 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(serializedLogs.includes("auth0|subject-a"), false);
 });
 
+test("PR259 advertises a provider scope alias while retaining Norma's canonical scope", async (t) => {
+  const config = { ...runtimeConfig(), authorizationScope: "norma:structured_analyze" };
+  const server = createRemoteMcpHttpServer(config, {
+    verifyAccessToken: deterministicVerifier,
+    log: () => {},
+  });
+  await listen(server);
+  t.after(() => close(server));
+  const port = server.address().port;
+
+  const metadata = await request(port, {
+    method: "GET",
+    path: "/.well-known/oauth-protected-resource/mcp",
+  });
+  assert.deepEqual(metadata.json.scopes_supported, ["norma:structured_analyze"]);
+
+  const missingAuth = await mcpRequest(port, initializeRequest(protocol), { authorization: undefined });
+  assert.match(
+    missingAuth.headers["www-authenticate"],
+    /scope="norma:structured_analyze"/u,
+  );
+});
+
 test("PR137 rejects methods protocols hosts origins media types and every unapproved capability", async (t) => {
   const config = { ...runtimeConfig(), allowedOrigins: new Set(["https://chatgpt.com"]) };
   const server = createRemoteMcpHttpServer(config, { verifyAccessToken: deterministicVerifier, log: () => {} });
@@ -319,6 +342,7 @@ function runtimeConfig() {
     issuer: new URL("https://tenant.example/"),
     authorizationServerUrl: new URL("https://tenant.example/resources/norma"),
     jwksUrl: new URL("https://tenant.example/keys"),
+    authorizationScope: "norma:structured-analyze",
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),

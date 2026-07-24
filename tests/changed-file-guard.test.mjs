@@ -156,6 +156,7 @@ import {
   performanceTruthHarnessChangedFiles,
   pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
+  scalekitScopeAliasQualificationChangedFiles,
   structuredAnalyzeStdioTimeoutCleanupChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
@@ -229,6 +230,27 @@ test("PR259 provider-neutral MCP auth adapter is an exact sandbox implementation
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([...pr259ProviderNeutralMcpAuthAdapterChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("Scalekit scope alias qualification is an exact provider-neutral sandbox set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(scalekitScopeAliasQualificationChangedFiles),
+    scalekitScopeAliasQualificationChangedFiles,
+  );
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "render.yaml",
+    "railway.json",
+    "supabase/config.toml",
+    "supabase/migrations/00000000000000_scalekit_scope_alias.sql",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...scalekitScopeAliasQualificationChangedFiles, forbiddenFile]),
       null,
       forbiddenFile,
     );
@@ -3533,6 +3555,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     pr259ProviderNeutralMcpAuthAdapterChangedFiles,
   );
+  const isScalekitScopeAliasSet = isExactChangedFileSet(
+    changedFiles,
+    scalekitScopeAliasQualificationChangedFiles,
+  );
   const isPr138Set = isExactChangedFileSet(
     changedFiles,
     remoteMcpRenderPrivateBetaDeploymentChangedFiles,
@@ -3569,7 +3595,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPr258Set || isPr259Set || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPr258Set || isPr259Set || isScalekitScopeAliasSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -3639,6 +3665,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? pr258RlsBoundaryMcpSandboxQualificationChangedFiles
       : isPr259Set
       ? pr259ProviderNeutralMcpAuthAdapterChangedFiles
+      : isScalekitScopeAliasSet
+      ? scalekitScopeAliasQualificationChangedFiles
       : isPr138Set
       ? remoteMcpRenderPrivateBetaDeploymentChangedFiles
       : isPr137aSet

@@ -25,6 +25,7 @@ export interface RemoteMcpRuntimeConfig {
   readonly issuer: URL;
   readonly authorizationServerUrl: URL;
   readonly jwksUrl: URL | undefined;
+  readonly authorizationScope: string;
   readonly audience: string;
   readonly auditHashKey: string;
   readonly allowedOrigins: ReadonlySet<string>;
@@ -71,6 +72,10 @@ export function loadRemoteMcpRuntimeConfig(
   const jwksUrl = environment.NORMA_MCP_AUTH_JWKS_URL === undefined
     ? undefined
     : parseConfiguredUrl(environment.NORMA_MCP_AUTH_JWKS_URL, "NORMA_MCP_AUTH_JWKS_URL", nodeEnv);
+  const authorizationScope = parseOAuthScope(
+    environment.NORMA_MCP_AUTH_SCOPE ?? REMOTE_MCP_REQUIRED_SCOPE,
+    "NORMA_MCP_AUTH_SCOPE",
+  );
   const audience = required(
     environment.NORMA_MCP_AUTH_AUDIENCE ?? environment.NORMA_MCP_AUTH0_AUDIENCE,
     "NORMA_MCP_AUTH_AUDIENCE",
@@ -93,10 +98,20 @@ export function loadRemoteMcpRuntimeConfig(
     issuer,
     authorizationServerUrl,
     jwksUrl,
+    authorizationScope,
     audience,
     auditHashKey,
     allowedOrigins,
   };
+}
+
+function parseOAuthScope(value: string, name: string): string {
+  // RFC 6749 scope-token grammar: reject whitespace, quotes, and control data
+  // before the value is reflected in OAuth metadata or WWW-Authenticate.
+  if (!/^[\x21\x23-\x5B\x5D-\x7E]+$/u.test(value)) {
+    throw new Error(`${name} must contain exactly one valid OAuth scope token`);
+  }
+  return value;
 }
 
 function parseConfiguredUrl(value: string, name: string, nodeEnv: string): URL {

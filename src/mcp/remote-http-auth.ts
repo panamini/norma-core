@@ -156,10 +156,11 @@ function verifiedAccess(
   }
 
   validateResourceClaim(config, payload.resource);
-  const scopes = parseScopes(payload.scope);
-  if (!scopes.includes(REMOTE_MCP_REQUIRED_SCOPE)) {
+  const providerScopes = parseScopes(payload.scope);
+  if (!providerScopes.includes(config.authorizationScope)) {
     throw new RemoteMcpAuthenticationError();
   }
+  const scopes = normalizeScopes(providerScopes, config.authorizationScope);
 
   const clientId =
     typeof payload.client_id === "string" && payload.client_id.trim() !== ""
@@ -194,6 +195,12 @@ function parseScopes(scope: unknown): readonly string[] {
     return [];
   }
   return [...new Set(scope.split(/\s+/u).filter((entry) => entry !== ""))].sort();
+}
+
+function normalizeScopes(scopes: readonly string[], authorizationScope: string): readonly string[] {
+  return [...new Set(scopes.map((scope) => (
+    scope === authorizationScope ? REMOTE_MCP_REQUIRED_SCOPE : scope
+  )))].sort();
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
