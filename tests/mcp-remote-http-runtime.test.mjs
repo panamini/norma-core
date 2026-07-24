@@ -14,6 +14,12 @@ import {
   RemoteMcpRequestTimeoutError,
 } from "../dist/src/mcp/remote-http-server.js";
 import { RemoteMcpAdmissionController } from "../dist/src/mcp/remote-http-limits.js";
+import {
+  PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+  PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+  PERSONAL_VISUAL_HARMONY_WIDGET_URI,
+} from "../dist/src/mcp/personal-visual-harmony-app.js";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const analyzeToolName = "norma.analyzeStructuredCompositionV1";
@@ -74,17 +80,77 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
     params: {},
   });
   assert.equal(list.status, 200);
-  assert.deepEqual(list.json.result.tools.map((tool) => tool.name), [analyzeToolName]);
-  assert.deepEqual(list.json.result.tools[0].annotations, {
+  assert.deepEqual(list.json.result.tools.map((tool) => tool.name), [
+    PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+    PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+    PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    analyzeToolName,
+  ]);
+  const prepareTool = list.json.result.tools[0];
+  assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+  assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+  assert.deepEqual(prepareTool._meta.securitySchemes, [{
+    type: "oauth2",
+    scopes: ["norma:structured_analyze"],
+  }]);
+  assert.deepEqual(list.json.result.tools[3].annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,
     idempotentHint: true,
   });
-  assert.deepEqual(list.json.result.tools[0].securitySchemes, [{
+  assert.deepEqual(list.json.result.tools[3].securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
   }]);
+
+  const resources = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "resources",
+    method: "resources/list",
+    params: {},
+  });
+  assert.equal(resources.status, 200);
+  assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
+  const widget = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "widget",
+    method: "resources/read",
+    params: { uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI },
+  });
+  assert.equal(widget.status, 200);
+  assert.equal(widget.json.result.contents[0].uri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+  assert.equal(widget.json.result.contents[0].mimeType, "text/html;profile=mcp-app");
+  assert.match(widget.json.result.contents[0].text, /window[.]openai/u);
+
+  const prepared = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "prepare",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/remote-visual-image",
+          file_id: "remote-visual-image",
+          mime_type: "image/png",
+        },
+        candidates: [{
+          id: "frame",
+          label: "Cadre visible",
+          role: "frame",
+          reason: "Bords visibles du cadre de l’image.",
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        }],
+      },
+    },
+  });
+  assert.equal(prepared.status, 200);
+  assert.equal(prepared.json.result.structuredContent.status, "confirmation_required");
+  assert.equal(prepared.json.result.structuredContent.coreRun, false);
 
   const input = JSON.parse(await readFile(
     join(repoRoot, "examples", "structured-analyze", "scenarios", "alignment-basic.json"),
@@ -160,14 +226,16 @@ test("PR137 rejects methods protocols hosts origins media types and every unappr
   });
   assert.equal(listWithoutProtocol.status, 400);
 
-  assert.equal((await mcpRequest(port, { jsonrpc: "2.0", id: 1, method: "resources/list", params: {} })).json.error.code, -32601);
+  assert.equal((await mcpRequest(port, { jsonrpc: "2.0", id: 1, method: "resources/list", params: {} })).status, 200);
   assert.equal((await mcpRequest(port, { jsonrpc: "2.0", id: 1, method: "prompts/list", params: {} })).json.error.code, -32601);
-  assert.equal((await mcpRequest(port, {
+  const unapprovedTool = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: 1,
     method: "tools/call",
     params: { name: "norma.getVersion", arguments: {} },
-  })).json.error.code, -32602);
+  });
+  assert.equal(unapprovedTool.status, 200);
+  assert.equal(unapprovedTool.json.result.isError, true);
 
   const wrongHost = await mcpRequest(port, initializeRequest(protocol), { host: "attacker.invalid" });
   assert.equal(wrongHost.status, 400);
