@@ -1149,6 +1149,13 @@ export const pr263ScalekitIssuerCompatibilityChangedFiles = Object.freeze([
   "tests/mcp-remote-http-contract.test.mjs",
 ].sort());
 
+export const pr264ScalekitCompositeAudienceChangedFiles = Object.freeze([
+  "src/mcp/remote-http-auth.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-auth.test.mjs",
+].sort());
+
 export const localInspectionSurfaceStaticSafetyGuardChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -1947,6 +1954,7 @@ const sharedExactApprovedChangedFileSets = [
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,
   pr263ScalekitIssuerCompatibilityChangedFiles,
+  pr264ScalekitCompositeAudienceChangedFiles,
   structuredAnalyzeStdioTimeoutStabilityChangedFiles,
   structuredAnalyzeReportDashboardInspectionChangedFiles,
   structuredAnalyzeVisualViewerChangedFiles,
