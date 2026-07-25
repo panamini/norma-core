@@ -4,6 +4,7 @@ import type { PostgreSqlAuthorizationPool } from "./remote-http-authorization-da
 
 export const POSTGRESQL_DATABASE_URL_ENV = "NORMA_MCP_AUTHZ_DATABASE_URL";
 export const POSTGRESQL_SSL_ENV = "NORMA_MCP_POSTGRES_SSL";
+export const POSTGRESQL_CA_ENV = "NORMA_MCP_POSTGRES_CA";
 
 const DEFAULT_POOL_MAX = 4;
 const CONNECTION_TIMEOUT_MS = 10_000;
@@ -22,6 +23,10 @@ export function createPostgreSqlPoolFromEnvironment(
   if (sslMode !== "require" && !(environment.NODE_ENV === "test" && sslMode === "disable")) {
     throw new Error(`${POSTGRESQL_SSL_ENV} must be require outside isolated tests`);
   }
+  const ca = environment[POSTGRESQL_CA_ENV];
+  if (ca !== undefined && ca.trim() === "") {
+    throw new Error(`${POSTGRESQL_CA_ENV} must not be empty when supplied`);
+  }
 
   const pool = new Pool({
     connectionString: parsed,
@@ -29,7 +34,12 @@ export function createPostgreSqlPoolFromEnvironment(
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
     allowExitOnIdle: false,
-    ssl: sslMode === "require" ? { rejectUnauthorized: true } : false,
+    ssl: sslMode === "require"
+      ? {
+        ...(ca === undefined ? {} : { ca }),
+        rejectUnauthorized: true,
+      }
+      : false,
   });
   pool.on("error", () => {
     console.error(JSON.stringify({ event: "postgresql_pool_error" }));
@@ -53,6 +63,10 @@ function parseConnectionString(value: string): string {
   const embeddedSslMode = parsed.searchParams.get("sslmode");
   if (embeddedSslMode !== null && embeddedSslMode !== "require") {
     throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not disable TLS`);
+  }
+  if (embeddedSslMode === "require") {
+    parsed.searchParams.delete("sslmode");
+    return parsed.toString();
   }
   return value;
 }

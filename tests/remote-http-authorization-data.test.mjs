@@ -111,6 +111,7 @@ function deferred(label, timeoutMs = 2_000) {
 function createPostgreSqlProof(records, {
   failBegin = false,
   failRollback = false,
+  failReset = false,
   onConnect,
   onQuery,
   onReadStart,
@@ -140,6 +141,11 @@ function createPostgreSqlProof(records, {
               throw new Error("rollback unavailable");
             }
             localSettings.clear();
+          } else if (sql.startsWith("RESET ")) {
+            if (failReset) {
+              throw new Error("reset unavailable");
+            }
+            localSettings.delete(sql.slice("RESET ".length));
           }
         },
         release(error) {
@@ -254,10 +260,17 @@ test("PostgreSQL adapter applies transaction-local context and preserves RLS den
   assert.equal(proof.connectCount(), 2);
 
   const sql = proof.events.map((event) => event.sql);
-  assert.deepEqual(sql.slice(0, 8), [
+  assert.deepEqual(sql.slice(0, 7), [
     "BEGIN",
     ...Array(5).fill("SELECT set_config($1, $2, true)"),
     "COMMIT",
+  ]);
+  assert.deepEqual(sql.slice(7, 13), [
+    "RESET norma.auth_subject",
+    "RESET norma.auth_tenant",
+    "RESET norma.auth_scopes",
+    "RESET norma.auth_audience",
+    "RESET norma.auth_expires_at",
     "RELEASE",
   ]);
   for (const event of proof.events.filter(
@@ -314,6 +327,7 @@ test("PostgreSQL adapter commits or rolls back, closes, and releases the connect
       .map((event) => event.sql),
     ["COMMIT", "RELEASE", "ROLLBACK", "RELEASE"],
   );
+  assert.equal(proof.events.filter((event) => event.sql.startsWith("RESET ")).length, 10);
   assert.deepEqual(
     proof.events.filter((event) => event.sql === "RELEASE").map((event) => event.values),
     [[], []],
@@ -353,6 +367,18 @@ test("PostgreSQL adapter closes retained handles before a pending commit", async
   allowCommit.resolve();
   assert.equal(await transactionPromise, "committed");
   assert.equal(proof.events.at(-1).sql, "RELEASE");
+});
+
+test("PostgreSQL adapter evicts a connection when authorization settings cannot reset", async () => {
+  const proof = createPostgreSqlProof([], { failReset: true });
+  await assert.rejects(
+    () => proof.adapter.withTransaction(context({ expiresAt: 1_300 }), async () => null),
+    /reset unavailable/u,
+  );
+  assert.deepEqual(proof.events.at(-1), {
+    sql: "RELEASE",
+    values: ["reset unavailable"],
+  });
 });
 
 test("PostgreSQL adapter waits for in-flight reads before commit and release", async () => {

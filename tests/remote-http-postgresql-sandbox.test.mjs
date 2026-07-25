@@ -209,6 +209,15 @@ test("PostgreSQL runtime pool is disabled by default and enforces disposable con
     }),
     /must not disable TLS/u,
   );
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({
+      NODE_ENV: "production",
+      NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+      NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox",
+      NORMA_MCP_POSTGRES_CA: "   ",
+    }),
+    /NORMA_MCP_POSTGRES_CA must not be empty/u,
+  );
 
   const pool = createPostgreSqlPoolFromEnvironment({
     NODE_ENV: "test",
@@ -218,6 +227,17 @@ test("PostgreSQL runtime pool is disabled by default and enforces disposable con
   });
   assert.ok(pool);
   await pool.end();
+
+  const ca = "-----BEGIN CERTIFICATE-----\\nfixture\\n-----END CERTIFICATE-----";
+  const tlsPool = createPostgreSqlPoolFromEnvironment({
+    NODE_ENV: "production",
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox?sslmode=require",
+    NORMA_MCP_POSTGRES_CA: ca,
+  });
+  assert.deepEqual(tlsPool.options.ssl, { ca, rejectUnauthorized: true });
+  assert.equal(tlsPool.options.connectionString.includes("sslmode"), false);
+  await tlsPool.end();
 });
 
 function context(subject, tenant) {
@@ -253,6 +273,10 @@ function createFakePool(records, role = {
           }
           if (sql === "SELECT set_config($1, $2, true)") {
             settings.set(values[0], values[1]);
+            return;
+          }
+          if (sql.startsWith("RESET ")) {
+            settings.delete(sql.slice("RESET ".length));
             return;
           }
           if (sql === POSTGRESQL_SANDBOX_READ_RECORD_SQL) {
