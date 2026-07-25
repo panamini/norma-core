@@ -35,7 +35,6 @@
     "check": "npm run build && npm test"
   },
   "devDependencies": {
-    "@types/pg": "^8.20.0",
     "typescript": "^5.8.0"
   },
   "dependencies": {

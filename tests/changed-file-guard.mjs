@@ -1177,10 +1177,13 @@ export const postgreSqlRuntimePoolWiringChangedFiles = Object.freeze([
   "docs/runbooks/sandbox-qualification-launch-gates.md",
   "package-lock.json",
   "package.json",
+  "src/pg.d.ts",
   "src/mcp/remote-http-postgresql-pool.ts",
+  "tests/disabled-live-provider-experiment-harness.test.mjs",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/current-remote-mcp-boundary.mjs",
+  "tests/mcp-remote-http-contract.test.mjs",
   "tests/remote-http-postgresql-sandbox.test.mjs",
 ].sort());
 

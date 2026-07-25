@@ -6690,7 +6690,7 @@ test("R36 package metadata remains private without bin, export, or dependency ex
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
   assertCurrentRemoteMcpPackageBoundary(packageJson);
-  assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["@types/pg", "typescript"]);
+  assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), ["typescript"]);
 });
 
 test("shared exact changed-file guard rejects runtime, package, docs, and example extras in the PR85 normalization set", () => {
