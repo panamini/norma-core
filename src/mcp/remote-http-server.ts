@@ -122,8 +122,9 @@ export function createRemoteMcpHttpServer(
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
   const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
     ?? new PersonalVisualHarmonySessionServiceV1();
-  const authorizationDataAdapter = dependencies.authorizationDataAdapter
-    ?? configuredAuthorizationDataAdapter(config, dependencies.postgresqlPool);
+  const authorizationDataAdapter = config.authorizationDataMode === "postgresql"
+    ? configuredAuthorizationDataAdapter(config, dependencies.postgresqlPool)
+    : dependencies.authorizationDataAdapter;
   const log = dependencies.log ?? ((event: RemoteMcpLogEvent) => console.log(JSON.stringify(event)));
 
   return createServer(async (request, response) => {

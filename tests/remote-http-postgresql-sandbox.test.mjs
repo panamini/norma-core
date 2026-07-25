@@ -11,6 +11,7 @@ import {
   createPostgreSqlSandboxAuthorizationDataAdapter,
   POSTGRESQL_SANDBOX_READ_RECORD_SQL,
   POSTGRESQL_SANDBOX_ROLE_CONTRACT,
+  POSTGRESQL_SANDBOX_ROLE_VALIDATION_SQL,
   POSTGRESQL_SANDBOX_SCHEMA,
   POSTGRESQL_SANDBOX_SETTING_NAMES,
   POSTGRESQL_SANDBOX_TABLE,
@@ -24,12 +25,13 @@ test("PostgreSQL sandbox fixture is isolated, reversible, and least-privileged",
   const schema = createPostgreSqlSandboxSchemaSql();
   assert.match(schema, /ENABLE ROW LEVEL SECURITY/u);
   assert.match(schema, /FORCE ROW LEVEL SECURITY/u);
-  assert.match(schema, /NOSUPERUSER NOBYPASSRLS/u);
+  assert.match(schema, /NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT/u);
   assert.match(schema, /REVOKE ALL ON/u);
   assert.match(schema, /GRANT SELECT ON/u);
   assert.doesNotMatch(schema, /service_role|supabase_service_key/u);
   assert.match(POSTGRESQL_SANDBOX_TEARDOWN_SQL, /DROP TABLE IF EXISTS/u);
   assert.match(POSTGRESQL_SANDBOX_TEARDOWN_SQL, /DROP SCHEMA IF EXISTS/u);
+  assert.match(POSTGRESQL_SANDBOX_ROLE_VALIDATION_SQL, /FROM pg_roles/u);
   assert.equal(POSTGRESQL_SANDBOX_ROLE_CONTRACT.forbidden.includes("BYPASSRLS"), true);
   assert.equal(POSTGRESQL_SANDBOX_ROLE_CONTRACT.forbidden.includes("SUPERUSER"), true);
   assert.throws(() => createPostgreSqlSandboxSchemaSql("role with spaces"), /role name is invalid/u);
@@ -95,6 +97,41 @@ test("PostgreSQL sandbox adapter fails closed for missing context and malformed 
     )),
     /invalid row/u,
   );
+
+  const malformedPayload = createFakePool([{ id: "record-a", tenant: "tenant-a", payload: undefined }]);
+  const malformedPayloadAdapter = createPostgreSqlSandboxAuthorizationDataAdapter({
+    pool: malformedPayload.pool,
+    requiredScope,
+    settingNames: POSTGRESQL_SANDBOX_SETTING_NAMES,
+    nowSeconds: () => 1_000,
+  });
+  await assert.rejects(
+    () => malformedPayloadAdapter.withTransaction(context("subject-a", "tenant-a"), (transaction) => (
+      transaction.readRecord("record-a")
+    )),
+    /payload is not valid JSON/u,
+  );
+
+  const unsafeRole = createFakePool([], {
+    current_user: "admin",
+    rolsuper: false,
+    rolbypassrls: true,
+    rolcreatedb: false,
+    rolcreaterole: false,
+    rolinherit: false,
+  });
+  const unsafeRoleAdapter = createPostgreSqlSandboxAuthorizationDataAdapter({
+    pool: unsafeRole.pool,
+    requiredScope,
+    settingNames: POSTGRESQL_SANDBOX_SETTING_NAMES,
+    nowSeconds: () => 1_000,
+  });
+  await assert.rejects(
+    () => unsafeRoleAdapter.withTransaction(context("subject-a", "tenant-a"), (transaction) => (
+      transaction.readRecord("record-a")
+    )),
+    /least-privilege contract/u,
+  );
 });
 
 test("PostgreSQL mode is opt-in and fails closed without a supplied pool", () => {
@@ -115,6 +152,12 @@ test("PostgreSQL mode is opt-in and fails closed without a supplied pool", () =>
   assert.equal(configured.authorizationDataMode, "postgresql");
   assert.throws(
     () => createRemoteMcpHttpServer(configured),
+    /requires an injected PostgreSQL pool/u,
+  );
+  assert.throws(
+    () => createRemoteMcpHttpServer(configured, {
+      authorizationDataAdapter: { withTransaction: async () => null },
+    }),
     /requires an injected PostgreSQL pool/u,
   );
   assert.throws(
@@ -143,7 +186,14 @@ function context(subject, tenant) {
   };
 }
 
-function createFakePool(records) {
+function createFakePool(records, role = {
+  current_user: "norma_sandbox_user",
+  rolsuper: false,
+  rolbypassrls: false,
+  rolcreatedb: false,
+  rolcreaterole: false,
+  rolinherit: false,
+}) {
   const events = [];
   let connectCount = 0;
   const pool = {
@@ -154,6 +204,9 @@ function createFakePool(records) {
         async query(sql, values = []) {
           events.push({ sql, values: [...values] });
           if (sql === "BEGIN") return;
+          if (sql === POSTGRESQL_SANDBOX_ROLE_VALIDATION_SQL) {
+            return { rows: [role] };
+          }
           if (sql === "SELECT set_config($1, $2, true)") {
             settings.set(values[0], values[1]);
             return;
