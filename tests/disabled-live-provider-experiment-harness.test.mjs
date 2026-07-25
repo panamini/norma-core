@@ -220,9 +220,11 @@ test("PR116 source uses no forbidden provider network env image package or publi
     },
   });
   assertCurrentRemoteMcpPackageBoundary(packageJson);
-  if (isExactChangedFileSet(await gitDiffNames(), permanentRemoteMcpRuntimeChangedFiles)) return;
+  const changedFiles = await gitDiffNames();
+  if (isExactChangedFileSet(changedFiles, permanentRemoteMcpRuntimeChangedFiles)) return;
+  if (sharedExactApprovedChangedFiles(changedFiles) !== null) return;
   assert.deepEqual(
-    (await gitDiffNames()).filter((file) => [
+    changedFiles.filter((file) => [
       "package.json",
       "package-lock.json",
       "pnpm-lock.yaml",

@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
 import { createRemoteMcpHttpServerFromEnvironment } from "../dist/src/mcp/remote-http-server.js";
+import { createPostgreSqlPoolFromEnvironment } from "../dist/src/mcp/remote-http-postgresql-pool.js";
 
-const { config, server } = createRemoteMcpHttpServerFromEnvironment(process.env);
+const postgresqlPool = createPostgreSqlPoolFromEnvironment(process.env);
+const { config, server } = createRemoteMcpHttpServerFromEnvironment(process.env, {
+  postgresqlPool,
+});
 
 server.listen(config.port, "0.0.0.0", () => {
   process.stdout.write(JSON.stringify({
@@ -12,8 +16,15 @@ server.listen(config.port, "0.0.0.0", () => {
   }) + "\n");
 });
 
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await new Promise((resolve) => server.close(resolve));
+  await postgresqlPool?.end();
+  process.exit(0);
+}
+
 for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, () => {
-    server.close(() => process.exit(0));
-  });
+  process.once(signal, shutdown);
 }

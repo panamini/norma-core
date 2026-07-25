@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { permanentRemoteMcpDependencies } from "./current-remote-mcp-boundary.mjs";
+
 import {
   loadRemoteMcpRuntimeConfig,
   REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS,
@@ -15,11 +17,7 @@ test("PR137 pins exactly the approved runtime dependencies without widening pack
   const packageJson = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8"));
   const packageLock = JSON.parse(await readFile(join(repoRoot, "package-lock.json"), "utf8"));
 
-  assert.deepEqual(packageJson.dependencies, {
-    "@modelcontextprotocol/sdk": "1.29.0",
-    jose: "6.2.3",
-    zod: "4.4.3",
-  });
+  assert.deepEqual(packageJson.dependencies, permanentRemoteMcpDependencies);
   assert.equal(packageJson.private, true);
   assert.equal(packageJson.bin, undefined);
   assert.equal(packageJson.publishConfig, undefined);
