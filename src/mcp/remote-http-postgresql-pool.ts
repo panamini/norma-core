@@ -4,10 +4,12 @@ import type { PostgreSqlAuthorizationPool } from "./remote-http-authorization-da
 
 export const POSTGRESQL_DATABASE_URL_ENV = "NORMA_MCP_AUTHZ_DATABASE_URL";
 export const POSTGRESQL_SSL_ENV = "NORMA_MCP_POSTGRES_SSL";
+export const POSTGRESQL_CA_ENV = "NORMA_MCP_POSTGRES_CA";
 
 const DEFAULT_POOL_MAX = 4;
 const CONNECTION_TIMEOUT_MS = 10_000;
 const IDLE_TIMEOUT_MS = 30_000;
+const QUERY_TIMEOUT_MS = 10_000;
 
 export function createPostgreSqlPoolFromEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
@@ -22,14 +24,25 @@ export function createPostgreSqlPoolFromEnvironment(
   if (sslMode !== "require" && !(environment.NODE_ENV === "test" && sslMode === "disable")) {
     throw new Error(`${POSTGRESQL_SSL_ENV} must be require outside isolated tests`);
   }
+  const ca = environment[POSTGRESQL_CA_ENV];
+  if (ca !== undefined && ca.trim() === "") {
+    throw new Error(`${POSTGRESQL_CA_ENV} must not be empty when supplied`);
+  }
 
   const pool = new Pool({
     connectionString: parsed,
     max: DEFAULT_POOL_MAX,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
+    query_timeout: QUERY_TIMEOUT_MS,
+    statement_timeout: QUERY_TIMEOUT_MS,
     allowExitOnIdle: false,
-    ssl: sslMode === "require" ? { rejectUnauthorized: true } : false,
+    ssl: sslMode === "require"
+      ? {
+        ...(ca === undefined ? {} : { ca }),
+        rejectUnauthorized: true,
+      }
+      : false,
   });
   pool.on("error", () => {
     console.error(JSON.stringify({ event: "postgresql_pool_error" }));
@@ -50,11 +63,20 @@ function parseConnectionString(value: string): string {
   if (parsed.hostname === "" || parsed.username === "" || parsed.password === "") {
     throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must include a PostgreSQL host and credentials`);
   }
-  const embeddedSslMode = parsed.searchParams.get("sslmode");
-  if (embeddedSslMode !== null && embeddedSslMode !== "require") {
-    throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not disable TLS`);
+  for (const [key, value] of parsed.searchParams.entries()) {
+    const normalizedKey = key.toLowerCase();
+    if (normalizedKey === "sslmode") {
+      if (value.toLowerCase() !== "require") {
+        throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not disable TLS`);
+      }
+      parsed.searchParams.delete(key);
+      continue;
+    }
+    if (["ssl", "sslcert", "sslkey", "sslrootcert"].includes(normalizedKey)) {
+      throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not override TLS configuration`);
+    }
   }
-  return value;
+  return parsed.toString();
 }
 
 function required(value: string | undefined, name: string): string {

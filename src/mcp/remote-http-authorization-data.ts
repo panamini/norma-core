@@ -192,6 +192,8 @@ export function createPostgreSqlAuthorizationDataAdapter(
         closed = true;
         await waitForInFlightReads();
         await connection.query("COMMIT");
+        transactionStarted = false;
+        await resetAuthorizationSettings(connection, settingEntries);
         return result;
       } catch (error) {
         closed = true;
@@ -206,6 +208,15 @@ export function createPostgreSqlAuthorizationDataAdapter(
               "Authorization transaction and rollback failed",
             );
           }
+          try {
+            await resetAuthorizationSettings(connection, settingEntries);
+          } catch (resetError) {
+            releaseError = toError(resetError);
+            throw new AggregateError(
+              [error, resetError],
+              "Authorization transaction reset failed",
+            );
+          }
         } else {
           releaseError = toError(error);
         }
@@ -216,6 +227,17 @@ export function createPostgreSqlAuthorizationDataAdapter(
       }
     },
   };
+}
+
+async function resetAuthorizationSettings(
+  connection: PostgreSqlAuthorizationConnection,
+  settingEntries: ReadonlyArray<readonly [keyof PostgreSqlAuthorizationSettingNames, string]>,
+): Promise<void> {
+  for (const [, settingName] of settingEntries) {
+    // settingName is validated before this helper is reached; RESET clears the
+    // session-level value that pooled PostgreSQL connections retain after ROLLBACK.
+    await connection.query(`RESET ${settingName}`);
+  }
 }
 
 function authorizationSettingEntries(

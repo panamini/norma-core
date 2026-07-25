@@ -1187,6 +1187,19 @@ export const postgreSqlRuntimePoolWiringChangedFiles = Object.freeze([
   "tests/remote-http-postgresql-sandbox.test.mjs",
 ].sort());
 
+export const postgreSqlSandboxTlsAndPoolResetFixChangedFiles = Object.freeze([
+  "bin/norma-core-remote-mcp-http.mjs",
+  "docs/decisions/2026-07-25-railway-postgresql-sandbox-vertical-slice.md",
+  "docs/runbooks/sandbox-qualification-launch-gates.md",
+  "src/mcp/remote-http-authorization-data.ts",
+  "src/mcp/remote-http-postgresql-pool.ts",
+  "src/pg.d.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/remote-http-authorization-data.test.mjs",
+  "tests/remote-http-postgresql-sandbox.test.mjs",
+].sort());
+
 export const scalekitScopeAliasQualificationChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
   "docs/decisions/2026-07-24-pr259-provider-neutral-mcp-auth-adapter.md",
@@ -2041,6 +2054,7 @@ const sharedExactApprovedChangedFileSets = [
   sandboxQualificationLaunchGatesChangedFiles,
   railwayPostgreSqlSandboxAndQualificationChangedFiles,
   postgreSqlRuntimePoolWiringChangedFiles,
+  postgreSqlSandboxTlsAndPoolResetFixChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,

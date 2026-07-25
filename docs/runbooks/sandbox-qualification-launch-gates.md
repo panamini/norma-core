@@ -25,9 +25,15 @@ For the disposable Railway PostgreSQL path, enable the mode only with
 `NORMA_MCP_AUTHZ_DATA_MODE=postgresql` and
 `NORMA_MCP_AUTH_TENANT_CLAIM=<tenant-claim-name>`. Store the connection URL as
 the Railway secret `NORMA_MCP_AUTHZ_DATABASE_URL`; keep
-`NORMA_MCP_POSTGRES_SSL=require` outside isolated tests. The runtime creates a
-bounded pool, injects it into the provider-neutral adapter, and closes it on
-shutdown. Never place the URL in this repository or in qualification evidence.
+`NORMA_MCP_POSTGRES_SSL=require` outside isolated tests. If the database
+provider requires a private CA, store it as the Railway secret
+`NORMA_MCP_POSTGRES_CA`; verification remains enabled. The runtime creates a
+bounded pool, injects it into the provider-neutral adapter, resets authorization
+settings before releasing pooled connections, and closes the pool on shutdown.
+Embedded TLS overrides in the connection URL are rejected; query and statement
+timeouts are bounded, and startup must complete a database connection check
+before advertising readiness. Never place the URL or CA in this repository or
+in qualification evidence.
 
 ## Provider order
 

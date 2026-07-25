@@ -19,9 +19,15 @@ disabled default does not create or acquire a database adapter.
 
 When the mode is explicitly `postgresql`, the Railway entrypoint creates a
 bounded `pg` pool from the secret `NORMA_MCP_AUTHZ_DATABASE_URL`, requires TLS
-outside isolated tests, and injects that pool into the existing adapter. The
-pool is closed during SIGINT/SIGTERM shutdown. The URL is never logged or
-copied into PostgreSQL request context.
+outside isolated tests, and injects that pool into the existing adapter. If the
+database provider requires a private CA, `NORMA_MCP_POSTGRES_CA` supplies that
+CA while certificate verification remains enabled. The adapter resets every
+authorization GUC before releasing a pooled connection; a reset failure evicts
+the connection. Embedded connection-string TLS overrides are rejected, and
+connection plus statement/query timeouts bound the disposable pool. Startup
+performs a bounded database connection check before advertising readiness; the
+pool is closed during SIGINT/SIGTERM shutdown with non-zero failure reporting.
+The URL is never logged or copied into PostgreSQL request context.
 
 The adapter receives only `AuthenticatedRequestContext`; raw JWTs, provider
 claim objects, emails, prompts, and request bodies are not passed to the
