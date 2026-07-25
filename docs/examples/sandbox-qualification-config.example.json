@@ -1,0 +1,11 @@
+{
+  "mode": "dry-run",
+  "providerOrder": ["scalekit", "auth0"],
+  "auth0Fallback": "blocking-scalekit-failure-only",
+  "protectedResource": "<sandbox-mcp-resource>",
+  "audience": "<exact-sandbox-mcp-resource>",
+  "scalekitScope": "norma:structured_analyze",
+  "normaScope": "norma:structured-analyze",
+  "evidenceFile": null,
+  "productionReadiness": "CLOSED"
+}
