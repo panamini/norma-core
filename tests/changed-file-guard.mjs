@@ -1142,6 +1142,17 @@ export const postgreSqlAuthorizationTransactionRaceFixChangedFiles = Object.free
   "tests/remote-http-authorization-data.test.mjs",
 ].sort());
 
+export const railwayPostgreSqlSandboxVerticalSliceChangedFiles = Object.freeze([
+  "docs/decisions/2026-07-25-railway-postgresql-sandbox-vertical-slice.md",
+  "src/mcp/remote-http-config.ts",
+  "src/mcp/remote-http-postgresql-sandbox.ts",
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/current-remote-mcp-boundary.mjs",
+  "tests/remote-http-postgresql-sandbox.test.mjs",
+].sort());
+
 export const scalekitScopeAliasQualificationChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
   "docs/decisions/2026-07-24-pr259-provider-neutral-mcp-auth-adapter.md",
@@ -1992,6 +2003,7 @@ const sharedExactApprovedChangedFileSets = [
   pr266ProviderNeutralAuthorizationDataBoundaryChangedFiles,
   postgreSqlAuthorizationTransactionBoundaryChangedFiles,
   postgreSqlAuthorizationTransactionRaceFixChangedFiles,
+  railwayPostgreSqlSandboxVerticalSliceChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,

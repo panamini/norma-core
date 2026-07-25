@@ -31,7 +31,10 @@ import type {
   VerifiedRemoteMcpAccess,
 } from "./remote-http-auth.js";
 import { AuthorizationDataAccessDeniedError } from "./remote-http-authorization-data.js";
-import type { AuthorizationDataAdapter } from "./remote-http-authorization-data.js";
+import type {
+  AuthorizationDataAdapter,
+  PostgreSqlAuthorizationPool,
+} from "./remote-http-authorization-data.js";
 import {
   loadRemoteMcpRuntimeConfig,
   REMOTE_MCP_MAX_ARRAY_ELEMENTS,
@@ -45,6 +48,10 @@ import {
 } from "./remote-http-config.js";
 import type { RemoteMcpRuntimeConfig } from "./remote-http-config.js";
 import { RemoteMcpAdmissionController } from "./remote-http-limits.js";
+import {
+  createPostgreSqlSandboxAuthorizationDataAdapter,
+  POSTGRESQL_SANDBOX_SETTING_NAMES,
+} from "./remote-http-postgresql-sandbox.js";
 
 const REMOTE_TOOL_NAME = "norma.analyzeStructuredCompositionV1";
 const REMOTE_TOOL_SECURITY_SCHEMES = [{
@@ -103,6 +110,7 @@ export interface RemoteMcpRuntimeDependencies {
   readonly admissionController?: RemoteMcpAdmissionController;
   readonly personalVisualHarmonyService?: PersonalVisualHarmonySessionServiceV1;
   readonly authorizationDataAdapter?: AuthorizationDataAdapter;
+  readonly postgresqlPool?: PostgreSqlAuthorizationPool;
   readonly log?: (event: RemoteMcpLogEvent) => void;
 }
 
@@ -114,7 +122,9 @@ export function createRemoteMcpHttpServer(
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
   const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
     ?? new PersonalVisualHarmonySessionServiceV1();
-  const authorizationDataAdapter = dependencies.authorizationDataAdapter;
+  const authorizationDataAdapter = config.authorizationDataMode === "postgresql"
+    ? configuredAuthorizationDataAdapter(config, dependencies.postgresqlPool)
+    : dependencies.authorizationDataAdapter;
   const log = dependencies.log ?? ((event: RemoteMcpLogEvent) => console.log(JSON.stringify(event)));
 
   return createServer(async (request, response) => {
@@ -139,9 +149,29 @@ export function createRemoteMcpHttpServer(
 
 export function createRemoteMcpHttpServerFromEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
+  dependencies: RemoteMcpRuntimeDependencies = {},
 ): { readonly config: RemoteMcpRuntimeConfig; readonly server: Server } {
   const config = loadRemoteMcpRuntimeConfig(environment);
-  return { config, server: createRemoteMcpHttpServer(config) };
+  return { config, server: createRemoteMcpHttpServer(config, dependencies) };
+}
+
+function configuredAuthorizationDataAdapter(
+  config: RemoteMcpRuntimeConfig,
+  postgresqlPool: PostgreSqlAuthorizationPool | undefined,
+): AuthorizationDataAdapter | undefined {
+  if (config.authorizationDataMode !== "postgresql") {
+    return undefined;
+  }
+  if (postgresqlPool === undefined) {
+    throw new Error(
+      "NORMA_MCP_AUTHZ_DATA_MODE=postgresql requires an injected PostgreSQL pool",
+    );
+  }
+  return createPostgreSqlSandboxAuthorizationDataAdapter({
+    pool: postgresqlPool,
+    requiredScope: "norma:structured-analyze",
+    settingNames: POSTGRESQL_SANDBOX_SETTING_NAMES,
+  });
 }
 
 async function routeRequest(
