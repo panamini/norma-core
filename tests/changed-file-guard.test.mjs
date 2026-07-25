@@ -160,6 +160,7 @@ import {
   postgreSqlAuthorizationTransactionBoundaryChangedFiles,
   postgreSqlAuthorizationTransactionRaceFixChangedFiles,
   postgreSqlRuntimePoolWiringChangedFiles,
+  postgreSqlSandboxTlsAndPoolResetFixChangedFiles,
   railwayPostgreSqlSandboxVerticalSliceChangedFiles,
   sandboxQualificationLaunchGatesChangedFiles,
   railwayPostgreSqlSandboxAndQualificationChangedFiles,
@@ -385,6 +386,29 @@ test("PostgreSQL runtime pool wiring is an exact Railway entrypoint set", () => 
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([...postgreSqlRuntimePoolWiringChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("PostgreSQL sandbox TLS and pooled reset fix is an exact security set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(postgreSqlSandboxTlsAndPoolResetFixChangedFiles),
+    postgreSqlSandboxTlsAndPoolResetFixChangedFiles,
+  );
+  for (const forbiddenFile of [
+    "package.json",
+    "package-lock.json",
+    "railway.json",
+    "supabase/migrations/00000000000000_sandbox.sql",
+    "src/index.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...postgreSqlSandboxTlsAndPoolResetFixChangedFiles,
+        forbiddenFile,
+      ]),
       null,
       forbiddenFile,
     );
