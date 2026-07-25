@@ -18,6 +18,9 @@ import {
   POSTGRESQL_SANDBOX_TEARDOWN_SQL,
   createPostgreSqlSandboxSchemaSql,
 } from "../dist/src/mcp/remote-http-postgresql-sandbox.js";
+import {
+  createPostgreSqlPoolFromEnvironment,
+} from "../dist/src/mcp/remote-http-postgresql-pool.js";
 
 const requiredScope = "norma:structured-analyze";
 
@@ -174,6 +177,47 @@ test("PostgreSQL mode is opt-in and fails closed without a supplied pool", () =>
     }),
     /must be disabled or postgresql/u,
   );
+});
+
+test("PostgreSQL runtime pool is disabled by default and enforces disposable connection config", async () => {
+  assert.equal(createPostgreSqlPoolFromEnvironment({}), undefined);
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({ NORMA_MCP_AUTHZ_DATA_MODE: "postgresql" }),
+    /NORMA_MCP_AUTHZ_DATABASE_URL is required/u,
+  );
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({
+      NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+      NORMA_MCP_AUTHZ_DATABASE_URL: "https://example.invalid/database",
+    }),
+    /must be a PostgreSQL connection URL/u,
+  );
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({
+      NODE_ENV: "production",
+      NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+      NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox",
+      NORMA_MCP_POSTGRES_SSL: "disable",
+    }),
+    /must be require outside isolated tests/u,
+  );
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({
+      NODE_ENV: "production",
+      NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+      NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox?sslmode=disable",
+    }),
+    /must not disable TLS/u,
+  );
+
+  const pool = createPostgreSqlPoolFromEnvironment({
+    NODE_ENV: "test",
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@127.0.0.1:5432/sandbox",
+    NORMA_MCP_POSTGRES_SSL: "disable",
+  });
+  assert.ok(pool);
+  await pool.end();
 });
 
 function context(subject, tenant) {

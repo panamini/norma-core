@@ -17,6 +17,12 @@ requires `NORMA_MCP_AUTH_TENANT_CLAIM` and an injected PostgreSQL-compatible
 pool, then composes the existing provider-neutral transaction adapter. The
 disabled default does not create or acquire a database adapter.
 
+When the mode is explicitly `postgresql`, the Railway entrypoint creates a
+bounded `pg` pool from the secret `NORMA_MCP_AUTHZ_DATABASE_URL`, requires TLS
+outside isolated tests, and injects that pool into the existing adapter. The
+pool is closed during SIGINT/SIGTERM shutdown. The URL is never logged or
+copied into PostgreSQL request context.
+
 The adapter receives only `AuthenticatedRequestContext`; raw JWTs, provider
 claim objects, emails, prompts, and request bodies are not passed to the
 database layer. The record read is parameterized and schema-specific, and the
