@@ -53,7 +53,11 @@ test("offline or historical evidence never opens the production gate", () => {
     evidenceRef: `offline-${index + 1}`,
     observedAt: "2026-07-25T00:00:00Z",
   }));
-  const report = runSandboxQualification({ mode: "evidence", evidence: records });
+  const report = runSandboxQualification({
+    mode: "evidence",
+    evidence: records,
+    evidenceProvider: SCALEKIT_PROVIDER,
+  });
   assert.equal(report.productionReadiness, "CLOSED");
   assert.ok(report.criteria.every(({ status }) => status === "UNVERIFIED"));
 });
@@ -66,7 +70,16 @@ test("only complete live evidence can produce an open evaluation result", () => 
     evidenceRef: `live-${index + 1}`,
     observedAt: "2026-07-25T00:00:00Z",
   }));
-  const report = runSandboxQualification({ mode: "evidence", evidence: records });
+  const report = runSandboxQualification({
+    mode: "evidence",
+    evidence: records,
+    evidenceProvider: SCALEKIT_PROVIDER,
+    approval: {
+      approved: true,
+      approvalRef: "approval-1",
+      approvedAt: "2026-07-25T00:00:00Z",
+    },
+  });
   assert.equal(report.productionReadiness, "OPEN");
   assert.ok(report.criteria.every(({ status }) => status === "PASS"));
   assert.equal(report.nextAction, "REVIEW_ALL_CRITERIA_AND_APPROVE");
@@ -76,6 +89,7 @@ test("scope, raw-token, claims, email, prompt, and database fields are rejected"
   for (const forbiddenField of ["rawToken", "claims", "email", "prompt", "database"]) {
     assert.throws(
       () => parseSandboxQualificationEvidence({
+        provider: SCALEKIT_PROVIDER,
         records: [{
           criterion: "pkce_s256",
           status: "PASS",
@@ -90,6 +104,7 @@ test("scope, raw-token, claims, email, prompt, and database fields are rejected"
   }
   assert.throws(
     () => parseSandboxQualificationEvidence({
+      provider: SCALEKIT_PROVIDER,
       records: [{
         criterion: "pkce_s256",
         status: "PASS",
@@ -112,7 +127,71 @@ test("Auth0 requires an explicit Scalekit fallback marker and keeps provider ord
     fallbackFromScalekit: true,
   });
   assert.deepEqual(report.providerOrder, [SCALEKIT_PROVIDER, AUTH0_PROVIDER]);
+  assert.deepEqual(report.scopeMapping, {
+    providerScope: NORMA_CANONICAL_SCOPE,
+    normaScope: NORMA_CANONICAL_SCOPE,
+  });
   assert.equal(report.productionReadiness, "CLOSED");
+});
+
+test("live evidence stays closed without approval and cannot cross provider boundaries", () => {
+  const record = {
+    criterion: "pkce_s256",
+    status: "PASS",
+    evidenceClass: "live",
+    evidenceRef: "live-1",
+    observedAt: "2026-07-25T00:00:00Z",
+  };
+  assert.equal(runSandboxQualification({
+    mode: "evidence",
+    evidence: [record],
+    evidenceProvider: SCALEKIT_PROVIDER,
+  }).productionReadiness, "CLOSED");
+  assert.throws(
+    () => runSandboxQualification({
+      provider: AUTH0_PROVIDER,
+      mode: "evidence",
+      evidence: [record],
+      evidenceProvider: SCALEKIT_PROVIDER,
+      fallbackFromScalekit: true,
+    }),
+    SandboxQualificationInputError,
+  );
+});
+
+test("evidence parsing preserves its provider and rejects invalid shapes and timestamps", () => {
+  const bundle = parseSandboxQualificationEvidence({
+    provider: SCALEKIT_PROVIDER,
+    records: [{
+      criterion: "pkce_s256",
+      status: "PASS",
+      evidenceClass: "live",
+      evidenceRef: "safe-ref",
+      observedAt: "2026-07-25T00:00:00Z",
+    }],
+  });
+  assert.equal(bundle.provider, SCALEKIT_PROVIDER);
+  assert.equal(bundle.records[0].evidenceRef, "safe-ref");
+  for (const value of [
+    { records: [] },
+    { provider: "unknown", records: [] },
+    { provider: SCALEKIT_PROVIDER, records: "not-an-array" },
+  ]) {
+    assert.throws(() => parseSandboxQualificationEvidence(value), SandboxQualificationInputError);
+  }
+  assert.throws(
+    () => parseSandboxQualificationEvidence({
+      provider: SCALEKIT_PROVIDER,
+      records: [{
+        criterion: "pkce_s256",
+        status: "PASS",
+        evidenceClass: "live",
+        evidenceRef: "safe-ref",
+        observedAt: "2026-02-30T00:00:00Z",
+      }],
+    }),
+    SandboxQualificationInputError,
+  );
 });
 
 test("CLI defaults to a safe dry-run and emits no supplied sensitive value", () => {
@@ -127,6 +206,7 @@ test("CLI rejects unsafe evidence with a safe closed result", () => {
   const directory = mkdtempSync(join(tmpdir(), "norma-sandbox-qualification-"));
   const evidencePath = join(directory, "evidence.json");
   writeFileSync(evidencePath, JSON.stringify({
+    provider: SCALEKIT_PROVIDER,
     records: [{
       criterion: "pkce_s256",
       status: "PASS",

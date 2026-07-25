@@ -1,6 +1,7 @@
 export const SCALEKIT_PROVIDER = "scalekit";
 export const AUTH0_PROVIDER = "auth0";
 export const SCALEKIT_SCOPE = "norma:structured_analyze";
+export const AUTH0_SCOPE = "norma:structured-analyze";
 export const NORMA_CANONICAL_SCOPE = "norma:structured-analyze";
 
 export const SANDBOX_QUALIFICATION_CRITERIA = Object.freeze([
@@ -23,25 +24,26 @@ export class SandboxQualificationInputError extends Error {
 }
 
 export function parseSandboxQualificationEvidence(value) {
-  if (!isRecord(value) || !Array.isArray(value.records)) {
+  if (!isRecord(value) || !isProvider(value.provider) || !Array.isArray(value.records)) {
     throw new SandboxQualificationInputError();
   }
   const keys = Object.keys(value).sort();
-  if (keys.length !== 1 || keys[0] !== "records") {
+  if (keys.some((key) => key !== "approval" && key !== "provider" && key !== "records")) {
     throw new SandboxQualificationInputError();
   }
-  const records = value.records.map(parseEvidenceRecord);
-  const ids = records.map((record) => record.criterion);
-  if (new Set(ids).size !== ids.length) {
-    throw new SandboxQualificationInputError();
-  }
-  return Object.freeze(records);
+  const records = parseEvidenceRecords(value.records);
+  const approval = Object.hasOwn(value, "approval") ? parseApproval(value.approval) : undefined;
+  return Object.freeze({
+    provider: value.provider,
+    records: Object.freeze(records),
+    ...(approval === undefined ? {} : { approval }),
+  });
 }
 
 export function runSandboxQualification(options = {}) {
   const provider = options.provider ?? SCALEKIT_PROVIDER;
   const mode = options.mode ?? "dry-run";
-  if (provider !== SCALEKIT_PROVIDER && provider !== AUTH0_PROVIDER) {
+  if (!isProvider(provider)) {
     throw new SandboxQualificationInputError();
   }
   if (mode !== "dry-run" && mode !== "evidence") {
@@ -50,29 +52,43 @@ export function runSandboxQualification(options = {}) {
   if (provider === AUTH0_PROVIDER && options.fallbackFromScalekit !== true) {
     throw new SandboxQualificationInputError();
   }
-  if (mode === "dry-run" && options.evidence !== undefined && options.evidence.length > 0) {
+  if (mode === "dry-run") {
+    if (options.evidence !== undefined
+      && (!Array.isArray(options.evidence) || options.evidence.length > 0)) {
+      throw new SandboxQualificationInputError();
+    }
+    if (options.evidenceProvider !== undefined || options.approval !== undefined) {
+      throw new SandboxQualificationInputError();
+    }
+  }
+  if (mode === "evidence" && (!Array.isArray(options.evidence)
+    || !isProvider(options.evidenceProvider)
+    || options.evidenceProvider !== provider)) {
     throw new SandboxQualificationInputError();
   }
   const evidence = options.evidence === undefined
     ? []
-    : parseSandboxQualificationEvidence({ records: options.evidence });
+    : parseEvidenceRecords(options.evidence);
+  const approval = options.approval === undefined ? undefined : parseApproval(options.approval);
   const evidenceByCriterion = new Map(evidence.map((record) => [record.criterion, record]));
   const criteria = SANDBOX_QUALIFICATION_CRITERIA.map(({ id, title }) => {
-    const evidence = evidenceByCriterion.get(id);
+    const record = evidenceByCriterion.get(id);
     return Object.freeze({
       id,
       title,
-      status: evidence === undefined
+      status: record === undefined
         ? "NOT_RUN"
-        : evidence.status === "FAIL"
+        : record.status === "FAIL"
           ? "FAIL"
-          : evidence.evidenceClass === "live"
+          : record.evidenceClass === "live"
             ? "PASS"
             : "UNVERIFIED",
-      evidenceClass: evidence?.evidenceClass ?? "none",
+      evidenceClass: record?.evidenceClass ?? "none",
+      evidenceRef: record?.evidenceRef ?? null,
     });
   });
   const productionReadiness = criteria.every(({ status }) => status === "PASS")
+    && approval?.approved === true
     ? "OPEN"
     : "CLOSED";
   return Object.freeze({
@@ -80,15 +96,25 @@ export function runSandboxQualification(options = {}) {
     mode,
     providerOrder: Object.freeze([SCALEKIT_PROVIDER, ...(provider === AUTH0_PROVIDER ? [AUTH0_PROVIDER] : [])]),
     scopeMapping: Object.freeze({
-      providerScope: SCALEKIT_SCOPE,
+      providerScope: provider === AUTH0_PROVIDER ? AUTH0_SCOPE : SCALEKIT_SCOPE,
       normaScope: NORMA_CANONICAL_SCOPE,
     }),
+    approvalRecorded: approval?.approved === true,
     criteria: Object.freeze(criteria),
     productionReadiness,
     nextAction: productionReadiness === "OPEN"
       ? "REVIEW_ALL_CRITERIA_AND_APPROVE"
       : "COLLECT_BOUNDED_LIVE_EVIDENCE",
   });
+}
+
+function parseEvidenceRecords(records) {
+  const parsed = records.map(parseEvidenceRecord);
+  const ids = parsed.map((record) => record.criterion);
+  if (new Set(ids).size !== ids.length) {
+    throw new SandboxQualificationInputError();
+  }
+  return parsed;
 }
 
 function parseEvidenceRecord(value) {
@@ -116,6 +142,27 @@ function parseEvidenceRecord(value) {
   });
 }
 
+function parseApproval(value) {
+  if (!isRecord(value) || hasSensitiveKey(value)) {
+    throw new SandboxQualificationInputError();
+  }
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 3
+    || !keys.includes("approved")
+    || !keys.includes("approvalRef")
+    || !keys.includes("approvedAt")
+    || typeof value.approved !== "boolean"
+    || !isSafeEvidenceRef(value.approvalRef)
+    || !isIsoTimestamp(value.approvedAt)) {
+    throw new SandboxQualificationInputError();
+  }
+  return Object.freeze({
+    approved: value.approved,
+    approvalRef: value.approvalRef,
+    approvedAt: value.approvedAt,
+  });
+}
+
 function hasSensitiveKey(value) {
   return Object.keys(value).some((key) => /token|secret|claim|email|prompt|database|password|authorization|cookie|jwt|access|refresh|id_token|raw|body|payload/iu.test(key));
 }
@@ -125,6 +172,10 @@ function isCriterionId(value) {
     && SANDBOX_QUALIFICATION_CRITERIA.some(({ id }) => id === value);
 }
 
+function isProvider(value) {
+  return value === SCALEKIT_PROVIDER || value === AUTH0_PROVIDER;
+}
+
 function isSafeEvidenceRef(value) {
   return typeof value === "string"
     && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,95}$/u.test(value)
@@ -132,7 +183,11 @@ function isSafeEvidenceRef(value) {
 }
 
 function isIsoTimestamp(value) {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value)) {
+    return false;
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString().replace(".000Z", "Z") === value;
 }
 
 function isRecord(value) {

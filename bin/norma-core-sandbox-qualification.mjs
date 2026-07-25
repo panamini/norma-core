@@ -26,13 +26,15 @@ async function main(argumentsList) {
       })}\n`);
       return;
     }
-    const evidence = options.evidencePath === undefined
+    const evidenceBundle = options.evidencePath === undefined
       ? undefined
       : parseSandboxQualificationEvidence(JSON.parse(await readFile(options.evidencePath, "utf8")));
     const report = runSandboxQualification({
       provider: options.provider,
-      mode: evidence === undefined ? "dry-run" : "evidence",
-      evidence,
+      mode: evidenceBundle === undefined ? "dry-run" : "evidence",
+      evidence: evidenceBundle?.records,
+      evidenceProvider: evidenceBundle?.provider,
+      approval: evidenceBundle?.approval,
       fallbackFromScalekit: options.fallbackFromScalekit,
     });
     process.stdout.write(`${JSON.stringify(report)}\n`);

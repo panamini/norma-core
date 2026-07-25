@@ -16,10 +16,10 @@ node bin/norma-core-sandbox-qualification.mjs
 ```
 
 The output contains only criterion ids, statuses, evidence classes, provider
-names, and the closed/open gate. It never prints tokens, secrets, claims,
-emails, prompts, request bodies, or database contents. Evidence input is a
-sanitized allowlist of criterion, `PASS`/`FAIL`, evidence class, reference, and
-timestamp; unknown fields are rejected before evaluation.
+names, opaque evidence references, and the closed/open gate. It never prints
+tokens, secrets, claims, emails, prompts, request bodies, or database contents.
+Evidence input is a sanitized provider-bound allowlist; unknown fields are
+rejected before evaluation.
 
 ## Provider order
 
@@ -53,10 +53,12 @@ closed.
 
 ## Evidence contract
 
-The optional evidence file has exactly this shape:
+The optional evidence file has exactly this shape. Its `provider` must match the
+`--provider` selection; evidence cannot be reused under another provider.
 
 ```json
 {
+  "provider": "scalekit",
   "records": [
     {
       "criterion": "pkce_s256",
@@ -65,14 +67,21 @@ The optional evidence file has exactly this shape:
       "evidenceRef": "sandbox-run-001",
       "observedAt": "2026-07-25T00:00:00Z"
     }
-  ]
+  ],
+  "approval": {
+    "approved": true,
+    "approvalRef": "launch-review-001",
+    "approvedAt": "2026-07-25T00:00:00Z"
+  }
 }
 ```
 
 The reference is an opaque bounded identifier, not a token or raw artifact.
 Keep raw provider output, claims, database rows, prompts, and credentials out
 of the evidence file. Store them only in the separately authorized evidence
-system, if any, under its own retention and access controls.
+system, if any, under its own retention and access controls. The approval block
+is required, with `approved: true`, before the harness can report `OPEN`; all
+nine live `PASS` records without approval remain `CLOSED`.
 
 Evaluate a sanitized evidence file with:
 

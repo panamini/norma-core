@@ -12,16 +12,18 @@ run external migrations, deploy, or select a production provider.
 ## Contract
 
 The harness defaults to dry-run and reports every criterion as `NOT_RUN` with
-production readiness `CLOSED`. It accepts only an exact evidence allowlist and
-rejects unknown fields or sensitive-key names. `PASS` is produced only for an
-evidence record explicitly classified as live; offline or historical records
-remain `UNVERIFIED`. This is an evaluation rule, not live proof: the current
+production readiness `CLOSED`. It accepts only an exact provider-bound evidence
+allowlist and rejects unknown fields, mismatched providers, invalid timestamps,
+or sensitive-key names. `PASS` is produced only for an evidence record
+explicitly classified as live; offline or historical records remain
+`UNVERIFIED`. This is an evaluation rule, not live proof: the current
 repository contains no live provider evidence.
 
 Scalekit is always first. Auth0 is accepted only when the caller explicitly
 marks it as a fallback from a blocking Scalekit failure, and it uses the same
-criteria and canonical scope mapping. The production gate opens only when all
-nine criteria are live `PASS` results; human approval remains required.
+criteria with its provider scope mapped to the canonical Norma scope. The
+production gate opens only when all nine criteria are live `PASS` results and a
+separately recorded human approval is present; otherwise it remains `CLOSED`.
 
 ## Criteria
 
