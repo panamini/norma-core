@@ -9,6 +9,7 @@ export const POSTGRESQL_CA_ENV = "NORMA_MCP_POSTGRES_CA";
 const DEFAULT_POOL_MAX = 4;
 const CONNECTION_TIMEOUT_MS = 10_000;
 const IDLE_TIMEOUT_MS = 30_000;
+const QUERY_TIMEOUT_MS = 10_000;
 
 export function createPostgreSqlPoolFromEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
@@ -33,6 +34,8 @@ export function createPostgreSqlPoolFromEnvironment(
     max: DEFAULT_POOL_MAX,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
+    query_timeout: QUERY_TIMEOUT_MS,
+    statement_timeout: QUERY_TIMEOUT_MS,
     allowExitOnIdle: false,
     ssl: sslMode === "require"
       ? {
@@ -60,15 +63,20 @@ function parseConnectionString(value: string): string {
   if (parsed.hostname === "" || parsed.username === "" || parsed.password === "") {
     throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must include a PostgreSQL host and credentials`);
   }
-  const embeddedSslMode = parsed.searchParams.get("sslmode");
-  if (embeddedSslMode !== null && embeddedSslMode !== "require") {
-    throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not disable TLS`);
+  for (const [key, value] of parsed.searchParams.entries()) {
+    const normalizedKey = key.toLowerCase();
+    if (normalizedKey === "sslmode") {
+      if (value.toLowerCase() !== "require") {
+        throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not disable TLS`);
+      }
+      parsed.searchParams.delete(key);
+      continue;
+    }
+    if (["ssl", "sslcert", "sslkey", "sslrootcert"].includes(normalizedKey)) {
+      throw new Error(`${POSTGRESQL_DATABASE_URL_ENV} must not override TLS configuration`);
+    }
   }
-  if (embeddedSslMode === "require") {
-    parsed.searchParams.delete("sslmode");
-    return parsed.toString();
-  }
-  return value;
+  return parsed.toString();
 }
 
 function required(value: string | undefined, name: string): string {

@@ -30,7 +30,10 @@ provider requires a private CA, store it as the Railway secret
 `NORMA_MCP_POSTGRES_CA`; verification remains enabled. The runtime creates a
 bounded pool, injects it into the provider-neutral adapter, resets authorization
 settings before releasing pooled connections, and closes the pool on shutdown.
-Never place the URL or CA in this repository or in qualification evidence.
+Embedded TLS overrides in the connection URL are rejected; query and statement
+timeouts are bounded, and startup must complete a database connection check
+before advertising readiness. Never place the URL or CA in this repository or
+in qualification evidence.
 
 ## Provider order
 

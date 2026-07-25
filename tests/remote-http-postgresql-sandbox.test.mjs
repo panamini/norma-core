@@ -213,6 +213,14 @@ test("PostgreSQL runtime pool is disabled by default and enforces disposable con
     () => createPostgreSqlPoolFromEnvironment({
       NODE_ENV: "production",
       NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+      NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox?ssl=false",
+    }),
+    /must not override TLS configuration/u,
+  );
+  assert.throws(
+    () => createPostgreSqlPoolFromEnvironment({
+      NODE_ENV: "production",
+      NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
       NORMA_MCP_AUTHZ_DATABASE_URL: "postgresql://sandbox_user:local-test@db.example.invalid/sandbox",
       NORMA_MCP_POSTGRES_CA: "   ",
     }),
@@ -237,6 +245,8 @@ test("PostgreSQL runtime pool is disabled by default and enforces disposable con
   });
   assert.deepEqual(tlsPool.options.ssl, { ca, rejectUnauthorized: true });
   assert.equal(tlsPool.options.connectionString.includes("sslmode"), false);
+  assert.equal(tlsPool.options.query_timeout, 10_000);
+  assert.equal(tlsPool.options.statement_timeout, 10_000);
   await tlsPool.end();
 });
 

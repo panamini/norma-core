@@ -1188,10 +1188,12 @@ export const postgreSqlRuntimePoolWiringChangedFiles = Object.freeze([
 ].sort());
 
 export const postgreSqlSandboxTlsAndPoolResetFixChangedFiles = Object.freeze([
+  "bin/norma-core-remote-mcp-http.mjs",
   "docs/decisions/2026-07-25-railway-postgresql-sandbox-vertical-slice.md",
   "docs/runbooks/sandbox-qualification-launch-gates.md",
   "src/mcp/remote-http-authorization-data.ts",
   "src/mcp/remote-http-postgresql-pool.ts",
+  "src/pg.d.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/remote-http-authorization-data.test.mjs",
