@@ -147,23 +147,41 @@ export function createPostgreSqlAuthorizationDataAdapter(
         options.nowSeconds?.() ?? Math.floor(Date.now() / 1_000),
       );
 
+      const contextValues = authorizationContextValues(context);
       const connection = await options.pool.connect();
       let transactionStarted = false;
       let closed = false;
       let releaseError: Error | undefined;
+      const inFlightReads = new Set<Promise<AuthorizationDataRecord | null>>();
+      const waitForInFlightReads = async (): Promise<void> => {
+        await Promise.all(inFlightReads);
+      };
+      const settleInFlightReads = async (): Promise<void> => {
+        await Promise.allSettled(inFlightReads);
+      };
       const transaction: AuthorizationDataTransaction = Object.freeze({
         async readRecord(recordId: string): Promise<AuthorizationDataRecord | null> {
           if (closed) {
             throw new AuthorizationDataAccessDeniedError("Authorization transaction is closed");
           }
-          return await options.readRecord(connection, recordId);
+          let readPromise: Promise<AuthorizationDataRecord | null>;
+          try {
+            readPromise = options.readRecord(connection, recordId);
+          } catch (error) {
+            readPromise = Promise.reject(error);
+          }
+          inFlightReads.add(readPromise);
+          try {
+            return await readPromise;
+          } finally {
+            inFlightReads.delete(readPromise);
+          }
         },
       });
 
       try {
         await connection.query("BEGIN");
         transactionStarted = true;
-        const contextValues = authorizationContextValues(context);
         for (const [contextKey, settingName] of settingEntries) {
           await connection.query(
             "SELECT set_config($1, $2, true)",
@@ -171,10 +189,14 @@ export function createPostgreSqlAuthorizationDataAdapter(
           );
         }
         const result = await operation(transaction);
+        closed = true;
+        await waitForInFlightReads();
         await connection.query("COMMIT");
         return result;
       } catch (error) {
+        closed = true;
         if (transactionStarted) {
+          await settleInFlightReads();
           try {
             await connection.query("ROLLBACK");
           } catch (rollbackError) {
