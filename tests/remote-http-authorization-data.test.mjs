@@ -88,17 +88,47 @@ const settingNames = Object.freeze({
   expiresAt: "norma.auth_expires_at",
 });
 
-function createPostgreSqlProof(records, { failBegin = false, failRollback = false } = {}) {
+function deferred(label, timeoutMs = 2_000) {
+  let resolve;
+  let reject;
+  let timeoutId;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = (value) => {
+      clearTimeout(timeoutId);
+      resolvePromise(value);
+    };
+    reject = (error) => {
+      clearTimeout(timeoutId);
+      rejectPromise(error);
+    };
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timed out waiting for ${label}`));
+    }, timeoutMs);
+  });
+  return { promise, resolve, reject };
+}
+
+function createPostgreSqlProof(records, {
+  failBegin = false,
+  failRollback = false,
+  onConnect,
+  onQuery,
+  onReadStart,
+  onReadEnd,
+  readRecord,
+} = {}) {
   const events = [];
   let connectCount = 0;
   const pool = {
     async connect() {
       connectCount += 1;
+      onConnect?.();
       const localSettings = new Map();
-      return {
+      const connection = {
         localSettings,
         async query(sql, values = []) {
           events.push({ sql, values: [...values] });
+          await onQuery?.({ connection, localSettings, sql, values });
           if (sql === "BEGIN" && failBegin) {
             throw new Error("begin unavailable");
           } else if (sql === "SELECT set_config($1, $2, true)") {
@@ -120,18 +150,25 @@ function createPostgreSqlProof(records, { failBegin = false, failRollback = fals
           localSettings.clear();
         },
       };
+      return connection;
     },
   };
+  const readRecordImplementation = readRecord ?? (async (connection, recordId) => {
+    const record = records.find((candidate) => candidate.id === recordId);
+    return record?.tenant === connection.localSettings.get(settingNames.tenant)
+      ? record
+      : null;
+  });
   const adapter = createPostgreSqlAuthorizationDataAdapter({
     pool,
     requiredScope,
     settingNames,
     nowSeconds: () => 1_000,
     async readRecord(connection, recordId) {
-      const record = records.find((candidate) => candidate.id === recordId);
-      return record?.tenant === connection.localSettings.get(settingNames.tenant)
-        ? record
-        : null;
+      onReadStart?.({ connection, recordId });
+      const result = await readRecordImplementation(connection, recordId);
+      onReadEnd?.({ connection, recordId });
+      return result;
     },
   });
   return {
@@ -140,6 +177,58 @@ function createPostgreSqlProof(records, { failBegin = false, failRollback = fals
     connectCount: () => connectCount,
   };
 }
+
+test("PostgreSQL adapter snapshots context before connect and BEGIN can observe mutations", async () => {
+  const requestContext = context({
+    subject: "subject-before",
+    tenant: "tenant-before",
+    scopes: [requiredScope, "scope:before"],
+    audience: "https://before.example/mcp",
+    expiresAt: 1_300,
+  });
+  const proof = createPostgreSqlProof([
+    { id: "record-a", tenant: "tenant-before", payload: null },
+  ], {
+    onConnect() {
+      requestContext.subject = "subject-during-connect";
+      requestContext.tenant = "tenant-during-connect";
+      requestContext.scopes.splice(0, requestContext.scopes.length, "scope:during-connect");
+      requestContext.audience = "https://during-connect.example/mcp";
+      requestContext.expiresAt = 1_400;
+    },
+    onQuery({ sql }) {
+      if (sql === "BEGIN") {
+        requestContext.subject = "subject-during-begin";
+        requestContext.tenant = "tenant-during-begin";
+        requestContext.scopes.push("scope:during-begin");
+        requestContext.audience = "https://during-begin.example/mcp";
+        requestContext.expiresAt = 1_500;
+      }
+    },
+  });
+
+  const result = await proof.adapter.withTransaction(requestContext, (transaction) => (
+    transaction.readRecord("record-a")
+  ));
+
+  assert.deepEqual(result, {
+    id: "record-a",
+    tenant: "tenant-before",
+    payload: null,
+  });
+  assert.deepEqual(
+    proof.events
+      .filter((event) => event.sql === "SELECT set_config($1, $2, true)")
+      .map((event) => event.values),
+    [
+      [settingNames.subject, "subject-before"],
+      [settingNames.tenant, "tenant-before"],
+      [settingNames.scopes, JSON.stringify([requiredScope, "scope:before"])],
+      [settingNames.audience, "https://before.example/mcp"],
+      [settingNames.expiresAt, "1300"],
+    ],
+  );
+});
 
 test("PostgreSQL adapter applies transaction-local context and preserves RLS denial", async () => {
   const proof = createPostgreSqlProof([
@@ -229,6 +318,129 @@ test("PostgreSQL adapter commits or rolls back, closes, and releases the connect
     proof.events.filter((event) => event.sql === "RELEASE").map((event) => event.values),
     [[], []],
   );
+});
+
+test("PostgreSQL adapter closes retained handles before a pending commit", async () => {
+  const commitStarted = deferred("COMMIT start");
+  const allowCommit = deferred("COMMIT completion");
+  const proof = createPostgreSqlProof([
+    { id: "record-a", tenant: "tenant-a", payload: null },
+  ], {
+    onQuery: async ({ sql }) => {
+      if (sql === "COMMIT") {
+        commitStarted.resolve();
+        await allowCommit.promise;
+      }
+    },
+  });
+  let retainedTransaction;
+
+  const transactionPromise = proof.adapter.withTransaction(
+    context({ expiresAt: 1_300 }),
+    async (transaction) => {
+      retainedTransaction = transaction;
+      return "committed";
+    },
+  );
+
+  await commitStarted.promise;
+  await assert.rejects(
+    () => retainedTransaction.readRecord("record-a"),
+    /transaction is closed/u,
+  );
+  assert.equal(proof.events.at(-1).sql, "COMMIT");
+
+  allowCommit.resolve();
+  assert.equal(await transactionPromise, "committed");
+  assert.equal(proof.events.at(-1).sql, "RELEASE");
+});
+
+test("PostgreSQL adapter waits for in-flight reads before commit and release", async () => {
+  const readStarted = deferred("read start");
+  const allowRead = deferred("read completion");
+  let readSettled = false;
+  const proof = createPostgreSqlProof([], {
+    readRecord: async () => {
+      await allowRead.promise;
+      return { id: "record-a", tenant: "tenant-a", payload: null };
+    },
+    onReadStart() {
+      readStarted.resolve();
+    },
+    onReadEnd() {
+      readSettled = true;
+    },
+  });
+  let readPromise;
+
+  const transactionPromise = proof.adapter.withTransaction(
+    context({ expiresAt: 1_300 }),
+    async (transaction) => {
+      readPromise = transaction.readRecord("record-a");
+      await readStarted.promise;
+    },
+  );
+
+  await readStarted.promise;
+  await Promise.resolve();
+  assert.equal(proof.events.some((event) => event.sql === "COMMIT"), false);
+  assert.equal(proof.events.some((event) => event.sql === "RELEASE"), false);
+
+  allowRead.resolve();
+  assert.deepEqual(await readPromise, {
+    id: "record-a",
+    tenant: "tenant-a",
+    payload: null,
+  });
+  await transactionPromise;
+  assert.equal(readSettled, true);
+  assert.equal(proof.events.at(-1).sql, "RELEASE");
+});
+
+test("PostgreSQL adapter waits for in-flight reads before rollback and release errors", async () => {
+  const readStarted = deferred("rollback read start");
+  const allowRead = deferred("rollback read completion");
+  let readSettled = false;
+  const proof = createPostgreSqlProof([], {
+    failRollback: true,
+    readRecord: async () => {
+      await allowRead.promise;
+      return null;
+    },
+    onReadStart() {
+      readStarted.resolve();
+    },
+    onReadEnd() {
+      readSettled = true;
+    },
+    onQuery({ sql }) {
+      if (sql === "ROLLBACK") {
+        assert.equal(readSettled, true);
+      }
+    },
+  });
+  const transactionPromise = proof.adapter.withTransaction(
+    context({ expiresAt: 1_300 }),
+    async (transaction) => {
+      void transaction.readRecord("record-a");
+      await readStarted.promise;
+      throw new Error("operation failed");
+    },
+  );
+
+  await readStarted.promise;
+  await Promise.resolve();
+  assert.equal(proof.events.some((event) => event.sql === "ROLLBACK"), false);
+  assert.equal(proof.events.some((event) => event.sql === "RELEASE"), false);
+
+  allowRead.resolve();
+  await assert.rejects(
+    () => transactionPromise,
+    (error) => error instanceof AggregateError
+      && error.message === "Authorization transaction and rollback failed",
+  );
+  assert.equal(readSettled, true);
+  assert.deepEqual(proof.events.slice(-2).map((event) => event.sql), ["ROLLBACK", "RELEASE"]);
 });
 
 test("PostgreSQL adapter evicts a connection when rollback cannot reset it", async () => {
