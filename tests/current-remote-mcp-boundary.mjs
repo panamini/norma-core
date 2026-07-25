@@ -14,6 +14,7 @@ export const currentMcpRuntimeSourceFiles = Object.freeze([
   "src/mcp/remote-http-authorization-data.ts",
   "src/mcp/remote-http-config.ts",
   "src/mcp/remote-http-limits.ts",
+  "src/mcp/remote-http-postgresql-sandbox.ts",
   "src/mcp/remote-http-server.ts",
   "src/mcp/stdio-protocol.ts",
 ]);
