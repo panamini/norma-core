@@ -46,6 +46,9 @@ test("PostgreSQL registry rejects privileged roles and invalid inputs before loo
     { table_owner: true },
     { table_select: false },
     { schema_usage: false },
+    { rls_enabled: false },
+    { rls_forced: false },
+    { read_policy: false },
   ]) {
     const excessive = new PostgreSqlRemoteMcpRevocationRegistry(pool(async () => ({
       rows: [{ ...leastPrivilegeRole().rows[0], ...override }],
@@ -88,6 +91,7 @@ test("sandbox schema is least privilege and has reversible teardown", () => {
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/u);
   assert.match(sql, /FORCE ROW LEVEL SECURITY/u);
   assert.match(sql, /CREATE POLICY norma_mcp_revocation_read_policy/u);
+  assert.match(sql, /TO "norma_sandbox_user" USING/u);
   assert.match(sql, /REVOKE ALL/u);
   assert.match(sql, /GRANT SELECT ON/u);
   assert.doesNotMatch(sql, /GRANT SELECT, INSERT, UPDATE/u);
@@ -116,6 +120,9 @@ function leastPrivilegeRole() {
       schema_usage: true,
       table_select: true,
       table_write: false,
+      rls_enabled: true,
+      rls_forced: true,
+      read_policy: true,
       table_owner: false,
     }],
   };

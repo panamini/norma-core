@@ -30,6 +30,29 @@ const ROLE_VALIDATION_SQL = `
     has_schema_privilege(current_user, 'norma_sandbox', 'USAGE') AS schema_usage,
     has_table_privilege(current_user, '${REMOTE_MCP_REVOCATION_TABLE}', 'SELECT') AS table_select,
     has_table_privilege(current_user, '${REMOTE_MCP_REVOCATION_TABLE}', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES') AS table_write,
+    COALESCE((
+      SELECT c.relrowsecurity
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'norma_sandbox'
+        AND c.relname = 'remote_mcp_revocations'
+    ), false) AS rls_enabled,
+    COALESCE((
+      SELECT c.relforcerowsecurity
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'norma_sandbox'
+        AND c.relname = 'remote_mcp_revocations'
+    ), false) AS rls_forced,
+    EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'norma_sandbox'
+        AND tablename = 'remote_mcp_revocations'
+        AND policyname = 'norma_mcp_revocation_read_policy'
+        AND cmd = 'SELECT'
+        AND (current_user::name = ANY(roles) OR 'public'::name = ANY(roles))
+    ) AS read_policy,
     EXISTS (
       SELECT 1
       FROM pg_tables
@@ -120,6 +143,7 @@ export function createPostgreSqlRevocationSchemaSql(roleName = "norma_sandbox_us
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(roleName)) {
     throw new Error("role name is invalid");
   }
+  const quotedRoleName = `"${roleName}"`;
   return [
     "DO $$",
     "DECLARE role_record record;",
@@ -140,10 +164,10 @@ export function createPostgreSqlRevocationSchemaSql(roleName = "norma_sandbox_us
     `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} ENABLE ROW LEVEL SECURITY;`,
     `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} FORCE ROW LEVEL SECURITY;`,
     `DROP POLICY IF EXISTS norma_mcp_revocation_read_policy ON ${REMOTE_MCP_REVOCATION_TABLE};`,
-    `CREATE POLICY norma_mcp_revocation_read_policy ON ${REMOTE_MCP_REVOCATION_TABLE} FOR SELECT TO ${roleName} USING (true);`,
+    `CREATE POLICY norma_mcp_revocation_read_policy ON ${REMOTE_MCP_REVOCATION_TABLE} FOR SELECT TO ${quotedRoleName} USING (true);`,
     `REVOKE ALL ON ${REMOTE_MCP_REVOCATION_TABLE} FROM PUBLIC;`,
-    `GRANT USAGE ON SCHEMA norma_sandbox TO ${roleName};`,
-    `GRANT SELECT ON ${REMOTE_MCP_REVOCATION_TABLE} TO ${roleName};`,
+    `GRANT USAGE ON SCHEMA norma_sandbox TO ${quotedRoleName};`,
+    `GRANT SELECT ON ${REMOTE_MCP_REVOCATION_TABLE} TO ${quotedRoleName};`,
   ].join("\n");
 }
 
@@ -174,6 +198,9 @@ async function assertLeastPrivilegeRuntimeRole(
     || row.schema_usage !== true
     || row.table_select !== true
     || row.table_write !== false
+    || row.rls_enabled !== true
+    || row.rls_forced !== true
+    || row.read_policy !== true
     || row.table_owner !== false
     || row.rolsuper
     || row.rolbypassrls
