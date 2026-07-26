@@ -2,17 +2,10 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  ACTIVE_BENCHMARK_EXECUTION_BUDGET,
-  PERFORMANCE_TRUTH_HARNESS_VERSION,
-  PERFORMANCE_TRUTH_SCENARIOS,
-} from "../dist/src/performance-truth-harness.js";
-import { executePerformanceTruthScenario } from "../dist/src/performance-truth-runtime.js";
-
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const modulePath = fileURLToPath(import.meta.url);
 
-export const MAX_CHARACTERIZATION_ROWS = ACTIVE_BENCHMARK_EXECUTION_BUDGET.remainingAfterPr257;
+export const MAX_CHARACTERIZATION_ROWS = 10;
 
 export function parseScenarioRowPlan(argv) {
   if (!Array.isArray(argv) || argv.length !== 2 || argv[0] !== "--plan") {
@@ -27,7 +20,7 @@ export function parseScenarioRowPlan(argv) {
   return validateScenarioRows(rawPlan.split(",").map((scenario) => scenario.trim()));
 }
 
-function validateScenarioRows(plan) {
+function validateScenarioRows(plan, scenarios) {
   if (!Array.isArray(plan) || plan.length === 0) {
     throw new Error("The explicit scenario-row plan must contain at least one row");
   }
@@ -35,35 +28,44 @@ function validateScenarioRows(plan) {
     throw new Error("The --plan value must not contain empty scenario rows");
   }
   if (plan.length > MAX_CHARACTERIZATION_ROWS) {
-    throw new Error(`The explicit scenario-row plan exceeds the ${MAX_CHARACTERIZATION_ROWS}-row cap`);
+    throw new Error(
+      `The explicit scenario-row plan exceeds the ${MAX_CHARACTERIZATION_ROWS}-row cap per invocation`,
+    );
   }
-  for (const scenario of plan) {
-    if (!PERFORMANCE_TRUTH_SCENARIOS.includes(scenario)) {
-      throw new Error(`Unknown performance truth scenario: ${scenario}`);
+  if (scenarios !== undefined) {
+    for (const scenario of plan) {
+      if (!scenarios.includes(scenario)) {
+        throw new Error(`Unknown performance truth scenario: ${scenario}`);
+      }
     }
   }
-  return Object.freeze(plan);
+  return Object.freeze([...plan]);
 }
 
 export async function runProviderFreeCharacterization(plan, options = {}) {
-  const explicitPlan = validateScenarioRows(plan);
+  const parsedPlan = validateScenarioRows(plan);
+  const prepareRuntime = options.prepareRuntime ?? preparePerformanceTruthRuntime;
+  const prepared = await prepareRuntime(repoRoot);
+  const explicitPlan = validateScenarioRows(parsedPlan, prepared.scenarios);
   const rows = [];
-  const commitSha = options.commitSha ?? currentCommitSha(options.repoRoot ?? repoRoot);
-  const root = options.repoRoot ?? repoRoot;
   const clockFactory = options.clockFactory ?? (() => realClock());
-  const executeScenario = options.executeScenario ?? executePerformanceTruthScenario;
 
   for (const [index, scenario] of explicitPlan.entries()) {
-    rows.push(await executeScenario({
+    rows.push(await prepared.executeScenario({
       scenario,
       runNumber: index + 1,
-      commitSha,
-      repoRoot: root,
+      commitSha: prepared.commitSha,
+      repoRoot,
       clock: clockFactory(index + 1),
     }));
   }
 
-  return summarizeCharacterization({ plan: explicitPlan, rows, commitSha });
+  return summarizeCharacterization({
+    plan: explicitPlan,
+    rows,
+    commitSha: prepared.commitSha,
+    harnessVersion: prepared.harnessVersion,
+  });
 }
 
 export async function main(argv = process.argv.slice(2), dependencies = {}) {
@@ -75,7 +77,7 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
   return summary;
 }
 
-function summarizeCharacterization({ plan, rows, commitSha }) {
+function summarizeCharacterization({ plan, rows, commitSha, harnessVersion }) {
   const summaries = new Map();
   for (const scenario of plan) {
     if (!summaries.has(scenario)) summaries.set(scenario, []);
@@ -87,8 +89,13 @@ function summarizeCharacterization({ plan, rows, commitSha }) {
     evidence_kind: "bounded-descriptive-characterization",
     interpretation: "Descriptive only; not a percentile or SLO evaluation.",
     provider_free: true,
+    row_budget: Object.freeze({
+      scope: "single-invocation-plan",
+      limit: MAX_CHARACTERIZATION_ROWS,
+      additional_invocations_require_external_authorization: true,
+    }),
     commit_sha: commitSha,
-    harness_version: PERFORMANCE_TRUTH_HARNESS_VERSION,
+    harness_version: harnessVersion,
     requested_row_count: plan.length,
     completed_row_count: rows.length,
     scenarios: Object.freeze([...summaries.entries()].map(([scenario, scenarioRows]) => Object.freeze({
@@ -128,6 +135,7 @@ function unmeasuredStages(rows) {
     "request_parse_ms",
     "auth_verify_ms",
     "admission_ms",
+    "mcp_dispatch_ms",
     "core_ms",
     "artifact_ms",
     "serialization_ms",
@@ -146,6 +154,47 @@ function countValues(values) {
 
 function currentCommitSha(root) {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+}
+
+async function preparePerformanceTruthRuntime(root) {
+  assertCleanWorktree(root);
+  const commitSha = currentCommitSha(root);
+  execFileSync("npm", ["run", "build"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assertCleanWorktree(root);
+  if (currentCommitSha(root) !== commitSha) {
+    throw new Error("Repository HEAD changed while preparing the performance truth runtime");
+  }
+
+  const cacheKey = encodeURIComponent(commitSha);
+  const [harness, runtime] = await Promise.all([
+    import(`../dist/src/performance-truth-harness.js?commit=${cacheKey}`),
+    import(`../dist/src/performance-truth-runtime.js?commit=${cacheKey}`),
+  ]);
+  if (harness.ACTIVE_BENCHMARK_EXECUTION_BUDGET.remainingAfterPr257 !== MAX_CHARACTERIZATION_ROWS) {
+    throw new Error("The performance truth runner row cap does not match the active harness contract");
+  }
+
+  return Object.freeze({
+    commitSha,
+    harnessVersion: harness.PERFORMANCE_TRUTH_HARNESS_VERSION,
+    scenarios: harness.PERFORMANCE_TRUTH_SCENARIOS,
+    executeScenario: runtime.executePerformanceTruthScenario,
+  });
+}
+
+function assertCleanWorktree(root) {
+  const status = execFileSync(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    { cwd: root, encoding: "utf8" },
+  ).trim();
+  if (status !== "") {
+    throw new Error("Performance truth characterization requires a clean exact-HEAD worktree");
+  }
 }
 
 function realClock() {

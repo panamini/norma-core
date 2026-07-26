@@ -7,6 +7,11 @@ import {
   parseScenarioRowPlan,
   runProviderFreeCharacterization,
 } from "../bin/norma-core-performance-truth.mjs";
+import {
+  PERFORMANCE_TRUTH_HARNESS_VERSION,
+  PERFORMANCE_TRUTH_SCENARIOS,
+} from "../dist/src/performance-truth-harness.js";
+import { executePerformanceTruthScenario } from "../dist/src/performance-truth-runtime.js";
 
 const commitSha = "93096299523d3ad376f7650b32fa4a5d3a98389b";
 
@@ -23,20 +28,56 @@ test("performance truth runner rejects a missing or oversized plan before charac
   );
 });
 
-test("performance truth runner rejects unknown and empty scenario rows", () => {
-  assert.throws(() => parseScenarioRowPlan(["--plan", "unknown"]), /Unknown performance truth scenario/u);
+test("performance truth runner rejects unknown and empty scenario rows", async () => {
+  await assert.rejects(
+    () => runProviderFreeCharacterization(["unknown"], {
+      prepareRuntime: preparedRuntime(() => {
+        throw new Error("unknown scenarios must be rejected before execution");
+      }),
+    }),
+    /Unknown performance truth scenario/u,
+  );
   assert.throws(() => parseScenarioRowPlan(["--plan", "core-direct-simple,"]), /empty scenario rows/u);
 });
 
 test("performance truth runner rejects programmatic plans that bypass the CLI parser", async () => {
   await assert.rejects(
-    () => runProviderFreeCharacterization([], { commitSha }),
+    () => runProviderFreeCharacterization([], { prepareRuntime: preparedRuntime() }),
     /at least one row/u,
   );
   await assert.rejects(
-    () => runProviderFreeCharacterization(Array.from({ length: MAX_CHARACTERIZATION_ROWS + 1 }, () => "core-direct-simple"), { commitSha }),
+    () => runProviderFreeCharacterization(
+      Array.from({ length: MAX_CHARACTERIZATION_ROWS + 1 }, () => "core-direct-simple"),
+      { prepareRuntime: preparedRuntime() },
+    ),
     /row cap/u,
   );
+});
+
+test("performance truth runner preserves caller-owned plans", async () => {
+  const callerPlan = ["core-direct-simple"];
+  await runProviderFreeCharacterization(callerPlan, {
+    prepareRuntime: preparedRuntime(({ scenario, runNumber }) => deterministicRow({ scenario, runNumber })),
+  });
+  callerPlan.push("core-direct-boundary");
+  assert.deepEqual(callerPlan, ["core-direct-simple", "core-direct-boundary"]);
+});
+
+test("performance truth runner prepares exact source identity before scenario execution", async () => {
+  const events = [];
+  const summary = await runProviderFreeCharacterization(["core-direct-simple"], {
+    prepareRuntime: async () => {
+      events.push("prepare");
+      return preparedRuntimeValue(({ scenario, runNumber }) => {
+        events.push("execute");
+        return deterministicRow({ scenario, runNumber });
+      });
+    },
+  });
+
+  assert.deepEqual(events, ["prepare", "execute"]);
+  assert.equal(summary.commit_sha, commitSha);
+  assert.equal(summary.harness_version, PERFORMANCE_TRUTH_HARNESS_VERSION);
 });
 
 test("performance truth runner creates one deterministic provider-free row per explicit scenario", async () => {
@@ -49,7 +90,7 @@ test("performance truth runner creates one deterministic provider-free row per e
     ["mcp-streamable-http-authenticated-simple"],
   );
   const summary = await runProviderFreeCharacterization(plan, {
-    commitSha,
+    prepareRuntime: preparedRuntime(executePerformanceTruthScenario),
     clockFactory: () => deterministicClock(),
   });
 
@@ -57,6 +98,11 @@ test("performance truth runner creates one deterministic provider-free row per e
   assert.equal(summary.completed_row_count, 3);
   assert.equal(summary.evidence_kind, "bounded-descriptive-characterization");
   assert.match(summary.interpretation, /not a percentile or SLO evaluation/u);
+  assert.deepEqual(summary.row_budget, {
+    scope: "single-invocation-plan",
+    limit: MAX_CHARACTERIZATION_ROWS,
+    additional_invocations_require_external_authorization: true,
+  });
   assert.equal(summary.scenarios.length, 3);
   assert.deepEqual(summary.scenarios.map((scenario) => scenario.row_count), [1, 1, 1]);
   assert.equal(summary.scenarios.every((scenario) => scenario.status_counts.pass === 1), true);
@@ -64,6 +110,7 @@ test("performance truth runner creates one deterministic provider-free row per e
   assert.equal(JSON.stringify(summary).includes("p50"), false);
   assert.equal(JSON.stringify(summary).includes("p95"), false);
   assert.equal(JSON.stringify(summary).includes("ledger_rows"), false);
+  assert.equal(summary.scenarios[0].unmeasured_stages.includes("mcp_dispatch_ms"), true);
 });
 
 test("performance truth runner delegates exactly once for every explicit row", async () => {
@@ -73,11 +120,10 @@ test("performance truth runner delegates exactly once for every explicit row", a
   ]);
   const calls = [];
   const summary = await runProviderFreeCharacterization(plan, {
-    commitSha,
-    executeScenario: async ({ scenario, runNumber }) => {
+    prepareRuntime: preparedRuntime(async ({ scenario, runNumber }) => {
       calls.push({ scenario, runNumber });
       return deterministicRow({ scenario, runNumber });
-    },
+    }),
   });
 
   assert.deepEqual(calls.map((call) => call.runNumber), [1, 2, 3, 4]);
@@ -88,12 +134,17 @@ test("performance truth runner delegates exactly once for every explicit row", a
 test("performance truth runtime preserves the local authenticated scenario", async () => {
   const summary = await runProviderFreeCharacterization(
     ["mcp-streamable-http-authenticated-simple"],
-    { commitSha, clockFactory: () => deterministicClock() },
+    {
+      prepareRuntime: preparedRuntime(executePerformanceTruthScenario),
+      clockFactory: () => deterministicClock(),
+    },
   );
 
   assert.equal(summary.completed_row_count, 1);
   assert.deepEqual(summary.scenarios[0].status_counts, { pass: 1 });
   assert.equal(summary.scenarios[0].timing_ranges_ms.transport_ms.min >= 0, true);
+  assert.equal("mcp_dispatch_ms" in summary.scenarios[0].timing_ranges_ms, false);
+  assert.equal(summary.scenarios[0].unmeasured_stages.includes("mcp_dispatch_ms"), true);
   assert.equal(JSON.stringify(summary).includes("local-characterization-access"), false);
 });
 
@@ -118,6 +169,19 @@ function deterministicClock() {
     utcNow() {
       return "2026-07-26T00:00:00.000Z";
     },
+  };
+}
+
+function preparedRuntime(executeScenario = ({ scenario, runNumber }) => deterministicRow({ scenario, runNumber })) {
+  return async () => preparedRuntimeValue(executeScenario);
+}
+
+function preparedRuntimeValue(executeScenario) {
+  return {
+    commitSha,
+    harnessVersion: PERFORMANCE_TRUTH_HARNESS_VERSION,
+    scenarios: PERFORMANCE_TRUTH_SCENARIOS,
+    executeScenario,
   };
 }
 

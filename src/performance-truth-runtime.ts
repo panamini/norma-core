@@ -13,7 +13,6 @@ import {
 } from "./performance-truth-harness.js";
 import {
   handleMcpJsonRpcMessage,
-  handleMcpJsonRpcRequest,
 } from "./mcp/stdio-protocol.js";
 import { createRemoteMcpHttpServer } from "./mcp/remote-http-server.js";
 import { RemoteMcpAdmissionController } from "./mcp/remote-http-limits.js";
@@ -149,15 +148,6 @@ async function executeLocalTransportScenario({
           result.release();
           return result;
         });
-        const localDispatch = await measureStage(
-          "mcp_dispatch_ms",
-          () => handleMcpJsonRpcRequest(request) as unknown as ToolResponse,
-        );
-        assertMatchingPerformanceTruthIdentity(
-          expectedIdentity,
-          resultIdentity(localDispatch.result.structuredContent.result),
-        );
-        await measureStage("serialization_ms", () => core.serializeCanonicalJson(localDispatch.result.structuredContent));
         const remote = await measureStage("transport_ms", () => measureRequest(() => postLocalJson(port, request)));
         if (remote.status !== 200) {
           throw new Error(`Local transport request failed with ${remote.status}`);
