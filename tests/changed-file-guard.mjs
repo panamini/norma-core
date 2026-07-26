@@ -1218,6 +1218,18 @@ export const oauthImmediateRevocationChangedFiles = Object.freeze([
   "tests/remote-http-postgresql-revocation.test.mjs",
 ].sort());
 
+export const oauthImmediateRevocationReviewHotfixChangedFiles = Object.freeze([
+  "src/mcp/remote-http-auth.ts",
+  "src/mcp/remote-http-limits.ts",
+  "src/mcp/remote-http-postgresql-revocation.ts",
+  "src/mcp/remote-http-revocation.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-auth.test.mjs",
+  "tests/mcp-remote-http-revocation.test.mjs",
+  "tests/remote-http-postgresql-revocation.test.mjs",
+].sort());
+
 export const scalekitScopeAliasQualificationChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
   "docs/decisions/2026-07-24-pr259-provider-neutral-mcp-auth-adapter.md",
@@ -2074,6 +2086,7 @@ const sharedExactApprovedChangedFileSets = [
   postgreSqlRuntimePoolWiringChangedFiles,
   postgreSqlSandboxTlsAndPoolResetFixChangedFiles,
   oauthImmediateRevocationChangedFiles,
+  oauthImmediateRevocationReviewHotfixChangedFiles,
   scalekitScopeAliasQualificationChangedFiles,
   pr261RemoteMcpOAuthToolSecurityChangedFiles,
   pr262McpProtectedResourceRootAliasChangedFiles,
