@@ -23,6 +23,7 @@ const pr41DecisionDocPath = join(
 const pr40ApprovalDecisionDocPath = join(repoRoot, "docs", "MCP_REMOTE_APPROVAL_DECISION.md");
 const pr39ThreatModelDocPath = join(repoRoot, "docs", "MCP_REMOTE_THREAT_MODEL.md");
 const protocolSourcePath = join(repoRoot, "src", "mcp", "stdio-protocol.ts");
+const performanceTruthRuntimePath = join(repoRoot, "src", "performance-truth-runtime.ts");
 const wrapperPath = join(repoRoot, "bin", "norma-core-mcp-stdio.mjs");
 const packageJsonPath = join(repoRoot, "package.json");
 const packageLockPath = join(repoRoot, "package-lock.json");
@@ -207,9 +208,10 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
       path !== "bin/norma-core-remote-mcp-http.mjs" &&
       path !== "bin/norma-core-personal-visual-harmony-mcp-http.mjs" &&
       path !== "bin/norma-core-personal-visual-harmony-mcp-stdio.mjs" &&
-      path !== "src/node-http.d.ts" &&
-      path !== "src/api/minimal-api-server.ts" &&
-      path !== "src/local-report/controlled-provider-observation-contract.ts" &&
+       path !== "src/node-http.d.ts" &&
+       path !== "src/api/minimal-api-server.ts" &&
+       path !== "src/performance-truth-runtime.ts" &&
+       path !== "src/local-report/controlled-provider-observation-contract.ts" &&
       path !== "src/local-report/controlled-provider-observation-acceptance-proof.ts",
   );
 
@@ -224,6 +226,17 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
   ]) {
     assertNoMcpRuntimeSideEffects(readDoc(join(repoRoot, path)), path);
   }
+});
+
+test("performance truth runtime is an internal local-only characterization boundary", () => {
+  const source = readDoc(performanceTruthRuntimePath);
+  assert.match(source, /^export async function executePerformanceTruthScenario\(/mu);
+  assert.equal([...source.matchAll(/^export\s/gmu)].length, 1);
+  assert.match(source, /127\.0\.0\.1/u);
+  assert.doesNotMatch(
+    source,
+    /\b(?:process\.env|createRemoteMcpHttpServerFromEnvironment|PostgreSql|Scalekit|Supabase|Railway)\b/u,
+  );
 });
 
 test("PR42 remote scanner permits only the inert W3C SVG namespace exception", () => {

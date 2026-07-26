@@ -1092,6 +1092,15 @@ export const performanceTruthHarnessChangedFiles = Object.freeze([
   "tests/performance-truth-harness.test.mjs",
 ].sort());
 
+export const performanceTruthBaselineRunnerChangedFiles = Object.freeze([
+  "bin/norma-core-performance-truth.mjs",
+  "src/performance-truth-runtime.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-package-dependency-decision.test.mjs",
+  "tests/performance-truth-runner.test.mjs",
+].sort());
+
 export const pr258RlsBoundaryMcpSandboxQualificationChangedFiles = Object.freeze([
   "docs/decisions/2026-07-24-railway-supabase-oauth-provider-qualification.md",
   "docs/decisions/2026-07-24-pr258-rls-boundary-mcp-sandbox-qualification.md",
@@ -2080,6 +2089,7 @@ const sharedExactApprovedChangedFileSets = [
   localInspectionSurfaceStaticSafetyGuardChangedFiles,
   postR25RoadmapTruthSyncChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
+  performanceTruthBaselineRunnerChangedFiles,
   performanceTruthHarnessChangedFiles,
   pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,

@@ -153,6 +153,7 @@ import {
   structuredAnalyzeScenarioPackChangedFiles,
   structuredAnalyzeScenarioPackNonSemgrepMaintenanceChangedFiles,
   structuredAnalyzeScenarioRegressionHarnessChangedFiles,
+  performanceTruthBaselineRunnerChangedFiles,
   performanceTruthHarnessChangedFiles,
   pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
   pr259ProviderNeutralMcpAuthAdapterChangedFiles,
@@ -204,6 +205,29 @@ test("PR257 performance truth harness is an exact provider-free scoped set", () 
   ]) {
     assert.equal(
       sharedExactApprovedChangedFiles([...performanceTruthHarnessChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("performance truth baseline runner is an exact provider-free scoped set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(performanceTruthBaselineRunnerChangedFiles),
+    performanceTruthBaselineRunnerChangedFiles,
+  );
+  for (const forbiddenFile of [
+    "src/performance-truth-harness.ts",
+    "src/index.ts",
+    "src/mcp/stdio-protocol.ts",
+    "src/mcp/remote-http-server.ts",
+    "package.json",
+    "package-lock.json",
+    "examples/structured-analyze/scenarios/alignment-basic.json",
+    "docs/audits/2026-07-24-pr257-performance-truth-harness.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...performanceTruthBaselineRunnerChangedFiles, forbiddenFile]),
       null,
       forbiddenFile,
     );
@@ -3866,6 +3890,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     personalChatGptVisualHarmonyDemoChangedFiles,
   );
   const isPr257Set = isExactChangedFileSet(changedFiles, performanceTruthHarnessChangedFiles);
+  const isPerformanceTruthBaselineRunnerSet = isExactChangedFileSet(
+    changedFiles,
+    performanceTruthBaselineRunnerChangedFiles,
+  );
   const isPr258Set = isExactChangedFileSet(
     changedFiles,
     pr258RlsBoundaryMcpSandboxQualificationChangedFiles,
@@ -3978,7 +4006,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -4044,6 +4072,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? personalChatGptVisualHarmonyDemoChangedFiles
       : isPr257Set
       ? performanceTruthHarnessChangedFiles
+      : isPerformanceTruthBaselineRunnerSet
+      ? performanceTruthBaselineRunnerChangedFiles
       : isPr258Set
       ? pr258RlsBoundaryMcpSandboxQualificationChangedFiles
       : isPr259Set
