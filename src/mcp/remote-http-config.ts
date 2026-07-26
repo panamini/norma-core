@@ -18,6 +18,7 @@ export const REMOTE_MCP_REQUEST_TIMEOUT_MS = 10_000;
 export const REMOTE_MCP_JWKS_TIMEOUT_MS = 5_000;
 
 export type RemoteMcpAuthorizationDataMode = "disabled" | "postgresql";
+export type RemoteMcpRevocationMode = "disabled" | "postgresql";
 
 export interface RemoteMcpTokenIntrospectionConfig {
   readonly url: URL;
@@ -38,6 +39,7 @@ export interface RemoteMcpRuntimeConfig {
   readonly authorizationScope: string;
   readonly tenantClaim: string | undefined;
   readonly authorizationDataMode: RemoteMcpAuthorizationDataMode;
+  readonly revocationMode?: RemoteMcpRevocationMode;
   readonly audience: string;
   readonly auditHashKey: string;
   readonly allowedOrigins: ReadonlySet<string>;
@@ -93,6 +95,10 @@ export function loadRemoteMcpRuntimeConfig(
   if (authorizationDataMode === "postgresql" && tenantClaim === undefined) {
     throw new Error("NORMA_MCP_AUTHZ_DATA_MODE=postgresql requires NORMA_MCP_AUTH_TENANT_CLAIM");
   }
+  const revocationMode = parseRevocationMode(environment.NORMA_MCP_REVOCATION_MODE);
+  if (revocationMode === "postgresql" && authorizationDataMode !== "postgresql") {
+    throw new Error("NORMA_MCP_REVOCATION_MODE=postgresql requires NORMA_MCP_AUTHZ_DATA_MODE=postgresql");
+  }
   const audience = required(
     environment.NORMA_MCP_AUTH_AUDIENCE ?? environment.NORMA_MCP_AUTH0_AUDIENCE,
     "NORMA_MCP_AUTH_AUDIENCE",
@@ -122,10 +128,21 @@ export function loadRemoteMcpRuntimeConfig(
     authorizationScope,
     tenantClaim,
     authorizationDataMode,
+    revocationMode,
     audience,
     auditHashKey,
     allowedOrigins,
   };
+}
+
+function parseRevocationMode(value: string | undefined): RemoteMcpRevocationMode {
+  if (value === undefined || value === "disabled") {
+    return "disabled";
+  }
+  if (value === "postgresql") {
+    return value;
+  }
+  throw new Error("NORMA_MCP_REVOCATION_MODE must be disabled or postgresql");
 }
 
 function parseTokenIntrospectionConfig(

@@ -1,5 +1,3 @@
-import { createHmac } from "node:crypto";
-
 import {
   createRemoteJWKSet,
   customFetch,
@@ -13,6 +11,13 @@ import {
 } from "./remote-http-config.js";
 import type { RemoteMcpRuntimeConfig } from "./remote-http-config.js";
 import type { AuthenticatedRequestContext } from "./remote-http-authorization-data.js";
+import {
+  hashRemoteMcpSubject,
+  hashRemoteMcpRevocationScope,
+} from "./remote-http-revocation.js";
+import type {
+  RemoteMcpRevocationRegistry,
+} from "./remote-http-revocation.js";
 
 export interface VerifiedRemoteMcpAccess {
   readonly rawToken: string;
@@ -20,6 +25,7 @@ export interface VerifiedRemoteMcpAccess {
   readonly scopes: readonly string[];
   readonly clientId: string;
   readonly expiresAt: number;
+  readonly issuedAt?: number;
   readonly authorizationContext?: AuthenticatedRequestContext;
 }
 
@@ -27,6 +33,7 @@ export type RemoteMcpAccessTokenVerifier = (token: string) => Promise<VerifiedRe
 
 export interface RemoteMcpAuthDependencies {
   readonly fetch?: typeof fetch;
+  readonly revocationRegistry?: RemoteMcpRevocationRegistry;
 }
 
 export class RemoteMcpAuthenticationError extends Error {
@@ -41,6 +48,7 @@ export function createRemoteMcpAccessTokenVerifier(
   dependencies: RemoteMcpAuthDependencies = {},
 ): RemoteMcpAccessTokenVerifier {
   const fetchImplementation = dependencies.fetch ?? fetch;
+  const revocationRegistry = dependencies.revocationRegistry;
   let keyResolverPromise: Promise<ReturnType<typeof createRemoteJWKSet>> | undefined;
 
   return async (token: string): Promise<VerifiedRemoteMcpAccess> => {
@@ -61,12 +69,35 @@ export function createRemoteMcpAccessTokenVerifier(
         audience: config.audience,
         clockTolerance: 0,
       });
+      const access = verifiedAccess(config, token, verified.payload);
+      if (revocationRegistry !== undefined) {
+        await verifyRevocation(revocationRegistry, config, access);
+      }
       await verifyTokenIntrospection(config, token, fetchImplementation);
-      return verifiedAccess(config, token, verified.payload);
+      return access;
     } catch {
       throw new RemoteMcpAuthenticationError();
     }
   };
+}
+
+async function verifyRevocation(
+  registry: RemoteMcpRevocationRegistry,
+  config: RemoteMcpRuntimeConfig,
+  access: VerifiedRemoteMcpAccess,
+): Promise<void> {
+  if (access.issuedAt === undefined) {
+    throw new RemoteMcpAuthenticationError();
+  }
+  const revoked = await registry.isRevoked({
+    subjectId: access.subjectId,
+    clientId: hashRemoteMcpRevocationScope(config.auditHashKey, "client", access.clientId),
+    audience: hashRemoteMcpRevocationScope(config.auditHashKey, "audience", config.audience),
+    issuedAt: access.issuedAt,
+  });
+  if (revoked !== false) {
+    throw new RemoteMcpAuthenticationError();
+  }
 }
 
 async function verifyTokenIntrospection(
@@ -216,15 +247,19 @@ function verifiedAccess(
     typeof payload.client_id === "string" && payload.client_id.trim() !== ""
       ? payload.client_id
       : "oauth-client";
+  const issuedAt = typeof payload.iat === "number" && Number.isSafeInteger(payload.iat) && payload.iat >= 0
+    ? payload.iat
+    : undefined;
   const authorizationContext = config.tenantClaim === undefined
     ? undefined
     : createAuthorizationContext(config, config.tenantClaim, payload, subject, scopes);
   const base = {
     rawToken: token,
-    subjectId: createHmac("sha256", config.auditHashKey).update(subject).digest("hex"),
+    subjectId: hashRemoteMcpSubject(config.auditHashKey, subject),
     scopes,
     clientId,
     expiresAt: payload.exp,
+    ...(issuedAt === undefined ? {} : { issuedAt }),
     ...(authorizationContext === undefined ? {} : { authorizationContext }),
   };
   return base;

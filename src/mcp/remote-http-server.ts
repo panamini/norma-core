@@ -30,6 +30,7 @@ import type {
   RemoteMcpAccessTokenVerifier,
   VerifiedRemoteMcpAccess,
 } from "./remote-http-auth.js";
+import type { RemoteMcpRevocationRegistry } from "./remote-http-revocation.js";
 import { AuthorizationDataAccessDeniedError } from "./remote-http-authorization-data.js";
 import type {
   AuthorizationDataAdapter,
@@ -111,6 +112,7 @@ export interface RemoteMcpRuntimeDependencies {
   readonly personalVisualHarmonyService?: PersonalVisualHarmonySessionServiceV1;
   readonly authorizationDataAdapter?: AuthorizationDataAdapter;
   readonly postgresqlPool?: PostgreSqlAuthorizationPool;
+  readonly revocationRegistry?: RemoteMcpRevocationRegistry;
   readonly log?: (event: RemoteMcpLogEvent) => void;
 }
 
@@ -118,7 +120,13 @@ export function createRemoteMcpHttpServer(
   config: RemoteMcpRuntimeConfig,
   dependencies: RemoteMcpRuntimeDependencies = {},
 ): Server {
-  const verifyAccessToken = dependencies.verifyAccessToken ?? createRemoteMcpAccessTokenVerifier(config);
+  const verifyAccessToken = dependencies.verifyAccessToken
+    ?? createRemoteMcpAccessTokenVerifier(
+      config,
+      dependencies.revocationRegistry === undefined
+        ? {}
+        : { revocationRegistry: dependencies.revocationRegistry },
+    );
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
   const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
     ?? new PersonalVisualHarmonySessionServiceV1();

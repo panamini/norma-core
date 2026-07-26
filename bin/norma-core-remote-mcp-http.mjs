@@ -2,11 +2,22 @@
 
 import { createRemoteMcpHttpServerFromEnvironment } from "../dist/src/mcp/remote-http-server.js";
 import { createPostgreSqlPoolFromEnvironment } from "../dist/src/mcp/remote-http-postgresql-pool.js";
+import { PostgreSqlRemoteMcpRevocationRegistry } from "../dist/src/mcp/remote-http-postgresql-revocation.js";
 
 const postgresqlPool = createPostgreSqlPoolFromEnvironment(process.env);
 const { config, server } = createRemoteMcpHttpServerFromEnvironment(process.env, {
   postgresqlPool,
+  ...(process.env.NORMA_MCP_REVOCATION_MODE === "postgresql"
+    ? { revocationRegistry: requiredRevocationRegistry(postgresqlPool) }
+    : {}),
 });
+
+function requiredRevocationRegistry(pool) {
+  if (pool === undefined) {
+    throw new Error("NORMA_MCP_REVOCATION_MODE=postgresql requires a PostgreSQL pool");
+  }
+  return new PostgreSqlRemoteMcpRevocationRegistry(pool);
+}
 
 async function start() {
   try {

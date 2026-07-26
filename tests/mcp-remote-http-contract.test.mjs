@@ -59,6 +59,7 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   assert.equal(config.authorizationScope, "norma:structured-analyze");
   assert.equal(config.tenantClaim, "tenant_id");
   assert.equal(config.tokenIntrospection, undefined);
+  assert.equal(config.revocationMode, "disabled");
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
 
@@ -90,6 +91,16 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     ...environment,
     NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
   }), /configured together/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+  }), /requires NORMA_MCP_AUTHZ_DATA_MODE=postgresql/u);
+  const revocationConfig = loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+  });
+  assert.equal(revocationConfig.revocationMode, "postgresql");
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
     NORMA_MCP_AUTH_INTROSPECTION_URL: "https://other.example/oauth/introspect",
