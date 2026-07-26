@@ -41,6 +41,20 @@ test("PostgreSQL registry rejects privileged roles and invalid inputs before loo
     () => privileged.isRevoked({ subjectId, clientId, audience, issuedAt: 1 }),
     /least-privilege/u,
   );
+  for (const override of [
+    { table_write: true },
+    { table_owner: true },
+    { table_select: false },
+    { schema_usage: false },
+  ]) {
+    const excessive = new PostgreSqlRemoteMcpRevocationRegistry(pool(async () => ({
+      rows: [{ ...leastPrivilegeRole().rows[0], ...override }],
+    })));
+    await assert.rejects(
+      () => excessive.isRevoked({ subjectId, clientId, audience, issuedAt: 1 }),
+      /least-privilege/u,
+    );
+  }
 
   let connected = false;
   const invalid = new PostgreSqlRemoteMcpRevocationRegistry({
@@ -99,6 +113,10 @@ function leastPrivilegeRole() {
       rolcreatedb: false,
       rolcreaterole: false,
       rolinherit: false,
+      schema_usage: true,
+      table_select: true,
+      table_write: false,
+      table_owner: false,
     }],
   };
 }

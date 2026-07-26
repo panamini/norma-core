@@ -9,6 +9,7 @@ import {
   RemoteMcpAuthenticationError,
 } from "../dist/src/mcp/remote-http-auth.js";
 import {
+  hashRemoteMcpRevocationScope,
   hashRemoteMcpSubject,
   InMemoryRemoteMcpRevocationRegistry,
 } from "../dist/src/mcp/remote-http-revocation.js";
@@ -40,13 +41,16 @@ test("same-token replay fails closed after a subject revocation cutoff", async (
   const cutoff = now - 5;
 
   assert.equal(oldAccess.issuedAt, now - 10);
-  assert.equal(oldAccess.subjectId, hashRemoteMcpSubject(config.auditHashKey, "auth0|subject-a"));
+  assert.equal(oldAccess.subjectId, hashRemoteMcpSubject(config.revocationHashKey, "auth0|subject-a"));
   registry.record({ subjectId: oldAccess.subjectId, revokedAt: cutoff });
 
   await assert.rejects(() => verifier(oldToken), RemoteMcpAuthenticationError);
 
   const reauthenticatedToken = await signedToken(key, config, { issuedAt: now - 1 });
   assert.equal((await verifier(reauthenticatedToken)).subjectId, oldAccess.subjectId);
+
+  const fractionalToken = await signedToken(key, config, { issuedAt: now - 0.5 });
+  assert.equal((await verifier(fractionalToken)).issuedAt, now - 0.5);
 });
 
 test("revocation scope is exact when client or audience is supplied", async () => {
@@ -76,6 +80,10 @@ test("revocation scope is exact when client or audience is supplied", async () =
   assert.equal(registry.isRevoked(lookup), true);
   assert.equal(registry.isRevoked({ ...lookup, issuedAt: 201 }), false);
   assert.equal(registry.isRevoked({ ...lookup, audience: "e".repeat(64) }), false);
+  assert.equal(
+    hashRemoteMcpRevocationScope("k".repeat(32), "client", " client-a "),
+    hashRemoteMcpRevocationScope("k".repeat(32), "client", "client-a"),
+  );
 });
 
 test("revocation lookup failures, missing iat, and malformed events fail closed", async (t) => {
@@ -182,6 +190,7 @@ function testConfig(issuer) {
     authorizationScope: "norma:structured-analyze",
     audience: "https://norma.example/api",
     auditHashKey: "a".repeat(64),
+    revocationHashKey: "b".repeat(64),
     allowedOrigins: new Set(),
   };
 }

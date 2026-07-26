@@ -20,7 +20,23 @@ import {
 export const REMOTE_MCP_REVOCATION_TABLE = "norma_sandbox.remote_mcp_revocations";
 
 const ROLE_VALIDATION_SQL = `
-  SELECT current_user, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit
+  SELECT
+    current_user,
+    rolsuper,
+    rolbypassrls,
+    rolcreatedb,
+    rolcreaterole,
+    rolinherit,
+    has_schema_privilege(current_user, 'norma_sandbox', 'USAGE') AS schema_usage,
+    has_table_privilege(current_user, '${REMOTE_MCP_REVOCATION_TABLE}', 'SELECT') AS table_select,
+    has_table_privilege(current_user, '${REMOTE_MCP_REVOCATION_TABLE}', 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER,REFERENCES') AS table_write,
+    EXISTS (
+      SELECT 1
+      FROM pg_tables
+      WHERE schemaname = 'norma_sandbox'
+        AND tablename = 'remote_mcp_revocations'
+        AND tableowner = current_user
+    ) AS table_owner
   FROM pg_roles
   WHERE rolname = current_user`;
 
@@ -96,7 +112,10 @@ export class PostgreSqlRemoteMcpRevocationRegistry
   }
 }
 
-/** SQL is intentionally operator-applied and disposable in the sandbox. */
+/**
+ * SQL is intentionally operator-applied and disposable in the sandbox.
+ * roleName is constrained to a simple PostgreSQL identifier before interpolation.
+ */
 export function createPostgreSqlRevocationSchemaSql(roleName = "norma_sandbox_user"): string {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(roleName)) {
     throw new Error("role name is invalid");
@@ -152,6 +171,10 @@ async function assertLeastPrivilegeRuntimeRole(
     || typeof row.rolcreatedb !== "boolean"
     || typeof row.rolcreaterole !== "boolean"
     || typeof row.rolinherit !== "boolean"
+    || row.schema_usage !== true
+    || row.table_select !== true
+    || row.table_write !== false
+    || row.table_owner !== false
     || row.rolsuper
     || row.rolbypassrls
     || row.rolcreatedb

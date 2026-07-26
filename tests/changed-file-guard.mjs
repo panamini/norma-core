@@ -1205,6 +1205,7 @@ export const oauthImmediateRevocationChangedFiles = Object.freeze([
   "docs/runbooks/oauth-immediate-revocation-sandbox.md",
   "src/mcp/remote-http-auth.ts",
   "src/mcp/remote-http-config.ts",
+  "src/mcp/remote-http-limits.ts",
   "src/mcp/remote-http-postgresql-revocation.ts",
   "src/mcp/remote-http-revocation.ts",
   "src/mcp/remote-http-server.ts",

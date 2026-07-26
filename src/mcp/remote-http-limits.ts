@@ -1,5 +1,6 @@
 import {
   REMOTE_MCP_MAX_AUTHENTICATED_ATTEMPTS_PER_MINUTE,
+  REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY,
   REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR,
   REMOTE_MCP_MAX_SUBJECT_CONCURRENCY,
   REMOTE_MCP_MAX_UNAUTHORIZED_ATTEMPTS_PER_MINUTE,
@@ -15,6 +16,10 @@ export type RemoteMcpAdmissionResult =
       readonly code: "authenticated_capacity" | "subject_rate" | "subject_concurrency";
     };
 
+export type RemoteMcpAuthenticationAdmissionResult =
+  | { readonly allowed: true; readonly release: () => void }
+  | { readonly allowed: false };
+
 interface SubjectAccounting {
   readonly attempts: number[];
   concurrency: number;
@@ -25,6 +30,7 @@ export class RemoteMcpAdmissionController {
   readonly #authenticatedAttempts: number[] = [];
   readonly #unauthorizedAttempts: number[] = [];
   readonly #subjects = new Map<string, SubjectAccounting>();
+  #authenticationConcurrency = 0;
 
   constructor(now: () => number = Date.now) {
     this.#now = now;
@@ -38,6 +44,29 @@ export class RemoteMcpAdmissionController {
     }
     this.#unauthorizedAttempts.push(now);
     return true;
+  }
+
+  enterAuthenticationAttempt(): RemoteMcpAuthenticationAdmissionResult {
+    const now = this.#now();
+    prune(this.#unauthorizedAttempts, now - ONE_MINUTE_MS);
+    if (
+      this.#unauthorizedAttempts.length >= REMOTE_MCP_MAX_UNAUTHORIZED_ATTEMPTS_PER_MINUTE
+      || this.#authenticationConcurrency >= REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY
+    ) {
+      return { allowed: false };
+    }
+    this.#authenticationConcurrency += 1;
+    let released = false;
+    return {
+      allowed: true,
+      release: () => {
+        if (released) {
+          return;
+        }
+        released = true;
+        this.#authenticationConcurrency -= 1;
+      },
+    };
   }
 
   enterAuthenticatedAttempt(subjectId: string): RemoteMcpAdmissionResult {

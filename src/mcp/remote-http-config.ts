@@ -14,17 +14,12 @@ export const REMOTE_MCP_MAX_SUBJECT_CONCURRENCY = 2;
 export const REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR = 30;
 export const REMOTE_MCP_MAX_AUTHENTICATED_ATTEMPTS_PER_MINUTE = 120;
 export const REMOTE_MCP_MAX_UNAUTHORIZED_ATTEMPTS_PER_MINUTE = 600;
+export const REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY = 4;
 export const REMOTE_MCP_REQUEST_TIMEOUT_MS = 10_000;
 export const REMOTE_MCP_JWKS_TIMEOUT_MS = 5_000;
 
 export type RemoteMcpAuthorizationDataMode = "disabled" | "postgresql";
 export type RemoteMcpRevocationMode = "disabled" | "postgresql";
-
-export interface RemoteMcpTokenIntrospectionConfig {
-  readonly url: URL;
-  readonly clientId: string;
-  readonly clientSecret: string;
-}
 
 export interface RemoteMcpRuntimeConfig {
   readonly port: number;
@@ -35,13 +30,13 @@ export interface RemoteMcpRuntimeConfig {
   readonly issuerClaim: string;
   readonly authorizationServerUrl: URL;
   readonly jwksUrl: URL | undefined;
-  readonly tokenIntrospection: RemoteMcpTokenIntrospectionConfig | undefined;
   readonly authorizationScope: string;
   readonly tenantClaim: string | undefined;
   readonly authorizationDataMode: RemoteMcpAuthorizationDataMode;
   readonly revocationMode?: RemoteMcpRevocationMode;
   readonly audience: string;
   readonly auditHashKey: string;
+  readonly revocationHashKey: string | undefined;
   readonly allowedOrigins: ReadonlySet<string>;
 }
 
@@ -83,7 +78,6 @@ export function loadRemoteMcpRuntimeConfig(
   const jwksUrl = environment.NORMA_MCP_AUTH_JWKS_URL === undefined
     ? undefined
     : parseConfiguredUrl(environment.NORMA_MCP_AUTH_JWKS_URL, "NORMA_MCP_AUTH_JWKS_URL", nodeEnv);
-  const tokenIntrospection = parseTokenIntrospectionConfig(environment, nodeEnv, issuer);
   const authorizationScope = parseOAuthScope(
     environment.NORMA_MCP_AUTH_SCOPE ?? REMOTE_MCP_REQUIRED_SCOPE,
     "NORMA_MCP_AUTH_SCOPE",
@@ -110,6 +104,15 @@ export function loadRemoteMcpRuntimeConfig(
   if (auditHashKey.length < 32) {
     throw new Error("NORMA_MCP_AUDIT_HASH_KEY must contain at least 32 characters");
   }
+  const revocationHashKey = revocationMode === "postgresql"
+    ? required(environment.NORMA_MCP_REVOCATION_HASH_KEY, "NORMA_MCP_REVOCATION_HASH_KEY")
+    : undefined;
+  if (revocationHashKey !== undefined && revocationHashKey.length < 32) {
+    throw new Error("NORMA_MCP_REVOCATION_HASH_KEY must contain at least 32 characters");
+  }
+  if (revocationHashKey !== undefined && revocationHashKey === auditHashKey) {
+    throw new Error("NORMA_MCP_REVOCATION_HASH_KEY must be independent from NORMA_MCP_AUDIT_HASH_KEY");
+  }
 
   const allowedOrigins = parseAllowedOrigins(environment.NORMA_MCP_ALLOWED_ORIGINS, nodeEnv);
 
@@ -124,13 +127,13 @@ export function loadRemoteMcpRuntimeConfig(
       : issuer.href.slice(0, -1),
     authorizationServerUrl,
     jwksUrl,
-    tokenIntrospection,
     authorizationScope,
     tenantClaim,
     authorizationDataMode,
     revocationMode,
     audience,
     auditHashKey,
+    revocationHashKey,
     allowedOrigins,
   };
 }
@@ -143,42 +146,6 @@ function parseRevocationMode(value: string | undefined): RemoteMcpRevocationMode
     return value;
   }
   throw new Error("NORMA_MCP_REVOCATION_MODE must be disabled or postgresql");
-}
-
-function parseTokenIntrospectionConfig(
-  environment: Readonly<Record<string, string | undefined>>,
-  nodeEnv: string,
-  issuer: URL,
-): RemoteMcpTokenIntrospectionConfig | undefined {
-  const mode = environment.NORMA_MCP_AUTH_INTROSPECTION_MODE;
-  if (mode !== undefined && mode !== "enabled" && mode !== "disabled") {
-    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_MODE must be enabled or disabled");
-  }
-  if (mode === "disabled") {
-    return undefined;
-  }
-  const urlValue = environment.NORMA_MCP_AUTH_INTROSPECTION_URL;
-  const clientId = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID;
-  const clientSecret = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET;
-  if (urlValue === undefined && clientId === undefined && clientSecret === undefined) {
-    return undefined;
-  }
-  if (urlValue === undefined || clientId === undefined || clientSecret === undefined) {
-    throw new Error(
-      "NORMA_MCP_AUTH_INTROSPECTION_URL, NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID, and NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET must be configured together",
-    );
-  }
-  if (clientId.trim() === "" || /[\u0000-\u001F\u007F]/u.test(clientId)) {
-    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID must be non-empty without control characters");
-  }
-  if (clientSecret === "") {
-    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET must be non-empty");
-  }
-  const url = parseConfiguredUrl(urlValue, "NORMA_MCP_AUTH_INTROSPECTION_URL", nodeEnv);
-  if (url.origin !== issuer.origin) {
-    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_URL must share the authorization issuer origin");
-  }
-  return { url, clientId, clientSecret };
 }
 
 function parseAuthorizationDataMode(

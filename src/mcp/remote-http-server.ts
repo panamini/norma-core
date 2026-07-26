@@ -125,6 +125,11 @@ export function createRemoteMcpHttpServer(
       "NORMA_MCP_REVOCATION_MODE=postgresql requires an injected revocation registry",
     );
   }
+  if (config.revocationMode === "postgresql" && dependencies.verifyAccessToken !== undefined) {
+    throw new Error(
+      "NORMA_MCP_REVOCATION_MODE=postgresql does not allow a custom access-token verifier",
+    );
+  }
   const verifyAccessToken = dependencies.verifyAccessToken
     ?? createRemoteMcpAccessTokenVerifier(
       config,
@@ -245,13 +250,30 @@ async function routeRequest(
   }
 
   const token = bearerToken(request.headers.authorization);
+  const authenticationAdmission = admissionController.enterAuthenticationAttempt();
+  if (!authenticationAdmission.allowed) {
+    response.setHeader("www-authenticate", bearerChallenge(config));
+    sendJson(response, 429, stableError("unauthorized_rate_limited", requestId));
+    logEvent(log, requestId, startedAt, 429, "unauthorized_rate_limited", undefined, [], 0, undefined);
+    return;
+  }
   let access: VerifiedRemoteMcpAccess;
   try {
-    if (token === null) {
-      throw new Error("missing token");
+    const authenticationTask = token === null
+      ? Promise.reject(new Error("missing token"))
+      : verifyAccessToken(token);
+    access = await withRemoteMcpAdmissionDeadline(
+      authenticationTask,
+      remainingRequestTime(startedAt),
+      authenticationAdmission.release,
+      () => {},
+    );
+  } catch (error) {
+    if (error instanceof RemoteMcpRequestTimeoutError) {
+      sendJson(response, 504, stableError("request_timeout", requestId));
+      logEvent(log, requestId, startedAt, 504, "request_timeout", undefined, [], 0, undefined);
+      return;
     }
-    access = await verifyAccessToken(token);
-  } catch {
     const retained = admissionController.recordUnauthorizedAttempt();
     const code = retained ? "authentication_required" : "unauthorized_rate_limited";
     response.setHeader("www-authenticate", bearerChallenge(config));
@@ -283,7 +305,7 @@ async function routeRequest(
   try {
     await withRemoteMcpAdmissionDeadline(
       requestTask,
-      REMOTE_MCP_REQUEST_TIMEOUT_MS,
+      remainingRequestTime(startedAt),
       admission.release,
       () => {
         abortController.abort();
@@ -305,6 +327,10 @@ async function routeRequest(
     }
     logEvent(log, requestId, startedAt, 500, "internal_error", access, access.scopes, 0, undefined);
   }
+}
+
+function remainingRequestTime(startedAt: number): number {
+  return Math.max(1, REMOTE_MCP_REQUEST_TIMEOUT_MS - (Date.now() - startedAt));
 }
 
 async function handleAuthenticatedPost(

@@ -59,7 +59,6 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   assert.equal(config.jwksUrl.href, "https://tenant.eu.auth0.com/.well-known/jwks.json");
   assert.equal(config.authorizationScope, "norma:structured-analyze");
   assert.equal(config.tenantClaim, "tenant_id");
-  assert.equal(config.tokenIntrospection, undefined);
   assert.equal(config.revocationMode, "disabled");
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
@@ -90,16 +89,13 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   }), /claim name/u);
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
-    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
-  }), /configured together/u);
-  assert.throws(() => loadRemoteMcpRuntimeConfig({
-    ...environment,
     NORMA_MCP_REVOCATION_MODE: "postgresql",
   }), /requires NORMA_MCP_AUTHZ_DATA_MODE=postgresql/u);
   const revocationConfig = loadRemoteMcpRuntimeConfig({
     ...environment,
     NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
     NORMA_MCP_REVOCATION_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_HASH_KEY: "independent-revocation-key-with-at-least-32-characters",
   });
   assert.equal(revocationConfig.revocationMode, "postgresql");
   assert.throws(
@@ -114,32 +110,24 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   );
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
-    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://other.example/oauth/introspect",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
-  }), /issuer origin/u);
-
-  const introspectionConfig = loadRemoteMcpRuntimeConfig({
-    ...environment,
-    NORMA_MCP_AUTH_INTROSPECTION_MODE: "enabled",
-    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
-  });
-  assert.equal(introspectionConfig.tokenIntrospection.url.href, "https://tenant.eu.auth0.com/oauth/introspect");
-  assert.equal(introspectionConfig.tokenIntrospection.clientId, "resource-server");
-  const disabledIntrospectionConfig = loadRemoteMcpRuntimeConfig({
-    ...environment,
-    NORMA_MCP_AUTH_INTROSPECTION_MODE: "disabled",
-    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
-    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
-  });
-  assert.equal(disabledIntrospectionConfig.tokenIntrospection, undefined);
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+  }), /NORMA_MCP_REVOCATION_HASH_KEY is required/u);
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
-    NORMA_MCP_AUTH_INTROSPECTION_MODE: "optional",
-  }), /must be enabled or disabled/u);
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_HASH_KEY: environment.NORMA_MCP_AUDIT_HASH_KEY,
+  }), /must be independent/u);
+  assert.throws(
+    () => createRemoteMcpHttpServer(revocationConfig, {
+      revocationRegistry: { isRevoked: () => false },
+      verifyAccessToken: async () => {
+        throw new Error("must not run");
+      },
+    }),
+    /does not allow a custom access-token verifier/u,
+  );
 
   const testConfig = loadRemoteMcpRuntimeConfig({
     ...environment,

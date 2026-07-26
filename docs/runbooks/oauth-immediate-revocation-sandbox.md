@@ -8,9 +8,13 @@ contents. It is a sandbox procedure, not a production migration.
 
 - Validate Scalekit access tokens locally with RS256, exact issuer, exact MCP
   resource audience, expiry, subject, tenant claim, and scope.
-- Set `NORMA_MCP_AUTH_INTROSPECTION_MODE=disabled` when the provider does not
-  document or pass confidential-client introspection for public-DCR tokens.
+- Keep provider token introspection outside the runtime: the sandbox provider
+  did not document or pass confidential-client introspection for public-DCR
+  tokens, and the approved MCP egress boundary remains discovery/JWKS only.
 - Set `NORMA_MCP_REVOCATION_MODE=postgresql`.
+- Set a dedicated `NORMA_MCP_REVOCATION_HASH_KEY` that is independent from
+  `NORMA_MCP_AUDIT_HASH_KEY`; rotate it only after all unexpired cutoff rows
+  have expired or been migrated.
 - Use the same least-privileged PostgreSQL role as the Railway authorization
   pool. It must be `NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT`.
 - Grant that exact runtime role schema `USAGE`, table `SELECT`, and the RLS

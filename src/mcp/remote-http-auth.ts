@@ -73,7 +73,6 @@ export function createRemoteMcpAccessTokenVerifier(
       if (revocationRegistry !== undefined) {
         await verifyRevocation(revocationRegistry, config, access);
       }
-      await verifyTokenIntrospection(config, token, fetchImplementation);
       return access;
     } catch {
       throw new RemoteMcpAuthenticationError();
@@ -91,49 +90,13 @@ async function verifyRevocation(
   }
   const revoked = await registry.isRevoked({
     subjectId: access.subjectId,
-    clientId: hashRemoteMcpRevocationScope(config.auditHashKey, "client", access.clientId),
-    audience: hashRemoteMcpRevocationScope(config.auditHashKey, "audience", config.audience),
+    clientId: hashRemoteMcpRevocationScope(config.revocationHashKey ?? config.auditHashKey, "client", access.clientId),
+    audience: hashRemoteMcpRevocationScope(config.revocationHashKey ?? config.auditHashKey, "audience", config.audience),
     issuedAt: access.issuedAt,
   });
   if (revoked !== false) {
     throw new RemoteMcpAuthenticationError();
   }
-}
-
-async function verifyTokenIntrospection(
-  config: RemoteMcpRuntimeConfig,
-  token: string,
-  fetchImplementation: typeof fetch,
-): Promise<void> {
-  const introspection = config.tokenIntrospection;
-  if (introspection === undefined) {
-    return;
-  }
-  const response = await fetchImplementation(introspection.url, {
-    method: "POST",
-    redirect: "manual",
-    signal: AbortSignal.timeout(REMOTE_MCP_JWKS_TIMEOUT_MS),
-    headers: {
-      accept: "application/json",
-      authorization: `Basic ${basicClientCredentials(introspection.clientId, introspection.clientSecret)}`,
-      "content-type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({ token, token_type_hint: "access_token" }).toString(),
-  });
-  rejectRedirect(response);
-  if (!response.ok) {
-    throw new RemoteMcpAuthenticationError();
-  }
-  const payload = await response.json() as unknown;
-  if (!isRecord(payload) || payload.active !== true) {
-    throw new RemoteMcpAuthenticationError();
-  }
-}
-
-function basicClientCredentials(clientId: string, clientSecret: string): string {
-  const escapedClientId = encodeURIComponent(clientId);
-  const escapedClientSecret = encodeURIComponent(clientSecret);
-  return btoa(`${escapedClientId}:${escapedClientSecret}`);
 }
 
 async function createKeyResolver(
@@ -247,7 +210,7 @@ function verifiedAccess(
     typeof payload.client_id === "string" && payload.client_id.trim() !== ""
       ? payload.client_id
       : "oauth-client";
-  const issuedAt = typeof payload.iat === "number" && Number.isSafeInteger(payload.iat) && payload.iat >= 0
+  const issuedAt = typeof payload.iat === "number" && Number.isFinite(payload.iat) && payload.iat >= 0
     ? payload.iat
     : undefined;
   const authorizationContext = config.tenantClaim === undefined
@@ -255,7 +218,7 @@ function verifiedAccess(
     : createAuthorizationContext(config, config.tenantClaim, payload, subject, scopes);
   const base = {
     rawToken: token,
-    subjectId: hashRemoteMcpSubject(config.auditHashKey, subject),
+    subjectId: hashRemoteMcpSubject(config.revocationHashKey ?? config.auditHashKey, subject),
     scopes,
     clientId,
     expiresAt: payload.exp,

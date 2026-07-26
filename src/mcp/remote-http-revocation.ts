@@ -43,10 +43,11 @@ export function hashRemoteMcpRevocationScope(
   kind: "client" | "audience",
   value: string,
 ): string {
-  if (value.trim() === "") {
+  const normalizedValue = value.trim();
+  if (normalizedValue === "") {
     throw new Error("Invalid revocation scope");
   }
-  return createHmac("sha256", auditHashKey).update(`${kind}\u0000${value}`).digest("hex");
+  return createHmac("sha256", auditHashKey).update(`${kind}\u0000${normalizedValue}`).digest("hex");
 }
 
 /**
@@ -96,7 +97,7 @@ export function assertValidRemoteMcpRevocationLookup(
   if (!isSubjectId(lookup.subjectId)
     || !isHashedIdentifier(lookup.clientId)
     || !isHashedIdentifier(lookup.audience)
-    || !isUnixSecond(lookup.issuedAt)) {
+    || !isNumericDate(lookup.issuedAt)) {
     throw new Error("Invalid revocation lookup");
   }
 }
@@ -122,4 +123,8 @@ function isHashedIdentifier(value: string): boolean {
 
 function isUnixSecond(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
+}
+
+function isNumericDate(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
 }
