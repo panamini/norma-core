@@ -14,10 +14,12 @@ export const REMOTE_MCP_MAX_SUBJECT_CONCURRENCY = 2;
 export const REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR = 30;
 export const REMOTE_MCP_MAX_AUTHENTICATED_ATTEMPTS_PER_MINUTE = 120;
 export const REMOTE_MCP_MAX_UNAUTHORIZED_ATTEMPTS_PER_MINUTE = 600;
+export const REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY = 4;
 export const REMOTE_MCP_REQUEST_TIMEOUT_MS = 10_000;
 export const REMOTE_MCP_JWKS_TIMEOUT_MS = 5_000;
 
 export type RemoteMcpAuthorizationDataMode = "disabled" | "postgresql";
+export type RemoteMcpRevocationMode = "disabled" | "postgresql";
 
 export interface RemoteMcpRuntimeConfig {
   readonly port: number;
@@ -31,8 +33,10 @@ export interface RemoteMcpRuntimeConfig {
   readonly authorizationScope: string;
   readonly tenantClaim: string | undefined;
   readonly authorizationDataMode: RemoteMcpAuthorizationDataMode;
+  readonly revocationMode?: RemoteMcpRevocationMode;
   readonly audience: string;
   readonly auditHashKey: string;
+  readonly revocationHashKey: string | undefined;
   readonly allowedOrigins: ReadonlySet<string>;
 }
 
@@ -85,6 +89,10 @@ export function loadRemoteMcpRuntimeConfig(
   if (authorizationDataMode === "postgresql" && tenantClaim === undefined) {
     throw new Error("NORMA_MCP_AUTHZ_DATA_MODE=postgresql requires NORMA_MCP_AUTH_TENANT_CLAIM");
   }
+  const revocationMode = parseRevocationMode(environment.NORMA_MCP_REVOCATION_MODE);
+  if (revocationMode === "postgresql" && authorizationDataMode !== "postgresql") {
+    throw new Error("NORMA_MCP_REVOCATION_MODE=postgresql requires NORMA_MCP_AUTHZ_DATA_MODE=postgresql");
+  }
   const audience = required(
     environment.NORMA_MCP_AUTH_AUDIENCE ?? environment.NORMA_MCP_AUTH0_AUDIENCE,
     "NORMA_MCP_AUTH_AUDIENCE",
@@ -95,6 +103,15 @@ export function loadRemoteMcpRuntimeConfig(
   const auditHashKey = required(environment.NORMA_MCP_AUDIT_HASH_KEY, "NORMA_MCP_AUDIT_HASH_KEY");
   if (auditHashKey.length < 32) {
     throw new Error("NORMA_MCP_AUDIT_HASH_KEY must contain at least 32 characters");
+  }
+  const revocationHashKey = revocationMode === "postgresql"
+    ? required(environment.NORMA_MCP_REVOCATION_HASH_KEY, "NORMA_MCP_REVOCATION_HASH_KEY")
+    : undefined;
+  if (revocationHashKey !== undefined && revocationHashKey.length < 32) {
+    throw new Error("NORMA_MCP_REVOCATION_HASH_KEY must contain at least 32 characters");
+  }
+  if (revocationHashKey !== undefined && revocationHashKey === auditHashKey) {
+    throw new Error("NORMA_MCP_REVOCATION_HASH_KEY must be independent from NORMA_MCP_AUDIT_HASH_KEY");
   }
 
   const allowedOrigins = parseAllowedOrigins(environment.NORMA_MCP_ALLOWED_ORIGINS, nodeEnv);
@@ -113,10 +130,22 @@ export function loadRemoteMcpRuntimeConfig(
     authorizationScope,
     tenantClaim,
     authorizationDataMode,
+    revocationMode,
     audience,
     auditHashKey,
+    revocationHashKey,
     allowedOrigins,
   };
+}
+
+function parseRevocationMode(value: string | undefined): RemoteMcpRevocationMode {
+  if (value === undefined || value === "disabled") {
+    return "disabled";
+  }
+  if (value === "postgresql") {
+    return value;
+  }
+  throw new Error("NORMA_MCP_REVOCATION_MODE must be disabled or postgresql");
 }
 
 function parseAuthorizationDataMode(

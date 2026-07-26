@@ -8,6 +8,7 @@ import {
   createRemoteMcpAccessTokenVerifier,
   RemoteMcpAuthenticationError,
 } from "../dist/src/mcp/remote-http-auth.js";
+import { RemoteMcpAdmissionController } from "../dist/src/mcp/remote-http-limits.js";
 
 test("PR137 verifies signature issuer audience resource time subject and scope with local JWKS", async (t) => {
   const first = await signingKey("first-key");
@@ -196,6 +197,18 @@ test("PR263 preserves a provider issuer without a trailing slash", async (t) => 
   const access = await createRemoteMcpAccessTokenVerifier(config)(token);
 
   assert.equal(access.clientId, "client-a");
+});
+
+test("authentication admission caps pre-verification concurrency", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000);
+  const admissions = Array.from({ length: 4 }, () => controller.enterAuthenticationAttempt());
+  assert.equal(admissions.every((entry) => entry.allowed), true);
+  assert.deepEqual(controller.enterAuthenticationAttempt(), { allowed: false });
+  admissions[0].release();
+  const resumed = controller.enterAuthenticationAttempt();
+  assert.equal(resumed.allowed, true);
+  resumed.release();
+  for (const admission of admissions.slice(1)) admission.release();
 });
 
 async function signingKey(kid) {

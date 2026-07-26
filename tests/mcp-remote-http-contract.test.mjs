@@ -10,6 +10,7 @@ import {
   loadRemoteMcpRuntimeConfig,
   REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS,
 } from "../dist/src/mcp/remote-http-config.js";
+import { createRemoteMcpHttpServer } from "../dist/src/mcp/remote-http-server.js";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -58,6 +59,7 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   assert.equal(config.jwksUrl.href, "https://tenant.eu.auth0.com/.well-known/jwks.json");
   assert.equal(config.authorizationScope, "norma:structured-analyze");
   assert.equal(config.tenantClaim, "tenant_id");
+  assert.equal(config.revocationMode, "disabled");
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
 
@@ -85,6 +87,47 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     ...environment,
     NORMA_MCP_AUTH_TENANT_CLAIM: "tenant id",
   }), /claim name/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+  }), /requires NORMA_MCP_AUTHZ_DATA_MODE=postgresql/u);
+  const revocationConfig = loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_HASH_KEY: "independent-revocation-key-with-at-least-32-characters",
+  });
+  assert.equal(revocationConfig.revocationMode, "postgresql");
+  assert.throws(
+    () => createRemoteMcpHttpServer(revocationConfig, {
+      postgresqlPool: {
+        async connect() {
+          throw new Error("must not connect");
+        },
+      },
+    }),
+    /requires an injected revocation registry/u,
+  );
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+  }), /NORMA_MCP_REVOCATION_HASH_KEY is required/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTHZ_DATA_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_MODE: "postgresql",
+    NORMA_MCP_REVOCATION_HASH_KEY: environment.NORMA_MCP_AUDIT_HASH_KEY,
+  }), /must be independent/u);
+  assert.throws(
+    () => createRemoteMcpHttpServer(revocationConfig, {
+      revocationRegistry: { isRevoked: () => false },
+      verifyAccessToken: async () => {
+        throw new Error("must not run");
+      },
+    }),
+    /does not allow a custom access-token verifier/u,
+  );
 
   const testConfig = loadRemoteMcpRuntimeConfig({
     ...environment,
