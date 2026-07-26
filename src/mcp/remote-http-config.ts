@@ -150,6 +150,13 @@ function parseTokenIntrospectionConfig(
   nodeEnv: string,
   issuer: URL,
 ): RemoteMcpTokenIntrospectionConfig | undefined {
+  const mode = environment.NORMA_MCP_AUTH_INTROSPECTION_MODE;
+  if (mode !== undefined && mode !== "enabled" && mode !== "disabled") {
+    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_MODE must be enabled or disabled");
+  }
+  if (mode === "disabled") {
+    return undefined;
+  }
   const urlValue = environment.NORMA_MCP_AUTH_INTROSPECTION_URL;
   const clientId = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID;
   const clientSecret = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET;

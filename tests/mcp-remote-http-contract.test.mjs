@@ -121,12 +121,25 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
 
   const introspectionConfig = loadRemoteMcpRuntimeConfig({
     ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_MODE: "enabled",
     NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
     NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
     NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
   });
   assert.equal(introspectionConfig.tokenIntrospection.url.href, "https://tenant.eu.auth0.com/oauth/introspect");
   assert.equal(introspectionConfig.tokenIntrospection.clientId, "resource-server");
+  const disabledIntrospectionConfig = loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_MODE: "disabled",
+    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
+  });
+  assert.equal(disabledIntrospectionConfig.tokenIntrospection, undefined);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_MODE: "optional",
+  }), /must be enabled or disabled/u);
 
   const testConfig = loadRemoteMcpRuntimeConfig({
     ...environment,
