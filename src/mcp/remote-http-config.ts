@@ -19,6 +19,12 @@ export const REMOTE_MCP_JWKS_TIMEOUT_MS = 5_000;
 
 export type RemoteMcpAuthorizationDataMode = "disabled" | "postgresql";
 
+export interface RemoteMcpTokenIntrospectionConfig {
+  readonly url: URL;
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
 export interface RemoteMcpRuntimeConfig {
   readonly port: number;
   readonly nodeEnv: string;
@@ -28,6 +34,7 @@ export interface RemoteMcpRuntimeConfig {
   readonly issuerClaim: string;
   readonly authorizationServerUrl: URL;
   readonly jwksUrl: URL | undefined;
+  readonly tokenIntrospection: RemoteMcpTokenIntrospectionConfig | undefined;
   readonly authorizationScope: string;
   readonly tenantClaim: string | undefined;
   readonly authorizationDataMode: RemoteMcpAuthorizationDataMode;
@@ -74,6 +81,7 @@ export function loadRemoteMcpRuntimeConfig(
   const jwksUrl = environment.NORMA_MCP_AUTH_JWKS_URL === undefined
     ? undefined
     : parseConfiguredUrl(environment.NORMA_MCP_AUTH_JWKS_URL, "NORMA_MCP_AUTH_JWKS_URL", nodeEnv);
+  const tokenIntrospection = parseTokenIntrospectionConfig(environment, nodeEnv, issuer);
   const authorizationScope = parseOAuthScope(
     environment.NORMA_MCP_AUTH_SCOPE ?? REMOTE_MCP_REQUIRED_SCOPE,
     "NORMA_MCP_AUTH_SCOPE",
@@ -110,6 +118,7 @@ export function loadRemoteMcpRuntimeConfig(
       : issuer.href.slice(0, -1),
     authorizationServerUrl,
     jwksUrl,
+    tokenIntrospection,
     authorizationScope,
     tenantClaim,
     authorizationDataMode,
@@ -117,6 +126,35 @@ export function loadRemoteMcpRuntimeConfig(
     auditHashKey,
     allowedOrigins,
   };
+}
+
+function parseTokenIntrospectionConfig(
+  environment: Readonly<Record<string, string | undefined>>,
+  nodeEnv: string,
+  issuer: URL,
+): RemoteMcpTokenIntrospectionConfig | undefined {
+  const urlValue = environment.NORMA_MCP_AUTH_INTROSPECTION_URL;
+  const clientId = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID;
+  const clientSecret = environment.NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET;
+  if (urlValue === undefined && clientId === undefined && clientSecret === undefined) {
+    return undefined;
+  }
+  if (urlValue === undefined || clientId === undefined || clientSecret === undefined) {
+    throw new Error(
+      "NORMA_MCP_AUTH_INTROSPECTION_URL, NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID, and NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET must be configured together",
+    );
+  }
+  if (clientId.trim() === "" || /[\u0000-\u001F\u007F]/u.test(clientId)) {
+    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID must be non-empty without control characters");
+  }
+  if (clientSecret === "") {
+    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET must be non-empty");
+  }
+  const url = parseConfiguredUrl(urlValue, "NORMA_MCP_AUTH_INTROSPECTION_URL", nodeEnv);
+  if (url.origin !== issuer.origin) {
+    throw new Error("NORMA_MCP_AUTH_INTROSPECTION_URL must share the authorization issuer origin");
+  }
+  return { url, clientId, clientSecret };
 }
 
 function parseAuthorizationDataMode(

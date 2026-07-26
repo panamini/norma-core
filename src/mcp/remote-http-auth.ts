@@ -61,11 +61,48 @@ export function createRemoteMcpAccessTokenVerifier(
         audience: config.audience,
         clockTolerance: 0,
       });
+      await verifyTokenIntrospection(config, token, fetchImplementation);
       return verifiedAccess(config, token, verified.payload);
     } catch {
       throw new RemoteMcpAuthenticationError();
     }
   };
+}
+
+async function verifyTokenIntrospection(
+  config: RemoteMcpRuntimeConfig,
+  token: string,
+  fetchImplementation: typeof fetch,
+): Promise<void> {
+  const introspection = config.tokenIntrospection;
+  if (introspection === undefined) {
+    return;
+  }
+  const response = await fetchImplementation(introspection.url, {
+    method: "POST",
+    redirect: "manual",
+    signal: AbortSignal.timeout(REMOTE_MCP_JWKS_TIMEOUT_MS),
+    headers: {
+      accept: "application/json",
+      authorization: `Basic ${basicClientCredentials(introspection.clientId, introspection.clientSecret)}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ token, token_type_hint: "access_token" }).toString(),
+  });
+  rejectRedirect(response);
+  if (!response.ok) {
+    throw new RemoteMcpAuthenticationError();
+  }
+  const payload = await response.json() as unknown;
+  if (!isRecord(payload) || payload.active !== true) {
+    throw new RemoteMcpAuthenticationError();
+  }
+}
+
+function basicClientCredentials(clientId: string, clientSecret: string): string {
+  const escapedClientId = encodeURIComponent(clientId);
+  const escapedClientSecret = encodeURIComponent(clientSecret);
+  return Buffer.from(`${escapedClientId}:${escapedClientSecret}`, "utf8").toString("base64");
 }
 
 async function createKeyResolver(

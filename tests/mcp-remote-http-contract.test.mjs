@@ -58,6 +58,7 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
   assert.equal(config.jwksUrl.href, "https://tenant.eu.auth0.com/.well-known/jwks.json");
   assert.equal(config.authorizationScope, "norma:structured-analyze");
   assert.equal(config.tenantClaim, "tenant_id");
+  assert.equal(config.tokenIntrospection, undefined);
   assert.equal(config.allowedOrigins.size, 0);
   assert.deepEqual(REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18"]);
 
@@ -85,6 +86,25 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     ...environment,
     NORMA_MCP_AUTH_TENANT_CLAIM: "tenant id",
   }), /claim name/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
+  }), /configured together/u);
+  assert.throws(() => loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://other.example/oauth/introspect",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
+  }), /issuer origin/u);
+
+  const introspectionConfig = loadRemoteMcpRuntimeConfig({
+    ...environment,
+    NORMA_MCP_AUTH_INTROSPECTION_URL: "https://tenant.eu.auth0.com/oauth/introspect",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_ID: "resource-server",
+    NORMA_MCP_AUTH_INTROSPECTION_CLIENT_SECRET: "test-secret",
+  });
+  assert.equal(introspectionConfig.tokenIntrospection.url.href, "https://tenant.eu.auth0.com/oauth/introspect");
+  assert.equal(introspectionConfig.tokenIntrospection.clientId, "resource-server");
 
   const testConfig = loadRemoteMcpRuntimeConfig({
     ...environment,

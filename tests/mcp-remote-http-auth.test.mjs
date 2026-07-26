@@ -15,6 +15,8 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
   let issuer = "";
   let redirectDiscovery = false;
   let transientDiscoveryFailures = 0;
+  let introspectionStatus = "active";
+  let introspectionCalls = 0;
   const authServer = createServer((request, response) => {
     if (request.url === "/.well-known/openid-configuration") {
       if (transientDiscoveryFailures > 0) {
@@ -34,6 +36,18 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
     if (request.url === "/jwks.json") {
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ keys: [first.publicJwk, second.publicJwk] }));
+      return;
+    }
+    if (request.url === "/introspect" && request.method === "POST") {
+      introspectionCalls += 1;
+      assert.equal(request.headers.authorization, "Basic cmVzb3VyY2Utc2VydmVyOnRlc3Qtc2VjcmV0");
+      if (introspectionStatus === "unavailable") {
+        response.statusCode = 503;
+        response.end();
+        return;
+      }
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ active: introspectionStatus === "active" }));
       return;
     }
     response.statusCode = 404;
@@ -107,6 +121,23 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
 
   const secondKeyToken = await signedToken(second, config, {});
   assert.equal((await verifier(secondKeyToken)).subjectId, access.subjectId);
+
+  const introspectionConfig = testConfig(issuer, {
+    jwksUrl: new URL(`${issuer}jwks.json`),
+    tokenIntrospection: {
+      url: new URL(`${issuer}introspect`),
+      clientId: "resource-server",
+      clientSecret: "test-secret",
+    },
+  });
+  const introspectionVerifier = createRemoteMcpAccessTokenVerifier(introspectionConfig);
+  const introspectionToken = await signedToken(first, introspectionConfig, {});
+  assert.equal((await introspectionVerifier(introspectionToken)).clientId, "client-a");
+  assert.equal(introspectionCalls, 1);
+  introspectionStatus = "revoked";
+  await assert.rejects(() => introspectionVerifier(introspectionToken), RemoteMcpAuthenticationError);
+  introspectionStatus = "unavailable";
+  await assert.rejects(() => introspectionVerifier(introspectionToken), RemoteMcpAuthenticationError);
 
   for (const token of [
     await signedToken(first, config, { audience: "wrong-audience" }),
@@ -243,6 +274,7 @@ function testConfig(issuer, overrides = {}) {
     audience: "https://norma.example/api",
     auditHashKey: "test-only-audit-key-that-is-at-least-32-characters",
     allowedOrigins: new Set(),
+    tokenIntrospection: overrides.tokenIntrospection,
   };
 }
 
