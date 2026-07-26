@@ -120,6 +120,11 @@ export function createRemoteMcpHttpServer(
   config: RemoteMcpRuntimeConfig,
   dependencies: RemoteMcpRuntimeDependencies = {},
 ): Server {
+  if (config.revocationMode === "postgresql" && dependencies.revocationRegistry === undefined) {
+    throw new Error(
+      "NORMA_MCP_REVOCATION_MODE=postgresql requires an injected revocation registry",
+    );
+  }
   const verifyAccessToken = dependencies.verifyAccessToken
     ?? createRemoteMcpAccessTokenVerifier(
       config,

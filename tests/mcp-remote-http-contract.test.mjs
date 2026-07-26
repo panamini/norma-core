@@ -10,6 +10,7 @@ import {
   loadRemoteMcpRuntimeConfig,
   REMOTE_MCP_SUPPORTED_PROTOCOL_VERSIONS,
 } from "../dist/src/mcp/remote-http-config.js";
+import { createRemoteMcpHttpServer } from "../dist/src/mcp/remote-http-server.js";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -101,6 +102,16 @@ test("PR137 configuration is exact HTTPS production fail-closed with empty defau
     NORMA_MCP_REVOCATION_MODE: "postgresql",
   });
   assert.equal(revocationConfig.revocationMode, "postgresql");
+  assert.throws(
+    () => createRemoteMcpHttpServer(revocationConfig, {
+      postgresqlPool: {
+        async connect() {
+          throw new Error("must not connect");
+        },
+      },
+    }),
+    /requires an injected revocation registry/u,
+  );
   assert.throws(() => loadRemoteMcpRuntimeConfig({
     ...environment,
     NORMA_MCP_AUTH_INTROSPECTION_URL: "https://other.example/oauth/introspect",

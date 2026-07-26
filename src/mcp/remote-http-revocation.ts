@@ -2,7 +2,9 @@ import { createHmac } from "node:crypto";
 
 export interface RemoteMcpRevocationLookup {
   readonly subjectId: string;
+  /** Domain-separated HMAC identifier; never a raw client claim. */
   readonly clientId: string;
+  /** Domain-separated HMAC identifier; never a raw audience claim. */
   readonly audience: string;
   readonly issuedAt: number;
 }
@@ -10,9 +12,9 @@ export interface RemoteMcpRevocationLookup {
 export interface RemoteMcpRevocationEvent {
   /** HMAC-hashed provider subject; raw claims must never enter the registry. */
   readonly subjectId: string;
-  /** Omit to revoke the subject across clients. */
+  /** Domain-separated HMAC identifier; omit to revoke across clients. */
   readonly clientId?: string;
-  /** Omit to revoke the subject across audiences. */
+  /** Domain-separated HMAC identifier; omit to revoke across audiences. */
   readonly audience?: string;
   readonly revokedAt: number;
 }
@@ -56,7 +58,7 @@ export class InMemoryRemoteMcpRevocationRegistry
   private readonly events: RemoteMcpRevocationEvent[] = [];
 
   record(event: RemoteMcpRevocationEvent): void {
-    validateEvent(event);
+    assertValidRemoteMcpRevocationEvent(event);
     const existingIndex = this.events.findIndex((candidate) => sameEventScope(candidate, event));
     if (existingIndex === -1) {
       this.events.push({ ...event });
@@ -69,7 +71,7 @@ export class InMemoryRemoteMcpRevocationRegistry
   }
 
   isRevoked(lookup: RemoteMcpRevocationLookup): boolean {
-    validateLookup(lookup);
+    assertValidRemoteMcpRevocationLookup(lookup);
     return this.events.some((event) => (
       event.subjectId === lookup.subjectId
       && (event.clientId === undefined || event.clientId === lookup.clientId)
@@ -88,19 +90,23 @@ function sameEventScope(
     && left.audience === right.audience;
 }
 
-function validateLookup(lookup: RemoteMcpRevocationLookup): void {
+export function assertValidRemoteMcpRevocationLookup(
+  lookup: RemoteMcpRevocationLookup,
+): void {
   if (!isSubjectId(lookup.subjectId)
-    || !isIdentifier(lookup.clientId)
-    || !isIdentifier(lookup.audience)
+    || !isHashedIdentifier(lookup.clientId)
+    || !isHashedIdentifier(lookup.audience)
     || !isUnixSecond(lookup.issuedAt)) {
     throw new Error("Invalid revocation lookup");
   }
 }
 
-function validateEvent(event: RemoteMcpRevocationEvent): void {
+export function assertValidRemoteMcpRevocationEvent(
+  event: RemoteMcpRevocationEvent,
+): void {
   if (!isSubjectId(event.subjectId)
-    || (event.clientId !== undefined && !isIdentifier(event.clientId))
-    || (event.audience !== undefined && !isIdentifier(event.audience))
+    || (event.clientId !== undefined && !isHashedIdentifier(event.clientId))
+    || (event.audience !== undefined && !isHashedIdentifier(event.audience))
     || !isUnixSecond(event.revokedAt)) {
     throw new Error("Invalid revocation event");
   }
@@ -110,8 +116,8 @@ function isSubjectId(value: string): boolean {
   return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 }
 
-function isIdentifier(value: string): boolean {
-  return typeof value === "string" && value.trim() !== "";
+function isHashedIdentifier(value: string): boolean {
+  return isSubjectId(value);
 }
 
 function isUnixSecond(value: number): boolean {

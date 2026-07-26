@@ -8,15 +8,24 @@ import type {
   RemoteMcpRevocationRegistry,
   RemoteMcpRevocationWriter,
 } from "./remote-http-revocation.js";
+import {
+  assertValidRemoteMcpRevocationEvent,
+  assertValidRemoteMcpRevocationLookup,
+} from "./remote-http-revocation.js";
 
 /**
- * Shared, additive sandbox registry. The database role needs only SELECT and
- * INSERT/UPDATE on this table; schema creation is an operator-only action.
+ * Shared, additive sandbox registry. The runtime role receives SELECT only;
+ * schema creation and writes remain operator-only actions.
  */
 export const REMOTE_MCP_REVOCATION_TABLE = "norma_sandbox.remote_mcp_revocations";
 
+const ROLE_VALIDATION_SQL = `
+  SELECT current_user, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit
+  FROM pg_roles
+  WHERE rolname = current_user`;
+
 const LOOKUP_SQL = `
-  SELECT revoked_at
+  SELECT revoked_at::text AS revoked_at
   FROM ${REMOTE_MCP_REVOCATION_TABLE}
   WHERE subject_id = $1
     AND (client_id = '' OR client_id = $2)
@@ -43,25 +52,36 @@ export class PostgreSqlRemoteMcpRevocationRegistry
   constructor(private readonly pool: PostgreSqlAuthorizationPool) {}
 
   async isRevoked(lookup: RemoteMcpRevocationLookup): Promise<boolean> {
+    assertValidRemoteMcpRevocationLookup(lookup);
     const connection = await this.pool.connect();
     try {
+      await assertLeastPrivilegeRuntimeRole(connection);
       const result = await connection.query(LOOKUP_SQL, [
         lookup.subjectId,
         lookup.clientId,
         lookup.audience,
       ]) as PostgreSqlQueryResult;
-      const row = result.rows?.[0];
-      if (!isRecord(row) || !isUnixSecond(row.revoked_at)) {
-        if (row === undefined) return false;
+      if (!Array.isArray(result.rows)) {
         throw new Error("Malformed PostgreSQL revocation lookup result");
       }
-      return lookup.issuedAt <= row.revoked_at;
+      if (result.rows.length === 0) {
+        return false;
+      }
+      if (result.rows.length !== 1) {
+        throw new Error("Malformed PostgreSQL revocation lookup result");
+      }
+      const row = result.rows[0];
+      if (!isRecord(row) || !isUnixSecondText(row.revoked_at)) {
+        throw new Error("Malformed PostgreSQL revocation lookup result");
+      }
+      return lookup.issuedAt <= Number(row.revoked_at);
     } finally {
       connection.release();
     }
   }
 
   async record(event: RemoteMcpRevocationEvent): Promise<void> {
+    assertValidRemoteMcpRevocationEvent(event);
     const connection = await this.pool.connect();
     try {
       await connection.query(UPSERT_SQL, [
@@ -77,11 +97,19 @@ export class PostgreSqlRemoteMcpRevocationRegistry
 }
 
 /** SQL is intentionally operator-applied and disposable in the sandbox. */
-export function createPostgreSqlRevocationSchemaSql(roleName = "norma_mcp_runtime"): string {
+export function createPostgreSqlRevocationSchemaSql(roleName = "norma_sandbox_user"): string {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(roleName)) {
     throw new Error("role name is invalid");
   }
   return [
+    "DO $$",
+    "DECLARE role_record record;",
+    "BEGIN",
+    `  SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit INTO role_record FROM pg_roles WHERE rolname = '${roleName}';`,
+    "  IF NOT FOUND OR role_record.rolsuper OR role_record.rolbypassrls OR role_record.rolcreatedb OR role_record.rolcreaterole OR role_record.rolinherit THEN",
+    "    RAISE EXCEPTION 'PostgreSQL revocation role must be a dedicated NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT role';",
+    "  END IF;",
+    "END $$;",
     "CREATE SCHEMA IF NOT EXISTS norma_sandbox;",
     `CREATE TABLE IF NOT EXISTS ${REMOTE_MCP_REVOCATION_TABLE} (`,
     "  subject_id char(64) NOT NULL CHECK (subject_id ~ '^[a-f0-9]{64}$'),",
@@ -90,8 +118,9 @@ export function createPostgreSqlRevocationSchemaSql(roleName = "norma_mcp_runtim
     "  revoked_at bigint NOT NULL CHECK (revoked_at >= 0),",
     "  PRIMARY KEY (subject_id, client_id, audience)",
     ");",
+    `REVOKE ALL ON ${REMOTE_MCP_REVOCATION_TABLE} FROM PUBLIC;`,
     `GRANT USAGE ON SCHEMA norma_sandbox TO ${roleName};`,
-    `GRANT SELECT, INSERT, UPDATE ON ${REMOTE_MCP_REVOCATION_TABLE} TO ${roleName};`,
+    `GRANT SELECT ON ${REMOTE_MCP_REVOCATION_TABLE} TO ${roleName};`,
   ].join("\n");
 }
 
@@ -103,6 +132,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isUnixSecond(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+async function assertLeastPrivilegeRuntimeRole(
+  connection: PostgreSqlAuthorizationConnection,
+): Promise<void> {
+  const result = await connection.query(ROLE_VALIDATION_SQL) as PostgreSqlQueryResult;
+  if (!Array.isArray(result.rows) || result.rows.length !== 1) {
+    throw new Error("PostgreSQL revocation role validation returned an invalid result");
+  }
+  const row = result.rows[0];
+  if (!isRecord(row)
+    || typeof row.current_user !== "string"
+    || row.current_user.trim() === ""
+    || typeof row.rolsuper !== "boolean"
+    || typeof row.rolbypassrls !== "boolean"
+    || typeof row.rolcreatedb !== "boolean"
+    || typeof row.rolcreaterole !== "boolean"
+    || typeof row.rolinherit !== "boolean"
+    || row.rolsuper
+    || row.rolbypassrls
+    || row.rolcreatedb
+    || row.rolcreaterole
+    || row.rolinherit
+    || /^(?:service_role|supabase_service_key)$/u.test(row.current_user)) {
+    throw new Error("PostgreSQL revocation pool role violates the least-privilege contract");
+  }
+}
+
+function isUnixSecondText(value: unknown): value is string {
+  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(value)) {
+    return false;
+  }
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0;
 }

@@ -54,14 +54,14 @@ test("revocation scope is exact when client or audience is supplied", async () =
   const subjectId = "a".repeat(64);
   const lookup = {
     subjectId,
-    clientId: "client-a",
-    audience: "https://norma.example/api",
+    clientId: "b".repeat(64),
+    audience: "c".repeat(64),
     issuedAt: 100,
   };
 
   registry.record({
     subjectId,
-    clientId: "client-b",
+    clientId: "d".repeat(64),
     audience: lookup.audience,
     revokedAt: 200,
   });
@@ -75,7 +75,7 @@ test("revocation scope is exact when client or audience is supplied", async () =
   });
   assert.equal(registry.isRevoked(lookup), true);
   assert.equal(registry.isRevoked({ ...lookup, issuedAt: 201 }), false);
-  assert.equal(registry.isRevoked({ ...lookup, audience: "https://other.example/api" }), false);
+  assert.equal(registry.isRevoked({ ...lookup, audience: "e".repeat(64) }), false);
 });
 
 test("revocation lookup failures, missing iat, and malformed events fail closed", async (t) => {
@@ -121,10 +121,18 @@ test("revocation lookup failures, missing iat, and malformed events fail closed"
     /Invalid revocation event/u,
   );
   assert.throws(
+    () => registry.record({
+      subjectId: "b".repeat(64),
+      clientId: "raw-client-id",
+      revokedAt: 1,
+    }),
+    /Invalid revocation event/u,
+  );
+  assert.throws(
     () => registry.isRevoked({
       subjectId: "b".repeat(64),
-      clientId: "client-a",
-      audience: "https://norma.example/api",
+      clientId: "c".repeat(64),
+      audience: "d".repeat(64),
       issuedAt: -1,
     }),
     /Invalid revocation lookup/u,
