@@ -20,6 +20,14 @@ test("PostgreSQL registry uses parameterized hashed values and fails closed on m
       : { rows: [{ revoked_at: "100" }] };
   }));
   assert.equal(await registry.isRevoked({ subjectId, clientId, audience, issuedAt: 100 }), true);
+  assert.match(calls[0].sql, /pg_get_expr\(p\.polqual, p\.polrelid\) = 'true'/u);
+  assert.match(calls[0].sql, /AND p\.polpermissive/u);
+  assert.match(calls[0].sql, /AND NOT p\.polpermissive/u);
+  assert.match(calls[0].sql, /p\.polcmd IN \('r', '\*'\)/u);
+  assert.doesNotMatch(
+    calls[0].sql,
+    /AND NOT p\.polpermissive[\s\S]*?ANY\(p\.polroles\)[\s\S]*?AS no_restrictive_read_policy/u,
+  );
   assert.equal(calls[1].values[0], subjectId);
   assert.equal(calls[1].values[1], clientId);
   assert.equal(calls[1].values[2], audience);
@@ -48,7 +56,8 @@ test("PostgreSQL registry rejects privileged roles and invalid inputs before loo
     { schema_usage: false },
     { rls_enabled: false },
     { rls_forced: false },
-    { read_policy: false },
+    { read_policy_safe: false },
+    { no_restrictive_read_policy: false },
   ]) {
     const excessive = new PostgreSqlRemoteMcpRevocationRegistry(pool(async () => ({
       rows: [{ ...leastPrivilegeRole().rows[0], ...override }],
@@ -92,6 +101,8 @@ test("sandbox schema is least privilege and has reversible teardown", () => {
   assert.match(sql, /FORCE ROW LEVEL SECURITY/u);
   assert.match(sql, /CREATE POLICY norma_mcp_revocation_read_policy/u);
   assert.match(sql, /TO "norma_sandbox_user" USING/u);
+  assert.match(sql, /CHECK \(client_id = '' OR client_id ~ '\^\[a-f0-9\]\{64\}\$'\)/u);
+  assert.match(sql, /CHECK \(audience = '' OR audience ~ '\^\[a-f0-9\]\{64\}\$'\)/u);
   assert.match(sql, /REVOKE ALL/u);
   assert.match(sql, /GRANT SELECT ON/u);
   assert.doesNotMatch(sql, /GRANT SELECT, INSERT, UPDATE/u);
@@ -122,7 +133,8 @@ function leastPrivilegeRole() {
       table_write: false,
       rls_enabled: true,
       rls_forced: true,
-      read_policy: true,
+      read_policy_safe: true,
+      no_restrictive_read_policy: true,
       table_owner: false,
     }],
   };

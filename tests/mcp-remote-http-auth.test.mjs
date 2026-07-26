@@ -116,6 +116,8 @@ test("PR137 verifies signature issuer audience resource time subject and scope w
     await signedToken(first, config, { scope: "other:scope" }),
     await signedToken(first, config, { issuer: `${issuer}wrong/` }),
     await signedToken(first, config, { subject: "" }),
+    await signedToken(first, config, { subject: " auth0|subject-a" }),
+    await signedToken(first, config, { subject: "auth0|subject-a " }),
     await signedToken(first, config, { expirationTime: "1 second ago" }),
     await signedToken(first, config, { expirationTime: null }),
     await signedToken(first, config, { notBefore: "1 hour from now" }),
@@ -209,6 +211,18 @@ test("authentication admission caps pre-verification concurrency", () => {
   assert.equal(resumed.allowed, true);
   resumed.release();
   for (const admission of admissions.slice(1)) admission.release();
+});
+
+test("unauthorized history never blocks a valid token from verification", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000);
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    assert.equal(controller.recordUnauthorizedAttempt(), true);
+  }
+  assert.equal(controller.recordUnauthorizedAttempt(), false);
+
+  const admission = controller.enterAuthenticationAttempt();
+  assert.equal(admission.allowed, true);
+  admission.release();
 });
 
 async function signingKey(kid) {
