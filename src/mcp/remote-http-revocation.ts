@@ -30,11 +30,10 @@ export interface RemoteMcpRevocationWriter {
 
 /** Hashes a provider subject without exposing or retaining the raw claim. */
 export function hashRemoteMcpSubject(auditHashKey: string, subject: string): string {
-  const normalizedSubject = subject.trim();
-  if (normalizedSubject === "") {
+  if (subject === "" || subject !== subject.trim()) {
     throw new Error("Invalid revocation subject");
   }
-  return createHmac("sha256", auditHashKey).update(normalizedSubject).digest("hex");
+  return createHmac("sha256", auditHashKey).update(subject).digest("hex");
 }
 
 /** Domain-separated HMAC identifier for claim values kept out of storage. */

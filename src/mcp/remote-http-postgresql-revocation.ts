@@ -46,13 +46,28 @@ const ROLE_VALIDATION_SQL = `
     ), false) AS rls_forced,
     EXISTS (
       SELECT 1
-      FROM pg_policies
-      WHERE schemaname = 'norma_sandbox'
-        AND tablename = 'remote_mcp_revocations'
-        AND policyname = 'norma_mcp_revocation_read_policy'
-        AND cmd = 'SELECT'
-        AND (current_user::name = ANY(roles) OR 'public'::name = ANY(roles))
-    ) AS read_policy,
+      FROM pg_policy p
+      JOIN pg_class c ON c.oid = p.polrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'norma_sandbox'
+        AND c.relname = 'remote_mcp_revocations'
+        AND p.polname = 'norma_mcp_revocation_read_policy'
+        AND p.polcmd = 'r'
+        AND p.polpermissive
+        AND pg_get_expr(p.polqual, p.polrelid) = 'true'
+        AND p.polwithcheck IS NULL
+        AND (0 = ANY(p.polroles) OR pg_roles.oid = ANY(p.polroles))
+    ) AS read_policy_safe,
+    NOT EXISTS (
+      SELECT 1
+      FROM pg_policy p
+      JOIN pg_class c ON c.oid = p.polrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'norma_sandbox'
+        AND c.relname = 'remote_mcp_revocations'
+        AND p.polcmd IN ('r', '*')
+        AND NOT p.polpermissive
+    ) AS no_restrictive_read_policy,
     EXISTS (
       SELECT 1
       FROM pg_tables
@@ -161,6 +176,10 @@ export function createPostgreSqlRevocationSchemaSql(roleName = "norma_sandbox_us
     "  revoked_at bigint NOT NULL CHECK (revoked_at >= 0),",
     "  PRIMARY KEY (subject_id, client_id, audience)",
     ");",
+    `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} DROP CONSTRAINT IF EXISTS norma_mcp_revocations_client_id_hash_check;`,
+    `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} ADD CONSTRAINT norma_mcp_revocations_client_id_hash_check CHECK (client_id = '' OR client_id ~ '^[a-f0-9]{64}$');`,
+    `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} DROP CONSTRAINT IF EXISTS norma_mcp_revocations_audience_hash_check;`,
+    `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} ADD CONSTRAINT norma_mcp_revocations_audience_hash_check CHECK (audience = '' OR audience ~ '^[a-f0-9]{64}$');`,
     `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} ENABLE ROW LEVEL SECURITY;`,
     `ALTER TABLE ${REMOTE_MCP_REVOCATION_TABLE} FORCE ROW LEVEL SECURITY;`,
     `DROP POLICY IF EXISTS norma_mcp_revocation_read_policy ON ${REMOTE_MCP_REVOCATION_TABLE};`,
@@ -200,7 +219,8 @@ async function assertLeastPrivilegeRuntimeRole(
     || row.table_write !== false
     || row.rls_enabled !== true
     || row.rls_forced !== true
-    || row.read_policy !== true
+    || row.read_policy_safe !== true
+    || row.no_restrictive_read_policy !== true
     || row.table_owner !== false
     || row.rolsuper
     || row.rolbypassrls

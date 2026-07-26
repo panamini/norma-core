@@ -184,8 +184,8 @@ function verifiedAccess(
   token: string,
   payload: JWTPayload,
 ): VerifiedRemoteMcpAccess {
-  const subject = typeof payload.sub === "string" ? payload.sub.trim() : "";
-  if (subject === "") {
+  const subject = typeof payload.sub === "string" ? payload.sub : "";
+  if (subject === "" || subject !== subject.trim()) {
     throw new RemoteMcpAuthenticationError();
   }
   // Scalekit may include both the configured resource URL and its generated

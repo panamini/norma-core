@@ -47,12 +47,7 @@ export class RemoteMcpAdmissionController {
   }
 
   enterAuthenticationAttempt(): RemoteMcpAuthenticationAdmissionResult {
-    const now = this.#now();
-    prune(this.#unauthorizedAttempts, now - ONE_MINUTE_MS);
-    if (
-      this.#unauthorizedAttempts.length >= REMOTE_MCP_MAX_UNAUTHORIZED_ATTEMPTS_PER_MINUTE
-      || this.#authenticationConcurrency >= REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY
-    ) {
+    if (this.#authenticationConcurrency >= REMOTE_MCP_MAX_AUTHENTICATION_CONCURRENCY) {
       return { allowed: false };
     }
     this.#authenticationConcurrency += 1;

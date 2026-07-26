@@ -86,6 +86,16 @@ test("revocation scope is exact when client or audience is supplied", async () =
   );
 });
 
+test("revocation subject hashing rejects noncanonical whitespace", () => {
+  const key = "k".repeat(32);
+  assert.throws(() => hashRemoteMcpSubject(key, " auth0|subject-a"), /Invalid revocation subject/u);
+  assert.throws(() => hashRemoteMcpSubject(key, "auth0|subject-a "), /Invalid revocation subject/u);
+  assert.notEqual(
+    hashRemoteMcpSubject(key, "auth0|subject-a"),
+    hashRemoteMcpSubject(key, "auth0|subject-b"),
+  );
+});
+
 test("revocation lookup failures, missing iat, and malformed events fail closed", async (t) => {
   const key = await signingKey("fail-closed-key");
   let issuer = "";
