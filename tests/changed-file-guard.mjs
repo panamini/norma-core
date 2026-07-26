@@ -1202,7 +1202,6 @@ export const postgreSqlSandboxTlsAndPoolResetFixChangedFiles = Object.freeze([
 
 export const oauthImmediateRevocationChangedFiles = Object.freeze([
   "bin/norma-core-remote-mcp-http.mjs",
-  "bin/norma-core-sandbox-record-revocation.mjs",
   "src/mcp/remote-http-auth.ts",
   "src/mcp/remote-http-config.ts",
   "src/mcp/remote-http-postgresql-revocation.ts",
