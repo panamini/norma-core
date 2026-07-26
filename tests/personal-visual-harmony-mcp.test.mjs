@@ -3741,7 +3741,7 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
 
 test("prepare and confirm expose correlated handler timings only through app metadata", async () => {
   const wallClockTimestamps = [1_000, 900, 2_000, 1_900];
-  const monotonicTimestamps = [10, 22, 100, 125];
+  const monotonicTimestamps = [10.2, 22.7, 100.6, 99.4];
   const connected = await createConnectedClient(undefined, {
     now: () => wallClockTimestamps.shift(),
     monotonicNow: () => monotonicTimestamps.shift(),
@@ -3767,7 +3767,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       handler: "prepare",
       handlerEnteredAtMs: 1_000,
       handlerCompletedAtMs: 900,
-      handlerDurationMs: 12,
+      handlerDurationMs: 13,
     });
 
     const confirmed = await connected.client.callTool({
@@ -3789,10 +3789,16 @@ test("prepare and confirm expose correlated handler timings only through app met
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
       handlerCompletedAtMs: 1_900,
-      handlerDurationMs: 25,
+      handlerDurationMs: 0,
     });
 
     for (const result of [prepared, confirmed]) {
+      assert.equal(Number.isInteger(result._meta.normaPersonalVisualHarmony.observability.handlerDurationMs), true);
+      assert.equal(result._meta.normaPersonalVisualHarmony.observability.handlerDurationMs >= 0, true);
+      assert.match(
+        result._meta.normaPersonalVisualHarmony.observability.correlationId,
+        /^sha256:[0-9a-f]{64}$/u,
+      );
       assert.equal("observability" in result.structuredContent, false);
       assert.doesNotMatch(
         JSON.stringify([result.content, result.structuredContent]),
@@ -3836,6 +3842,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     "function completionFollowUpFacts",
     {
       OBSERVABILITY_CONTRACT_ID: "norma.personal-visual-harmony-observability@1",
+      OBSERVABILITY_CORRELATION_PATTERN: /^sha256:[0-9a-f]{64}$/u,
       state: { observationPrepareAttemptKey: null },
       document: {
         documentElement: {
@@ -3859,7 +3866,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:correlation-only",
+       correlationId: `sha256:${"c".repeat(64)}`,
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
       handlerCompletedAtMs: 2_025,
@@ -3871,7 +3878,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:correlation-only",
+     "data-norma-observation-correlation": `sha256:${"c".repeat(64)}`,
     "data-norma-observation-confirm-handler-clock": "server",
     "data-norma-observation-confirm-handler-duration-ms": "25",
     "data-norma-observation-confirm-milestone-clock": "browser",
@@ -3882,10 +3889,29 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     /must-not-be-observed|rectangle|candidate|primitive/u,
   );
 
+  const sanitizedAttributes = Object.fromEntries(attributes);
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: "not-an-opaque-correlation",
+      handler: "confirm",
+      handlerDurationMs: -1,
+    },
+  }, "core-visible", 2_041);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: `sha256:${"e".repeat(64)}`,
+      handler: "confirm",
+      handlerDurationMs: 12.5,
+    },
+  }, "core-visible", 2_042);
+  assert.deepEqual(Object.fromEntries(attributes), sanitizedAttributes);
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 1,
       handler: "prepare",
       handlerEnteredAtMs: 2_980,
@@ -3896,7 +3922,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-correlation": `sha256:${"d".repeat(64)}`,
     "data-norma-observation-prepare-handler-clock": "server",
     "data-norma-observation-prepare-handler-duration-ms": "12",
     "data-norma-observation-prepare-milestone-clock": "browser",
@@ -3906,7 +3932,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 1,
       handler: "prepare",
       handlerEnteredAtMs: 2_980,
@@ -3917,7 +3943,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       handler: "confirm",
       handlerEnteredAtMs: 3_030,
       handlerCompletedAtMs: 3_040,
@@ -3927,7 +3953,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 2,
       handler: "prepare",
       handlerEnteredAtMs: 4_000,
@@ -3938,7 +3964,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-correlation": `sha256:${"d".repeat(64)}`,
     "data-norma-observation-prepare-handler-clock": "server",
     "data-norma-observation-prepare-handler-duration-ms": "12",
     "data-norma-observation-prepare-milestone-clock": "browser",
