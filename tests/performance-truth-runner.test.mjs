@@ -80,6 +80,20 @@ test("performance truth runner prepares exact source identity before scenario ex
   assert.equal(summary.harness_version, PERFORMANCE_TRUTH_HARNESS_VERSION);
 });
 
+test("performance truth runner delegates default execution to a fresh process", async () => {
+  const plans = [];
+  const expected = { summary: "fresh-process" };
+  const summary = await runProviderFreeCharacterization(["core-direct-simple"], {
+    characterizeInFreshProcess: async (plan) => {
+      plans.push(plan);
+      return expected;
+    },
+  });
+
+  assert.deepEqual(plans, [["core-direct-simple"]]);
+  assert.equal(summary, expected);
+});
+
 test("performance truth runner creates one deterministic provider-free row per explicit scenario", async () => {
   const plan = parseScenarioRowPlan([
     "--plan",
@@ -143,8 +157,15 @@ test("performance truth runtime preserves the local authenticated scenario", asy
   assert.equal(summary.completed_row_count, 1);
   assert.deepEqual(summary.scenarios[0].status_counts, { pass: 1 });
   assert.equal(summary.scenarios[0].timing_ranges_ms.transport_ms.min >= 0, true);
-  assert.equal("mcp_dispatch_ms" in summary.scenarios[0].timing_ranges_ms, false);
-  assert.equal(summary.scenarios[0].unmeasured_stages.includes("mcp_dispatch_ms"), true);
+  for (const stage of [
+    "request_parse_ms",
+    "auth_verify_ms",
+    "admission_ms",
+    "mcp_dispatch_ms",
+  ]) {
+    assert.equal(stage in summary.scenarios[0].timing_ranges_ms, false);
+    assert.equal(summary.scenarios[0].unmeasured_stages.includes(stage), true);
+  }
   assert.equal(JSON.stringify(summary).includes("local-characterization-access"), false);
 });
 

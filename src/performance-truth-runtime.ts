@@ -140,14 +140,6 @@ async function executeLocalTransportScenario({
     const measured = await runPerformanceTruthCase({
       ...caseOptions,
       execute: async ({ measureStage, measureRequest }) => {
-        await measureStage("request_parse_ms", () => JSON.parse(JSON.stringify(request)));
-        await measureStage("auth_verify_ms", () => deterministicVerifier("local-characterization-access"));
-        await measureStage("admission_ms", () => {
-          const result = admission.enterAuthenticatedAttempt("local-characterization-subject");
-          if (!result.allowed) throw new Error("Local admission unexpectedly denied");
-          result.release();
-          return result;
-        });
         const remote = await measureStage("transport_ms", () => measureRequest(() => postLocalJson(port, request)));
         if (remote.status !== 200) {
           throw new Error(`Local transport request failed with ${remote.status}`);

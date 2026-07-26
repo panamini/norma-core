@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const modulePath = fileURLToPath(import.meta.url);
+const internalCharacterizationMode = "--internal-characterize-plan";
 
 export const MAX_CHARACTERIZATION_ROWS = 10;
 
@@ -44,11 +45,20 @@ function validateScenarioRows(plan, scenarios) {
 
 export async function runProviderFreeCharacterization(plan, options = {}) {
   const parsedPlan = validateScenarioRows(plan);
-  const prepareRuntime = options.prepareRuntime ?? preparePerformanceTruthRuntime;
-  const prepared = await prepareRuntime(repoRoot);
+  if (options.prepareRuntime === undefined) {
+    const characterizeInFreshProcess =
+      options.characterizeInFreshProcess ?? runCharacterizationInFreshProcess;
+    return characterizeInFreshProcess(parsedPlan);
+  }
+
+  const prepared = await options.prepareRuntime(repoRoot);
+  return runPreparedCharacterization(parsedPlan, prepared, options.clockFactory);
+}
+
+async function runPreparedCharacterization(parsedPlan, prepared, clockFactoryOption) {
   const explicitPlan = validateScenarioRows(parsedPlan, prepared.scenarios);
   const rows = [];
-  const clockFactory = options.clockFactory ?? (() => realClock());
+  const clockFactory = clockFactoryOption ?? (() => realClock());
 
   for (const [index, scenario] of explicitPlan.entries()) {
     rows.push(await prepared.executeScenario({
@@ -169,10 +179,9 @@ async function preparePerformanceTruthRuntime(root) {
     throw new Error("Repository HEAD changed while preparing the performance truth runtime");
   }
 
-  const cacheKey = encodeURIComponent(commitSha);
   const [harness, runtime] = await Promise.all([
-    import(`../dist/src/performance-truth-harness.js?commit=${cacheKey}`),
-    import(`../dist/src/performance-truth-runtime.js?commit=${cacheKey}`),
+    import("../dist/src/performance-truth-harness.js"),
+    import("../dist/src/performance-truth-runtime.js"),
   ]);
   if (harness.ACTIVE_BENCHMARK_EXECUTION_BUDGET.remainingAfterPr257 !== MAX_CHARACTERIZATION_ROWS) {
     throw new Error("The performance truth runner row cap does not match the active harness contract");
@@ -184,6 +193,42 @@ async function preparePerformanceTruthRuntime(root) {
     scenarios: harness.PERFORMANCE_TRUTH_SCENARIOS,
     executeScenario: runtime.executePerformanceTruthScenario,
   });
+}
+
+function runCharacterizationInFreshProcess(plan) {
+  assertCleanWorktree(repoRoot);
+  const commitSha = currentCommitSha(repoRoot);
+  const output = execFileSync(
+    process.execPath,
+    [modulePath, internalCharacterizationMode, JSON.stringify({ plan, commitSha })],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  return JSON.parse(output);
+}
+
+async function runInternalCharacterization(serializedPayload) {
+  const payload = JSON.parse(serializedPayload);
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    typeof payload.commitSha !== "string" ||
+    !Array.isArray(payload.plan)
+  ) {
+    throw new Error("Invalid internal performance truth characterization payload");
+  }
+  if (currentCommitSha(repoRoot) !== payload.commitSha) {
+    throw new Error("Repository HEAD changed before the fresh characterization process started");
+  }
+  const prepared = await preparePerformanceTruthRuntime(repoRoot);
+  if (prepared.commitSha !== payload.commitSha) {
+    throw new Error("Repository HEAD changed while preparing the fresh characterization process");
+  }
+  return runPreparedCharacterization(validateScenarioRows(payload.plan), prepared);
 }
 
 function assertCleanWorktree(root) {
@@ -205,7 +250,13 @@ function realClock() {
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === modulePath) {
-  main().catch((error) => {
+  const invocation = process.argv[2] === internalCharacterizationMode
+    ? runInternalCharacterization(process.argv[3]).then((summary) => {
+      process.stdout.write(`${JSON.stringify(summary)}\n`);
+      return summary;
+    })
+    : main();
+  invocation.catch((error) => {
     process.stderr.write(`Performance truth characterization failed: ${error.message}\n`);
     process.exitCode = 1;
   });
