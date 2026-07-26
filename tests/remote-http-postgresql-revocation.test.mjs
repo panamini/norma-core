@@ -71,6 +71,9 @@ test("PostgreSQL registry upsert is monotonic and wildcard values are normalized
 test("sandbox schema is least privilege and has reversible teardown", () => {
   const sql = createPostgreSqlRevocationSchemaSql();
   assert.match(sql, /NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT/u);
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/u);
+  assert.match(sql, /FORCE ROW LEVEL SECURITY/u);
+  assert.match(sql, /CREATE POLICY norma_mcp_revocation_read_policy/u);
   assert.match(sql, /REVOKE ALL/u);
   assert.match(sql, /GRANT SELECT ON/u);
   assert.doesNotMatch(sql, /GRANT SELECT, INSERT, UPDATE/u);
