@@ -671,7 +671,7 @@ test("personal measurement-ratio clarity allowlist is exact and fail-closed", ()
   }
 });
 
-test("personal observability allowlist is exact and fail-closed", () => {
+test("personal observability and handler timing allowlist is exact and fail-closed", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonyObservabilityChangedFiles),
     personalVisualHarmonyObservabilityChangedFiles,
