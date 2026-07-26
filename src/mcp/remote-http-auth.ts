@@ -133,7 +133,7 @@ async function verifyTokenIntrospection(
 function basicClientCredentials(clientId: string, clientSecret: string): string {
   const escapedClientId = encodeURIComponent(clientId);
   const escapedClientSecret = encodeURIComponent(clientSecret);
-  return Buffer.from(`${escapedClientId}:${escapedClientSecret}`, "utf8").toString("base64");
+  return btoa(`${escapedClientId}:${escapedClientSecret}`);
 }
 
 async function createKeyResolver(
