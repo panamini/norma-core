@@ -48,7 +48,9 @@ privileged, if the token lacks `iat`, or if the exact replay remains accepted.
 
 ## Evidence recorded on 2026-07-26
 
-Candidate `7a27cb1` passed the sandbox sequence:
+Candidate `5460e38` passed the sandbox sequence after the exact-head security
+repair: provider introspection was removed, a dedicated revocation HMAC key was
+configured, and the runtime role's effective table privileges were verified.
 
 - JWT/JWKS request accepted: `200`
 - wildcard durable cutoff recorded: `true`
