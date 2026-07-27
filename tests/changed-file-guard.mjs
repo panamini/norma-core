@@ -540,6 +540,7 @@ export const personalVisualHarmonyObservabilityChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 

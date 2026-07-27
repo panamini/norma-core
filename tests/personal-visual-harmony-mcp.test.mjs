@@ -2261,6 +2261,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     "callConfirmation",
     "function finishConfirmingPayload",
     {
+      state: { downloadUrl: "https://files.example/private-confirmation-image" },
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       pixelRecovery,
       callAppTool: async (_name, args) => {
@@ -2282,6 +2283,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     { width: 1200, height: 800 },
   );
   assert.deepEqual(args.constructionLayers, layers);
+  assert.equal(args.sourceImageDownloadUrl, "https://files.example/private-confirmation-image");
   assert.deepEqual(args.recovery.triangleConstructionRequests, prepared.triangleConstructionRequests);
   assert.equal(args.confirmClientReviewedSelection, true);
   assert.equal(appToolCalls, 1);
@@ -3783,6 +3785,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       arguments: {
         sessionId: widgetMeta.sessionId,
         candidateSetIdentity: correlationId,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image",
         selectedCandidateIds: ["major", "minor"],
         sourcePixelWidth: 1_000,
         sourcePixelHeight: 618,
@@ -3799,6 +3802,14 @@ test("prepare and confirm expose correlated handler timings only through app met
       handlerCompletedAtMs: 1_900,
       handlerDurationMs: 0,
     });
+    assert.equal(
+      confirmed._meta.normaPersonalVisualHarmony.sourceImageDownloadUrl,
+      "https://files.example.test/private-signed-image",
+    );
+    assert.doesNotMatch(
+      JSON.stringify([confirmed.content, confirmed.structuredContent]),
+      /private-signed-image|sourceImageDownloadUrl|download_url/u,
+    );
 
     for (const result of [prepared, confirmed]) {
       assert.equal(Number.isInteger(result._meta.normaPersonalVisualHarmony.observability.handlerDurationMs), true);
@@ -4364,9 +4375,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v3.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v4.html");
     assert.equal(
-      resources.resources.some(({ uri }) => /-v[12]\.html$/u.test(uri)),
+        resources.resources.some(({ uri }) => /-v[123]\.html$/u.test(uri)),
       false,
     );
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
@@ -4525,7 +4536,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotMatch(resource.contents[0].text, /const probe=new Image\(\)/u);
     assert.doesNotMatch(resource.contents[0].text, /source\.src=result\.downloadUrl/u);
     assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(!imageLoaded\|\|state\.activePayloadIdentity!==identity\)return/u);
-    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\)\)return/u);
+    assert.match(resource.contents[0].text, /if\(payload\.fileId\)await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(state\.activePayloadIdentity!==identity\)return/u);
     assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
     assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
     assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
@@ -4806,6 +4817,38 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.equal(state.imageLoadFileId, "file-new");
   assert.equal(guidedGoalRestores, 1);
   assert.equal(guidedGoalRenders, 1);
+});
+
+test("completed payload renders even when its temporary image URL cannot be refreshed", async () => {
+  const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
+  const state = widgetHydrationState();
+  const rendered = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    completedWidgetStateFor() { throw new Error("completed payload must not inspect confirmation state"); },
+    revalidateCompleted() { throw new Error("completed payload must not revalidate confirmation state"); },
+    restoreGuidedAnalysisGoal() {},
+    renderGuidedAnalysisGoals() {},
+    renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
+  });
+  const completedPayload = {
+    stage: "completed",
+    fileId: "file-expired",
+    result: { contentIdentity: `sha256:${"c".repeat(64)}` },
+  };
+  const structured = { status: "completed" };
+
+  await hydrate(completedPayload, structured);
+
+  assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
 });
 
 test("displayed image load is the hydration proof for single-use temporary URLs", async () => {

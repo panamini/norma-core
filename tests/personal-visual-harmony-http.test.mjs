@@ -311,6 +311,7 @@ test("widget confirmation accepts one rounded explicit junction triangle with me
     "callConfirmation",
     "function finishConfirmingPayload",
     {
+      state: { downloadUrl: widgetPayload.sourceImageDownloadUrl },
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       pixelRecovery,
       callAppTool: (name, args) => client.callTool({ name, arguments: args }),
