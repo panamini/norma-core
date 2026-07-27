@@ -26,6 +26,7 @@ image = (
         "huggingface-hub==0.34.4",
         "numpy==1.26.4",
         "pillow==11.3.0",
+        "pycocotools==2.0.10",
         "uvicorn==0.35.0",
     )
     .pip_install(
