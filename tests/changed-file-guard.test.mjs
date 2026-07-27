@@ -50,6 +50,7 @@ import {
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
+  personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
@@ -731,6 +732,17 @@ test("personal widget ellipse and responsive allowlist is exact and fail-closed"
       extra,
     );
   }
+});
+
+test("personal mobile hit targets retain the exact responsive widget allowlist", () => {
+  assert.equal(
+    personalVisualHarmonyMobileHitTargetsChangedFiles,
+    personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyMobileHitTargetsChangedFiles),
+    personalVisualHarmonyMobileHitTargetsChangedFiles,
+  );
 });
 
 test("personal manual-segment escape-hatch allowlist is exact and fail-closed", () => {

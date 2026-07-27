@@ -2446,6 +2446,114 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
   assert.equal(measurementPreviewUpdates, 1);
 });
 
+test("widget adds mobile-only transparent hit areas without changing keyboard or desktop controls", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /const EDIT_HANDLE_HIT_WIDTH=120,EDIT_HANDLE_HIT_HEIGHT=210/u);
+  assert.match(html, /EDIT_HANDLE_ATTRIBUTES=\["data-resize-handle","data-point-handle","data-vertex-handle","data-ellipse-handle"\]/u);
+  assert.match(html, /function syncAllHandleHitAreas\(\)\{for\(const group of overlay\.querySelectorAll\("\[data-candidate-id\]"\)\)/u);
+  assert.match(html, /new MutationObserver\(mutations=>\{if\(mutations\.some\(mutation=>mutation\.type==="childList"\|\|!mutation\.target\.closest\("\[data-handle-hit-area\]"\)\)\)syncAllHandleHitAreas\(\)\}\)/u);
+  assert.match(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:none\}/u);
+  assert.match(html, /@media\(max-width:720px\)\{\.overlay \[data-handle-hit-area\]\{pointer-events:all\}\}/u);
+  assert.match(html, /hitArea\.setAttribute\("tabindex","-1"\)/u);
+  assert.doesNotMatch(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:all\}/u);
+});
+
+test("widget synchronizes one bounded transparent target per editable handle", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const start = script.indexOf("const EDIT_HANDLE_HIT_WIDTH=");
+  const end = script.indexOf("\nconst handleHitAreaObserver", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const createElement = (localName, attributes = {}) => {
+    const values = new Map(Object.entries(attributes));
+    return {
+      localName,
+      hasAttribute(name) { return values.has(name); },
+      getAttribute(name) { return values.get(name) ?? null; },
+      setAttribute(name, value) { values.set(name, String(value)); },
+      attributes: values,
+    };
+  };
+  const hitAreas = [];
+  const group = {
+    querySelectorAll(selector) {
+      assert.equal(selector, "[data-handle-hit-area]");
+      return hitAreas;
+    },
+    append(node) { hitAreas.push(node); },
+  };
+  const { syncHandleHitArea } = new Function(
+    "document",
+    `"use strict";${script.slice(start, end)};return { syncHandleHitArea };`,
+  )({
+    createElementNS(_namespace, localName) {
+      return createElement(localName);
+    },
+  });
+  const handle = createElement("circle", {
+    "data-ellipse-handle": "radius-x",
+    cx: "500",
+    cy: "500",
+  });
+
+  syncHandleHitArea(group, handle);
+  assert.equal(hitAreas.length, 1);
+  assert.deepEqual(Object.fromEntries(hitAreas[0].attributes), {
+    "data-handle-hit-area": "true",
+    "data-ellipse-handle": "radius-x",
+    tabindex: "-1",
+    fill: "transparent",
+    stroke: "none",
+    x: "440",
+    y: "395",
+    width: "120",
+    height: "210",
+  });
+
+  handle.setAttribute("cx", "990");
+  handle.setAttribute("cy", "10");
+  syncHandleHitArea(group, handle);
+  assert.equal(hitAreas.length, 1);
+  assert.equal(hitAreas[0].getAttribute("x"), "880");
+  assert.equal(hitAreas[0].getAttribute("y"), "0");
+  syncHandleHitArea(group, createElement("circle", { cx: "100", cy: "100" }));
+  assert.equal(hitAreas.length, 1);
+});
+
+test("widget label obstacles ignore transparent mobile hit areas", () => {
+  const selectors = [];
+  const rectangle = {
+    getAttribute(name) {
+      return { x: "120", y: "180", width: "32", height: "32" }[name] ?? null;
+    },
+  };
+  const point = {
+    getAttribute(name) {
+      return { cx: "480", cy: "520", r: "15" }[name] ?? null;
+    },
+  };
+  const candidateLabelObstacleBoxes = widgetScriptFunction(
+    "candidateLabelObstacleBoxes",
+    "function syncCandidateLabelLayout",
+    {
+      overlay: {
+        querySelectorAll(selector) {
+          selectors.push(selector);
+          return selector.startsWith("[data-resize-handle]") ? [rectangle] : [point];
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(candidateLabelObstacleBoxes(), [
+    { x: 120, y: 180, width: 32, height: 32 },
+    { x: 465, y: 505, width: 30, height: 30 },
+  ]);
+  assert.ok(selectors.every((selector) => selector.includes(":not([data-handle-hit-area])")));
+});
+
 test("widget preserves rotated ellipse rendering and includes it in opt-in pixel refinement", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(

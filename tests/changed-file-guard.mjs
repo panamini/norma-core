@@ -551,6 +551,10 @@ export const personalVisualHarmonyWidgetEllipseResponsiveChangedFiles = Object.f
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Mobile editing hit targets reuse the same closed widget/test surface.
+export const personalVisualHarmonyMobileHitTargetsChangedFiles =
+  personalVisualHarmonyWidgetEllipseResponsiveChangedFiles;
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -1959,6 +1963,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyManualSegmentChangedFiles,
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
+  personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
