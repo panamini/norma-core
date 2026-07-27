@@ -19,10 +19,15 @@ import {
 import {
   createPersonalVisualHarmonyMcpServerV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+  PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
   PersonalVisualHarmonySessionServiceV1,
 } from "./personal-visual-harmony-app.js";
+import type {
+  InMemoryPersonalVisualHarmonyPerceptionJobService,
+} from "../personal-visual-harmony-perception-jobs.js";
 import {
   createRemoteMcpAccessTokenVerifier,
 } from "./remote-http-auth.js";
@@ -94,6 +99,8 @@ export interface RemoteMcpLogEvent {
     | typeof REMOTE_TOOL_NAME
     | typeof PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
     | typeof PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL
+    | typeof PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL
     | typeof PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL
     | "mcp";
   readonly outcome: "allow" | "deny";
@@ -110,6 +117,7 @@ export interface RemoteMcpRuntimeDependencies {
   readonly verifyAccessToken?: RemoteMcpAccessTokenVerifier;
   readonly admissionController?: RemoteMcpAdmissionController;
   readonly personalVisualHarmonyService?: PersonalVisualHarmonySessionServiceV1;
+  readonly personalVisualHarmonyPerceptionJobs?: InMemoryPersonalVisualHarmonyPerceptionJobService;
   readonly authorizationDataAdapter?: AuthorizationDataAdapter;
   readonly postgresqlPool?: PostgreSqlAuthorizationPool;
   readonly revocationRegistry?: RemoteMcpRevocationRegistry;
@@ -140,6 +148,7 @@ export function createRemoteMcpHttpServer(
   const admissionController = dependencies.admissionController ?? new RemoteMcpAdmissionController();
   const personalVisualHarmonyService = dependencies.personalVisualHarmonyService
     ?? new PersonalVisualHarmonySessionServiceV1();
+  const personalVisualHarmonyPerceptionJobs = dependencies.personalVisualHarmonyPerceptionJobs;
   const authorizationDataAdapter = config.authorizationDataMode === "postgresql"
     ? configuredAuthorizationDataAdapter(config, dependencies.postgresqlPool)
     : dependencies.authorizationDataAdapter;
@@ -152,6 +161,7 @@ export function createRemoteMcpHttpServer(
         verifyAccessToken,
         admissionController,
         personalVisualHarmonyService,
+        personalVisualHarmonyPerceptionJobs,
         authorizationDataAdapter,
         log,
         request,
@@ -197,6 +207,7 @@ async function routeRequest(
   verifyAccessToken: RemoteMcpAccessTokenVerifier,
   admissionController: RemoteMcpAdmissionController,
   personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
+  personalVisualHarmonyPerceptionJobs: InMemoryPersonalVisualHarmonyPerceptionJobService | undefined,
   authorizationDataAdapter: AuthorizationDataAdapter | undefined,
   log: (event: RemoteMcpLogEvent) => void,
   request: IncomingMessage,
@@ -297,6 +308,7 @@ async function routeRequest(
     requestId,
     access,
     personalVisualHarmonyService,
+    personalVisualHarmonyPerceptionJobs,
     authorizationDataAdapter,
     log,
     startedAt,
@@ -340,6 +352,7 @@ async function handleAuthenticatedPost(
   requestId: string,
   access: VerifiedRemoteMcpAccess,
   personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
+  personalVisualHarmonyPerceptionJobs: InMemoryPersonalVisualHarmonyPerceptionJobService | undefined,
   authorizationDataAdapter: AuthorizationDataAdapter | undefined,
   log: (event: RemoteMcpLogEvent) => void,
   startedAt: number,
@@ -397,7 +410,11 @@ async function handleAuthenticatedPost(
   }
 
   const tool = remoteMcpLogTool(parsedBody);
-  const mcpServer = createRequestMcpServer(personalVisualHarmonyService, access.subjectId);
+  const mcpServer = createRequestMcpServer(
+    personalVisualHarmonyService,
+    access.subjectId,
+    personalVisualHarmonyPerceptionJobs,
+  );
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -475,10 +492,12 @@ async function handleAuthenticatedPost(
 function createRequestMcpServer(
   service: PersonalVisualHarmonySessionServiceV1,
   subjectId: string,
+  perceptionJobs: InMemoryPersonalVisualHarmonyPerceptionJobService | undefined,
 ): McpServer {
   const server = createPersonalVisualHarmonyMcpServerV1({
     service,
     subjectId,
+    ...(perceptionJobs === undefined ? {} : { perceptionJobs }),
     serverInfo: {
       name: REMOTE_MCP_SERVER_NAME,
       version: REMOTE_MCP_SERVER_VERSION,
@@ -764,6 +783,8 @@ function remoteMcpLogTool(body: unknown): RemoteMcpLogEvent["tool"] {
   if (name === REMOTE_TOOL_NAME
     || name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
     || name === PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL
+    || name === PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL
     || name === PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL) {
     return name;
   }

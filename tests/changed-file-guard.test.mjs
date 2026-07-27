@@ -52,6 +52,7 @@ import {
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalPerceptionChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
@@ -765,6 +766,38 @@ test("personal hybrid perception allowlist is exact and keeps provider runtime o
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyHybridPerceptionChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("SAM 3 Modal perception allowlist is exact and rejects deployment scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySam3ModalPerceptionChangedFiles),
+    personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  );
+  assert.equal(
+    sharedExactApprovedChangedFiles(
+      personalVisualHarmonySam3ModalPerceptionChangedFiles.filter(
+        (file) => file !== "deploy/modal/server.py",
+      ),
+    ),
+    null,
+  );
+  for (const extra of [
+    "package.json",
+    "package-lock.json",
+    "src/index.ts",
+    ".github/workflows/deploy.yml",
+    "deploy/modal/secrets.env",
+    "tests/fixtures/provider-response.json",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySam3ModalPerceptionChangedFiles,
         extra,
       ]),
       null,
@@ -3837,7 +3870,12 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   );
-  const isPersonalVisualHarmonyHybridPerceptionSet = isExactChangedFileSet(
+  const isPersonalVisualHarmonySam3ModalPerceptionSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  );
+  const isPersonalVisualHarmonyHybridPerceptionSet = isPersonalVisualHarmonySam3ModalPerceptionSet
+    || isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyHybridPerceptionChangedFiles,
   );
@@ -4073,7 +4111,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     isDeclaredImagePlaneMeasurementRatiosSet
       ? declaredImagePlaneMeasurementRatiosChangedFiles
       : isPersonalVisualHarmonyHybridPerceptionSet
-      ? personalVisualHarmonyHybridPerceptionChangedFiles
+      ? (isPersonalVisualHarmonySam3ModalPerceptionSet
+          ? personalVisualHarmonySam3ModalPerceptionChangedFiles
+          : personalVisualHarmonyHybridPerceptionChangedFiles)
       : isPersonalVisualHarmonyObservabilitySet
       ? personalVisualHarmonyObservabilityChangedFiles
       : isPersonalVisualHarmonyCandidateLabelLayoutSet

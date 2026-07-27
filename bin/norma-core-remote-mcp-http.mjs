@@ -3,10 +3,30 @@
 import { createRemoteMcpHttpServerFromEnvironment } from "../dist/src/mcp/remote-http-server.js";
 import { createPostgreSqlPoolFromEnvironment } from "../dist/src/mcp/remote-http-postgresql-pool.js";
 import { PostgreSqlRemoteMcpRevocationRegistry } from "../dist/src/mcp/remote-http-postgresql-revocation.js";
+import {
+  createPersonalVisualHarmonySegmentationClientFromEnv,
+  personalVisualHarmonySourceImageAllowedOriginsFromEnv,
+} from "../dist/src/personal-visual-harmony-segmentation.js";
+import {
+  InMemoryPersonalVisualHarmonyPerceptionJobService,
+} from "../dist/src/personal-visual-harmony-perception-jobs.js";
 
 const postgresqlPool = createPostgreSqlPoolFromEnvironment(process.env);
+const segmentationClient = createPersonalVisualHarmonySegmentationClientFromEnv(process.env);
+const sourceImageAllowedOrigins = segmentationClient === null
+  ? undefined
+  : personalVisualHarmonySourceImageAllowedOriginsFromEnv(process.env);
+const personalVisualHarmonyPerceptionJobs = segmentationClient === null
+  ? undefined
+  : new InMemoryPersonalVisualHarmonyPerceptionJobService({
+      provider: segmentationClient,
+      allowedSourceImageOrigins: sourceImageAllowedOrigins,
+    });
 const { config, server } = createRemoteMcpHttpServerFromEnvironment(process.env, {
   postgresqlPool,
+  ...(personalVisualHarmonyPerceptionJobs === undefined
+    ? {}
+    : { personalVisualHarmonyPerceptionJobs }),
   ...(process.env.NORMA_MCP_REVOCATION_MODE === "postgresql"
     ? { revocationRegistry: requiredRevocationRegistry(postgresqlPool) }
     : {}),
