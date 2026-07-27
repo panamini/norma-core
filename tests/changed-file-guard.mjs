@@ -535,10 +535,12 @@ export const personalVisualHarmonyMeasurementRatioClarityChangedFiles = Object.f
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Covers the redacted handler-duration/correlation metadata contract and its bounded widget proof.
 export const personalVisualHarmonyObservabilityChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 

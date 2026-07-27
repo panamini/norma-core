@@ -2261,6 +2261,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     "callConfirmation",
     "function finishConfirmingPayload",
     {
+      state: { downloadUrl: "https://files.example/private-confirmation-image" },
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       pixelRecovery,
       callAppTool: async (_name, args) => {
@@ -2282,6 +2283,7 @@ test("widget construction controls are distinct, payload-safe, and cannot run Co
     { width: 1200, height: 800 },
   );
   assert.deepEqual(args.constructionLayers, layers);
+  assert.equal(args.sourceImageDownloadUrl, "https://files.example/private-confirmation-image");
   assert.deepEqual(args.recovery.triangleConstructionRequests, prepared.triangleConstructionRequests);
   assert.equal(args.confirmClientReviewedSelection, true);
   assert.equal(appToolCalls, 1);
@@ -2798,6 +2800,79 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   state.pixelRefinementEnabled = true;
   await hydrate(payload);
   assert.equal(refinementCalls, 1);
+});
+
+test("widget revalidates completed state when the temporary image URL expired on reload", async () => {
+  const state = widgetHydrationState();
+  const completed = {
+    selectedCandidateIds: ["frame"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  const revalidations = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    refreshPixelRefinements() {
+      throw new Error("an unavailable image must not start pixel refinement");
+    },
+    completedWidgetStateFor: () => completed,
+    revalidateCompleted: async (...args) => {
+      revalidations.push(args);
+      state.completed = true;
+    },
+    renderResult() {
+      throw new Error("confirmation payload must not render a result directly");
+    },
+  });
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-expired-reload",
+    prepared: { candidateSetIdentity: "sha256:expired-reload", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+
+  await hydrate(payload);
+
+  assert.deepEqual(revalidations, [[payload, completed, "sha256:expired-reload"]]);
+});
+
+test("widget stays fail closed when image hydration fails without completed state", async () => {
+  const state = widgetHydrationState();
+  let revalidationCalls = 0;
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    completedWidgetStateFor: () => null,
+    revalidateCompleted: async () => { revalidationCalls += 1; },
+    renderResult() {
+      throw new Error("unconfirmed payload must not render a result");
+    },
+  });
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-expired-unconfirmed",
+    prepared: { candidateSetIdentity: "sha256:expired-unconfirmed", candidates: [] },
+  };
+
+  await hydrate(payload);
+
+  assert.equal(revalidationCalls, 0);
+  assert.equal(state.completed, false);
 });
 
 test("widget revalidates completed state against the payload prepared during pixel refresh", async () => {
@@ -3741,7 +3816,7 @@ async function createConnectedClient(service = new PersonalVisualHarmonySessionS
 
 test("prepare and confirm expose correlated handler timings only through app metadata", async () => {
   const wallClockTimestamps = [1_000, 900, 2_000, 1_900];
-  const monotonicTimestamps = [10, 22, 100, 125];
+  const monotonicTimestamps = [10.2, 22.7, 100.6, 99.4];
   const connected = await createConnectedClient(undefined, {
     now: () => wallClockTimestamps.shift(),
     monotonicNow: () => monotonicTimestamps.shift(),
@@ -3760,6 +3835,14 @@ test("prepare and confirm expose correlated handler timings only through app met
     });
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
     const correlationId = widgetMeta.prepared.candidateSetIdentity;
+    assert.equal(
+      widgetMeta.sourceImageDownloadUrl,
+      "https://files.example.test/private-signed-image",
+    );
+    assert.doesNotMatch(
+      JSON.stringify([prepared.content, prepared.structuredContent]),
+      /private-signed-image|sourceImageDownloadUrl|download_url/u,
+    );
     assert.deepEqual(widgetMeta.observability, {
       contractId: "norma.personal-visual-harmony-observability@1",
       correlationId,
@@ -3767,7 +3850,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       handler: "prepare",
       handlerEnteredAtMs: 1_000,
       handlerCompletedAtMs: 900,
-      handlerDurationMs: 12,
+      handlerDurationMs: 13,
     });
 
     const confirmed = await connected.client.callTool({
@@ -3775,6 +3858,7 @@ test("prepare and confirm expose correlated handler timings only through app met
       arguments: {
         sessionId: widgetMeta.sessionId,
         candidateSetIdentity: correlationId,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image",
         selectedCandidateIds: ["major", "minor"],
         sourcePixelWidth: 1_000,
         sourcePixelHeight: 618,
@@ -3789,10 +3873,24 @@ test("prepare and confirm expose correlated handler timings only through app met
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
       handlerCompletedAtMs: 1_900,
-      handlerDurationMs: 25,
+      handlerDurationMs: 0,
     });
+    assert.equal(
+      confirmed._meta.normaPersonalVisualHarmony.sourceImageDownloadUrl,
+      "https://files.example.test/private-signed-image",
+    );
+    assert.doesNotMatch(
+      JSON.stringify([confirmed.content, confirmed.structuredContent]),
+      /private-signed-image|sourceImageDownloadUrl|download_url/u,
+    );
 
     for (const result of [prepared, confirmed]) {
+      assert.equal(Number.isInteger(result._meta.normaPersonalVisualHarmony.observability.handlerDurationMs), true);
+      assert.equal(result._meta.normaPersonalVisualHarmony.observability.handlerDurationMs >= 0, true);
+      assert.match(
+        result._meta.normaPersonalVisualHarmony.observability.correlationId,
+        /^sha256:[0-9a-f]{64}$/u,
+      );
       assert.equal("observability" in result.structuredContent, false);
       assert.doesNotMatch(
         JSON.stringify([result.content, result.structuredContent]),
@@ -3836,6 +3934,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     "function completionFollowUpFacts",
     {
       OBSERVABILITY_CONTRACT_ID: "norma.personal-visual-harmony-observability@1",
+      OBSERVABILITY_CORRELATION_PATTERN: /^sha256:[0-9a-f]{64}$/u,
       state: { observationPrepareAttemptKey: null },
       document: {
         documentElement: {
@@ -3859,7 +3958,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:correlation-only",
+       correlationId: `sha256:${"c".repeat(64)}`,
       handler: "confirm",
       handlerEnteredAtMs: 2_000,
       handlerCompletedAtMs: 2_025,
@@ -3871,7 +3970,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:correlation-only",
+     "data-norma-observation-correlation": `sha256:${"c".repeat(64)}`,
     "data-norma-observation-confirm-handler-clock": "server",
     "data-norma-observation-confirm-handler-duration-ms": "25",
     "data-norma-observation-confirm-milestone-clock": "browser",
@@ -3882,10 +3981,29 @@ test("widget observability writes only bounded scalar milestone attributes", () 
     /must-not-be-observed|rectangle|candidate|primitive/u,
   );
 
+  const sanitizedAttributes = Object.fromEntries(attributes);
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: "not-an-opaque-correlation",
+      handler: "confirm",
+      handlerDurationMs: -1,
+    },
+  }, "core-visible", 2_041);
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: `sha256:${"e".repeat(64)}`,
+      handler: "confirm",
+      handlerDurationMs: 12.5,
+    },
+  }, "core-visible", 2_042);
+  assert.deepEqual(Object.fromEntries(attributes), sanitizedAttributes);
+
+  recordObservationMilestone({
+    observability: {
+      contractId: "norma.personal-visual-harmony-observability@1",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 1,
       handler: "prepare",
       handlerEnteredAtMs: 2_980,
@@ -3896,7 +4014,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-correlation": `sha256:${"d".repeat(64)}`,
     "data-norma-observation-prepare-handler-clock": "server",
     "data-norma-observation-prepare-handler-duration-ms": "12",
     "data-norma-observation-prepare-milestone-clock": "browser",
@@ -3906,7 +4024,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 1,
       handler: "prepare",
       handlerEnteredAtMs: 2_980,
@@ -3917,7 +4035,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       handler: "confirm",
       handlerEnteredAtMs: 3_030,
       handlerCompletedAtMs: 3_040,
@@ -3927,7 +4045,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   recordObservationMilestone({
     observability: {
       contractId: "norma.personal-visual-harmony-observability@1",
-      correlationId: "sha256:replacement",
+      correlationId: `sha256:${"d".repeat(64)}`,
       attemptId: 2,
       handler: "prepare",
       handlerEnteredAtMs: 4_000,
@@ -3938,7 +4056,7 @@ test("widget observability writes only bounded scalar milestone attributes", () 
 
   assert.deepEqual(Object.fromEntries(attributes), {
     "data-norma-observation-contract": "norma.personal-visual-harmony-observability@1",
-    "data-norma-observation-correlation": "sha256:replacement",
+    "data-norma-observation-correlation": `sha256:${"d".repeat(64)}`,
     "data-norma-observation-prepare-handler-clock": "server",
     "data-norma-observation-prepare-handler-duration-ms": "12",
     "data-norma-observation-prepare-milestone-clock": "browser",
@@ -4084,11 +4202,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.ok(refinePixelsTool);
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
     assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+    assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
     assert.match(prepareTool.description, new RegExp(PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1, "u"));
     assert.match(prepareTool.description, /Analyze this image with Norma/u);
     assert.match(prepareTool.description, /Do not ask the user to list primitives/u);
     assert.match(prepareTool.description, /compare two confirmed lengths prepares length-bearing guides without enabling the report/u);
+    assert.equal(confirmTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+    assert.equal(refinePixelsTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
@@ -4327,6 +4448,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v5.html");
+    assert.equal(
+        resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
+      false,
+    );
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
@@ -4334,7 +4460,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
     assert.doesNotThrow(() => new Function(widgetScript[1]));
-    assert.match(resource.contents[0].text, /window\.openai\.getFileDownloadUrl/u);
+    assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
+    assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
     assert.match(resource.contents[0].text, /window\.openai\?\.setWidgetState/u);
@@ -4481,14 +4608,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /function loadDisplayedImage\(downloadUrl,generation,fileId,payloadIdentity\)/u);
     assert.doesNotMatch(resource.contents[0].text, /const probe=new Image\(\)/u);
     assert.doesNotMatch(resource.contents[0].text, /source\.src=result\.downloadUrl/u);
-    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(!imageLoaded\|\|state\.activePayloadIdentity!==identity\)return/u);
-    assert.match(resource.contents[0].text, /if\(payload\.fileId&&!await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\)\)return/u);
+    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(state\.activePayloadIdentity!==identity\)return;if\(!imageLoaded\)\{const revalidationPayload=state\.payload,completed=completedWidgetStateFor\(revalidationPayload\)/u);
+    assert.match(resource.contents[0].text, /if\(payload\.fileId\)await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(state\.activePayloadIdentity!==identity\)return/u);
     assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
     assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
     assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageReady&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return true/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
-    assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
+    assert.match(resource.contents[0].text, /if\(initialPending\)\{initialPending=false;return\{downloadUrl:initialDownloadUrl\}\}/u);
+    assert.match(resource.contents[0].text, /return fileApi\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /const layoutCandidateLabels=function layoutPersonalVisualHarmonyCandidateLabelsV1/u);
     assert.match(resource.contents[0].text, /function syncCandidateLabelLayout\(\)/u);
@@ -4764,6 +4892,38 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.equal(guidedGoalRenders, 1);
 });
 
+test("completed payload renders even when its temporary image URL cannot be refreshed", async () => {
+  const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
+  const state = widgetHydrationState();
+  const rendered = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    completedWidgetStateFor() { throw new Error("completed payload must not inspect confirmation state"); },
+    revalidateCompleted() { throw new Error("completed payload must not revalidate confirmation state"); },
+    restoreGuidedAnalysisGoal() {},
+    renderGuidedAnalysisGoals() {},
+    renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
+  });
+  const completedPayload = {
+    stage: "completed",
+    fileId: "file-expired",
+    result: { contentIdentity: `sha256:${"c".repeat(64)}` },
+  };
+  const structured = { status: "completed" };
+
+  await hydrate(completedPayload, structured);
+
+  assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
+});
+
 test("displayed image load is the hydration proof for single-use temporary URLs", async () => {
   const identity = JSON.stringify(["confirmation_required", "file-once", "sha256:once"]);
   const state = widgetHydrationState({
@@ -4827,23 +4987,37 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
     activePayloadIdentity: "payload-ready",
     imageLoadGeneration: 1,
     imageLoadFileId: "file-ready",
+    activePayload: {
+      sourceImageDownloadUrl: "https://files.example/from-private-meta",
+    },
   });
   let pixelUiUpdates = 0;
   let confirmUpdates = 0;
+  const requestedFileIds = [];
   const performImageLoad = widgetScriptFunction(
     "performImageLoad",
     "async function loadImage",
     {
-      window: { openai: { getFileDownloadUrl: async () => ({ downloadUrl: "https://files.example/ready" }) } },
+      window: {
+        openai: {
+          getFileDownloadUrl: async ({ fileId }) => {
+            requestedFileIds.push(fileId);
+            return { downloadUrl: "https://files.example/refreshed" };
+          },
+        },
+      },
       imageLoadIsCurrent: () => true,
       showImageFailure() { throw new Error("ready hydration must not show a failure"); },
-      runImageHydration: async () => ({
-        status: "ready",
-        attemptCount: 1,
-        downloadUrl: "https://files.example/ready",
-        width: 80,
-        height: 80,
-      }),
+      runImageHydration: async ({ getDownloadUrl }) => {
+        const { downloadUrl } = await getDownloadUrl("file-ready");
+        return {
+          status: "ready",
+          attemptCount: 1,
+          downloadUrl,
+          width: 80,
+          height: 80,
+        };
+      },
       IMAGE_HYDRATION_MAX_ATTEMPTS: 2,
       IMAGE_HYDRATION_RETRY_DELAY_MS: 0,
       loadDisplayedImage() { throw new Error("the bounded hydration stub owns image loading"); },
@@ -4860,6 +5034,7 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
   assert.equal(await performImageLoad("file-ready", 1, "payload-ready"), true);
   assert.equal(state.imageReady, true);
   assert.deepEqual(state.dimensions, { width: 80, height: 80 });
+  assert.deepEqual(requestedFileIds, []);
   assert.equal(pixelUiUpdates, 1);
   assert.equal(confirmUpdates, 1);
 });
