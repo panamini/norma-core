@@ -7,10 +7,10 @@ import subprocess
 
 import modal
 
-from contract import MODEL_CODE_REVISION
-
 APP_NAME = "norma-sam3-perception"
 HF_SECRET_NAME = "norma-sam3-hf"
+# Keep this bootstrap module importable before Modal mounts local helper modules.
+MODEL_CODE_REVISION = "46957e47805eaa273f4aa7bbbd25a88bca9108ce"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 from pathlib import Path
+import re
 import unittest
 from unittest import mock
 
@@ -108,6 +109,13 @@ class ModalSam3ContractTest(unittest.TestCase):
     def test_modal_app_explicitly_packages_the_contract_module(self) -> None:
         app_source = Path(__file__).with_name("modal_app.py").read_text(encoding="utf-8")
         self.assertIn('.add_local_python_source("contract")', app_source)
+        match = re.search(
+            r'^MODEL_CODE_REVISION = "([0-9a-f]{40})"$',
+            app_source,
+            flags=re.MULTILINE,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), contract.MODEL_CODE_REVISION)
 
 
 if __name__ == "__main__":
