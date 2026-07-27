@@ -7,6 +7,7 @@ import type {
   PersonalVisualHarmonyCandidateInputV1,
   PersonalVisualHarmonyCandidateRoleV1,
   PersonalVisualHarmonyPointV1,
+  PersonalVisualHarmonyPreparedCandidateSetV1,
 } from "./personal-visual-harmony.js";
 import {
   PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS,
@@ -286,10 +287,15 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
 
 export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
   readonly expectedSourceImageReferenceIdentity: string;
-  readonly automaticCandidates: readonly PersonalVisualHarmonyCandidateInputV1[];
-  readonly automaticTriangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+  readonly automaticCandidateSet?: PersonalVisualHarmonyPreparedCandidateSetV1;
   readonly manualPerception: PersonalVisualHarmonyManualPerceptionResultV1;
 }): PersonalVisualHarmonyMergedPerceptionCandidatesV1 {
+  const inputKeys = Object.keys(input).sort().join("|");
+  if (inputKeys !== "expectedSourceImageReferenceIdentity|manualPerception"
+    && inputKeys
+      !== "automaticCandidateSet|expectedSourceImageReferenceIdentity|manualPerception") {
+    throw new Error("Perception merge requires an optional source-bound automatic candidate set.");
+  }
   if (!SHA256_PATTERN.test(input.expectedSourceImageReferenceIdentity)) {
     throw new Error("expectedSourceImageReferenceIdentity must be a sha256 identity.");
   }
@@ -332,8 +338,26 @@ export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
     !== input.expectedSourceImageReferenceIdentity) {
     throw new Error("Manual perception belongs to a different source image.");
   }
+  const automaticCandidateSet = input.automaticCandidateSet;
+  if (automaticCandidateSet !== undefined) {
+    if (automaticCandidateSet.contractId !== "norma.personal-visual-harmony-candidate-set@1"
+      || automaticCandidateSet.contractVersion !== 1
+      || automaticCandidateSet.status !== "confirmation_required"
+      || automaticCandidateSet.sourceImageReferenceIdentity
+        !== input.expectedSourceImageReferenceIdentity
+      || !SHA256_PATTERN.test(automaticCandidateSet.candidateSetIdentity)) {
+      throw new Error("Automatic candidate set belongs to a different source image or is invalid.");
+    }
+    const {
+      candidateSetIdentity,
+      ...automaticCandidateSetWithoutIdentity
+    } = automaticCandidateSet;
+    if (contentIdentityFor(automaticCandidateSetWithoutIdentity) !== candidateSetIdentity) {
+      throw new Error("Automatic candidate set identity is stale or invalid.");
+    }
+  }
   const sourceCandidates = [
-    ...structuredClone(input.automaticCandidates),
+    ...structuredClone(automaticCandidateSet?.candidates ?? []),
     ...structuredClone(input.manualPerception.candidates),
   ];
   for (const candidate of sourceCandidates) {
@@ -357,7 +381,7 @@ export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
     candidateIds.add(candidate.id);
   }
   const triangleConstructionRequests = [
-    ...structuredClone(input.automaticTriangleConstructionRequests ?? []),
+    ...structuredClone(automaticCandidateSet?.triangleConstructionRequests ?? []),
     ...structuredClone(input.manualPerception.triangleConstructionRequests),
   ];
   if (triangleConstructionRequests.length > PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS) {

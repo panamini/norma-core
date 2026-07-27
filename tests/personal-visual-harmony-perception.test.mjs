@@ -455,9 +455,14 @@ test("hybrid merge preserves automatic candidates and remains prepare-compatible
   });
   const merged = mergePersonalVisualHarmonyPerceptionCandidatesV1({
     expectedSourceImageReferenceIdentity: automaticPrepared.sourceImageReferenceIdentity,
-    automaticCandidates,
+    automaticCandidateSet: automaticPrepared,
     manualPerception,
   });
+  assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
+    expectedSourceImageReferenceIdentity: automaticPrepared.sourceImageReferenceIdentity,
+    automaticCandidates,
+    manualPerception,
+  }), /requires an optional source-bound automatic candidate set/u);
   const prepared = preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-safe-test",
     sourceImageMediaType: "image/png",
@@ -512,7 +517,7 @@ test("hybrid preparation requires the merged source identity", () => {
   });
   const merged = mergePersonalVisualHarmonyPerceptionCandidatesV1({
     expectedSourceImageReferenceIdentity: automaticPrepared.sourceImageReferenceIdentity,
-    automaticCandidates: automaticPrepared.candidates,
+    automaticCandidateSet: automaticPrepared,
     manualPerception,
   });
 
@@ -549,63 +554,122 @@ test("hybrid preparation requires the merged source identity", () => {
 });
 
 test("hybrid merge rejects stale perception identity and candidate collisions", () => {
+  const sourceFileId = "merge-validation-source";
+  const sourcePrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId,
+    candidates: [{
+      id: "source-frame",
+      label: "Cadre source",
+      role: "frame",
+      reason: "Établit l’identité de la source pour la validation de fusion.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  });
   const manualPerception = extract(maskFromPredicate(
     30,
     30,
     (x, y) => x >= 8 && x < 22 && y >= 8 && y < 22,
-  ));
+  ), {
+    sourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+  });
   const stale = structuredClone(manualPerception);
   stale.fit = "ellipse";
   assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
-    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
-    automaticCandidates: [],
+    expectedSourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
     manualPerception: stale,
   }), /identity is stale or invalid/u);
 
+  const collidingAutomaticSet = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId,
+    candidates: [manualPerception.candidates[0]],
+  });
   assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
-    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
-    automaticCandidates: [{
-      ...manualPerception.candidates[0],
-    }],
+    expectedSourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+    automaticCandidateSet: collidingAutomaticSet,
     manualPerception,
   }), /candidate ids must remain unique/u);
 
-  assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
-    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
-    automaticCandidates: [{
-      ...manualPerception.candidates[0],
-      id: "bound-to-another-image",
-      sourceImageReferenceIdentity: `sha256:${"b".repeat(64)}`,
+  const otherAutomaticSet = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "other-automatic-source",
+    candidates: [{
+      id: "other-frame",
+      label: "Autre cadre",
+      role: "frame",
+      reason: "Candidat automatique préparé pour une autre image.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
     }],
+  });
+  assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
+    expectedSourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+    automaticCandidateSet: otherAutomaticSet,
     manualPerception,
-  }), /candidate belongs to a different source image/u);
+  }), /Automatic candidate set belongs to a different source image/u);
 
   assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
     expectedSourceImageReferenceIdentity: `sha256:${"b".repeat(64)}`,
-    automaticCandidates: [],
     manualPerception,
   }), /different source image/u);
 });
 
 test("hybrid merge rejects automatic and manual triangle requests beyond the shared limit", () => {
+  const sourceFileId = "triangle-merge-limit-source";
+  const sourcePrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId,
+    candidates: [{
+      id: "triangle-source-frame",
+      label: "Cadre source",
+      role: "frame",
+      reason: "Établit l’identité de source du test de limite de fusion.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  });
+  const triangleMask = maskFromPredicate(
+    61,
+    61,
+    (x, y) => y >= 10 && y <= 50
+      && x >= 30 - ((y - 10) / 2)
+      && x <= 30 + ((y - 10) / 2),
+  );
+  const automaticPerception = extract(triangleMask, {
+    interactionId: "automatic-triangle-selection",
+    candidateIdPrefix: "automatic-subject",
+    sourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+  });
   const manualPerception = extract(maskFromPredicate(
     61,
     61,
     (x, y) => y >= 10 && y <= 50
       && x >= 30 - ((y - 10) / 2)
       && x <= 30 + ((y - 10) / 2),
-  ));
-  const manualRequest = manualPerception.triangleConstructionRequests[0];
-  assert.ok(manualRequest);
+  ), {
+    interactionId: "manual-triangle-selection",
+    candidateIdPrefix: "manual-triangle",
+    sourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+  });
+  const automaticRequest = automaticPerception.triangleConstructionRequests[0];
+  assert.ok(automaticRequest);
   const automaticRequests = Array.from({ length: 4 }, (_, index) => ({
-    ...structuredClone(manualRequest),
+    ...structuredClone(automaticRequest),
     requestId: `automatic-triangle-${String(index + 1)}`,
   }));
+  const automaticCandidateSet = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId,
+    candidates: automaticPerception.candidates,
+    triangleConstructionRequests: automaticRequests,
+  });
 
   assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
-    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
-    automaticCandidates: [],
-    automaticTriangleConstructionRequests: automaticRequests,
+    expectedSourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+    automaticCandidateSet,
     manualPerception,
   }), /exceed the bounded limit/u);
 });
