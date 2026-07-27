@@ -3760,6 +3760,14 @@ test("prepare and confirm expose correlated handler timings only through app met
     });
     const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
     const correlationId = widgetMeta.prepared.candidateSetIdentity;
+    assert.equal(
+      widgetMeta.sourceImageDownloadUrl,
+      "https://files.example.test/private-signed-image",
+    );
+    assert.doesNotMatch(
+      JSON.stringify([prepared.content, prepared.structuredContent]),
+      /private-signed-image|sourceImageDownloadUrl|download_url/u,
+    );
     assert.deepEqual(widgetMeta.observability, {
       contractId: "norma.personal-visual-harmony-observability@1",
       correlationId,
@@ -4365,7 +4373,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
     assert.doesNotThrow(() => new Function(widgetScript[1]));
-    assert.match(resource.contents[0].text, /window\.openai\.getFileDownloadUrl/u);
+    assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
+    assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
     assert.match(resource.contents[0].text, /window\.openai\?\.setWidgetState/u);
@@ -4519,7 +4528,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageReady&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return true/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
-    assert.match(resource.contents[0].text, /getDownloadUrl:requestedFileId=>window\.openai\.getFileDownloadUrl\(\{fileId:requestedFileId\}\)/u);
+    assert.match(resource.contents[0].text, /if\(initialPending\)\{initialPending=false;return\{downloadUrl:initialDownloadUrl\}\}/u);
+    assert.match(resource.contents[0].text, /return fileApi\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /const layoutCandidateLabels=function layoutPersonalVisualHarmonyCandidateLabelsV1/u);
     assert.match(resource.contents[0].text, /function syncCandidateLabelLayout\(\)/u);
@@ -4858,23 +4868,37 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
     activePayloadIdentity: "payload-ready",
     imageLoadGeneration: 1,
     imageLoadFileId: "file-ready",
+    activePayload: {
+      sourceImageDownloadUrl: "https://files.example/from-private-meta",
+    },
   });
   let pixelUiUpdates = 0;
   let confirmUpdates = 0;
+  const requestedFileIds = [];
   const performImageLoad = widgetScriptFunction(
     "performImageLoad",
     "async function loadImage",
     {
-      window: { openai: { getFileDownloadUrl: async () => ({ downloadUrl: "https://files.example/ready" }) } },
+      window: {
+        openai: {
+          getFileDownloadUrl: async ({ fileId }) => {
+            requestedFileIds.push(fileId);
+            return { downloadUrl: "https://files.example/refreshed" };
+          },
+        },
+      },
       imageLoadIsCurrent: () => true,
       showImageFailure() { throw new Error("ready hydration must not show a failure"); },
-      runImageHydration: async () => ({
-        status: "ready",
-        attemptCount: 1,
-        downloadUrl: "https://files.example/ready",
-        width: 80,
-        height: 80,
-      }),
+      runImageHydration: async ({ getDownloadUrl }) => {
+        const { downloadUrl } = await getDownloadUrl("file-ready");
+        return {
+          status: "ready",
+          attemptCount: 1,
+          downloadUrl,
+          width: 80,
+          height: 80,
+        };
+      },
       IMAGE_HYDRATION_MAX_ATTEMPTS: 2,
       IMAGE_HYDRATION_RETRY_DELAY_MS: 0,
       loadDisplayedImage() { throw new Error("the bounded hydration stub owns image loading"); },
@@ -4891,6 +4915,7 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
   assert.equal(await performImageLoad("file-ready", 1, "payload-ready"), true);
   assert.equal(state.imageReady, true);
   assert.deepEqual(state.dimensions, { width: 80, height: 80 });
+  assert.deepEqual(requestedFileIds, []);
   assert.equal(pixelUiUpdates, 1);
   assert.equal(confirmUpdates, 1);
 });
