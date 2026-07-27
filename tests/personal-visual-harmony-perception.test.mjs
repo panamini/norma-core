@@ -10,6 +10,7 @@ import {
   mergePersonalVisualHarmonyPerceptionCandidatesV1,
   preparePersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
+import * as personalVisualHarmony from "../dist/src/personal-visual-harmony.js";
 import * as packageRoot from "../dist/src/index.js";
 
 const SOURCE_IDENTITY = `sha256:${"a".repeat(64)}`;
@@ -83,6 +84,7 @@ test("manual perception fits an axis-aligned rectangle without running Core", ()
 test("manual perception remains a private adapter contract outside the package root", () => {
   assert.equal("extractPersonalVisualHarmonyManualPerceptionV1" in packageRoot, false);
   assert.equal("mergePersonalVisualHarmonyPerceptionCandidatesV1" in packageRoot, false);
+  assert.equal("preparePersonalVisualHarmonyMergedPerceptionCandidatesV1" in packageRoot, false);
 });
 
 test("manual perception emits a quadrilateral for a rotated four-corner mask", () => {
@@ -95,6 +97,40 @@ test("manual perception emits a quadrilateral for a rotated four-corner mask", (
   assert.equal(result.fit, "quadrilateral");
   assert.equal(result.candidates[0].primitive.kind, "quadrilateral");
   assert.equal(result.candidates[0].primitive.vertices.length, 4);
+});
+
+test("manual perception keeps a filled convex trapezoid as a quadrilateral", () => {
+  const result = extract(maskFromPredicate(
+    50,
+    50,
+    (x, y) => {
+      if (y < 8 || y > 42) return false;
+      const progress = (y - 8) / 34;
+      const left = 11 + (4 * progress);
+      const right = 23 + (12 * progress);
+      return x >= left && x <= right;
+    },
+  ));
+
+  assert.equal(result.fit, "quadrilateral");
+  assert.equal(result.candidates[0].primitive.kind, "quadrilateral");
+});
+
+test("manual perception keeps a centrally symmetric parallelogram as a quadrilateral", () => {
+  const result = extract(maskFromPredicate(
+    60,
+    60,
+    (x, y) => {
+      if (y < 10 || y > 50) return false;
+      const progress = (y - 10) / 40;
+      const left = 14 + (4 * progress);
+      const right = 30 + (4 * progress);
+      return x >= left && x <= right;
+    },
+  ));
+
+  assert.equal(result.fit, "quadrilateral");
+  assert.equal(result.candidates[0].primitive.kind, "quadrilateral");
 });
 
 test("manual perception emits an oriented ellipse and principal axis", () => {
@@ -117,6 +153,21 @@ test("manual perception emits an oriented ellipse and principal axis", () => {
   assert.ok(result.candidates[0].primitive.rotationDegrees > 0);
 });
 
+test("manual perception classifies supported low-resolution circular masks as ellipses", () => {
+  const sizes = [4, 6, 8, 10, 16];
+  const results = sizes.map((size) => {
+    const center = size / 2;
+    const radius = (size / 2) - 0.35;
+    return extract(maskFromPredicate(
+      size,
+      size,
+      (x, y) => Math.hypot((x + 0.5) - center, (y + 0.5) - center) <= radius,
+    ));
+  });
+  assert.deepEqual(results.map(({ fit }) => fit), sizes.map(() => "ellipse"));
+  assert.ok(results.every(({ candidates }) => candidates[0].primitive.kind === "ellipse"));
+});
+
 test("manual perception keeps finite segment and principal axis distinct", () => {
   const result = extract(maskFromPredicate(
     80,
@@ -129,6 +180,17 @@ test("manual perception keeps finite segment and principal axis distinct", () =>
     result.candidates.map(({ primitive }) => primitive.kind),
     ["segment", "axis"],
   );
+});
+
+test("manual perception treats a diagonally connected line mask as one segment", () => {
+  const result = extract(maskFromPredicate(
+    8,
+    8,
+    (x, y) => x === y,
+  ));
+
+  assert.equal(result.fit, "elongated");
+  assert.equal(result.candidates[0].primitive.kind, "segment");
 });
 
 test("manual perception models a triangle as confirmed edges plus a derived request", () => {
@@ -170,6 +232,48 @@ test("manual perception preserves irregular boundary evidence without inventing 
   assert.ok(result.boundaryEvidence.length > 4);
   assert.ok(result.warnings.includes("irregular-boundary-preserved-without-curve-primitive"));
   assert.ok(result.candidates.every(({ primitive }) => primitive.kind !== "curve"));
+});
+
+test("manual perception falls back for masks with holes or disconnected components", () => {
+  const ring = extract(maskFromPredicate(
+    50,
+    50,
+    (x, y) => x >= 5 && x < 45 && y >= 5 && y < 45
+      && !(x >= 15 && x < 35 && y >= 15 && y < 35),
+  ), {
+    prompt: {
+      points: [{ x: 0.2, y: 0.2, label: "include" }],
+      box: null,
+    },
+  });
+  const disconnected = extract(maskFromPredicate(
+    50,
+    50,
+    (x, y) => (x >= 5 && x < 20 && y >= 10 && y < 40)
+      || (x >= 30 && x < 45 && y >= 10 && y < 40),
+  ), {
+    prompt: {
+      points: [{ x: 0.2, y: 0.4, label: "include" }],
+      box: null,
+    },
+  });
+  const concave = extract(maskFromPredicate(
+    50,
+    50,
+    (x, y) => x >= 5 && x < 45 && y >= 5 && y < 45
+      && !(x >= 20 && x < 25 && y >= 5 && y < 10),
+  ), {
+    prompt: {
+      points: [{ x: 0.2, y: 0.2, label: "include" }],
+      box: null,
+    },
+  });
+
+  for (const result of [ring, disconnected, concave]) {
+    assert.equal(result.fit, "bounding-region");
+    assert.equal(result.candidates[0].primitive.kind, "rectangle");
+    assert.ok(result.warnings.includes("irregular-boundary-preserved-without-curve-primitive"));
+  }
 });
 
 test("manual perception fails closed when prompt polarity contradicts the mask", () => {
@@ -299,6 +403,74 @@ test("hybrid merge preserves automatic candidates and remains prepare-compatible
     candidates: merged.candidates,
     triangleConstructionRequests: merged.triangleConstructionRequests,
   }), /does not match sourceFileId/u);
+  assert.throws(() => preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "different-file",
+    candidates: merged.candidates,
+    triangleConstructionRequests: merged.triangleConstructionRequests,
+  }), /belongs to a different source image/u);
+});
+
+test("hybrid preparation requires the merged source identity", () => {
+  assert.equal(
+    typeof personalVisualHarmony.preparePersonalVisualHarmonyMergedPerceptionCandidatesV1,
+    "function",
+  );
+  const automaticPrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "hybrid-bound-source",
+    candidates: [{
+      id: "automatic-frame",
+      label: "Cadre automatique",
+      role: "frame",
+      reason: "Cadre automatique conservé pour la préparation hybride.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  });
+  const manualPerception = extract(maskFromPredicate(
+    30,
+    30,
+    (x, y) => x >= 8 && x < 22 && y >= 8 && y < 22,
+  ), {
+    sourceImageReferenceIdentity: automaticPrepared.sourceImageReferenceIdentity,
+  });
+  const merged = mergePersonalVisualHarmonyPerceptionCandidatesV1({
+    expectedSourceImageReferenceIdentity: automaticPrepared.sourceImageReferenceIdentity,
+    automaticCandidates: automaticPrepared.candidates,
+    manualPerception,
+  });
+
+  const prepared = personalVisualHarmony
+    .preparePersonalVisualHarmonyMergedPerceptionCandidatesV1({
+      sourceFileId: "hybrid-bound-source",
+      mergedPerceptionCandidates: merged,
+    });
+  assert.equal(prepared.sourceImageReferenceIdentity, merged.sourceImageReferenceIdentity);
+
+  assert.throws(() => personalVisualHarmony
+    .preparePersonalVisualHarmonyMergedPerceptionCandidatesV1({
+      sourceFileId: "completely-different-file",
+      mergedPerceptionCandidates: merged,
+    }), /does not match sourceFileId/u);
+  const missingIdentity = structuredClone(merged);
+  delete missingIdentity.sourceImageReferenceIdentity;
+  assert.throws(() => personalVisualHarmony
+    .preparePersonalVisualHarmonyMergedPerceptionCandidatesV1({
+      sourceFileId: "hybrid-bound-source",
+      mergedPerceptionCandidates: missingIdentity,
+    }), /require a source image identity/u);
+  const differentPrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "completely-different-file",
+    candidates: automaticPrepared.candidates,
+  });
+  const tamperedIdentity = structuredClone(merged);
+  tamperedIdentity.sourceImageReferenceIdentity = differentPrepared.sourceImageReferenceIdentity;
+  assert.throws(() => personalVisualHarmony
+    .preparePersonalVisualHarmonyMergedPerceptionCandidatesV1({
+      sourceFileId: "completely-different-file",
+      mergedPerceptionCandidates: tamperedIdentity,
+    }), /identity is stale or invalid/u);
 });
 
 test("hybrid merge rejects stale perception identity and candidate collisions", () => {
@@ -322,6 +494,16 @@ test("hybrid merge rejects stale perception identity and candidate collisions", 
     }],
     manualPerception,
   }), /candidate ids must remain unique/u);
+
+  assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
+    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
+    automaticCandidates: [{
+      ...manualPerception.candidates[0],
+      id: "bound-to-another-image",
+      sourceImageReferenceIdentity: `sha256:${"b".repeat(64)}`,
+    }],
+    manualPerception,
+  }), /candidate belongs to a different source image/u);
 
   assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
     expectedSourceImageReferenceIdentity: `sha256:${"b".repeat(64)}`,

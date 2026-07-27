@@ -31,6 +31,8 @@ const PERSONAL_VISUAL_HARMONY_MERGED_CANDIDATE_LIMIT = 12;
 const MIN_ACTIVE_PIXELS = 4;
 const ELONGATED_AXIS_RATIO = 5;
 const ELLIPSE_MAX_MEAN_BOUNDARY_RESIDUAL = 0.28;
+const HULL_SIMPLIFICATION_TOLERANCE_PIXELS = 0.5;
+const ELLIPSE_MIN_CENTRAL_SYMMETRY_RATIO = 0.9;
 
 export interface PersonalVisualHarmonyMaskRunV1 {
   readonly y: number;
@@ -109,6 +111,7 @@ export interface PersonalVisualHarmonyManualPerceptionResultV1 {
 export interface PersonalVisualHarmonyMergedPerceptionCandidatesV1 {
   readonly sourceImageReferenceIdentity: string;
   readonly manualPerceptionIdentity: string;
+  readonly mergedPerceptionIdentity: string;
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
   readonly manualBoundaryEvidence: readonly PersonalVisualHarmonyPointV1[];
@@ -125,6 +128,8 @@ interface DecodedMask {
   readonly minY: number;
   readonly maxX: number;
   readonly maxY: number;
+  readonly connectedComponentCount: number;
+  readonly hasHoles: boolean;
 }
 
 interface PixelPoint {
@@ -184,7 +189,13 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
   const hull = convexHull(normalizedBoundary);
   const simplifiedHull = simplifyConvexHull(
     hull,
-    2 / Math.max(decoded.width, decoded.height),
+    HULL_SIMPLIFICATION_TOLERANCE_PIXELS / Math.max(decoded.width, decoded.height),
+  );
+  const digitallyConvex = isDigitallyConvex(
+    decoded.active,
+    decoded.width,
+    decoded.height,
+    hull,
   );
   const principalAxis = computePrincipalAxis(decoded.points, decoded.width, decoded.height);
   const bounds = normalizedBounds(decoded);
@@ -196,11 +207,22 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
     decoded.height,
     principalAxis,
   );
+  const centralSymmetryRatio = maskCentralSymmetryRatio(
+    decoded.points,
+    decoded.active,
+    decoded.width,
+    decoded.height,
+  );
   const fit = classifyFit({
+    hullVertexCount: hull.length,
     simplifiedHull,
     fillRatio,
     ellipseResidual,
+    centralSymmetryRatio,
     principalAxis,
+    digitallyConvex,
+    connectedComponentCount: decoded.connectedComponentCount,
+    hasHoles: decoded.hasHoles,
   });
   const fitted = candidatesForFit({
     fit,
@@ -297,10 +319,20 @@ export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
     !== input.expectedSourceImageReferenceIdentity) {
     throw new Error("Manual perception belongs to a different source image.");
   }
-  const candidates = [
+  const sourceCandidates = [
     ...structuredClone(input.automaticCandidates),
     ...structuredClone(input.manualPerception.candidates),
   ];
+  for (const candidate of sourceCandidates) {
+    if (candidate.sourceImageReferenceIdentity !== undefined
+      && candidate.sourceImageReferenceIdentity !== input.expectedSourceImageReferenceIdentity) {
+      throw new Error("Perception candidate belongs to a different source image.");
+    }
+  }
+  const candidates = sourceCandidates.map((candidate) => ({
+    ...candidate,
+    sourceImageReferenceIdentity: input.expectedSourceImageReferenceIdentity,
+  }));
   if (candidates.length > PERSONAL_VISUAL_HARMONY_MERGED_CANDIDATE_LIMIT) {
     throw new Error("Merged perception candidates exceed the visual harmony limit.");
   }
@@ -325,13 +357,17 @@ export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
     }
     requestIds.add(request.requestId);
   }
-  return {
+  const withoutIdentity = {
     sourceImageReferenceIdentity: input.expectedSourceImageReferenceIdentity,
     manualPerceptionIdentity: input.manualPerception.perceptionIdentity,
     candidates,
     triangleConstructionRequests,
     manualBoundaryEvidence: structuredClone(input.manualPerception.boundaryEvidence),
     manualWarnings: structuredClone(input.manualPerception.warnings),
+  };
+  return {
+    ...withoutIdentity,
+    mergedPerceptionIdentity: contentIdentityFor(withoutIdentity),
   };
 }
 
@@ -395,6 +431,7 @@ function decodeMask(mask: PersonalVisualHarmonySegmentationMaskV1): DecodedMask 
     || active[((y - 1) * mask.width) + x] === 0
     || active[((y + 1) * mask.width) + x] === 0
   ));
+  const topology = analyzeMaskTopology(active, mask.width, mask.height);
   return {
     width: mask.width,
     height: mask.height,
@@ -405,7 +442,84 @@ function decodeMask(mask: PersonalVisualHarmonySegmentationMaskV1): DecodedMask 
     minY,
     maxX,
     maxY,
+    connectedComponentCount: topology.connectedComponentCount,
+    hasHoles: topology.hasHoles,
   };
+}
+
+function analyzeMaskTopology(
+  active: Uint8Array,
+  width: number,
+  height: number,
+): { readonly connectedComponentCount: number; readonly hasHoles: boolean } {
+  const queue = new Int32Array(active.length);
+  const activeVisited = new Uint8Array(active.length);
+  let connectedComponentCount = 0;
+  for (let offset = 0; offset < active.length; offset += 1) {
+    if (active[offset] !== 1 || activeVisited[offset] === 1) continue;
+    connectedComponentCount += 1;
+    floodMaskValue(active, activeVisited, queue, offset, 1, width, height);
+  }
+
+  const backgroundVisited = new Uint8Array(active.length);
+  const visitBackground = (offset: number): void => {
+    if (active[offset] === 0 && backgroundVisited[offset] === 0) {
+      floodMaskValue(active, backgroundVisited, queue, offset, 0, width, height);
+    }
+  };
+  for (let x = 0; x < width; x += 1) {
+    visitBackground(x);
+    visitBackground(((height - 1) * width) + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    visitBackground(y * width);
+    visitBackground((y * width) + width - 1);
+  }
+  const hasHoles = active.some((value, offset) => (
+    value === 0 && backgroundVisited[offset] === 0
+  ));
+  return { connectedComponentCount, hasHoles };
+}
+
+function floodMaskValue(
+  active: Uint8Array,
+  visited: Uint8Array,
+  queue: Int32Array,
+  startOffset: number,
+  targetValue: 0 | 1,
+  width: number,
+  height: number,
+): void {
+  let head = 0;
+  let tail = 0;
+  visited[startOffset] = 1;
+  queue[tail] = startOffset;
+  tail += 1;
+  while (head < tail) {
+    const offset = queue[head];
+    head += 1;
+    if (offset === undefined) continue;
+    const x = offset % width;
+    const y = Math.floor(offset / width);
+    const neighbors = [
+      ...(x > 0 ? [offset - 1] : []),
+      ...(x + 1 < width ? [offset + 1] : []),
+      ...(y > 0 ? [offset - width] : []),
+      ...(y + 1 < height ? [offset + width] : []),
+    ];
+    if (targetValue === 1) {
+      if (x > 0 && y > 0) neighbors.push(offset - width - 1);
+      if (x + 1 < width && y > 0) neighbors.push(offset - width + 1);
+      if (x > 0 && y + 1 < height) neighbors.push(offset + width - 1);
+      if (x + 1 < width && y + 1 < height) neighbors.push(offset + width + 1);
+    }
+    for (const neighbor of neighbors) {
+      if (active[neighbor] !== targetValue || visited[neighbor] === 1) continue;
+      visited[neighbor] = 1;
+      queue[tail] = neighbor;
+      tail += 1;
+    }
+  }
 }
 
 function validatePrompt(
@@ -543,6 +657,50 @@ function boundedBoundaryForAnalysis(
     { length: MAX_BOUNDARY_ANALYSIS_POINTS },
     (_, index) => boundary[Math.floor(index * step)],
   ).filter((point): point is PixelPoint => point !== undefined);
+}
+
+function isDigitallyConvex(
+  active: Uint8Array,
+  width: number,
+  height: number,
+  hull: readonly PersonalVisualHarmonyPointV1[],
+): boolean {
+  if (hull.length < 3) return false;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width) + x;
+      if (active[offset] === 1) continue;
+      const point = { x: (x + 0.5) / width, y: (y + 0.5) / height };
+      if (isInsideOrOnConvexPolygon(point, hull)) return false;
+    }
+  }
+  return true;
+}
+
+function isInsideOrOnConvexPolygon(
+  point: PersonalVisualHarmonyPointV1,
+  polygon: readonly PersonalVisualHarmonyPointV1[],
+): boolean {
+  const first = polygon[0];
+  const second = polygon[1];
+  const last = polygon.at(-1);
+  if (first === undefined || second === undefined || last === undefined) return false;
+  const tolerance = 1e-12;
+  if (cross(first, second, point) < -tolerance
+    || cross(first, last, point) > tolerance) return false;
+  let lower = 1;
+  let upper = polygon.length - 1;
+  while (upper - lower > 1) {
+    const middle = Math.floor((lower + upper) / 2);
+    const vertex = polygon[middle];
+    if (vertex === undefined) return false;
+    if (cross(first, vertex, point) >= -tolerance) lower = middle;
+    else upper = middle;
+  }
+  const start = polygon[lower];
+  const end = polygon[(lower + 1) % polygon.length];
+  return start !== undefined && end !== undefined
+    && cross(start, end, point) >= -tolerance;
 }
 
 function convexHull(
@@ -684,21 +842,56 @@ function meanEllipseBoundaryResidual(
   return canonicalNumber(residual);
 }
 
+function maskCentralSymmetryRatio(
+  points: readonly PixelPoint[],
+  active: Uint8Array,
+  width: number,
+  height: number,
+): number {
+  const centerX = points.reduce((sum, point) => sum + point.x + 0.5, 0) / points.length;
+  const centerY = points.reduce((sum, point) => sum + point.y + 0.5, 0) / points.length;
+  let symmetricPointCount = 0;
+  for (const point of points) {
+    const reflectedX = Math.round((2 * centerX) - (point.x + 0.5) - 0.5);
+    const reflectedY = Math.round((2 * centerY) - (point.y + 0.5) - 0.5);
+    if (reflectedX < 0 || reflectedX >= width || reflectedY < 0 || reflectedY >= height) {
+      continue;
+    }
+    if (active[(reflectedY * width) + reflectedX] === 1) symmetricPointCount += 1;
+  }
+  return canonicalNumber(symmetricPointCount / points.length);
+}
+
 function classifyFit(input: {
+  readonly hullVertexCount: number;
   readonly simplifiedHull: readonly PersonalVisualHarmonyPointV1[];
   readonly fillRatio: number;
   readonly ellipseResidual: number;
+  readonly centralSymmetryRatio: number;
   readonly principalAxis: PrincipalAxis;
+  readonly digitallyConvex: boolean;
+  readonly connectedComponentCount: number;
+  readonly hasHoles: boolean;
 }): PersonalVisualHarmonyManualPerceptionFitV1 {
+  if (input.connectedComponentCount !== 1 || input.hasHoles) return "bounding-region";
   if (input.principalAxis.axisRatio >= ELONGATED_AXIS_RATIO) return "elongated";
-  if (input.simplifiedHull.length === 3 && input.fillRatio >= 0.3) return "triangle";
-  if (input.simplifiedHull.length === 4 && input.fillRatio >= 0.35) {
-    return isAxisAlignedPolygon(input.simplifiedHull) && input.fillRatio >= 0.72
-      ? "rectangle"
-      : "quadrilateral";
+  if (input.digitallyConvex) {
+    if (input.simplifiedHull.length === 3 && input.fillRatio >= 0.3) return "triangle";
+    if (input.simplifiedHull.length === 4 && input.fillRatio >= 0.35) {
+      if (input.hullVertexCount >= 8
+        && input.fillRatio <= 0.9
+        && input.ellipseResidual <= ELLIPSE_MAX_MEAN_BOUNDARY_RESIDUAL
+        && input.centralSymmetryRatio >= ELLIPSE_MIN_CENTRAL_SYMMETRY_RATIO) {
+        return "ellipse";
+      }
+      return isAxisAlignedPolygon(input.simplifiedHull) && input.fillRatio >= 0.72
+        ? "rectangle"
+        : "quadrilateral";
+    }
   }
   if (input.fillRatio >= 0.55 && input.fillRatio <= 0.9
-    && input.ellipseResidual <= ELLIPSE_MAX_MEAN_BOUNDARY_RESIDUAL) {
+    && input.ellipseResidual <= ELLIPSE_MAX_MEAN_BOUNDARY_RESIDUAL
+    && input.centralSymmetryRatio >= ELLIPSE_MIN_CENTRAL_SYMMETRY_RATIO) {
     return "ellipse";
   }
   return "bounding-region";
