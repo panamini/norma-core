@@ -44,6 +44,9 @@ import {
   type PersonalVisualHarmonyConstructionLayerV1,
   type PersonalVisualHarmonyTriangleRequestInputV1,
 } from "./personal-visual-harmony-constructions.js";
+import type {
+  PersonalVisualHarmonyMergedPerceptionCandidatesV1,
+} from "./personal-visual-harmony-perception.js";
 
 export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@1" as const;
@@ -121,6 +124,7 @@ export interface PersonalVisualHarmonyCandidateInputV1 {
   readonly width: number;
   readonly height: number;
   readonly primitive?: PersonalVisualHarmonyPrimitiveV1;
+  readonly sourceImageReferenceIdentity?: string;
 }
 
 export interface PersonalVisualHarmonyPreparedCandidateSetV1 {
@@ -391,12 +395,21 @@ const IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES = 2;
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
   readonly sourceImageMediaType?: string | null;
+  readonly expectedSourceImageReferenceIdentity?: string;
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): PersonalVisualHarmonyPreparedCandidateSetV1 {
   requireBoundedString(input.sourceFileId, "sourceFileId", 1, 2_048);
   const sourceImageMediaType = normalizeMediaType(input.sourceImageMediaType);
-  const candidates = validateCandidates(input.candidates);
+  const sourceImageReferenceIdentity = contentIdentityFor({
+    kind: "chatgpt-file-reference",
+    fileId: input.sourceFileId,
+  });
+  if (input.expectedSourceImageReferenceIdentity !== undefined
+    && input.expectedSourceImageReferenceIdentity !== sourceImageReferenceIdentity) {
+    throw new Error("Expected source image identity does not match sourceFileId.");
+  }
+  const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
   const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
     input.triangleConstructionRequests ?? [],
   );
@@ -409,10 +422,6 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
     yDirection: "down" as const,
     bounds: { x: [0, 1] as const, y: [0, 1] as const },
   };
-  const sourceImageReferenceIdentity = contentIdentityFor({
-    kind: "chatgpt-file-reference",
-    fileId: input.sourceFileId,
-  });
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -433,6 +442,40 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
     ...withoutIdentity,
     candidateSetIdentity: contentIdentityFor(withoutIdentity),
   };
+}
+
+export function preparePersonalVisualHarmonyMergedPerceptionCandidatesV1(input: {
+  readonly sourceFileId: string;
+  readonly sourceImageMediaType?: string | null;
+  readonly mergedPerceptionCandidates: PersonalVisualHarmonyMergedPerceptionCandidatesV1;
+}): PersonalVisualHarmonyPreparedCandidateSetV1 {
+  const merged = input.mergedPerceptionCandidates;
+  if (merged === null || typeof merged !== "object") {
+    throw new Error("Merged perception candidates are required for hybrid preparation.");
+  }
+  if (!SHA256_PATTERN.test(merged.sourceImageReferenceIdentity)) {
+    throw new Error("Merged perception candidates require a source image identity.");
+  }
+  const expectedMergedIdentity = contentIdentityFor({
+    sourceImageReferenceIdentity: merged.sourceImageReferenceIdentity,
+    manualPerceptionIdentity: merged.manualPerceptionIdentity,
+    candidates: merged.candidates,
+    triangleConstructionRequests: merged.triangleConstructionRequests,
+    manualBoundaryEvidence: merged.manualBoundaryEvidence,
+    manualWarnings: merged.manualWarnings,
+  });
+  if (merged.mergedPerceptionIdentity !== expectedMergedIdentity) {
+    throw new Error("Merged perception identity is stale or invalid.");
+  }
+  return preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: input.sourceFileId,
+    ...(input.sourceImageMediaType === undefined
+      ? {}
+      : { sourceImageMediaType: input.sourceImageMediaType }),
+    expectedSourceImageReferenceIdentity: merged.sourceImageReferenceIdentity,
+    candidates: merged.candidates,
+    triangleConstructionRequests: merged.triangleConstructionRequests,
+  });
 }
 
 export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
@@ -2096,7 +2139,10 @@ function validatePreparedCandidateSet(
     || !SHA256_PATTERN.test(prepared.candidateSetIdentity)) {
     throw new Error("Prepared visual harmony candidate set is invalid.");
   }
-  const candidates = validateCandidates(prepared.candidates);
+  const candidates = validateCandidates(
+    prepared.candidates,
+    prepared.sourceImageReferenceIdentity,
+  );
   const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
     prepared.triangleConstructionRequests ?? [],
   );
@@ -2240,6 +2286,7 @@ function validateTriangleConstructionConfirmation(
 
 function validateCandidates(
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  expectedSourceImageReferenceIdentity?: string,
 ): readonly PersonalVisualHarmonyCandidateInputV1[] {
   if (!Array.isArray(candidates) || candidates.length < 1 || candidates.length > PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES) {
     throw new Error(`Visual harmony requires 1 to ${String(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES)} candidates.`);
@@ -2254,8 +2301,20 @@ function validateCandidates(
     const candidateKeys = Object.keys(candidateRecord).sort();
     const legacyKeys = expectedKeys.join("|");
     const primitiveKeys = [...expectedKeys, "primitive"].sort().join("|");
-    if (candidateKeys.join("|") !== legacyKeys && candidateKeys.join("|") !== primitiveKeys) {
+    const sourceBoundKeys = [...expectedKeys, "sourceImageReferenceIdentity"].sort().join("|");
+    const sourceBoundPrimitiveKeys = [
+      ...expectedKeys,
+      "primitive",
+      "sourceImageReferenceIdentity",
+    ].sort().join("|");
+    if (![legacyKeys, primitiveKeys, sourceBoundKeys, sourceBoundPrimitiveKeys]
+      .includes(candidateKeys.join("|"))) {
       throw new Error(`Visual harmony candidate ${String(index)} must use exact fields.`);
+    }
+    if (candidateValue.sourceImageReferenceIdentity !== undefined
+      && (expectedSourceImageReferenceIdentity === undefined
+        || candidateValue.sourceImageReferenceIdentity !== expectedSourceImageReferenceIdentity)) {
+      throw new Error(`Visual harmony candidate ${String(index)} belongs to a different source image.`);
     }
     if (typeof candidateValue.id !== "string" || !CANDIDATE_ID_PATTERN.test(candidateValue.id) || ids.has(candidateValue.id)) {
       throw new Error(`Visual harmony candidate ${String(index)} requires a unique safe id.`);
@@ -2290,6 +2349,9 @@ function validateCandidates(
       reason: candidateValue.reason,
       ...bounds,
       ...(primitive === undefined ? {} : { primitive }),
+      ...(candidateValue.sourceImageReferenceIdentity === undefined
+        ? {}
+        : { sourceImageReferenceIdentity: candidateValue.sourceImageReferenceIdentity }),
     };
   });
 }
@@ -2817,6 +2879,8 @@ function contentIdentityFor(value: unknown): string {
     .update(serializeCanonicalJson(value, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY))
     .digest("hex")}`;
 }
+
+export * from "./personal-visual-harmony-perception.js";
 
 function identityToken(identity: string): string {
   if (!SHA256_PATTERN.test(identity)) throw new Error("Identity must be a SHA-256 content identity.");
