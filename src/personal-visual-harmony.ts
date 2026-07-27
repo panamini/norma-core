@@ -391,6 +391,7 @@ const IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES = 2;
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
   readonly sourceImageMediaType?: string | null;
+  readonly expectedSourceImageReferenceIdentity?: string;
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): PersonalVisualHarmonyPreparedCandidateSetV1 {
@@ -413,6 +414,10 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
     kind: "chatgpt-file-reference",
     fileId: input.sourceFileId,
   });
+  if (input.expectedSourceImageReferenceIdentity !== undefined
+    && input.expectedSourceImageReferenceIdentity !== sourceImageReferenceIdentity) {
+    throw new Error("Expected source image identity does not match sourceFileId.");
+  }
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
     contractVersion: 1 as const,
@@ -2817,6 +2822,8 @@ function contentIdentityFor(value: unknown): string {
     .update(serializeCanonicalJson(value, DETERMINISTIC_IDENTITY_SERIALIZATION_POLICY))
     .digest("hex")}`;
 }
+
+export * from "./personal-visual-harmony-perception.js";
 
 function identityToken(identity: string): string {
   if (!SHA256_PATTERN.test(identity)) throw new Error("Identity must be a SHA-256 content identity.");

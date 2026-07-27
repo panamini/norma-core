@@ -555,6 +555,14 @@ export const personalVisualHarmonyWidgetEllipseResponsiveChangedFiles = Object.f
 export const personalVisualHarmonyMobileHitTargetsChangedFiles =
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles;
 
+export const personalVisualHarmonyHybridPerceptionChangedFiles = Object.freeze([
+  "src/personal-visual-harmony-perception.ts",
+  "src/personal-visual-harmony.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -1964,6 +1972,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMcpToolSchemaCompatibilityChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyMobileHitTargetsChangedFiles,
+  personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
