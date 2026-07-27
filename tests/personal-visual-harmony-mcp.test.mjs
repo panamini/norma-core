@@ -2701,6 +2701,7 @@ test("widget keeps touch proxies inactive for a narrow mouse viewport and unfocu
     updatePixelProposalUi() {},
     updateMeasurementRatioControls() {},
     updateManualSegmentControls() {},
+    updatePerceptionUi() {},
     updateConfirm() {},
   });
   setReviewLocked(true);

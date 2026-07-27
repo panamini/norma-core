@@ -205,6 +205,8 @@ test("PR42 keeps runtime files local STDIO only with no remote package-driven be
     (path) =>
       !path.startsWith("src/mcp/remote-http-") &&
       !path.startsWith("src/mcp/personal-visual-harmony-") &&
+      path !== "src/personal-visual-harmony-perception-jobs.ts" &&
+      path !== "src/personal-visual-harmony-segmentation.ts" &&
       path !== "bin/norma-core-remote-mcp-http.mjs" &&
       path !== "bin/norma-core-personal-visual-harmony-mcp-http.mjs" &&
       path !== "bin/norma-core-personal-visual-harmony-mcp-stdio.mjs" &&

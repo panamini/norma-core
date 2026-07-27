@@ -13,8 +13,14 @@ import {
   type PersonalVisualHarmonyCandidateInputV1,
   type PersonalVisualHarmonyConfirmationV1,
   type PersonalVisualHarmonyMeasurementRatioRequestV1,
+  type PersonalVisualHarmonyPreparedCandidateSet,
   type PersonalVisualHarmonyPreparedCandidateSetV1,
+  type PersonalVisualHarmonyPreparedCandidateSetV2,
 } from "../personal-visual-harmony.js";
+import {
+  InMemoryPersonalVisualHarmonyPerceptionJobService,
+  type PersonalVisualHarmonyPerceptionJobV1,
+} from "../personal-visual-harmony-perception-jobs.js";
 import {
   createPersonalVisualHarmonyPixelCropPlanV1,
   refinePersonalVisualHarmonyCandidatePixelCropV1,
@@ -37,6 +43,10 @@ export const PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL =
   "norma.confirmPersonalVisualHarmonyV1";
 export const PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL =
   "norma.refinePersonalVisualHarmonyPixelsV1";
+export const PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL =
+  "norma.startPersonalVisualHarmonyPerceptionV1";
+export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
+  "norma.getPersonalVisualHarmonyPerceptionStatusV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
   "ui://widget/norma-personal-visual-harmony-v6.html";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
@@ -514,6 +524,56 @@ const RefinePixelsOutputSchema = z.object({
   sessionId: z.string().min(1).max(160),
   sessionRecovered: z.boolean(),
   proposal: PixelRefinementProposalSchema,
+}).strict();
+
+const PerceptionPromptSchema = z.object({
+  points: z.array(z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    label: z.enum(["include", "exclude"]),
+  }).strict()).max(16),
+  box: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    width: z.number().gt(0).max(1),
+    height: z.number().gt(0).max(1),
+  }).strict().nullable(),
+}).strict().refine(({ points, box }) => (
+  box !== null || points.some(({ label }) => label === "include")
+), {
+  message: "Perception prompt requires an include point or box.",
+});
+
+const StartPerceptionInputSchema = z.object({
+  sessionId: z.string().min(1).max(160),
+  candidateSetIdentity: z.string().regex(SHA256_PATTERN),
+  appCapability: z.string().min(32).max(160),
+  prompt: PerceptionPromptSchema,
+  label: z.string().min(1).max(60),
+  role: z.enum(["primary-subject", "secondary-subject", "structural-region", "frame"]),
+}).strict();
+
+const PerceptionStatusInputSchema = z.object({
+  sessionId: z.string().min(1).max(160),
+  candidateSetIdentity: z.string().regex(SHA256_PATTERN),
+  appCapability: z.string().min(32).max(160),
+  jobId: z.string().min(1).max(128),
+}).strict();
+
+const PerceptionJobOutputSchema = z.object({
+  jobId: z.string().min(1).max(128),
+  state: z.enum(["pending", "ready", "abstained", "failed", "expired"]),
+  sourceImageReferenceIdentity: z.string().regex(SHA256_PATTERN),
+  perceptionReceiptIdentity: z.string().regex(SHA256_PATTERN).nullable(),
+  candidateSetIdentity: z.string().regex(SHA256_PATTERN).nullable(),
+  candidateCount: z.number().int().min(0).max(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES),
+  visualInterpretationSource: z.enum(["sam3", "hybrid"]).nullable(),
+  imageBytesObservedByNorma: z.boolean(),
+  candidateEvidenceOnly: z.literal(true),
+  explicitSelectionConfirmationRequired: z.literal(true),
+  coreRun: z.literal(false),
+  durable: z.literal(false),
+  errorCode: z.string().min(1).max(128).nullable(),
 }).strict();
 
 const ConfirmInputSchema = z.object({
@@ -1154,7 +1214,9 @@ interface PersonalVisualHarmonySessionV1 {
   readonly sessionId: string;
   readonly subjectId?: string;
   readonly fileId: string;
-  readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
+  readonly sourceImageDownloadUrl?: string;
+  readonly perceptionAppCapability?: string;
+  prepared: PersonalVisualHarmonyPreparedCandidateSet;
   readonly createdAtMs: number;
   readonly expiresAtMs: number;
   confirmation?: {
@@ -1190,6 +1252,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
   prepare(input: {
     readonly subjectId?: string;
     readonly fileId: string;
+    readonly sourceImageDownloadUrl?: string;
+    readonly enablePerception?: boolean;
     readonly mediaType?: string | null;
     readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
     readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
@@ -1197,6 +1261,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly sessionId: string;
     readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
     readonly overlaySvg: string;
+    readonly perceptionAppCapability?: string;
   } {
     const now = this.now();
     this.pruneExpired(now);
@@ -1213,10 +1278,19 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (this.sessions.has(sessionId) || sessionId.length < 1 || sessionId.length > 160) {
       throw new Error("Could not create a unique bounded visual harmony session.");
     }
+    const perceptionAppCapability = input.enablePerception === true
+      ? `pvh-app:${randomUUID()}`
+      : undefined;
     this.sessions.set(sessionId, {
       sessionId,
       ...(input.subjectId === undefined ? {} : { subjectId: input.subjectId }),
       fileId: input.fileId,
+      ...(input.sourceImageDownloadUrl === undefined
+        ? {}
+        : { sourceImageDownloadUrl: input.sourceImageDownloadUrl }),
+      ...(perceptionAppCapability === undefined
+        ? {}
+        : { perceptionAppCapability }),
       prepared,
       createdAtMs: now,
       expiresAtMs: now + this.sessionTtlMs,
@@ -1225,7 +1299,62 @@ export class PersonalVisualHarmonySessionServiceV1 {
       sessionId,
       prepared,
       overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared }),
+      ...(perceptionAppCapability === undefined ? {} : { perceptionAppCapability }),
     };
+  }
+
+  perceptionContext(input: {
+    readonly subjectId: string;
+    readonly sessionId: string;
+    readonly candidateSetIdentity: string;
+    readonly appCapability: string;
+  }): {
+    readonly fileId: string;
+    readonly sourceImageDownloadUrl: string;
+    readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
+  } {
+    const now = this.now();
+    this.pruneExpired(now);
+    const session = this.sessions.get(input.sessionId);
+    if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
+    if (session.prepared.candidateSetIdentity !== input.candidateSetIdentity) {
+      throw new Error("Visual harmony candidate identity is stale or does not match this session.");
+    }
+    if (session.perceptionAppCapability === undefined
+      || session.perceptionAppCapability !== input.appCapability
+      || session.sourceImageDownloadUrl === undefined) {
+      throw new Error("Visual harmony perception app authorization is missing or invalid.");
+    }
+    return {
+      fileId: session.fileId,
+      sourceImageDownloadUrl: session.sourceImageDownloadUrl,
+      prepared: structuredClone(session.prepared),
+    };
+  }
+
+  applyPerceptionResult(input: {
+    readonly subjectId: string;
+    readonly sessionId: string;
+    readonly expectedCandidateSetIdentity: string;
+    readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV2;
+  }): void {
+    const session = this.sessions.get(input.sessionId);
+    if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
+    if (session.prepared.candidateSetIdentity !== input.expectedCandidateSetIdentity) {
+      throw new Error("Visual harmony candidate identity is stale or does not match this session.");
+    }
+    if (session.prepared.sourceImageReferenceIdentity
+      !== input.preparedCandidateSet.sourceImageReferenceIdentity) {
+      throw new Error("Perception result belongs to a different source image.");
+    }
+    session.prepared = structuredClone(input.preparedCandidateSet);
+    delete session.confirmation;
   }
 
   refinePixels(input: {
@@ -1239,7 +1368,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly luminanceBytes?: readonly number[];
   }): {
     readonly fileId: string;
-    readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
+    readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
     readonly proposal: PersonalVisualHarmonyPixelRefinementProposalV1;
   } {
     const now = this.now();
@@ -1282,7 +1411,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly sourcePixelHeight: number;
   }): {
     readonly fileId: string;
-    readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
+    readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
     readonly confirmation: PersonalVisualHarmonyConfirmationV1;
   } {
     const now = this.now();
@@ -1408,6 +1537,7 @@ function decodeCanonicalLuminanceBase64(value: string | undefined): readonly num
 
 export function createPersonalVisualHarmonyMcpServerV1(options: {
   readonly service?: PersonalVisualHarmonySessionServiceV1;
+  readonly perceptionJobs?: InMemoryPersonalVisualHarmonyPerceptionJobService;
   readonly subjectId?: string;
   readonly serverInfo?: {
     readonly name: string;
@@ -1418,6 +1548,8 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
 } = {}): McpServer {
   const service = options.service ?? new PersonalVisualHarmonySessionServiceV1();
   const subjectId = options.subjectId;
+  const perceptionJobs = options.perceptionJobs;
+  const perceptionEnabled = perceptionJobs !== undefined && subjectId !== undefined;
   const now = options.now ?? (() => Date.now());
   const monotonicNow = options.monotonicNow ?? (() => performance.now());
   let observationAttemptSequence = 0;
@@ -1514,6 +1646,9 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       const prepared = service.prepare({
         ...(subjectId === undefined ? {} : { subjectId }),
         fileId: image.file_id,
+        ...(perceptionEnabled
+          ? { sourceImageDownloadUrl: image.download_url, enablePerception: true }
+          : {}),
         ...(image.mime_type === undefined ? {} : { mediaType: image.mime_type }),
         candidates: asPersonalVisualHarmonyCandidates(candidates),
         ...(triangleConstructionRequests === undefined
@@ -1536,6 +1671,9 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             sourceImageDownloadUrl: image.download_url,
             sourceImageMediaType: prepared.prepared.sourceImageMediaType,
             sessionId: prepared.sessionId,
+            ...(prepared.perceptionAppCapability === undefined
+              ? {}
+              : { perceptionAppCapability: prepared.perceptionAppCapability }),
             prepared: structuredContent,
             overlaySvg: prepared.overlaySvg,
             observability: {
@@ -1555,6 +1693,134 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       };
     },
   );
+
+  if (perceptionEnabled) {
+    server.registerTool(
+      PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      {
+        title: "Démarrer une proposition SAM 3",
+        description: "Authenticated widget-only operation. Starts one bounded, non-durable perception job. Its output is candidate evidence only and cannot confirm geometry or run Norma Core.",
+        inputSchema: StartPerceptionInputSchema,
+        outputSchema: PerceptionJobOutputSchema,
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+        _meta: {
+          "openai/widgetAccessible": true,
+          ui: {
+            resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
+            visibility: ["app"],
+          },
+        },
+      },
+      ({ sessionId, candidateSetIdentity, appCapability, prompt, label, role }) => {
+        const context = service.perceptionContext({
+          subjectId,
+          sessionId,
+          candidateSetIdentity,
+          appCapability,
+        });
+        if (context.prepared.contractVersion !== 1) {
+          throw new Error("A perception-assisted candidate set cannot start another provider job.");
+        }
+        const job = perceptionJobs.start({
+          subjectId,
+          sessionId,
+          sourceFileId: context.fileId,
+          sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
+          sourceImageUrl: context.sourceImageDownloadUrl,
+          sourceImageMediaType: context.prepared.sourceImageMediaType,
+          prompt,
+          label,
+          role,
+          automaticCandidateSet: context.prepared,
+        });
+        return {
+          content: [{
+            type: "text" as const,
+            text: "La proposition SAM 3 est en attente. Aucun candidat n’est confirmé et Norma Core reste arrêté.",
+          }],
+          structuredContent: publicPerceptionJob(job),
+        };
+      },
+    );
+
+    server.registerTool(
+      PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      {
+        title: "Lire l’état d’une proposition SAM 3",
+        description: "Authenticated widget-only operation. Reads one source-, session-, and subject-bound perception job. Ready evidence still requires explicit visual confirmation before Norma Core.",
+        inputSchema: PerceptionStatusInputSchema,
+        outputSchema: PerceptionJobOutputSchema,
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        _meta: {
+          "openai/widgetAccessible": true,
+          ui: {
+            resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
+            visibility: ["app"],
+          },
+        },
+      },
+      ({ sessionId, candidateSetIdentity, appCapability, jobId }) => {
+        const context = service.perceptionContext({
+          subjectId,
+          sessionId,
+          candidateSetIdentity,
+          appCapability,
+        });
+        const job = perceptionJobs.get({
+          jobId,
+          subjectId,
+          sessionId,
+          sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
+        });
+        if (job.state === "ready" && job.preparedCandidateSet !== null) {
+          service.applyPerceptionResult({
+            subjectId,
+            sessionId,
+            expectedCandidateSetIdentity: candidateSetIdentity,
+            preparedCandidateSet: job.preparedCandidateSet,
+          });
+        }
+        const publicJob = publicPerceptionJob(job);
+        return {
+          content: [{
+            type: "text" as const,
+            text: job.state === "ready"
+              ? "La proposition SAM 3 est prête comme preuve candidate. Vérifiez-la puis confirmez explicitement dans le widget; Norma Core est toujours arrêté."
+              : `État de la proposition SAM 3 : ${job.state}. Norma Core reste arrêté.`,
+          }],
+          structuredContent: publicJob,
+          ...(job.state === "ready" && job.preparedCandidateSet !== null
+            ? {
+                _meta: {
+                  normaPersonalVisualHarmony: {
+                    stage: "confirmation_required",
+                    fileId: context.fileId,
+                    sourceImageDownloadUrl: context.sourceImageDownloadUrl,
+                    sourceImageMediaType: job.preparedCandidateSet.sourceImageMediaType,
+                    sessionId,
+                    perceptionAppCapability: appCapability,
+                    prepared: publicPrepareResult(job.preparedCandidateSet),
+                    overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({
+                      preparedCandidateSet: job.preparedCandidateSet,
+                    }),
+                  },
+                },
+              }
+            : {}),
+        };
+      },
+    );
+  }
 
   server.registerTool(
     PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
@@ -2012,6 +2278,7 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
       <div class="manual-segment-controls" aria-label="Ajout manuel borné"><button id="manualSegmentToggle" class="manual-segment-control" type="button" aria-pressed="false" disabled>Tracer un segment</button><button id="manualSegmentRemove" class="manual-segment-control" type="button" disabled>Supprimer le segment</button></div>
       <div class="construction-controls" aria-label="Constructions dérivées optionnelles"><button id="supportLineToggle" class="construction-toggle" type="button" aria-pressed="false">Prolongements · masqués</button><button id="formatDiagonalToggle" class="construction-toggle" type="button" aria-pressed="false">Diagonales format · masquées</button><button id="junctionAngleToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Angles jonction · masqués</button><button id="triangleToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Triangles · masqués</button><button id="triangleMedianToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Médianes · masquées</button><button id="trianglePerpendicularBisectorToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Médiatrices · masquées</button><button id="triangleAngleBisectorToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Bissectrices · masquées</button><button id="triangleAltitudeToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Hauteurs · masquées</button><button id="triangleCentroidToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Centroïde · masqué</button></div>
       <button id="pixelToggle" class="pixel-toggle" type="button" aria-pressed="false">Propositions pixels · désactivées</button>
+      <button id="perceptionToggle" class="pixel-toggle" type="button" hidden>Proposer le masque SAM 3</button>
       <div id="candidateList" class="candidate-list"></div>
       <div class="measurement-ratio"><button id="measurementRatioToggle" class="measurement-ratio-toggle" type="button" aria-pressed="false">Rapport de deux longueurs · désactivé</button><div class="measurement-ratio-selects"><select id="measurementRatioFirst" aria-label="Première longueur déclarée" disabled></select><select id="measurementRatioSecond" aria-label="Deuxième longueur déclarée" disabled></select></div><p id="measurementRatioPreview" class="measurement-ratio-preview" aria-live="polite">Activez le rapport pour choisir deux longueurs visibles.</p><p class="measurement-ratio-note">Opt-in · part dominante / somme · packs φ, moitiés, tiers · tolérance 2,5 pt · hors autorité Core.</p></div>
       <button id="confirm" class="confirm" type="button" disabled>Confirmer et analyser avec Norma Core</button>
@@ -2022,7 +2289,7 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
   </section>
 </main>
 <script type="module">
-const PREPARE_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PREPARE_TOOL)},CONFIRM_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL)},REFINE_PIXELS_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL)},OBSERVABILITY_CONTRACT_ID=${JSON.stringify(PERSONAL_VISUAL_HARMONY_OBSERVABILITY_CONTRACT_ID)};
+const PREPARE_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PREPARE_TOOL)},CONFIRM_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL)},REFINE_PIXELS_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL)},START_PERCEPTION_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL)},PERCEPTION_STATUS_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL)},OBSERVABILITY_CONTRACT_ID=${JSON.stringify(PERSONAL_VISUAL_HARMONY_OBSERVABILITY_CONTRACT_ID)};
 const OBSERVABILITY_CORRELATION_PATTERN=new RegExp(${JSON.stringify(SHA256_PATTERN.source)},"u");
 const BOOTSTRAP_PENDING_NOTICE_AFTER=50,BOOTSTRAP_RETRY_DELAY_MS=100,BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000;
 const IMAGE_HYDRATION_MAX_ATTEMPTS=2,IMAGE_HYDRATION_RETRY_DELAY_MS=250,IMAGE_HYDRATION_TIMEOUT_MS=10000;
@@ -2035,13 +2302,13 @@ const runImageHydration=${runPersonalVisualHarmonyImageHydrationV1.toString()};
 const createPixelCropPlan=${createPersonalVisualHarmonyPixelCropPlanV1.toString()};
 const layoutCandidateLabels=${layoutPersonalVisualHarmonyCandidateLabelsV1.toString()};
 const GUIDED_ANALYSIS_GOALS=${JSON.stringify(PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1)},GUIDED_ANALYSIS_KINDS=["rectangle","quadrilateral","segment","axis","ellipse"],DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry",CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT="Affichage personnalisé · vos filtres de familles sont conservés pour cette analyse seulement.";
-const state={payload:null,activePayload:null,activePayloadIdentity:null,displayedPayload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL,selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),constructionLayers:new Set(),visibleConstructionLayers:new Set(),measurementRatioEnabled:false,measurementRatioRefs:[],pixelRefinementEnabled:false,pixelRefinementRunning:false,pixelRefinementGeneration:0,pixelRefinementProposals:new Map(),adoptedPixelRefinements:new Map(),manualSegmentMode:false,manualSegmentAnchor:null,manualSegmentCandidateId:null,imageReady:false,imageLoadGeneration:0,imageLoadTask:null,imageLoadFileId:null,imageLoadPayloadIdentity:null,dimensions:null,downloadUrl:null,pendingStructuredContent:null,observationPrepareAttemptKey:null,completed:false,confirming:false};
+const state={payload:null,activePayload:null,activePayloadIdentity:null,displayedPayload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL,selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),constructionLayers:new Set(),visibleConstructionLayers:new Set(),measurementRatioEnabled:false,measurementRatioRefs:[],pixelRefinementEnabled:false,pixelRefinementRunning:false,pixelRefinementGeneration:0,pixelRefinementProposals:new Map(),adoptedPixelRefinements:new Map(),perceptionRunning:false,manualSegmentMode:false,manualSegmentAnchor:null,manualSegmentCandidateId:null,imageReady:false,imageLoadGeneration:0,imageLoadTask:null,imageLoadFileId:null,imageLoadPayloadIdentity:null,dimensions:null,downloadUrl:null,pendingStructuredContent:null,observationPrepareAttemptKey:null,completed:false,confirming:false};
 let rpcId=0,bridgeReady;
 const pendingRequests=new Map();
 function rpcNotify(method,params){window.parent.postMessage({jsonrpc:"2.0",method,params},"*")}
 function rpcRequest(method,params){return new Promise((resolve,reject)=>{const id=++rpcId;pendingRequests.set(id,{resolve,reject});window.parent.postMessage({jsonrpc:"2.0",id,method,params},"*")})}
 async function initializeBridge(){await rpcRequest("ui/initialize",{appInfo:{name:"norma-personal-visual-harmony",version:"0.1.0"},appCapabilities:{},protocolVersion:"2026-01-26"});rpcNotify("ui/notifications/initialized",{});document.documentElement.setAttribute("data-norma-bridge","ready")}
-const visual=document.getElementById("visual"),source=document.getElementById("source"),loading=document.getElementById("loading"),overlay=document.getElementById("overlay"),guidedGoals=document.getElementById("guidedGoals"),guidedGoalStatus=document.getElementById("guidedGoalStatus"),familyFilters=document.getElementById("familyFilters"),manualSegmentToggle=document.getElementById("manualSegmentToggle"),manualSegmentRemove=document.getElementById("manualSegmentRemove"),supportLineToggle=document.getElementById("supportLineToggle"),formatDiagonalToggle=document.getElementById("formatDiagonalToggle"),junctionAngleToggle=document.getElementById("junctionAngleToggle"),triangleToggle=document.getElementById("triangleToggle"),triangleMedianToggle=document.getElementById("triangleMedianToggle"),trianglePerpendicularBisectorToggle=document.getElementById("trianglePerpendicularBisectorToggle"),triangleAngleBisectorToggle=document.getElementById("triangleAngleBisectorToggle"),triangleAltitudeToggle=document.getElementById("triangleAltitudeToggle"),triangleCentroidToggle=document.getElementById("triangleCentroidToggle"),pixelToggle=document.getElementById("pixelToggle"),candidateList=document.getElementById("candidateList"),measurementRatioToggle=document.getElementById("measurementRatioToggle"),measurementRatioFirst=document.getElementById("measurementRatioFirst"),measurementRatioSecond=document.getElementById("measurementRatioSecond"),measurementRatioPreview=document.getElementById("measurementRatioPreview"),confirmButton=document.getElementById("confirm"),statusNode=document.getElementById("status"),stageNode=document.getElementById("stage"),resultNode=document.getElementById("result"),headlineNode=document.getElementById("headline"),matchesNode=document.getElementById("matches"),identityNode=document.getElementById("identity");
+const visual=document.getElementById("visual"),source=document.getElementById("source"),loading=document.getElementById("loading"),overlay=document.getElementById("overlay"),guidedGoals=document.getElementById("guidedGoals"),guidedGoalStatus=document.getElementById("guidedGoalStatus"),familyFilters=document.getElementById("familyFilters"),manualSegmentToggle=document.getElementById("manualSegmentToggle"),manualSegmentRemove=document.getElementById("manualSegmentRemove"),supportLineToggle=document.getElementById("supportLineToggle"),formatDiagonalToggle=document.getElementById("formatDiagonalToggle"),junctionAngleToggle=document.getElementById("junctionAngleToggle"),triangleToggle=document.getElementById("triangleToggle"),triangleMedianToggle=document.getElementById("triangleMedianToggle"),trianglePerpendicularBisectorToggle=document.getElementById("trianglePerpendicularBisectorToggle"),triangleAngleBisectorToggle=document.getElementById("triangleAngleBisectorToggle"),triangleAltitudeToggle=document.getElementById("triangleAltitudeToggle"),triangleCentroidToggle=document.getElementById("triangleCentroidToggle"),pixelToggle=document.getElementById("pixelToggle"),perceptionToggle=document.getElementById("perceptionToggle"),candidateList=document.getElementById("candidateList"),measurementRatioToggle=document.getElementById("measurementRatioToggle"),measurementRatioFirst=document.getElementById("measurementRatioFirst"),measurementRatioSecond=document.getElementById("measurementRatioSecond"),measurementRatioPreview=document.getElementById("measurementRatioPreview"),confirmButton=document.getElementById("confirm"),statusNode=document.getElementById("status"),stageNode=document.getElementById("stage"),resultNode=document.getElementById("result"),headlineNode=document.getElementById("headline"),matchesNode=document.getElementById("matches"),identityNode=document.getElementById("identity");
 function primitiveKind(item){return item?.primitive?.kind||"rectangle"}
 function primitiveLabel(kind){return{rectangle:"Rectangles · Core",quadrilateral:"Quadrilatères · guide",segment:"Segments · guide",axis:"Axes · guide",ellipse:"Ellipses · guide"}[kind]||kind}
 function coreSelectedIds(){return state.reviewedCandidates.filter(item=>primitiveKind(item)==="rectangle"&&state.selected.has(item.id)).map(item=>item.id)}
@@ -2214,7 +2481,7 @@ const activePrepared=restoredPreparedFor(prepared),reviewedCandidates=reviewedCa
 candidateList.replaceChildren();overlay.classList.remove("locked");state.proposalCandidates=prepared.candidates.map(item=>JSON.parse(JSON.stringify(item)));state.manualSegmentCandidateId=state.reviewedCandidates.find(isManualSegmentCandidate)?.id??null;restorePixelRefinementState(activePrepared);
 const saved=publicWidgetState(),storedSelection=saved.selectedCandidateIds,storedGuides=saved.confirmedVisualGuideCandidateIds,storedMeasurementRatioRequest=saved.measurementRatioRequest,rectangleIds=state.reviewedCandidates.filter(item=>primitiveKind(item)==="rectangle").map(item=>item.id),guideIds=state.reviewedCandidates.filter(item=>primitiveKind(item)!=="rectangle").map(item=>item.id),selectedIds=Array.isArray(storedSelection)?storedSelection:rectangleIds,selectedGuideIds=Array.isArray(storedGuides)?storedGuides:guideIds;state.selected=new Set(selectedIds.filter(id=>rectangleIds.includes(id)));state.selectedGuides=new Set(selectedGuideIds.filter(id=>guideIds.includes(id)));state.measurementRatioEnabled=storedMeasurementRatioRequest!==null&&typeof storedMeasurementRatioRequest==="object";state.measurementRatioRefs=state.measurementRatioEnabled&&Array.isArray(storedMeasurementRatioRequest.measurements)?storedMeasurementRatioRequest.measurements.slice(0,2).map(reference=>JSON.parse(JSON.stringify(reference))):[];restoreConstructionGuideState(activePrepared);renderFamilyFilters(activePrepared);
 for(const [index,item] of state.reviewedCandidates.entries()){if(item.id===state.manualSegmentCandidateId){appendManualSegmentOverlay(item);appendManualSegmentCard(item);continue}const kind=primitiveKind(item),isCore=kind==="rectangle",selection=isCore?state.selected:state.selectedGuides,label=document.createElement("label");label.className="candidate";label.setAttribute("data-primitive-kind",kind);const copy=document.createElement("div"),kindNode=document.createElement("span"),title=document.createElement("strong"),reason=document.createElement("span"),input=document.createElement("input"),pixelEvidence=document.createElement("div");kindNode.className="candidate-kind";kindNode.textContent=primitiveLabel(kind);title.textContent=(index+1)+" · "+item.label;reason.textContent=item.reason;copy.append(kindNode,title,reason);input.type="checkbox";input.checked=selection.has(item.id);input.disabled=state.completed||state.confirming;input.setAttribute("aria-label",(isCore?"Inclure dans Norma Core : ":"Confirmer comme guide visuel : ")+item.label);input.addEventListener("change",()=>{if(state.confirming){input.checked=selection.has(item.id);return}if(input.checked)selection.add(item.id);else selection.delete(item.id);if(state.constructionLayers.has("triangles")&&!triangleLayerReady())invalidateTriangleConstruction();updateConstructionControls();syncOverlaySelection();updateMeasurementRatioControls();persistSelection();updateConfirm()});pixelEvidence.className="pixel-evidence";pixelEvidence.setAttribute("data-pixel-candidate-id",item.id);label.append(input,copy,pixelEvidence);candidateList.append(label)}
-reconcileStoredPixelAdoptions();decorateEditableOverlay();syncOverlayGeometry();syncOverlaySelection();syncFamilyVisibility();syncConstructionVisibility();updatePixelProposalUi();updateMeasurementRatioControls();updateManualSegmentControls()}
+ reconcileStoredPixelAdoptions();decorateEditableOverlay();syncOverlayGeometry();syncOverlaySelection();syncFamilyVisibility();syncConstructionVisibility();updatePixelProposalUi();updatePerceptionUi();updateMeasurementRatioControls();updateManualSegmentControls()}
 function luminanceBase64ForCrop(plan){if(plan.status!=="ready")return undefined;try{const canvas=document.createElement("canvas");canvas.width=plan.rasterWidth;canvas.height=plan.rasterHeight;const context=canvas.getContext("2d",{willReadFrequently:true});if(!context)return undefined;context.imageSmoothingEnabled=false;context.drawImage(source,plan.originX,plan.originY,plan.sourceWidth,plan.sourceHeight,0,0,plan.rasterWidth,plan.rasterHeight);const rgba=context.getImageData(0,0,plan.rasterWidth,plan.rasterHeight).data,luminance=new Uint8Array(plan.rasterWidth*plan.rasterHeight);for(let sourceIndex=0,targetIndex=0;targetIndex<luminance.length;sourceIndex+=4,targetIndex++)luminance[targetIndex]=(54*rgba[sourceIndex]+183*rgba[sourceIndex+1]+19*rgba[sourceIndex+2]+128)>>8;let binary="";for(let offset=0;offset<luminance.length;offset+=8192)binary+=String.fromCharCode(...luminance.subarray(offset,Math.min(luminance.length,offset+8192)));return btoa(binary)}catch{return undefined}}
 function pixelRecovery(payload){const recovery={fileId:payload.fileId,sourceImageMediaType:payload.sourceImageMediaType??null,candidates:payload.prepared.candidates};if(Array.isArray(payload.prepared.triangleConstructionRequests))recovery.triangleConstructionRequests=payload.prepared.triangleConstructionRequests;return recovery}
 async function requestPixelProposal(payload,candidate,plan,expectedPayloadIdentity){const luminanceBase64=luminanceBase64ForCrop(plan),args={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,candidateId:candidate.id,reviewedPrimitive:candidate.primitive,sourcePixelWidth:state.dimensions.width,sourcePixelHeight:state.dimensions.height,recovery:pixelRecovery(payload),...(luminanceBase64===undefined?{}:{luminanceBase64})},response=await callAppTool(REFINE_PIXELS_TOOL,args);if(state.activePayloadIdentity!==expectedPayloadIdentity)return null;const structured=response?.structuredContent||response,proposal=structured?.proposal,reviewedPrepared=preparedWithReviewedCandidates(payload.prepared,[candidate]);if(!validPixelProposal(proposal,reviewedPrepared)||proposal.sourcePixelWidth!==state.dimensions.width||proposal.sourcePixelHeight!==state.dimensions.height)throw new Error("invalid pixel refinement proposal");if(structured.sessionRecovered===true&&typeof structured.sessionId==="string"){state.payload={...state.payload,sessionId:structured.sessionId};if(state.activePayload?.stage==="confirmation_required")state.activePayload={...state.activePayload,sessionId:structured.sessionId}}return proposal}
@@ -2222,8 +2489,11 @@ async function refreshPixelRefinements(payload=state.payload,expectedPayloadIden
 function applyPixelProposal(candidateId){if(state.completed||state.confirming||state.pixelRefinementRunning)return;const proposal=state.pixelRefinementProposals.get(candidateId),index=state.reviewedCandidates.findIndex(item=>item.id===candidateId);if(!proposal||proposal.status!=="refined"||!proposal.proposedGeometry||index<0)return;const adopted=state.adoptedPixelRefinements.get(candidateId)===proposal.contentIdentity,primitive=adopted?proposal.originalGeometry:proposal.proposedGeometry;state.reviewedCandidates[index]=candidateWithPrimitive(state.reviewedCandidates[index],clonePrimitive(primitive),true);if(adopted)state.adoptedPixelRefinements.delete(candidateId);else state.adoptedPixelRefinements.set(candidateId,proposal.contentIdentity);invalidateTriangleConstruction();syncOverlayGeometry();updateMeasurementRatioControls();updatePixelProposalUi();persistReviewState();statusNode.textContent=adopted?"Retour explicite à la géométrie originale. Core reste arrêté jusqu’à confirmation.":"Proposition pixel adoptée explicitement. La requête triangle éventuelle a été désactivée; vérifiez la géométrie puis confirmez séparément pour lancer Core."}
 function disablePixelRefinement(){for(const [candidateId,proposalContentIdentity] of state.adoptedPixelRefinements){const proposal=state.pixelRefinementProposals.get(candidateId),index=state.reviewedCandidates.findIndex(item=>item.id===candidateId);if(index>=0&&proposal?.status==="refined"&&proposal.contentIdentity===proposalContentIdentity&&samePixelProposalPrimitive(state.reviewedCandidates[index],state.reviewedCandidates[index].primitive,proposal.proposedGeometry))state.reviewedCandidates[index]=candidateWithPrimitive(state.reviewedCandidates[index],clonePrimitive(proposal.originalGeometry),true)}state.pixelRefinementGeneration+=1;state.pixelRefinementEnabled=false;state.pixelRefinementRunning=false;state.pixelRefinementProposals=new Map();state.adoptedPixelRefinements=new Map();document.documentElement.setAttribute("data-norma-pixel-refinement","disabled");syncOverlayGeometry();updateMeasurementRatioControls();persistReviewState();updatePixelProposalUi();statusNode.textContent="Propositions pixels désactivées. La géométrie originale est conservée et Core reste arrêté."}
 pixelToggle.addEventListener("click",async()=>{if(state.completed||state.confirming||state.pixelRefinementRunning||!state.imageReady)return;if(state.pixelRefinementEnabled){disablePixelRefinement();return}state.pixelRefinementEnabled=true;document.documentElement.setAttribute("data-norma-pixel-refinement","running");persistReviewState();updatePixelProposalUi();await refreshPixelRefinements()});
-function updateConfirm(){const noCoreRectangle=coreSelectedIds().length===0,incompleteMeasurementRatio=state.measurementRatioEnabled&&measurementRatioRequest()===undefined;confirmButton.disabled=state.completed||state.confirming||state.pixelRefinementRunning||!state.imageReady||noCoreRectangle||incompleteMeasurementRatio||!state.payload;updateManualSegmentControls();if(!state.completed&&!state.confirming&&state.imageReady&&noCoreRectangle)statusNode.textContent="Sélectionnez au moins un rectangle structurel pour lancer le Core actuel.";else if(!state.completed&&!state.confirming&&state.imageReady&&incompleteMeasurementRatio)statusNode.textContent="Choisissez exactement deux longueurs distinctes pour le rapport déclaré, ou désactivez-le."}
-function setReviewLocked(locked){const disabled=locked||state.completed;overlay.classList.toggle("locked",disabled);candidateList.querySelectorAll("input").forEach(input=>input.disabled=disabled);guidedGoals.querySelectorAll(".guided-goal").forEach(button=>button.disabled=state.confirming);familyFilters.querySelectorAll(".family-filter").forEach(button=>button.disabled=state.confirming);overlay.querySelectorAll("[data-candidate-id]").forEach(group=>{const editable=!disabled;group.setAttribute("tabindex",editable?"0":"-1");group.querySelectorAll(EDIT_HANDLE_SELECTOR).forEach(handle=>handle.setAttribute("tabindex",editable?"0":"-1"));if(disabled)group.setAttribute("aria-disabled","true");else group.removeAttribute("aria-disabled")});updateConstructionControls();updatePixelProposalUi();updateMeasurementRatioControls();updateManualSegmentControls();updateConfirm()}
+function updatePerceptionUi(){const payload=state.payload,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&!payload.prepared?.perceptionReceiptIdentity;perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":"Proposer le masque SAM 3"}
+async function pollPerceptionJob(payload,jobId,expectedPayloadIdentity){for(let attempt=0;attempt<30;attempt++){if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;const response=await callAppTool(PERCEPTION_STATUS_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,jobId}),job=response?.structuredContent||response;if(job?.state==="pending"){await new Promise(resolve=>setTimeout(resolve,1000));continue}if(job?.state==="ready"){const readyPayload=findPayload(response);if(!readyPayload||readyPayload.stage!=="confirmation_required"||readyPayload.fileId!==payload.fileId||readyPayload.prepared?.perceptionReceiptIdentity!==job.perceptionReceiptIdentity)throw new Error("invalid perception result");await hydrate(readyPayload,response?.structuredContent);statusNode.textContent="Proposition SAM 3 ajoutée comme preuve candidate. Vérifiez-la; Norma Core reste arrêté jusqu’à confirmation.";return}if(job?.state==="abstained"){statusNode.textContent="SAM 3 s’est abstenu. Les candidats existants restent inchangés et Norma Core reste arrêté.";return}throw new Error("perception job failed")}throw new Error("perception status polling expired")}
+perceptionToggle.addEventListener("click",async()=>{const payload=state.payload;if(perceptionToggle.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string")return;const candidate=state.reviewedCandidates.find(item=>state.selected.has(item.id)||state.selectedGuides.has(item.id))||state.reviewedCandidates[0];if(!candidate)return;const expectedPayloadIdentity=state.activePayloadIdentity;state.perceptionRunning=true;updatePerceptionUi();updateConfirm();statusNode.textContent="SAM 3 prépare une proposition bornée. Aucun calcul Core n’est lancé.";try{const response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,prompt:{points:[],box:{x:candidate.x,y:candidate.y,width:candidate.width,height:candidate.height}},label:candidate.label,role:candidate.role}),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,expectedPayloadIdentity)}catch{if(state.activePayloadIdentity===expectedPayloadIdentity)statusNode.textContent="La proposition SAM 3 n’a pas abouti. Les candidats existants restent inchangés et Norma Core reste arrêté."}finally{state.perceptionRunning=false;updatePerceptionUi();updateConfirm()}});
+function updateConfirm(){const noCoreRectangle=coreSelectedIds().length===0,incompleteMeasurementRatio=state.measurementRatioEnabled&&measurementRatioRequest()===undefined;confirmButton.disabled=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady||noCoreRectangle||incompleteMeasurementRatio||!state.payload;updateManualSegmentControls();if(!state.completed&&!state.confirming&&state.imageReady&&noCoreRectangle)statusNode.textContent="Sélectionnez au moins un rectangle structurel pour lancer le Core actuel.";else if(!state.completed&&!state.confirming&&state.imageReady&&incompleteMeasurementRatio)statusNode.textContent="Choisissez exactement deux longueurs distinctes pour le rapport déclaré, ou désactivez-le."}
+function setReviewLocked(locked){const disabled=locked||state.completed;overlay.classList.toggle("locked",disabled);candidateList.querySelectorAll("input").forEach(input=>input.disabled=disabled);guidedGoals.querySelectorAll(".guided-goal").forEach(button=>button.disabled=state.confirming);familyFilters.querySelectorAll(".family-filter").forEach(button=>button.disabled=state.confirming);overlay.querySelectorAll("[data-candidate-id]").forEach(group=>{const editable=!disabled;group.setAttribute("tabindex",editable?"0":"-1");group.querySelectorAll(EDIT_HANDLE_SELECTOR).forEach(handle=>handle.setAttribute("tabindex",editable?"0":"-1"));if(disabled)group.setAttribute("aria-disabled","true");else group.removeAttribute("aria-disabled")});updateConstructionControls();updatePixelProposalUi();updatePerceptionUi();updateMeasurementRatioControls();updateManualSegmentControls();updateConfirm()}
 function displayMetricLabel(metric){const labels={"horizontal-split-share":"part du découpage horizontal","vertical-split-share":"part du découpage vertical","width-share":"largeur / image","height-share":"hauteur / image","area-share":"surface / image","left-edge-position":"position du bord gauche","right-edge-position":"position du bord droit","top-edge-position":"position du bord haut","bottom-edge-position":"position du bord bas"};return labels[metric]||metric}
 function displayNumber(value){return Number(value).toLocaleString("fr-FR",{maximumFractionDigits:3})}
 function appendMatchCard(ratioText,titleText,detailText){const card=document.createElement("div");card.className="match";const ratio=document.createElement("div");ratio.className="ratio";ratio.textContent=ratioText;const copy=document.createElement("div");copy.className="match-copy";const title=document.createElement("strong");title.textContent=titleText;const detail=document.createElement("span");detail.textContent=detailText;copy.append(title,detail);card.append(ratio,copy);matchesNode.append(card)}
@@ -2244,7 +2514,7 @@ if(persist&&state.payload?.prepared?.candidateSetIdentity&&state.dimensions){con
 function renderCachedResult(completed){state.completed=true;overlay.classList.add("locked");stageNode.textContent="RAPPORT MÉMORISÉ · NON REVALIDÉ";stageNode.classList.remove("done");candidateList.querySelectorAll("input").forEach(input=>input.disabled=true);confirmButton.style.display="none";statusNode.textContent="Cache UI lié à la sélection affichée. Core n’a pas été réexécuté : relancez l’analyse depuis l’image pour une nouvelle attestation.";renderFacts(completed.headline,completed.matches,completed.canonicalResultIdentity,"cache UI result.json",completed.presentation||null);updatePixelProposalUi();updateConfirm()}
 async function callAppTool(name,args){if(typeof window.openai?.callTool==="function")return window.openai.callTool(name,args);await bridgeReady;try{return await rpcRequest("tools/call",{name,arguments:args})}catch(error){document.documentElement.setAttribute("data-norma-last-error","tools-call");throw error}}
 function samePreparedReviewCandidates(requestedCandidates,preparedCandidates){if(!Array.isArray(requestedCandidates)||!Array.isArray(preparedCandidates)||requestedCandidates.length!==preparedCandidates.length)return false;const envelopeFields=["x","y","width","height"],metadataFields=["id","label","role","reason"],tolerance=.000001;return requestedCandidates.every((requested,index)=>{const prepared=preparedCandidates[index];if(!prepared||Object.keys(prepared).sort().join("|")!==Object.keys(requested).sort().join("|")||metadataFields.some(field=>prepared[field]!==requested[field])||envelopeFields.some(field=>!Number.isFinite(prepared[field])||!Number.isFinite(requested[field])||Math.abs(prepared[field]-requested[field])>tolerance))return false;return JSON.stringify(prepared.primitive)===JSON.stringify(requested.primitive)})}
-async function prepareReviewedPayload(payload,candidateSnapshot){if(typeof state.downloadUrl!=="string")throw new Error("missing temporary image URL");const expectedPayloadIdentity=state.activePayloadIdentity,image={download_url:state.downloadUrl,file_id:payload.fileId};if(typeof payload.sourceImageMediaType==="string"&&payload.sourceImageMediaType.length>0)image.mime_type=payload.sourceImageMediaType;const response=await callAppTool(PREPARE_TOOL,{image,candidates:candidateSnapshot});if(state.activePayloadIdentity!==expectedPayloadIdentity)throw new Error("stale adjusted candidate preparation");const fresh=findPayload(response);if(!fresh||fresh.stage!=="confirmation_required"||fresh.fileId!==payload.fileId||!samePreparedReviewCandidates(candidateSnapshot,fresh.prepared?.candidates))throw new Error("adjusted candidate preparation mismatch");state.payload=fresh;state.proposalCandidateSetIdentity=fresh.prepared.candidateSetIdentity;state.proposalCandidates=fresh.prepared.candidates.map(item=>JSON.parse(JSON.stringify(item)));state.pixelRefinementProposals.clear();state.adoptedPixelRefinements.clear();return fresh}
+async function prepareReviewedPayload(payload,candidateSnapshot){if(payload.prepared?.perceptionReceiptIdentity)throw new Error("perception-assisted geometry cannot be relabeled by V1 preparation");if(typeof state.downloadUrl!=="string")throw new Error("missing temporary image URL");const expectedPayloadIdentity=state.activePayloadIdentity,image={download_url:state.downloadUrl,file_id:payload.fileId};if(typeof payload.sourceImageMediaType==="string"&&payload.sourceImageMediaType.length>0)image.mime_type=payload.sourceImageMediaType;const response=await callAppTool(PREPARE_TOOL,{image,candidates:candidateSnapshot});if(state.activePayloadIdentity!==expectedPayloadIdentity)throw new Error("stale adjusted candidate preparation");const fresh=findPayload(response);if(!fresh||fresh.stage!=="confirmation_required"||fresh.fileId!==payload.fileId||!samePreparedReviewCandidates(candidateSnapshot,fresh.prepared?.candidates))throw new Error("adjusted candidate preparation mismatch");state.payload=fresh;state.proposalCandidateSetIdentity=fresh.prepared.candidateSetIdentity;state.proposalCandidates=fresh.prepared.candidates.map(item=>JSON.parse(JSON.stringify(item)));state.pixelRefinementProposals.clear();state.adoptedPixelRefinements.clear();return fresh}
 async function callConfirmation(payload,selectedCandidateIds,confirmedVisualGuideCandidateIds,constructionLayers,dimensions,declaredMeasurementRatioRequest){const args={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,...(typeof state.downloadUrl==="string"?{sourceImageDownloadUrl:state.downloadUrl}:{}),selectedCandidateIds,confirmedVisualGuideCandidateIds,constructionLayers,...(declaredMeasurementRatioRequest===undefined?{}:{measurementRatioRequest:declaredMeasurementRatioRequest}),sourcePixelWidth:dimensions.width,sourcePixelHeight:dimensions.height,confirmClientReviewedSelection:true,recovery:pixelRecovery(payload)};return callAppTool(CONFIRM_TOOL,args)}
 function finishConfirmingPayload(expectedPayloadIdentity){const replacement=state.activePayloadIdentity!==expectedPayloadIdentity&&state.activePayload?.stage==="confirmation_required"&&!state.completed?state.activePayload:null,structured=state.pendingStructuredContent;state.confirming=false;setReviewLocked(state.completed);if(replacement)void hydrate(replacement,structured)}
 async function revalidateCompleted(payload,completed,expectedPayloadIdentity){const candidateSnapshot=reviewedCandidateSnapshot(),selectedSnapshot=Object.freeze([...completed.selectedCandidateIds]),guideSnapshot=Object.freeze([...(completed.confirmedVisualGuideCandidateIds||[])]),constructionSnapshot=Object.freeze([...(completed.constructionGuideState?.layers||[])]),measurementRatioSnapshot=completed.measurementRatioRequest??undefined,dimensionsSnapshot=Object.freeze({width:completed.sourcePixelWidth,height:completed.sourcePixelHeight}),changed=geometryChanged(candidateSnapshot);state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.constructionLayers=new Set(constructionSnapshot);state.visibleConstructionLayers=new Set(constructionSnapshot);state.dimensions={...dimensionsSnapshot};statusNode.textContent="Résultat précédent détecté · revalidation déterministe en cours…";state.confirming=true;setReviewLocked(true);try{const analysisPayload=changed?await prepareReviewedPayload(payload,candidateSnapshot):payload;if(state.activePayloadIdentity!==expectedPayloadIdentity)return;const response=await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot);if(state.activePayloadIdentity!==expectedPayloadIdentity)return;const freshPayload=findPayload(response);if(!freshPayload||freshPayload.stage!=="completed")throw new Error("missing completed metadata");state.reviewedCandidates=candidateSnapshot.map(item=>({...item}));state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.constructionLayers=new Set(constructionSnapshot);state.visibleConstructionLayers=new Set(constructionSnapshot);state.dimensions={...dimensionsSnapshot};const structured=response?.structuredContent||response;recordObservationMilestone(freshPayload,"result-received");renderResult(freshPayload,structured,{persist:true,revalidated:true});recordObservationMilestoneAfterPaint(freshPayload,"core-visible")}catch{if(state.activePayloadIdentity!==expectedPayloadIdentity)return;if(changed){state.completed=false;confirmButton.style.display="";statusNode.textContent="Les corrections sont conservées mais n’ont pas pu être revalidées. Confirmez pour réessayer.";return}renderCachedResult(completed)}finally{finishConfirmingPayload(expectedPayloadIdentity)}}
@@ -2281,7 +2551,7 @@ bootstrap();
 }
 
 function trianglePreparationDiagnosticText(
-  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+  prepared: PersonalVisualHarmonyPreparedCandidateSet,
 ): string {
   const requests = prepared.triangleConstructionRequests ?? [];
   const triangleRequestCount = requests.length;
@@ -2311,7 +2581,7 @@ function trianglePreparationDiagnosticText(
   return `${String(triangleRequestCount)} demandes explicites de triangle sont présentes. Avant confirmation, conservez les guides parents sélectionnés, puis activez ${activationSequence}. Les triangles peuvent alors être affichés, mais les familles dérivées (Médianes, Médiatrices, Bissectrices, Hauteurs ou Centroïde) restent indisponibles : elles exigent exactement une demande explicite de triangle. Cette séquence ne signifie pas que ces constructions sont déjà affichées ou mesurées.`;
 }
 
-function publicPrepareResult(prepared: PersonalVisualHarmonyPreparedCandidateSetV1) {
+function publicPrepareResult(prepared: PersonalVisualHarmonyPreparedCandidateSet) {
   const triangleRequestCount = prepared.triangleConstructionRequests?.length ?? 0;
   return {
     status: prepared.status,
@@ -2323,10 +2593,35 @@ function publicPrepareResult(prepared: PersonalVisualHarmonyPreparedCandidateSet
       ? {}
       : { triangleConstructionRequests: prepared.triangleConstructionRequests }),
     imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
+    ...(prepared.contractVersion === 1
+      ? {}
+      : {
+          sourceImageContentIdentity: prepared.sourceImageContentIdentity,
+          visualInterpretationSource: prepared.visualInterpretationSource,
+          perceptionReceiptIdentity: prepared.perceptionReceiptIdentity,
+        }),
     candidateEvidenceOnly: prepared.candidateEvidenceOnly,
     explicitSelectionConfirmationRequired: prepared.explicitSelectionConfirmationRequired,
     coreRun: prepared.coreRun,
     instruction: "Review the candidate overlay, adjust the checked set, then explicitly confirm in the widget. Do not claim that Norma Core ran before that click.",
+  };
+}
+
+function publicPerceptionJob(job: PersonalVisualHarmonyPerceptionJobV1) {
+  return {
+    jobId: job.jobId,
+    state: job.state,
+    sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+    perceptionReceiptIdentity: job.perceptionReceiptIdentity,
+    candidateSetIdentity: job.preparedCandidateSet?.candidateSetIdentity ?? null,
+    candidateCount: job.preparedCandidateSet?.candidates.length ?? 0,
+    visualInterpretationSource: job.preparedCandidateSet?.visualInterpretationSource ?? null,
+    imageBytesObservedByNorma: job.preparedCandidateSet?.imageBytesObservedByNorma ?? false,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    durable: false as const,
+    errorCode: job.errorCode,
   };
 }
 
@@ -2506,7 +2801,7 @@ export function createPersonalVisualHarmonyPresentationV1(matches: readonly Publ
 
 function publicConfirmResult(
   confirmation: PersonalVisualHarmonyConfirmationV1,
-  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+  prepared: PersonalVisualHarmonyPreparedCandidateSet,
 ) {
   const { result } = confirmation;
   const coreAnalyzedCandidateIds = [...result.selectedCandidateIds];
