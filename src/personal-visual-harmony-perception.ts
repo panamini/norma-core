@@ -8,6 +8,9 @@ import type {
   PersonalVisualHarmonyCandidateRoleV1,
   PersonalVisualHarmonyPointV1,
 } from "./personal-visual-harmony.js";
+import {
+  PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS,
+} from "./personal-visual-harmony-constructions.js";
 import type {
   PersonalVisualHarmonyTriangleRequestInputV1,
 } from "./personal-visual-harmony-constructions.js";
@@ -312,6 +315,9 @@ export function mergePersonalVisualHarmonyPerceptionCandidatesV1(input: {
     ...structuredClone(input.automaticTriangleConstructionRequests ?? []),
     ...structuredClone(input.manualPerception.triangleConstructionRequests),
   ];
+  if (triangleConstructionRequests.length > PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS) {
+    throw new Error("Merged triangle construction requests exceed the bounded limit.");
+  }
   const requestIds = new Set<string>();
   for (const request of triangleConstructionRequests) {
     if (requestIds.has(request.requestId)) {

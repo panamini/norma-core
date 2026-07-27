@@ -330,6 +330,29 @@ test("hybrid merge rejects stale perception identity and candidate collisions", 
   }), /different source image/u);
 });
 
+test("hybrid merge rejects automatic and manual triangle requests beyond the shared limit", () => {
+  const manualPerception = extract(maskFromPredicate(
+    61,
+    61,
+    (x, y) => y >= 10 && y <= 50
+      && x >= 30 - ((y - 10) / 2)
+      && x <= 30 + ((y - 10) / 2),
+  ));
+  const manualRequest = manualPerception.triangleConstructionRequests[0];
+  assert.ok(manualRequest);
+  const automaticRequests = Array.from({ length: 4 }, (_, index) => ({
+    ...structuredClone(manualRequest),
+    requestId: `automatic-triangle-${String(index + 1)}`,
+  }));
+
+  assert.throws(() => mergePersonalVisualHarmonyPerceptionCandidatesV1({
+    expectedSourceImageReferenceIdentity: SOURCE_IDENTITY,
+    automaticCandidates: [],
+    automaticTriangleConstructionRequests: automaticRequests,
+    manualPerception,
+  }), /exceed the bounded limit/u);
+});
+
 test("manual perception rejects control characters in visible metadata", () => {
   const mask = maskFromPredicate(
     20,
