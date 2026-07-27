@@ -4364,8 +4364,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v2.html");
-    assert.equal(resources.resources.some(({ uri }) => uri.endsWith("-v1.html")), false);
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v3.html");
+    assert.equal(
+      resources.resources.some(({ uri }) => /-v[12]\.html$/u.test(uri)),
+      false,
+    );
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
