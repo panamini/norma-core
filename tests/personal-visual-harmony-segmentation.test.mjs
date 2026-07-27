@@ -228,6 +228,21 @@ test("segmentation client fails closed on source mismatch, malformed, and oversi
       (error) => error.code === "provider_response_invalid",
     );
   });
+  await context.test("ready response with abstention reason", async () => {
+    const fetch = async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      const request = JSON.parse(init.body);
+      return Response.json(responseFor(request, { abstentionReason: "ambiguous" }));
+    };
+    await assert.rejects(
+      clientWith(fetch).segment({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: "image/png",
+        prompt,
+      }),
+      (error) => error.code === "provider_response_invalid",
+    );
+  });
   await context.test("oversized", async () => {
     const fetch = async (_url, init) => init.method === "GET"
       ? new Response(null, { status: 200 })

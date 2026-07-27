@@ -93,17 +93,20 @@ function successfulProvider() {
   };
 }
 
-function perceptionJobs() {
+function perceptionJobs(downloadedUrls) {
   return new InMemoryPersonalVisualHarmonyPerceptionJobService({
     provider: successfulProvider(),
     allowedSourceImageOrigins: ["https://files.example.test"],
-    fetch: async () => new Response(sourceBytes, {
-      status: 200,
-      headers: {
-        "content-type": "image/png",
-        "content-length": String(sourceBytes.byteLength),
-      },
-    }),
+    fetch: async (url) => {
+      downloadedUrls?.push(String(url));
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
     createJobId: () => "job:mcp-perception-test",
   });
 }
@@ -216,7 +219,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
   const service = new PersonalVisualHarmonySessionServiceV1({
     createSessionId: () => "session:mcp-perception-test",
   });
-  const jobs = perceptionJobs();
+  const downloadedUrls = [];
+  const jobs = perceptionJobs(downloadedUrls);
   const owner = await connect({ service, jobs, subjectId: "subject:owner" });
   let other;
   try {
@@ -246,6 +250,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: "x".repeat(32),
+        sourceImageDownloadUrl: "https://files.example.test/fresh-unauthorized.png",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -263,6 +268,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/fresh-authorized.png",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -309,6 +315,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(status.structuredContent.explicitSelectionConfirmationRequired, true);
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.visualInterpretationSource, "hybrid");
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.imageBytesObservedByNorma, true);
+    assert.deepEqual(downloadedUrls, ["https://files.example.test/fresh-authorized.png"]);
     assert.equal("acceptedGeometry" in status.structuredContent, false);
     assert.equal("result" in status.structuredContent, false);
 
@@ -398,7 +405,12 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     html,
     /payload\.prepared\?\.perceptionReceiptIdentity\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
   );
-  assert.match(html, /reviewedCandidates===undefined\?\{\}:\{reviewedCandidates\}/u);
+  assert.match(
+    html,
+    /normalizedReviewedCandidates=reviewedCandidates\?\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
+  );
+  assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
+  assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
   assert.match(html, /while\(Date\.now\(\)<expiresAtMs\)/u);
   assert.match(html, /points:\[\{x:clampUnit\(x\),y:clampUnit\(y\),label:"include"\}\],box:null/u);
 });

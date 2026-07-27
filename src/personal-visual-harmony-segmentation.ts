@@ -486,6 +486,12 @@ function validateProviderResponse(
     ? null
     : validateConfidence(value.providerConfidence);
   if (value.status === "ready") {
+    if (value.abstentionReason !== null) {
+      throw new PersonalVisualHarmonySegmentationError(
+        "provider_response_invalid",
+        "Segmentation provider returned a contradictory ready response.",
+      );
+    }
     return {
       contractId: PERSONAL_VISUAL_HARMONY_SEGMENTATION_RESPONSE_CONTRACT_ID,
       contractVersion: 1,
