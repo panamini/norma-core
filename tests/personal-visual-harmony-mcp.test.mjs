@@ -2639,6 +2639,9 @@ test("rendered mobile hit targets resolve cross-group overlaps in CSS pixels and
   const ellipse = renderGroup([ellipseCenter, ellipseRadiusY]);
   assert.equal(resolveEditablePointerTarget(ellipse.hitAreaFor(ellipseRadiusY), pointer(195, 65.39), svg), ellipseCenter);
   assert.equal(resolveEditablePointerTarget(ellipseRadiusY, pointer(195, 65.39), svg), ellipseRadiusY);
+  const coveringShape = createElement("path");
+  coveringShape.group = ellipse.group;
+  assert.equal(resolveEditablePointerTarget(coveringShape, pointer(195, 65.39), svg), ellipseCenter);
 
   const vertexZero = createElement("circle", { "data-vertex-handle": "0", cx: "300", cy: "300" });
   const vertexOne = createElement("circle", { "data-vertex-handle": "1", cx: "304", cy: "300" });
