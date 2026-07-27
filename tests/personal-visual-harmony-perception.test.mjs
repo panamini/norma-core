@@ -182,6 +182,17 @@ test("manual perception keeps finite segment and principal axis distinct", () =>
   );
 });
 
+test("manual perception preserves a straight strip near the elongated ratio threshold", () => {
+  const result = extract(maskFromPredicate(
+    40,
+    40,
+    (x, y) => x >= 4 && x < 35 && y >= 18 && y < 23,
+  ));
+
+  assert.equal(result.fit, "elongated");
+  assert.equal(result.candidates[0].primitive.kind, "segment");
+});
+
 test("manual perception treats a diagonally connected line mask as one segment", () => {
   const result = extract(maskFromPredicate(
     8,
@@ -191,6 +202,46 @@ test("manual perception treats a diagonally connected line mask as one segment",
 
   assert.equal(result.fit, "elongated");
   assert.equal(result.candidates[0].primitive.kind, "segment");
+});
+
+test("manual perception does not straighten a curved elongated mask", () => {
+  const result = extract(maskFromPredicate(
+    100,
+    100,
+    (x, y) => {
+      const centerY = 50 + (8 * Math.sin(x / 10));
+      return x >= 5 && x < 95 && Math.abs(y - centerY) <= 1;
+    },
+  ), {
+    prompt: {
+      points: [{ x: 0.5, y: 0.42, label: "include" }],
+      box: null,
+    },
+  });
+
+  assert.equal(result.fit, "bounding-region");
+  assert.equal(result.candidates[0].primitive.kind, "rectangle");
+  assert.ok(result.warnings.includes("low-specificity-bounding-region"));
+  assert.ok(result.warnings.includes("irregular-boundary-preserved-without-curve-primitive"));
+});
+
+test("manual perception does not collapse a two-branch hairpin into one segment", () => {
+  const result = extract(maskFromPredicate(
+    100,
+    100,
+    (x, y) => (x >= 5 && x < 95 && (y === 45 || y === 55))
+      || (x >= 5 && x < 8 && y >= 45 && y <= 55),
+  ), {
+    prompt: {
+      points: [{ x: 0.06, y: 0.5, label: "include" }],
+      box: null,
+    },
+  });
+
+  assert.equal(result.fit, "bounding-region");
+  assert.equal(result.candidates[0].primitive.kind, "rectangle");
+  assert.ok(result.warnings.includes("low-specificity-bounding-region"));
+  assert.ok(result.warnings.includes("irregular-boundary-preserved-without-curve-primitive"));
 });
 
 test("manual perception models a triangle as confirmed edges plus a derived request", () => {

@@ -33,6 +33,7 @@ const ELONGATED_AXIS_RATIO = 5;
 const ELLIPSE_MAX_MEAN_BOUNDARY_RESIDUAL = 0.28;
 const HULL_SIMPLIFICATION_TOLERANCE_PIXELS = 0.5;
 const ELLIPSE_MIN_CENTRAL_SYMMETRY_RATIO = 0.9;
+const ELONGATED_MAX_CENTERLINE_RESIDUAL = 0.04;
 
 export interface PersonalVisualHarmonyMaskRunV1 {
   readonly y: number;
@@ -198,6 +199,12 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
     hull,
   );
   const principalAxis = computePrincipalAxis(decoded.points, decoded.width, decoded.height);
+  const straightLineEvidence = computeStraightLineEvidence(
+    decoded.points,
+    decoded.width,
+    decoded.height,
+    principalAxis,
+  );
   const bounds = normalizedBounds(decoded);
   const fillRatio = decoded.points.length
     / ((decoded.maxX - decoded.minX + 1) * (decoded.maxY - decoded.minY + 1));
@@ -219,6 +226,8 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
     fillRatio,
     ellipseResidual,
     centralSymmetryRatio,
+    straightLineResidual: straightLineEvidence.centerlineResidual,
+    straightLineSlicesContiguous: straightLineEvidence.slicesContiguous,
     principalAxis,
     digitallyConvex,
     connectedComponentCount: decoded.connectedComponentCount,
@@ -846,6 +855,65 @@ function meanEllipseBoundaryResidual(
   return canonicalNumber(residual);
 }
 
+function computeStraightLineEvidence(
+  points: readonly PixelPoint[],
+  width: number,
+  height: number,
+  axis: PrincipalAxis,
+): {
+  readonly centerlineResidual: number;
+  readonly slicesContiguous: boolean;
+} {
+  const radians = axis.rotationDegrees * Math.PI / 180;
+  const unitMajor = { x: Math.cos(radians), y: Math.sin(radians) };
+  const unitMinor = { x: -Math.sin(radians), y: Math.cos(radians) };
+  const majorSpan = Math.max(2 * axis.radiusMajor, Number.EPSILON);
+  const binCount = Math.max(2, Math.ceil(majorSpan * Math.max(width, height)));
+  const minorSums = new Float64Array(binCount);
+  const minorMinimums = new Float64Array(binCount);
+  const minorMaximums = new Float64Array(binCount);
+  minorMinimums.fill(Number.POSITIVE_INFINITY);
+  minorMaximums.fill(Number.NEGATIVE_INFINITY);
+  const counts = new Uint32Array(binCount);
+  for (const pixel of points) {
+    const point = { x: (pixel.x + 0.5) / width, y: (pixel.y + 0.5) / height };
+    const major = dotFromCenter(point, axis.center, unitMajor);
+    const normalizedMajor = (major + axis.radiusMajor) / majorSpan;
+    const binIndex = Math.min(
+      binCount - 1,
+      Math.max(0, Math.floor(normalizedMajor * binCount)),
+    );
+    const minor = dotFromCenter(point, axis.center, unitMinor);
+    minorSums[binIndex] = (minorSums[binIndex] ?? 0) + minor;
+    minorMinimums[binIndex] = Math.min(minorMinimums[binIndex] ?? minor, minor);
+    minorMaximums[binIndex] = Math.max(minorMaximums[binIndex] ?? minor, minor);
+    counts[binIndex] = (counts[binIndex] ?? 0) + 1;
+  }
+  let weightedSquaredResidual = 0;
+  let pointCount = 0;
+  let slicesContiguous = true;
+  const projectedPixelStep = (Math.abs(unitMinor.x) / width)
+    + (Math.abs(unitMinor.y) / height);
+  for (let index = 0; index < binCount; index += 1) {
+    const count = counts[index] ?? 0;
+    if (count === 0) continue;
+    const sliceCenter = (minorSums[index] ?? 0) / count;
+    weightedSquaredResidual += sliceCenter * sliceCenter * count;
+    pointCount += count;
+    const sliceSpan = (minorMaximums[index] ?? 0) - (minorMinimums[index] ?? 0);
+    const coveredSpan = count * projectedPixelStep;
+    if (sliceSpan + projectedPixelStep > coveredSpan / 0.75) {
+      slicesContiguous = false;
+    }
+  }
+  return {
+    centerlineResidual: canonicalNumber(
+      Math.sqrt(weightedSquaredResidual / Math.max(pointCount, 1)) / majorSpan,
+    ),
+    slicesContiguous,
+  };
+}
+
 function maskCentralSymmetryRatio(
   points: readonly PixelPoint[],
   active: Uint8Array,
@@ -872,13 +940,19 @@ function classifyFit(input: {
   readonly fillRatio: number;
   readonly ellipseResidual: number;
   readonly centralSymmetryRatio: number;
+  readonly straightLineResidual: number;
+  readonly straightLineSlicesContiguous: boolean;
   readonly principalAxis: PrincipalAxis;
   readonly digitallyConvex: boolean;
   readonly connectedComponentCount: number;
   readonly hasHoles: boolean;
 }): PersonalVisualHarmonyManualPerceptionFitV1 {
   if (input.connectedComponentCount !== 1 || input.hasHoles) return "bounding-region";
-  if (input.principalAxis.axisRatio >= ELONGATED_AXIS_RATIO) return "elongated";
+  if (input.principalAxis.axisRatio >= ELONGATED_AXIS_RATIO
+    && input.straightLineResidual <= ELONGATED_MAX_CENTERLINE_RESIDUAL
+    && input.straightLineSlicesContiguous) {
+    return "elongated";
+  }
   if (input.digitallyConvex) {
     if (input.simplifiedHull.length === 3 && input.fillRatio >= 0.3) return "triangle";
     if (input.simplifiedHull.length === 4 && input.fillRatio >= 0.35) {
