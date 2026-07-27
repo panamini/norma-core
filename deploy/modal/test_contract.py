@@ -109,6 +109,7 @@ class ModalSam3ContractTest(unittest.TestCase):
     def test_modal_app_explicitly_packages_the_contract_module(self) -> None:
         app_source = Path(__file__).with_name("modal_app.py").read_text(encoding="utf-8")
         self.assertIn('.add_local_python_source("contract")', app_source)
+        self.assertIn('"einops==0.8.1"', app_source)
         match = re.search(
             r'^MODEL_CODE_REVISION = "([0-9a-f]{40})"$',
             app_source,

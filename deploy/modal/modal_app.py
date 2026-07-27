@@ -21,6 +21,7 @@ image = (
         "--index-url https://download.pytorch.org/whl/cu128"
     )
     .pip_install(
+        "einops==0.8.1",
         "fastapi==0.116.1",
         "huggingface-hub==0.34.4",
         "numpy==1.26.4",
