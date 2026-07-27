@@ -144,13 +144,13 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
   readonly #maxProviderResponseBytes: number;
   readonly #availabilityProbeDelayMs: number;
   readonly #fetch: PersonalVisualHarmonyFetch;
-  readonly #delay: (milliseconds: number) => Promise<void>;
+  readonly #delay: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 
   public constructor(
     config: PersonalVisualHarmonySegmentationClientConfig,
     dependencies: {
       readonly fetch?: PersonalVisualHarmonyFetch;
-      readonly delay?: (milliseconds: number) => Promise<void>;
+      readonly delay?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
     } = {},
   ) {
     this.#endpointUrl = validateEndpoint(config.endpointUrl);
@@ -181,8 +181,20 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       5_000,
     );
     this.#fetch = dependencies.fetch ?? fetch;
-    this.#delay = dependencies.delay ?? ((milliseconds) => new Promise((resolve) => {
-      setTimeout(resolve, milliseconds);
+    this.#delay = dependencies.delay ?? ((milliseconds, signal) => new Promise((resolve, reject) => {
+      if (signal.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      const onAbort = (): void => {
+        clearTimeout(timeout);
+        reject(signal.reason);
+      };
+      const timeout = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, milliseconds);
+      signal.addEventListener("abort", onAbort, { once: true });
     }));
   }
 
@@ -314,7 +326,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       }
       await response.body?.cancel();
       if (attempt < PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES) {
-        await this.#delay(this.#availabilityProbeDelayMs);
+        await this.#delay(this.#availabilityProbeDelayMs, signal);
       }
     }
     throw new PersonalVisualHarmonySegmentationError(

@@ -278,6 +278,33 @@ test("segmentation client aborts a bounded inference deadline", async () => {
   );
 });
 
+test("segmentation deadline aborts the readiness backoff", async () => {
+  let probeCount = 0;
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    deadlineMs: 1_000,
+    availabilityProbeDelayMs: 5_000,
+  }, {
+    fetch: async () => {
+      probeCount += 1;
+      return new Response(null, { status: 503 });
+    },
+  });
+  const startedAt = Date.now();
+  await assert.rejects(
+    client.segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/png",
+      prompt,
+    }),
+    (error) => error.code === "provider_timeout",
+  );
+  assert.equal(probeCount, 1);
+  assert(Date.now() - startedAt < 3_000);
+});
+
 test("configuration is disabled only when all provider variables are absent", () => {
   assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({}), null);
   assert.throws(
