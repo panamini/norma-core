@@ -30,6 +30,7 @@ image = (
     .pip_install(
         f"git+https://github.com/facebookresearch/sam3.git@{MODEL_CODE_REVISION}"
     )
+    .add_local_python_source("contract")
     .add_local_dir("deploy/modal", remote_path="/opt/norma-sam3")
 )
 

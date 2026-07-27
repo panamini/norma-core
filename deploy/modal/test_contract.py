@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from pathlib import Path
 import unittest
 from unittest import mock
 
@@ -103,6 +104,10 @@ class ModalSam3ContractTest(unittest.TestCase):
         for response in (ready, abstained):
             self.assertNotIn("acceptedGeometry", response)
             self.assertNotIn("coreRun", response)
+
+    def test_modal_app_explicitly_packages_the_contract_module(self) -> None:
+        app_source = Path(__file__).with_name("modal_app.py").read_text(encoding="utf-8")
+        self.assertIn('.add_local_python_source("contract")', app_source)
 
 
 if __name__ == "__main__":
