@@ -10,6 +10,7 @@ import {
   type PersonalVisualHarmonyPreparedCandidateSetV1,
   type PersonalVisualHarmonyPreparedCandidateSetV2,
 } from "./personal-visual-harmony.js";
+import { PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS } from "./personal-visual-harmony-constructions.js";
 import {
   DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_SOURCE_IMAGE_BYTES,
   PersonalVisualHarmonySegmentationError,
@@ -22,6 +23,7 @@ export const PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CONTRACT_ID =
   "norma.personal-visual-harmony-perception-job@1" as const;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_TTL_MS = 10 * 60 * 1_000;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CAPACITY = 32;
+export const PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION = 9;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -59,6 +61,7 @@ export interface PersonalVisualHarmonyPerceptionJobServiceOptions {
   readonly capacity?: number;
   readonly maxSourceImageBytes?: number;
   readonly downloadDeadlineMs?: number;
+  readonly allowedSourceImageOrigins: readonly string[];
   readonly fetch?: PersonalVisualHarmonyFetch;
   readonly now?: () => number;
   readonly createJobId?: () => string;
@@ -98,6 +101,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #capacity: number;
   readonly #maxSourceImageBytes: number;
   readonly #downloadDeadlineMs: number;
+  readonly #allowedSourceImageOrigins: readonly string[];
   readonly #fetch: PersonalVisualHarmonyFetch | undefined;
   readonly #now: () => number;
   readonly #createJobId: () => string;
@@ -129,6 +133,14 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       500,
       60_000,
     );
+    if (!Array.isArray(options.allowedSourceImageOrigins)
+      || options.allowedSourceImageOrigins.length === 0) {
+      throw new PersonalVisualHarmonyPerceptionJobError(
+        "request_invalid",
+        "Trusted source image origins are required.",
+      );
+    }
+    this.#allowedSourceImageOrigins = [...options.allowedSourceImageOrigins];
     this.#fetch = options.fetch;
     this.#now = options.now ?? Date.now;
     this.#createJobId = options.createJobId ?? (() => `pvh-perception:${randomUUID()}`);
@@ -163,6 +175,13 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       throw new PersonalVisualHarmonyPerceptionJobError(
         "request_invalid",
         "Automatic candidates belong to a different source image.",
+      );
+    }
+    if (input.automaticCandidateSet !== undefined
+      && !personalVisualHarmonyPreparedSetHasPerceptionCapacity(input.automaticCandidateSet)) {
+      throw new PersonalVisualHarmonyPerceptionJobError(
+        "request_invalid",
+        "Automatic candidates do not leave capacity for bounded perception evidence.",
       );
     }
     const now = this.#now();
@@ -243,6 +262,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     try {
       const source = await downloadPersonalVisualHarmonySourceImage({
         url: input.sourceImageUrl,
+        allowedOrigins: this.#allowedSourceImageOrigins,
         ...(input.sourceImageMediaType === undefined
           ? {}
           : { expectedMediaType: input.sourceImageMediaType }),
@@ -335,6 +355,14 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       durable: false,
     };
   }
+}
+
+export function personalVisualHarmonyPreparedSetHasPerceptionCapacity(
+  prepared: PersonalVisualHarmonyPreparedCandidateSetV1,
+): boolean {
+  return prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION
+    && (prepared.triangleConstructionRequests?.length ?? 0)
+      < PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS;
 }
 
 function safeInteractionId(jobId: string): string {

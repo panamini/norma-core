@@ -21,6 +21,16 @@ export const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_SOURCE_IMAGE_BYTES = 12 * 1024 
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_PROVIDER_RESPONSE_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS = 30_000;
 export const PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES = 3;
+export const PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
+export const PERSONAL_VISUAL_HARMONY_SEGMENTATION_PROVIDER = {
+  providerId: "modal-sam3",
+  modelId: "facebook/sam3",
+  modelVersion: "3c879f39826c281e95690f02c7821c4de09afae7",
+} as const;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_MEDIA_TYPE_PATTERN = /^image\/[a-z0-9.+-]{1,63}$/u;
@@ -325,12 +335,13 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
 
 export async function downloadPersonalVisualHarmonySourceImage(input: {
   readonly url: string;
+  readonly allowedOrigins: readonly string[];
   readonly expectedMediaType?: string | null;
   readonly maxBytes?: number;
   readonly deadlineMs?: number;
   readonly fetch?: PersonalVisualHarmonyFetch;
 }): Promise<{ readonly bytes: Uint8Array; readonly mediaType: string }> {
-  const url = validateSourceUrl(input.url);
+  const url = validateSourceUrl(input.url, input.allowedOrigins);
   const maxBytes = boundedPositiveInteger(
     input.maxBytes ?? DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_SOURCE_IMAGE_BYTES,
     "source image byte limit",
@@ -358,6 +369,7 @@ export async function downloadPersonalVisualHarmonySourceImage(input: {
     }
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await response.body?.cancel();
       throw new PersonalVisualHarmonySegmentationError(
         "source_too_large",
         "Source image exceeds the configured byte limit.",
@@ -402,11 +414,18 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
   const endpointUrl = env.NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL?.trim();
   const modalKey = env.NORMA_PERSONAL_VISUAL_HARMONY_MODAL_KEY?.trim();
   const modalSecret = env.NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET?.trim();
-  if (endpointUrl === undefined && modalKey === undefined && modalSecret === undefined) return null;
-  if (!endpointUrl || !modalKey || !modalSecret) {
+  const sourceImageAllowedOrigins =
+    env.NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS?.trim();
+  if (endpointUrl === undefined
+    && modalKey === undefined
+    && modalSecret === undefined
+    && sourceImageAllowedOrigins === undefined) {
+    return null;
+  }
+  if (!endpointUrl || !modalKey || !modalSecret || !sourceImageAllowedOrigins) {
     throw new PersonalVisualHarmonySegmentationError(
       "configuration_invalid",
-      "Segmentation configuration must provide the endpoint and both proxy credential variables.",
+      "Segmentation configuration must provide the endpoint, proxy credentials, and trusted source origins.",
     );
   }
   return new PersonalVisualHarmonySegmentationClient({
@@ -414,6 +433,19 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
     modalKey,
     modalSecret,
   }, dependencies);
+}
+
+export function personalVisualHarmonySourceImageAllowedOriginsFromEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): readonly string[] {
+  const value = env.NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS?.trim();
+  if (!value) {
+    throw new PersonalVisualHarmonySegmentationError(
+      "configuration_invalid",
+      "Segmentation configuration requires trusted source image origins.",
+    );
+  }
+  return normalizeAllowedSourceOrigins(value.split(","));
 }
 
 function validateProviderResponse(
@@ -631,7 +663,10 @@ function validateProvider(value: unknown): PersonalVisualHarmonySegmentationProv
     || !SAFE_PROVIDER_FIELD_PATTERN.test(value.modelId)
     || (value.modelVersion !== null
       && (typeof value.modelVersion !== "string"
-        || !SAFE_PROVIDER_FIELD_PATTERN.test(value.modelVersion)))) {
+        || !SAFE_PROVIDER_FIELD_PATTERN.test(value.modelVersion)))
+    || value.providerId !== PERSONAL_VISUAL_HARMONY_SEGMENTATION_PROVIDER.providerId
+    || value.modelId !== PERSONAL_VISUAL_HARMONY_SEGMENTATION_PROVIDER.modelId
+    || value.modelVersion !== PERSONAL_VISUAL_HARMONY_SEGMENTATION_PROVIDER.modelVersion) {
     throw new PersonalVisualHarmonySegmentationError(
       "provider_response_invalid",
       "Segmentation provider reference is invalid.",
@@ -727,10 +762,17 @@ function validateEndpoint(value: string): URL {
   }
 }
 
-function validateSourceUrl(value: string): URL {
+function validateSourceUrl(value: string, allowedOrigins: readonly string[]): URL {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password || url.hash) throw new Error();
+    const normalizedAllowedOrigins = normalizeAllowedSourceOrigins(allowedOrigins);
+    if (url.protocol !== "https:"
+      || url.username
+      || url.password
+      || url.hash
+      || !normalizedAllowedOrigins.includes(url.origin)) {
+      throw new Error();
+    }
     return url;
   } catch {
     throw new PersonalVisualHarmonySegmentationError(
@@ -742,13 +784,50 @@ function validateSourceUrl(value: string): URL {
 
 function validateMediaType(value: string): string {
   const normalized = value.trim().toLowerCase();
-  if (!SAFE_MEDIA_TYPE_PATTERN.test(normalized)) {
+  if (!SAFE_MEDIA_TYPE_PATTERN.test(normalized)
+    || !(PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES as readonly string[])
+      .includes(normalized)) {
     throw new PersonalVisualHarmonySegmentationError(
       "source_media_type_invalid",
       "Source image media type is invalid.",
     );
   }
   return normalized;
+}
+
+function normalizeAllowedSourceOrigins(values: readonly string[]): readonly string[] {
+  if (!Array.isArray(values) || values.length === 0 || values.length > 8) {
+    throw new PersonalVisualHarmonySegmentationError(
+      "configuration_invalid",
+      "Trusted source image origins configuration is invalid.",
+    );
+  }
+  const origins = values.map((value) => {
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol !== "https:"
+        || url.username
+        || url.password
+        || url.pathname !== "/"
+        || url.search
+        || url.hash) {
+        throw new Error();
+      }
+      return url.origin;
+    } catch {
+      throw new PersonalVisualHarmonySegmentationError(
+        "configuration_invalid",
+        "Trusted source image origins configuration is invalid.",
+      );
+    }
+  });
+  if (new Set(origins).size !== origins.length) {
+    throw new PersonalVisualHarmonySegmentationError(
+      "configuration_invalid",
+      "Trusted source image origins must be unique.",
+    );
+  }
+  return origins;
 }
 
 function requireSecret(value: string): string {

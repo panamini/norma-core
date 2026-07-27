@@ -41,20 +41,20 @@ const prompt = {
   box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
 };
 
-function automaticCandidateSet() {
+function automaticCandidateSet(candidateCount = 1) {
   return preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-perception-test",
     sourceImageMediaType: "image/png",
-    candidates: [{
-      id: "frame",
-      label: "Cadre",
+    candidates: Array.from({ length: candidateCount }, (_, index) => ({
+      id: index === 0 ? "frame" : `frame-${String(index + 1)}`,
+      label: `Cadre ${String(index + 1)}`,
       role: "frame",
       reason: "Cadre visible.",
-      x: 0.05,
-      y: 0.05,
-      width: 0.9,
-      height: 0.9,
-    }],
+      x: 0.01 * index,
+      y: 0.01 * index,
+      width: 0.5,
+      height: 0.5,
+    })),
   });
 }
 
@@ -109,6 +109,7 @@ function createService(overrides = {}) {
   return new InMemoryPersonalVisualHarmonyPerceptionJobService({
     provider: successfulProvider(),
     fetch: sourceFetch(),
+    allowedSourceImageOrigins: ["https://files.example.test"],
     createJobId: () => "job:perception-test",
     ...overrides,
   });
@@ -234,6 +235,16 @@ test("perception jobs expire and enforce bounded capacity", () => {
   });
   assert.equal(expired.state, "expired");
   assert.equal(expired.preparedCandidateSet, null);
+});
+
+test("perception jobs reserve room for the largest bounded segmentation candidate set", () => {
+  const service = createService();
+  const saturated = automaticCandidateSet(10);
+  assert.throws(
+    () => service.start(startInput(saturated)),
+    (error) => error instanceof PersonalVisualHarmonyPerceptionJobError
+      && error.code === "request_invalid",
+  );
 });
 
 test("the existing prepared candidate V1 contract remains unchanged", () => {

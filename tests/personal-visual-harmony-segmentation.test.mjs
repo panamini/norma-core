@@ -8,6 +8,8 @@ import {
   PersonalVisualHarmonySegmentationClient,
   PersonalVisualHarmonySegmentationError,
   createPersonalVisualHarmonySegmentationClientFromEnv,
+  downloadPersonalVisualHarmonySourceImage,
+  personalVisualHarmonySourceImageAllowedOriginsFromEnv,
 } from "../dist/src/personal-visual-harmony-segmentation.js";
 
 const imageBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -205,6 +207,27 @@ test("segmentation client fails closed on source mismatch, malformed, and oversi
       (error) => error.code === "provider_response_invalid",
     );
   });
+  await context.test("unexpected provider identity", async () => {
+    const fetch = async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      const request = JSON.parse(init.body);
+      return Response.json(responseFor(request, {
+        provider: {
+          providerId: "other-provider",
+          modelId: "other-model",
+          modelVersion: "other-version",
+        },
+      }));
+    };
+    await assert.rejects(
+      clientWith(fetch).segment({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: "image/png",
+        prompt,
+      }),
+      (error) => error.code === "provider_response_invalid",
+    );
+  });
   await context.test("oversized", async () => {
     const fetch = async (_url, init) => init.method === "GET"
       ? new Response(null, { status: 200 })
@@ -248,6 +271,75 @@ test("configuration is disabled only when all provider variables are absent", ()
     }),
     (error) => error.code === "configuration_invalid",
   );
+  const configured = {
+    NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL: "https://sam3.example.test/",
+    NORMA_PERSONAL_VISUAL_HARMONY_MODAL_KEY: "key",
+    NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET: "secret",
+    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+      "https://files.example.test,https://files-backup.example.test",
+  };
+  assert(createPersonalVisualHarmonySegmentationClientFromEnv(configured));
+  assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv(configured), [
+    "https://files.example.test",
+    "https://files-backup.example.test",
+  ]);
+});
+
+test("source downloads reject untrusted origins before fetch and cancel declared oversize bodies", async () => {
+  let fetchCount = 0;
+  await assert.rejects(
+    downloadPersonalVisualHarmonySourceImage({
+      url: "https://untrusted.example.test/image.png",
+      allowedOrigins: ["https://files.example.test"],
+      expectedMediaType: "image/png",
+      fetch: async () => {
+        fetchCount += 1;
+        return new Response(imageBytes);
+      },
+    }),
+    (error) => error.code === "source_download_failed",
+  );
+  assert.equal(fetchCount, 0);
+
+  let cancelled = false;
+  const oversizedBody = new ReadableStream({
+    cancel() {
+      cancelled = true;
+    },
+  });
+  await assert.rejects(
+    downloadPersonalVisualHarmonySourceImage({
+      url: "https://files.example.test/image.png",
+      allowedOrigins: ["https://files.example.test"],
+      expectedMediaType: "image/png",
+      maxBytes: 10,
+      fetch: async () => new Response(oversizedBody, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": "11",
+        },
+      }),
+    }),
+    (error) => error.code === "source_too_large",
+  );
+  assert.equal(cancelled, true);
+});
+
+test("segmentation rejects provider-unsupported image media types before network access", async () => {
+  let fetchCount = 0;
+  await assert.rejects(
+    clientWith(async () => {
+      fetchCount += 1;
+      return new Response(null, { status: 500 });
+    }).segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/gif",
+      prompt,
+    }),
+    (error) => error.code === "source_media_type_invalid",
+  );
+  assert.equal(fetchCount, 0);
 });
 
 test("segmentation errors redact credentials, URLs, prompts, and provider bodies", async () => {

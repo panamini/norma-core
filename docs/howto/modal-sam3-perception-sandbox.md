@@ -44,8 +44,11 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
    - `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL`
    - `NORMA_PERSONAL_VISUAL_HARMONY_MODAL_KEY`
    - `NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET`
+   - `NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS` — a comma-separated,
+     credential-free HTTPS origin allowlist for the trusted ChatGPT file service; never
+     paste a complete signed download URL here
 
-   All three absent means disabled. A partial configuration fails startup. Never configure this provider in production as part of this sandbox action.
+   All four absent means disabled. A partial configuration fails startup. Never configure this provider in production as part of this sandbox action.
 6. Restart only the Railway sandbox service. Authenticate through the existing OAuth flow with the existing visual-harmony scope, attach an approved non-sensitive image fixture, and use the widget’s **Proposer le masque SAM 3** action. Verify:
 
    - an unauthenticated request cannot list or call the two perception tools;
@@ -56,7 +59,7 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
 
 ## Rollback and stop
 
-Disable the integration first by removing all three Railway sandbox variables together and restarting that sandbox service. The existing ChatGPT V1 path then remains the only registered path.
+Disable the integration first by removing all four Railway sandbox variables together and restarting that sandbox service. The existing ChatGPT V1 path then remains the only registered path.
 
 To roll back the Modal app to its preceding deployed version:
 

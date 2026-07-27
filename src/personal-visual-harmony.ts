@@ -206,7 +206,7 @@ export interface PersonalVisualHarmonyResultV1 {
   readonly candidateSetIdentity: string;
   readonly confirmedSelectionIdentity: string;
   readonly sourceImageReferenceIdentity: string;
-  readonly imageBytesObservedByNorma: false;
+  readonly imageBytesObservedByNorma: boolean;
   readonly sourceImageDimensionsObservedBy: "chatgpt_widget";
   readonly selectedCandidateIds: readonly string[];
   readonly explicitSelectionConfirmation: true;
@@ -377,7 +377,7 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly status: "completed";
   readonly candidateSetIdentity: string;
   readonly sourceImageReferenceIdentity: string;
-  readonly imageBytesObservedByNorma: false;
+  readonly imageBytesObservedByNorma: boolean;
   readonly sourceImageDimensionsObservedBy: "chatgpt_widget";
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
@@ -704,7 +704,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     candidateSetIdentity: prepared.candidateSetIdentity,
     confirmedSelectionIdentity: selectionIdentity,
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
-    imageBytesObservedByNorma: false as const,
+    imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
     sourceImageDimensionsObservedBy: "chatgpt_widget" as const,
     selectedCandidateIds,
     explicitSelectionConfirmation: true as const,
@@ -1028,7 +1028,7 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     status: "completed" as const,
     candidateSetIdentity: prepared.candidateSetIdentity,
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
-    imageBytesObservedByNorma: false as const,
+    imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
     sourceImageDimensionsObservedBy: "chatgpt_widget" as const,
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,

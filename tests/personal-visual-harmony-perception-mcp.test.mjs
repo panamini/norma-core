@@ -96,6 +96,7 @@ function successfulProvider() {
 function perceptionJobs() {
   return new InMemoryPersonalVisualHarmonyPerceptionJobService({
     provider: successfulProvider(),
+    allowedSourceImageOrigins: ["https://files.example.test"],
     fetch: async () => new Response(sourceBytes, {
       status: 200,
       headers: {
@@ -157,6 +158,55 @@ test("perception tools stay unavailable when the authenticated subject boundary 
     const prepared = await prepare(connected.client);
     const serialized = JSON.stringify(prepared);
     assert.doesNotMatch(serialized, /perceptionAppCapability|pvh-app:/u);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("prepare withholds perception capability for unsupported media and insufficient candidate capacity", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    for (const preparation of [
+      {
+        image: {
+          download_url: "https://files.example.test/image.gif",
+          file_id: "file-gif",
+          mime_type: "image/gif",
+        },
+        candidates: candidates(),
+      },
+      {
+        image: {
+          download_url: "https://files.example.test/image.png",
+          file_id: "file-saturated",
+          mime_type: "image/png",
+        },
+        candidates: Array.from({ length: 10 }, (_, index) => ({
+          id: `frame-${String(index + 1)}`,
+          label: `Cadre ${String(index + 1)}`,
+          role: "frame",
+          reason: "Cadre visible.",
+          x: index * 0.01,
+          y: index * 0.01,
+          width: 0.5,
+          height: 0.5,
+        })),
+      },
+    ]) {
+      const result = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+        arguments: preparation,
+      });
+      assert.equal(result.isError, undefined, JSON.stringify(result));
+      assert.equal(
+        "perceptionAppCapability" in result._meta.normaPersonalVisualHarmony,
+        false,
+      );
+    }
   } finally {
     await connected.close();
   }
@@ -224,6 +274,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(started.isError, undefined, JSON.stringify(started));
     assert.equal(started.structuredContent.state, "pending");
     assert.equal(started.structuredContent.coreRun, false);
+    assert.match(started.structuredContent.expiresAt, /Z$/u);
 
     other = await connect({ service, jobs, subjectId: "subject:other" });
     const crossSubject = await other.client.callTool({
@@ -261,6 +312,28 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal("acceptedGeometry" in status.structuredContent, false);
     assert.equal("result" in status.structuredContent, false);
 
+    const repeatedStatus = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        jobId: started.structuredContent.jobId,
+      },
+    });
+    assert.equal(repeatedStatus.isError, undefined, JSON.stringify(repeatedStatus));
+    assert.equal(
+      repeatedStatus.structuredContent.candidateSetIdentity,
+      status.structuredContent.candidateSetIdentity,
+    );
+
+    const reviewedCandidates = status._meta.normaPersonalVisualHarmony.prepared.candidates.map(
+      ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => (
+        candidate.id === "frame"
+          ? { ...candidate, x: 0.04, width: 0.91 }
+          : candidate
+      ),
+    );
     const confirmed = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
@@ -269,26 +342,54 @@ test("app-only perception enforces capability, subject, session, and explicit co
         selectedCandidateIds: ["frame"],
         sourcePixelWidth: 1_000,
         sourcePixelHeight: 1_000,
+        reviewedCandidates,
         confirmClientReviewedSelection: true,
         recovery: {
           fileId: "file-perception-mcp",
           sourceImageMediaType: "image/png",
-          candidates: status._meta.normaPersonalVisualHarmony.prepared.candidates.map(
-            ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
-          ),
+          candidates: reviewedCandidates,
         },
       },
     });
     assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
     assert.equal(confirmed.structuredContent.coreRun, true);
     assert.equal(confirmed.structuredContent.explicitSelectionConfirmation, true);
+    assert.notEqual(
+      confirmed.structuredContent.candidateSetIdentity,
+      status.structuredContent.candidateSetIdentity,
+    );
+    assert.equal(confirmed._meta.normaPersonalVisualHarmony.result.imageBytesObservedByNorma, true);
+    assert.equal(confirmed.structuredContent.imagePlaneGuideAnalysis.imageBytesObservedByNorma, true);
+
+    const repeatedConfirmation = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: status.structuredContent.candidateSetIdentity,
+        selectedCandidateIds: ["frame"],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 1_000,
+        reviewedCandidates,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          fileId: "file-perception-mcp",
+          sourceImageMediaType: "image/png",
+          candidates: reviewedCandidates,
+        },
+      },
+    });
+    assert.equal(repeatedConfirmation.isError, undefined, JSON.stringify(repeatedConfirmation));
+    assert.equal(
+      repeatedConfirmation.structuredContent.canonicalResultIdentity,
+      confirmed.structuredContent.canonicalResultIdentity,
+    );
   } finally {
     await other?.close();
     await owner.close();
   }
 });
 
-test("the widget never re-prepares perception-assisted geometry through the ChatGPT V1 path", () => {
+test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /Proposer le masque SAM 3/u);
   assert.match(html, new RegExp(PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL, "u"));
@@ -297,4 +398,7 @@ test("the widget never re-prepares perception-assisted geometry through the Chat
     html,
     /payload\.prepared\?\.perceptionReceiptIdentity\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
   );
+  assert.match(html, /reviewedCandidates===undefined\?\{\}:\{reviewedCandidates\}/u);
+  assert.match(html, /while\(Date\.now\(\)<expiresAtMs\)/u);
+  assert.match(html, /points:\[\{x:clampUnit\(x\),y:clampUnit\(y\),label:"include"\}\],box:null/u);
 });
