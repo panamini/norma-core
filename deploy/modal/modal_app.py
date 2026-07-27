@@ -48,7 +48,6 @@ app = modal.App(APP_NAME)
     port=8000,
     unauthenticated=False,
     exit_grace_period=30,
-    restrict_modal_access=True,
 )
 class NormaSam3Server:
     @modal.enter()
