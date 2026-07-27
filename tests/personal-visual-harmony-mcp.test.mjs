@@ -2802,6 +2802,79 @@ test("widget hydration never requests pixel proposals while refinement is disabl
   assert.equal(refinementCalls, 1);
 });
 
+test("widget revalidates completed state when the temporary image URL expired on reload", async () => {
+  const state = widgetHydrationState();
+  const completed = {
+    selectedCandidateIds: ["frame"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+  };
+  const revalidations = [];
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    refreshPixelRefinements() {
+      throw new Error("an unavailable image must not start pixel refinement");
+    },
+    completedWidgetStateFor: () => completed,
+    revalidateCompleted: async (...args) => {
+      revalidations.push(args);
+      state.completed = true;
+    },
+    renderResult() {
+      throw new Error("confirmation payload must not render a result directly");
+    },
+  });
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-expired-reload",
+    prepared: { candidateSetIdentity: "sha256:expired-reload", candidates: [] },
+    overlaySvg: "<svg></svg>",
+  };
+
+  await hydrate(payload);
+
+  assert.deepEqual(revalidations, [[payload, completed, "sha256:expired-reload"]]);
+});
+
+test("widget stays fail closed when image hydration fails without completed state", async () => {
+  const state = widgetHydrationState();
+  let revalidationCalls = 0;
+  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    state,
+    currentPayload: () => null,
+    window: { openai: {} },
+    payloadIdentity: (payload) => payload.prepared.candidateSetIdentity,
+    resetManualSegmentGesture() {},
+    overlay: { innerHTML: "" },
+    safeSvg: (value) => value,
+    renderCandidates() {},
+    loadImage: async () => false,
+    completedWidgetStateFor: () => null,
+    revalidateCompleted: async () => { revalidationCalls += 1; },
+    renderResult() {
+      throw new Error("unconfirmed payload must not render a result");
+    },
+  });
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-expired-unconfirmed",
+    prepared: { candidateSetIdentity: "sha256:expired-unconfirmed", candidates: [] },
+  };
+
+  await hydrate(payload);
+
+  assert.equal(revalidationCalls, 0);
+  assert.equal(state.completed, false);
+});
+
 test("widget revalidates completed state against the payload prepared during pixel refresh", async () => {
   const originalPayload = {
     stage: "confirmation_required",
@@ -4375,9 +4448,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v4.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v5.html");
     assert.equal(
-        resources.resources.some(({ uri }) => /-v[123]\.html$/u.test(uri)),
+        resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
     );
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
@@ -4535,7 +4608,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /function loadDisplayedImage\(downloadUrl,generation,fileId,payloadIdentity\)/u);
     assert.doesNotMatch(resource.contents[0].text, /const probe=new Image\(\)/u);
     assert.doesNotMatch(resource.contents[0].text, /source\.src=result\.downloadUrl/u);
-    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(!imageLoaded\|\|state\.activePayloadIdentity!==identity\)return/u);
+    assert.match(resource.contents[0].text, /const imageLoaded=await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(state\.activePayloadIdentity!==identity\)return;if\(!imageLoaded\)\{const revalidationPayload=state\.payload,completed=completedWidgetStateFor\(revalidationPayload\)/u);
     assert.match(resource.contents[0].text, /if\(payload\.fileId\)await loadImage\(payload\.fileId,identity,\{force:forceImageReload\}\);if\(state\.activePayloadIdentity!==identity\)return/u);
     assert.match(resource.contents[0].text, /function showImageFailure\(failure\)/u);
     assert.match(resource.contents[0].text, /Réessayer l’affichage/u);
