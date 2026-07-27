@@ -387,16 +387,22 @@ export async function downloadPersonalVisualHarmonySourceImage(input: {
         "Source image exceeds the configured byte limit.",
       );
     }
-    const responseMediaType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
-    const expectedMediaType = input.expectedMediaType == null
-      ? null
-      : validateMediaType(input.expectedMediaType);
-    const mediaType = validateMediaType(responseMediaType || expectedMediaType || "");
-    if (expectedMediaType !== null && mediaType !== expectedMediaType) {
-      throw new PersonalVisualHarmonySegmentationError(
-        "source_media_type_invalid",
-        "Source image media type does not match the bound source reference.",
-      );
+    let mediaType: string;
+    try {
+      const responseMediaType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+      const expectedMediaType = input.expectedMediaType == null
+        ? null
+        : validateMediaType(input.expectedMediaType);
+      mediaType = validateMediaType(responseMediaType || expectedMediaType || "");
+      if (expectedMediaType !== null && mediaType !== expectedMediaType) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_media_type_invalid",
+          "Source image media type does not match the bound source reference.",
+        );
+      }
+    } catch (error: unknown) {
+      await response.body?.cancel();
+      throw error;
     }
     return {
       bytes: await readBoundedBytes(response, maxBytes, "source_too_large"),

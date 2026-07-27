@@ -18,6 +18,9 @@ import {
 import {
   InMemoryPersonalVisualHarmonyPerceptionJobService,
 } from "../dist/src/personal-visual-harmony-perception-jobs.js";
+import {
+  preparePersonalVisualHarmonyCandidateSetV2,
+} from "../dist/src/personal-visual-harmony.js";
 
 const sourceBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
 const sourceImageContentIdentity =
@@ -34,6 +37,61 @@ function candidates() {
     y: 0.05,
     width: 0.9,
     height: 0.9,
+  }];
+}
+
+function triangleCandidates() {
+  return [
+    ...candidates(),
+    {
+      id: "diagonal",
+      label: "Diagonale",
+      role: "structural-region",
+      reason: "Segment visible.",
+      x: 0.2,
+      y: 0.2,
+      width: 0.6,
+      height: 0.6,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.2, y: 0.8 },
+        end: { x: 0.8, y: 0.2 },
+      },
+    },
+  ];
+}
+
+function triangleConstructionRequests() {
+  return [{
+    requestId: "explicit-triangle",
+    vertices: [
+      {
+        point: { x: 0.2, y: 0.8 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "diagonal",
+          endpoint: "start",
+        },
+      },
+      {
+        point: { x: 0.8, y: 0.2 },
+        parent: {
+          kind: "observed-line-endpoint",
+          candidateId: "diagonal",
+          endpoint: "end",
+        },
+      },
+      {
+        point: { x: 0, y: 0 },
+        parent: {
+          kind: "junction-intersection",
+          participants: [
+            { kind: "format-diagonal", diagonal: "vertex-0-to-2" },
+            { kind: "frame-edge", frameEdgeIndex: 0 },
+          ],
+        },
+      },
+    ],
   }];
 }
 
@@ -215,6 +273,59 @@ test("prepare withholds perception capability for unsupported media and insuffic
   }
 });
 
+test("edited perception geometry preserves explicit triangle requests", () => {
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:edited-perception-triangle",
+    now: () => 0,
+  });
+  const prepared = service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-edited-perception-triangle",
+    mediaType: "image/png",
+    candidates: triangleCandidates(),
+    triangleConstructionRequests: triangleConstructionRequests(),
+  });
+  const preparedV2 = preparePersonalVisualHarmonyCandidateSetV2({
+    sourceFileId: "file-edited-perception-triangle",
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: prepared.prepared.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    perceptionReceiptIdentity: receiptIdentity,
+    candidates: prepared.prepared.candidates.map((candidate) => ({
+      ...candidate,
+      sourceImageReferenceIdentity: prepared.prepared.sourceImageReferenceIdentity,
+    })),
+    triangleConstructionRequests: prepared.prepared.triangleConstructionRequests,
+  });
+  service.applyPerceptionResult({
+    subjectId: "subject:owner",
+    sessionId: prepared.sessionId,
+    expectedCandidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    preparedCandidateSet: preparedV2,
+  });
+  const reviewedCandidates = preparedV2.candidates.map(
+    ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => (
+      candidate.id === "frame"
+        ? { ...candidate, x: 0.04, width: 0.91 }
+        : candidate
+    ),
+  );
+  const confirmed = service.confirm({
+    subjectId: "subject:owner",
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: preparedV2.candidateSetIdentity,
+    selectedCandidateIds: ["frame"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 1_000,
+    reviewedCandidates,
+  });
+  assert.deepEqual(
+    confirmed.prepared.triangleConstructionRequests,
+    preparedV2.triangleConstructionRequests,
+  );
+});
+
 test("app-only perception enforces capability, subject, session, and explicit confirmation boundaries", async () => {
   let sessionNow = 0;
   const service = new PersonalVisualHarmonySessionServiceV1({
@@ -377,6 +488,35 @@ test("app-only perception enforces capability, subject, session, and explicit co
       perceptionReceiptIdentity: receiptIdentity,
     };
     sessionNow = 1_001;
+    const forgedReceiptIdentity = `sha256:${"e".repeat(64)}`;
+    const forgedPrepared = preparePersonalVisualHarmonyCandidateSetV2({
+      sourceFileId: recovery.fileId,
+      sourceImageContentIdentity,
+      sourceImageMediaType: recovery.sourceImageMediaType,
+      expectedSourceImageReferenceIdentity:
+        status._meta.normaPersonalVisualHarmony.prepared.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      perceptionReceiptIdentity: forgedReceiptIdentity,
+      candidates: status._meta.normaPersonalVisualHarmony.prepared.candidates,
+    });
+    const forgedRecovery = {
+      ...recovery,
+      perceptionReceiptIdentity: forgedReceiptIdentity,
+    };
+    const forgedConfirmation = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: forgedPrepared.candidateSetIdentity,
+        selectedCandidateIds: ["frame"],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 1_000,
+        confirmClientReviewedSelection: true,
+        recovery: forgedRecovery,
+      },
+    });
+    assert.equal(forgedConfirmation.isError, true);
+
     const recoveredPixelCandidate = recoveryCandidates.find(
       ({ primitive }) => primitive?.kind === "axis",
     );
@@ -441,6 +581,20 @@ test("app-only perception enforces capability, subject, session, and explicit co
       repeatedConfirmation.structuredContent.canonicalResultIdentity,
       confirmed.structuredContent.canonicalResultIdentity,
     );
+    sessionNow = 4_001;
+    const expiredEvidenceConfirmation = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: status.structuredContent.candidateSetIdentity,
+        selectedCandidateIds: ["frame"],
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 1_000,
+        confirmClientReviewedSelection: true,
+        recovery,
+      },
+    });
+    assert.equal(expiredEvidenceConfirmation.isError, true);
   } finally {
     await other?.close();
     await owner.close();

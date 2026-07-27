@@ -1286,6 +1286,17 @@ interface PersonalVisualHarmonySessionV1 {
   };
 }
 
+interface PersonalVisualHarmonyPerceptionRecoveryEvidenceV2 {
+  readonly subjectId: string;
+  readonly fileId: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly visualInterpretationSource: PersonalVisualHarmonyPreparedCandidateSetV2["visualInterpretationSource"];
+  readonly perceptionReceiptIdentity: string;
+  readonly createdAtMs: number;
+  readonly expiresAtMs: number;
+}
+
 export interface PersonalVisualHarmonySessionServiceOptionsV1 {
   readonly now?: () => number;
   readonly createSessionId?: () => string;
@@ -1298,6 +1309,8 @@ const PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE =
 
 export class PersonalVisualHarmonySessionServiceV1 {
   private readonly sessions = new Map<string, PersonalVisualHarmonySessionV1>();
+  private readonly perceptionRecoveryEvidence =
+    new Map<string, PersonalVisualHarmonyPerceptionRecoveryEvidenceV2>();
   private readonly now: () => number;
   private readonly createSessionId: () => string;
   private readonly sessionTtlMs: number;
@@ -1423,9 +1436,59 @@ export class PersonalVisualHarmonySessionServiceV1 {
       !== input.preparedCandidateSet.sourceImageReferenceIdentity) {
       throw new Error("Perception result belongs to a different source image.");
     }
+    const now = this.now();
+    this.prunePerceptionRecoveryEvidence(now);
+    const recoveryEvidenceKey = this.perceptionRecoveryEvidenceKey(
+      input.subjectId,
+      input.preparedCandidateSet.perceptionReceiptIdentity,
+    );
+    const existingRecoveryEvidence = this.perceptionRecoveryEvidence.get(recoveryEvidenceKey);
+    const recoveryEvidence = {
+        subjectId: input.subjectId,
+        fileId: session.fileId,
+        sourceImageReferenceIdentity: input.preparedCandidateSet.sourceImageReferenceIdentity,
+        sourceImageContentIdentity: input.preparedCandidateSet.sourceImageContentIdentity,
+        visualInterpretationSource: input.preparedCandidateSet.visualInterpretationSource,
+        perceptionReceiptIdentity: input.preparedCandidateSet.perceptionReceiptIdentity,
+        createdAtMs: now,
+        expiresAtMs: now + (this.sessionTtlMs * 4),
+      } satisfies PersonalVisualHarmonyPerceptionRecoveryEvidenceV2;
+    if (existingRecoveryEvidence === undefined) {
+      this.requirePerceptionRecoveryCapacity(input.subjectId, input.preparedCandidateSet.perceptionReceiptIdentity);
+      this.perceptionRecoveryEvidence.set(recoveryEvidenceKey, recoveryEvidence);
+    } else if (!this.perceptionRecoveryEvidenceMatches(
+      existingRecoveryEvidence,
+      input.subjectId,
+      session.fileId,
+      input.preparedCandidateSet,
+    )) {
+      throw new Error("Perception receipt identity is already bound to different evidence.");
+    }
     session.perceptionBaseCandidateSetIdentity = input.expectedCandidateSetIdentity;
     session.prepared = structuredClone(input.preparedCandidateSet);
     delete session.confirmation;
+  }
+
+  assertPerceptionRecoveryEvidence(input: {
+    readonly subjectId: string;
+    readonly fileId: string;
+    readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV2;
+  }): void {
+    this.prunePerceptionRecoveryEvidence(this.now());
+    const evidence = this.perceptionRecoveryEvidence.get(
+      this.perceptionRecoveryEvidenceKey(
+        input.subjectId,
+        input.preparedCandidateSet.perceptionReceiptIdentity,
+      ),
+    );
+    if (evidence === undefined || !this.perceptionRecoveryEvidenceMatches(
+      evidence,
+      input.subjectId,
+      input.fileId,
+      input.preparedCandidateSet,
+    )) {
+      throw new Error("Perception-assisted recovery evidence is missing, expired, or invalid.");
+    }
   }
 
   refinePixels(input: {
@@ -1512,6 +1575,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
         visualInterpretationSource: currentPrepared.visualInterpretationSource,
         perceptionReceiptIdentity: currentPrepared.perceptionReceiptIdentity,
         candidates: input.reviewedCandidates,
+        ...(currentPrepared.triangleConstructionRequests === undefined
+          ? {}
+          : { triangleConstructionRequests: currentPrepared.triangleConstructionRequests }),
       });
       if (reviewedPrepared.candidateSetIdentity !== currentPrepared.candidateSetIdentity) {
         if (session.confirmation !== undefined) {
@@ -1617,6 +1683,52 @@ export class PersonalVisualHarmonySessionServiceV1 {
     for (const [sessionId, session] of this.sessions) {
       if (session.expiresAtMs <= now) this.sessions.delete(sessionId);
     }
+  }
+
+  private perceptionRecoveryEvidenceKey(subjectId: string, perceptionReceiptIdentity: string): string {
+    return `${subjectId}\n${perceptionReceiptIdentity}`;
+  }
+
+  private perceptionRecoveryEvidenceMatches(
+    evidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV2,
+    subjectId: string,
+    fileId: string,
+    preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV2,
+  ): boolean {
+    return evidence.subjectId === subjectId
+      && evidence.fileId === fileId
+      && evidence.sourceImageReferenceIdentity
+        === preparedCandidateSet.sourceImageReferenceIdentity
+      && evidence.sourceImageContentIdentity
+        === preparedCandidateSet.sourceImageContentIdentity
+      && evidence.visualInterpretationSource
+        === preparedCandidateSet.visualInterpretationSource
+      && evidence.perceptionReceiptIdentity
+        === preparedCandidateSet.perceptionReceiptIdentity;
+  }
+
+  private prunePerceptionRecoveryEvidence(now: number): void {
+    for (const [key, evidence] of this.perceptionRecoveryEvidence) {
+      if (evidence.expiresAtMs <= now) this.perceptionRecoveryEvidence.delete(key);
+    }
+  }
+
+  private requirePerceptionRecoveryCapacity(
+    subjectId: string,
+    perceptionReceiptIdentity: string,
+  ): void {
+    const key = this.perceptionRecoveryEvidenceKey(subjectId, perceptionReceiptIdentity);
+    if (this.perceptionRecoveryEvidence.has(key)
+      || this.perceptionRecoveryEvidence.size < this.maxSessions) return;
+    let oldestKey: string | undefined;
+    let oldest: PersonalVisualHarmonyPerceptionRecoveryEvidenceV2 | undefined;
+    for (const [candidateKey, evidence] of this.perceptionRecoveryEvidence) {
+      if (oldest === undefined || evidence.createdAtMs < oldest.createdAtMs) {
+        oldestKey = candidateKey;
+        oldest = evidence;
+      }
+    }
+    if (oldestKey !== undefined) this.perceptionRecoveryEvidence.delete(oldestKey);
   }
 
   private requireCapacity(): void {
@@ -2040,6 +2152,16 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         if (matchingMediaType === undefined) {
           throw new Error("Recovered visual harmony candidate identity does not match the pixel proposal.");
         }
+        if (matchingV2Prepared !== undefined) {
+          if (subjectId === undefined) {
+            throw new Error("Perception-assisted recovery requires an authenticated subject.");
+          }
+          service.assertPerceptionRecoveryEvidence({
+            subjectId,
+            fileId: recovery.fileId,
+            preparedCandidateSet: matchingV2Prepared,
+          });
+        }
         const recovered = service.prepare({
           ...(subjectId === undefined ? {} : { subjectId }),
           fileId: recovery.fileId,
@@ -2050,11 +2172,8 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
               : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
         if (matchingV2Prepared !== undefined) {
-          if (subjectId === undefined) {
-            throw new Error("Perception-assisted recovery requires an authenticated subject.");
-          }
           service.applyPerceptionResult({
-            subjectId,
+            subjectId: subjectId!,
             sessionId: recovered.sessionId,
             expectedCandidateSetIdentity: recovered.prepared.candidateSetIdentity,
             preparedCandidateSet: matchingV2Prepared,
@@ -2196,6 +2315,16 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         if (matchingMediaType === undefined) {
           throw new Error("Recovered visual harmony candidate identity does not match the confirmed review.");
         }
+        if (matchingV2Prepared !== undefined) {
+          if (subjectId === undefined) {
+            throw new Error("Perception-assisted recovery requires an authenticated subject.");
+          }
+          service.assertPerceptionRecoveryEvidence({
+            subjectId,
+            fileId: recovery.fileId,
+            preparedCandidateSet: matchingV2Prepared,
+          });
+        }
         const recovered = service.prepare({
           ...(subjectId === undefined ? {} : { subjectId }),
           fileId: recovery.fileId,
@@ -2206,11 +2335,8 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
         if (matchingV2Prepared !== undefined) {
-          if (subjectId === undefined) {
-            throw new Error("Perception-assisted recovery requires an authenticated subject.");
-          }
           service.applyPerceptionResult({
-            subjectId,
+            subjectId: subjectId!,
             sessionId: recovered.sessionId,
             expectedCandidateSetIdentity: recovered.prepared.candidateSetIdentity,
             preparedCandidateSet: matchingV2Prepared,

@@ -368,6 +368,36 @@ test("source downloads reject untrusted origins before fetch and cancel declared
   assert.equal(cancelled, true);
 });
 
+test("source downloads cancel bodies rejected by media-type validation", async () => {
+  for (const testCase of [
+    { expectedMediaType: "image/png", responseMediaType: "image/jpeg" },
+    { expectedMediaType: "image/png", responseMediaType: "image/gif" },
+    { expectedMediaType: null, responseMediaType: null },
+  ]) {
+    let cancelled = false;
+    const body = new ReadableStream({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    await assert.rejects(
+      downloadPersonalVisualHarmonySourceImage({
+        url: "https://files.example.test/image",
+        allowedOrigins: ["https://files.example.test"],
+        expectedMediaType: testCase.expectedMediaType,
+        fetch: async () => new Response(body, {
+          status: 200,
+          headers: testCase.responseMediaType === null
+            ? {}
+            : { "content-type": testCase.responseMediaType },
+        }),
+      }),
+      (error) => error.code === "source_media_type_invalid",
+    );
+    assert.equal(cancelled, true);
+  }
+});
+
 test("segmentation rejects provider-unsupported image media types before network access", async () => {
   let fetchCount = 0;
   await assert.rejects(
