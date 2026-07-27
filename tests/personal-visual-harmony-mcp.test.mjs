@@ -4910,7 +4910,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /data-norma-image-hydration/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageReady&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return true/u);
     assert.match(resource.contents[0].text, /if\(!force&&state\.imageLoadTask&&state\.imageLoadFileId===fileId&&state\.imageLoadPayloadIdentity===payloadIdentity\)return state\.imageLoadTask/u);
-    assert.match(resource.contents[0].text, /if\(initialPending\)\{initialPending=false;return\{downloadUrl:initialDownloadUrl\}\}/u);
+    assert.match(resource.contents[0].text, /if\(freshUrlPending\)\{freshUrlPending=false;return fileApi\(\{fileId:requestedFileId\}\)\}/u);
+    assert.match(resource.contents[0].text, /if\(payloadUrlPending\)\{payloadUrlPending=false;return\{downloadUrl:payloadDownloadUrl\}\}/u);
     assert.match(resource.contents[0].text, /return fileApi\(\{fileId:requestedFileId\}\)/u);
     assert.match(resource.contents[0].text, /function decorateEditableOverlay\(\)/u);
     assert.match(resource.contents[0].text, /const layoutCandidateLabels=function layoutPersonalVisualHarmonyCandidateLabelsV1/u);
@@ -5277,45 +5278,59 @@ test("displayed image load is the hydration proof for single-use temporary URLs"
   assert.equal(source.referrerPolicy, "no-referrer");
 });
 
-test("successful image hydration enables the opt-in pixel proposal control", async () => {
+async function runWidgetImageHydrationScenario({
+  fileId,
+  payloadDownloadUrl,
+  getFileDownloadUrl,
+  loadDownloadUrl,
+}) {
   const state = widgetHydrationState({
     activePayloadIdentity: "payload-ready",
     imageLoadGeneration: 1,
-    imageLoadFileId: "file-ready",
-    activePayload: {
-      sourceImageDownloadUrl: "https://files.example/from-private-meta",
-    },
+    imageLoadFileId: fileId,
+    activePayload: payloadDownloadUrl === undefined
+      ? {}
+      : { sourceImageDownloadUrl: payloadDownloadUrl },
   });
   let pixelUiUpdates = 0;
   let confirmUpdates = 0;
   const requestedFileIds = [];
+  const loadedUrls = [];
+  const retryDelays = [];
+  let failure;
+  let activeLoads = 0;
+  let maxActiveLoads = 0;
+  const openai = {};
+  if (getFileDownloadUrl !== undefined) {
+    openai.getFileDownloadUrl = async ({ fileId: requestedFileId }) => {
+      requestedFileIds.push(requestedFileId);
+      return getFileDownloadUrl(requestedFileId);
+    };
+  }
   const performImageLoad = widgetScriptFunction(
     "performImageLoad",
     "async function loadImage",
     {
-      window: {
-        openai: {
-          getFileDownloadUrl: async ({ fileId }) => {
-            requestedFileIds.push(fileId);
-            return { downloadUrl: "https://files.example/refreshed" };
-          },
-        },
-      },
+      window: { openai },
       imageLoadIsCurrent: () => true,
-      showImageFailure() { throw new Error("ready hydration must not show a failure"); },
-      runImageHydration: async ({ getDownloadUrl }) => {
-        const { downloadUrl } = await getDownloadUrl("file-ready");
-        return {
-          status: "ready",
-          attemptCount: 1,
-          downloadUrl,
-          width: 80,
-          height: 80,
-        };
-      },
+      showImageFailure(value) { failure = value; },
+      runImageHydration: runPersonalVisualHarmonyImageHydrationV1,
       IMAGE_HYDRATION_MAX_ATTEMPTS: 2,
-      IMAGE_HYDRATION_RETRY_DELAY_MS: 0,
-      loadDisplayedImage() { throw new Error("the bounded hydration stub owns image loading"); },
+      IMAGE_HYDRATION_RETRY_DELAY_MS: 250,
+      loadDisplayedImage: async (downloadUrl) => {
+        loadedUrls.push(downloadUrl);
+        activeLoads += 1;
+        maxActiveLoads = Math.max(maxActiveLoads, activeLoads);
+        try {
+          return await loadDownloadUrl(downloadUrl);
+        } finally {
+          activeLoads -= 1;
+        }
+      },
+      setTimeout: (resolve, delayMs) => {
+        retryDelays.push(delayMs);
+        queueMicrotask(resolve);
+      },
       state,
       visual: { style: {} },
       loading: { style: {} },
@@ -5326,12 +5341,95 @@ test("successful image hydration enables the opt-in pixel proposal control", asy
     },
   );
 
-  assert.equal(await performImageLoad("file-ready", 1, "payload-ready"), true);
-  assert.equal(state.imageReady, true);
-  assert.deepEqual(state.dimensions, { width: 80, height: 80 });
-  assert.deepEqual(requestedFileIds, []);
-  assert.equal(pixelUiUpdates, 1);
-  assert.equal(confirmUpdates, 1);
+  const ready = await performImageLoad(fileId, 1, "payload-ready");
+  return {
+    ready,
+    state,
+    requestedFileIds,
+    loadedUrls,
+    retryDelays,
+    failure,
+    maxActiveLoads,
+    pixelUiUpdates,
+    confirmUpdates,
+  };
+}
+
+test("widget image hydration loads a fresh file URL before the payload URL", async () => {
+  const result = await runWidgetImageHydrationScenario({
+    fileId: "file-ready",
+    payloadDownloadUrl: "https://files.example/from-private-meta",
+    getFileDownloadUrl: async () => ({ downloadUrl: "https://files.example/refreshed" }),
+    loadDownloadUrl: async () => ({ width: 80, height: 80 }),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.requestedFileIds, ["file-ready"]);
+  assert.deepEqual(result.loadedUrls, ["https://files.example/refreshed"]);
+  assert.equal(result.state.downloadUrl, "https://files.example/refreshed");
+  assert.equal(result.state.imageReady, true);
+  assert.deepEqual(result.state.dimensions, { width: 80, height: 80 });
+  assert.deepEqual(result.retryDelays, []);
+  assert.equal(result.maxActiveLoads, 1);
+  assert.equal(result.pixelUiUpdates, 1);
+  assert.equal(result.confirmUpdates, 1);
+});
+
+test("widget image hydration falls back to the payload URL after a fresh URL fails", async () => {
+  const result = await runWidgetImageHydrationScenario({
+    fileId: "file-fallback",
+    payloadDownloadUrl: "https://files.example/from-private-meta",
+    getFileDownloadUrl: async () => ({ downloadUrl: "https://files.example/refreshed-but-expired" }),
+    loadDownloadUrl: async (downloadUrl) => {
+      if (downloadUrl.endsWith("/refreshed-but-expired")) throw new Error("expired");
+      return { width: 120, height: 90 };
+    },
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.requestedFileIds, ["file-fallback"]);
+  assert.deepEqual(result.loadedUrls, [
+    "https://files.example/refreshed-but-expired",
+    "https://files.example/from-private-meta",
+  ]);
+  assert.deepEqual(result.retryDelays, [250]);
+  assert.equal(result.state.downloadUrl, "https://files.example/from-private-meta");
+  assert.equal(result.maxActiveLoads, 1);
+});
+
+test("widget image hydration uses the payload URL when the file API is absent", async () => {
+  const result = await runWidgetImageHydrationScenario({
+    fileId: "file-payload-only",
+    payloadDownloadUrl: "https://files.example/from-private-meta",
+    loadDownloadUrl: async () => ({ width: 640, height: 360 }),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.requestedFileIds, []);
+  assert.deepEqual(result.loadedUrls, ["https://files.example/from-private-meta"]);
+  assert.deepEqual(result.retryDelays, []);
+  assert.equal(result.state.downloadUrl, "https://files.example/from-private-meta");
+  assert.equal(result.maxActiveLoads, 1);
+});
+
+test("widget image hydration retries the payload URL when the file API is absent", async () => {
+  const result = await runWidgetImageHydrationScenario({
+    fileId: "file-payload-failed",
+    payloadDownloadUrl: "https://files.example/expired",
+    loadDownloadUrl: async () => {
+      throw new Error("expired");
+    },
+  });
+
+  assert.equal(result.ready, false);
+  assert.deepEqual(result.requestedFileIds, []);
+  assert.deepEqual(result.loadedUrls, [
+    "https://files.example/expired",
+    "https://files.example/expired",
+  ]);
+  assert.deepEqual(result.retryDelays, [250]);
+  assert.equal(result.failure, "image_load_failed");
+  assert.equal(result.maxActiveLoads, 1);
 });
 
 test("ready image cache refreshes when the same file receives a new payload identity", async () => {
