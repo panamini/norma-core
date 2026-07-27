@@ -194,25 +194,49 @@ test("manual perception treats a diagonally connected line mask as one segment",
 });
 
 test("manual perception models a triangle as confirmed edges plus a derived request", () => {
+  const sourceFileId = "triangle-file";
+  const sourcePrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId,
+    candidates: [{
+      id: "source-identity-probe",
+      label: "Sonde",
+      role: "frame",
+      reason: "Établit uniquement l’identité de référence du fichier pour ce test.",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }],
+  });
   const result = extract(maskFromPredicate(
     61,
     61,
     (x, y) => y >= 10 && y <= 50
       && x >= 30 - ((y - 10) / 2)
       && x <= 30 + ((y - 10) / 2),
-  ));
+  ), {
+    sourceImageReferenceIdentity: sourcePrepared.sourceImageReferenceIdentity,
+  });
 
   assert.equal(result.fit, "triangle");
   assert.equal(result.candidates.length, 3);
   assert.ok(result.candidates.every(({ primitive }) => primitive.kind === "segment"));
+  assert.ok(result.candidates.every(({ sourceImageReferenceIdentity }) => (
+    sourceImageReferenceIdentity === sourcePrepared.sourceImageReferenceIdentity
+  )));
   assert.equal(result.triangleConstructionRequests.length, 1);
   assert.equal(result.triangleConstructionRequests[0].vertices.length, 3);
   const prepared = preparePersonalVisualHarmonyCandidateSetV1({
-    sourceFileId: "triangle-file",
+    sourceFileId,
     candidates: result.candidates,
     triangleConstructionRequests: result.triangleConstructionRequests,
   });
   assert.equal(prepared.triangleConstructionRequests.length, 1);
+  assert.throws(() => preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "different-triangle-file",
+    candidates: result.candidates,
+    triangleConstructionRequests: result.triangleConstructionRequests,
+  }), /belongs to a different source image/u);
 });
 
 test("manual perception preserves irregular boundary evidence without inventing a curve", () => {

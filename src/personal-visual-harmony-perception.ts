@@ -233,6 +233,10 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
     simplifiedHull,
     principalAxis,
   });
+  const sourceBoundCandidates = fitted.candidates.map((candidate) => ({
+    ...candidate,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+  }));
   const warnings = [
     ...(fit === "bounding-region"
       ? ["low-specificity-bounding-region" as const]
@@ -260,7 +264,7 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
     coreAuthority: false as const,
     coreRun: false as const,
     inputImageBytesObservedByThisModule: false as const,
-    candidates: fitted.candidates,
+    candidates: sourceBoundCandidates,
     triangleConstructionRequests: fitted.triangleConstructionRequests,
     boundaryEvidence,
     warnings,
