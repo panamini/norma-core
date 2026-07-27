@@ -2448,12 +2448,14 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
 
 test("widget adds mobile-only transparent hit areas without changing keyboard or desktop controls", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
-  assert.match(html, /const EDIT_HANDLE_HIT_WIDTH=120,EDIT_HANDLE_HIT_HEIGHT=210/u);
+  assert.match(html, /const EDIT_HANDLE_HIT_WIDTH=120,EDIT_HANDLE_HIT_HEIGHT=210,EDIT_HANDLE_ATTRIBUTES=\["data-resize-handle","data-point-handle","data-vertex-handle","data-ellipse-handle"\],EDIT_HANDLE_SELECTOR=/u);
   assert.match(html, /EDIT_HANDLE_ATTRIBUTES=\["data-resize-handle","data-point-handle","data-vertex-handle","data-ellipse-handle"\]/u);
   assert.match(html, /function syncAllHandleHitAreas\(\)\{for\(const group of overlay\.querySelectorAll\("\[data-candidate-id\]"\)\)/u);
   assert.match(html, /new MutationObserver\(mutations=>\{if\(mutations\.some\(mutation=>mutation\.type==="childList"\|\|!mutation\.target\.closest\("\[data-handle-hit-area\]"\)\)\)syncAllHandleHitAreas\(\)\}\)/u);
   assert.match(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:none\}/u);
   assert.match(html, /@media\(max-width:720px\)\{\.overlay \[data-handle-hit-area\]\{pointer-events:all\}\}/u);
+  assert.match(html, /group\.insertBefore\(hitArea,handle\)/u);
+  assert.match(html, /const pointerTarget=resolveEditablePointerTarget\(group,event\.target,event,svg\)/u);
   assert.match(html, /hitArea\.setAttribute\("tabindex","-1"\)/u);
   assert.doesNotMatch(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:all\}/u);
 });
@@ -2477,12 +2479,18 @@ test("widget synchronizes one bounded transparent target per editable handle", (
     };
   };
   const hitAreas = [];
+  const children = [];
+  let handle;
   const group = {
     querySelectorAll(selector) {
       assert.equal(selector, "[data-handle-hit-area]");
       return hitAreas;
     },
-    append(node) { hitAreas.push(node); },
+    insertBefore(node, reference) {
+      assert.equal(reference, handle);
+      children.splice(children.indexOf(reference), 0, node);
+      hitAreas.push(node);
+    },
   };
   const { syncHandleHitArea } = new Function(
     "document",
@@ -2492,14 +2500,16 @@ test("widget synchronizes one bounded transparent target per editable handle", (
       return createElement(localName);
     },
   });
-  const handle = createElement("circle", {
+  handle = createElement("circle", {
     "data-ellipse-handle": "radius-x",
     cx: "500",
     cy: "500",
   });
+  children.push(handle);
 
   syncHandleHitArea(group, handle);
   assert.equal(hitAreas.length, 1);
+  assert.ok(children.indexOf(hitAreas[0]) < children.indexOf(handle));
   assert.deepEqual(Object.fromEntries(hitAreas[0].attributes), {
     "data-handle-hit-area": "true",
     "data-ellipse-handle": "radius-x",
@@ -2520,6 +2530,90 @@ test("widget synchronizes one bounded transparent target per editable handle", (
   assert.equal(hitAreas[0].getAttribute("y"), "0");
   syncHandleHitArea(group, createElement("circle", { cx: "100", cy: "100" }));
   assert.equal(hitAreas.length, 1);
+});
+
+test("rendered mobile hit targets route clustered ellipse point and vertex taps to the nearest visible handle", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const start = script.indexOf("const EDIT_HANDLE_HIT_WIDTH=");
+  const end = script.indexOf("\nconst handleHitAreaObserver", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const createElement = (localName, attributes = {}) => {
+    const values = new Map(Object.entries(attributes));
+    const node = {
+      localName,
+      hasAttribute(name) { return values.has(name); },
+      getAttribute(name) { return values.get(name) ?? null; },
+      setAttribute(name, value) { values.set(name, String(value)); },
+      attributes: values,
+      closest(selector) {
+        if (selector === "[data-handle-hit-area]") {
+          return values.has("data-handle-hit-area") ? node : null;
+        }
+        return selector.includes("data-resize-handle") && !values.has("data-handle-hit-area") && [
+          "data-resize-handle",
+          "data-point-handle",
+          "data-vertex-handle",
+          "data-ellipse-handle",
+        ].some((name) => values.has(name)) ? node : null;
+      },
+    };
+    return node;
+  };
+  const { resolveEditablePointerTarget, syncHandleHitArea } = new Function(
+    "document",
+    `"use strict";${script.slice(start, end)};return { resolveEditablePointerTarget, syncHandleHitArea };`,
+  )({
+    createElementNS(_namespace, localName) {
+      return createElement(localName);
+    },
+  });
+  const svg = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 1000, height: 1000 }) };
+  const renderGroup = (handles) => {
+    const children = [...handles];
+    const group = {
+      querySelectorAll(selector) {
+        if (selector === "[data-handle-hit-area]") {
+          return children.filter((node) => node.hasAttribute("data-handle-hit-area"));
+        }
+        assert.ok(selector.includes("data-resize-handle"));
+        return children.filter((node) => !node.hasAttribute("data-handle-hit-area"));
+      },
+      insertBefore(node, reference) {
+        children.splice(children.indexOf(reference), 0, node);
+      },
+    };
+    handles.forEach((handle) => syncHandleHitArea(group, handle));
+    const hitAreaFor = (handle) => {
+      const attribute = ["data-resize-handle", "data-point-handle", "data-vertex-handle", "data-ellipse-handle"]
+        .find((name) => handle.hasAttribute(name));
+      return children.find((node) => node.hasAttribute("data-handle-hit-area")
+        && node.getAttribute(attribute) === handle.getAttribute(attribute));
+    };
+    return { children, group, hitAreaFor };
+  };
+  const pointer = (x, y) => ({ clientX: x, clientY: y });
+
+  const ellipseCenter = createElement("circle", { "data-ellipse-handle": "center", cx: "500", cy: "500" });
+  const ellipseRadiusY = createElement("circle", { "data-ellipse-handle": "radius-y", cx: "500", cy: "506" });
+  const ellipse = renderGroup([ellipseCenter, ellipseRadiusY]);
+  assert.ok(ellipse.children.indexOf(ellipse.hitAreaFor(ellipseCenter)) < ellipse.children.indexOf(ellipseCenter));
+  assert.equal(resolveEditablePointerTarget(ellipse.group, ellipse.hitAreaFor(ellipseRadiusY), pointer(500, 503), svg), ellipseCenter);
+  assert.equal(resolveEditablePointerTarget(ellipse.group, ellipseRadiusY, pointer(500, 503), svg), ellipseRadiusY);
+
+  const pointStart = createElement("circle", { "data-point-handle": "start", cx: "200", cy: "200" });
+  const pointEnd = createElement("circle", { "data-point-handle": "end", cx: "204", cy: "200" });
+  const points = renderGroup([pointStart, pointEnd]);
+  assert.equal(resolveEditablePointerTarget(points.group, points.hitAreaFor(pointEnd), pointer(202, 200), svg), pointStart);
+  assert.equal(resolveEditablePointerTarget(points.group, pointEnd, pointer(202, 200), svg), pointEnd);
+
+  const vertexZero = createElement("circle", { "data-vertex-handle": "0", cx: "300", cy: "300" });
+  const vertexOne = createElement("circle", { "data-vertex-handle": "1", cx: "304", cy: "300" });
+  const vertices = renderGroup([vertexZero, vertexOne]);
+  assert.equal(resolveEditablePointerTarget(vertices.group, vertices.hitAreaFor(vertexOne), pointer(302, 300), svg), vertexZero);
+  assert.equal(resolveEditablePointerTarget(vertices.group, vertexOne, pointer(302, 300), svg), vertexOne);
 });
 
 test("widget label obstacles ignore transparent mobile hit areas", () => {
