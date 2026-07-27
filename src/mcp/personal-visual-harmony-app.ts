@@ -38,7 +38,7 @@ export const PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL =
 export const PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL =
   "norma.refinePersonalVisualHarmonyPixelsV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
-  "ui://widget/norma-personal-visual-harmony-v5.html";
+  "ui://widget/norma-personal-visual-harmony-v6.html";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
 export const PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1 =
   "Analyse cette image avec Norma";
