@@ -137,7 +137,7 @@ async function prepare(client) {
     name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
     arguments: {
       image: {
-        download_url: "https://files.example.test/private-signed-image",
+        download_url: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=old&se=2026-07-27",
         file_id: "file-perception-mcp",
         mime_type: "image/png",
       },
@@ -216,8 +216,11 @@ test("prepare withholds perception capability for unsupported media and insuffic
 });
 
 test("app-only perception enforces capability, subject, session, and explicit confirmation boundaries", async () => {
+  let sessionNow = 0;
   const service = new PersonalVisualHarmonySessionServiceV1({
     createSessionId: () => "session:mcp-perception-test",
+    now: () => sessionNow,
+    sessionTtlMs: 1_000,
   });
   const downloadedUrls = [];
   const jobs = perceptionJobs(downloadedUrls);
@@ -262,13 +265,31 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(unauthorized.isError, true);
     assert.doesNotMatch(JSON.stringify(unauthorized), /private-signed-image|pvh-app:/u);
 
+    const mismatchedSource = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=fresh",
+        prompt: {
+          points: [],
+          box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
+        },
+        label: "Zone SAM",
+        role: "structural-region",
+      },
+    });
+    assert.equal(mismatchedSource.isError, true);
+    assert.deepEqual(downloadedUrls, []);
+
     const started = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/fresh-authorized.png",
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -315,7 +336,9 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(status.structuredContent.explicitSelectionConfirmationRequired, true);
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.visualInterpretationSource, "hybrid");
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.imageBytesObservedByNorma, true);
-    assert.deepEqual(downloadedUrls, ["https://files.example.test/fresh-authorized.png"]);
+    assert.deepEqual(downloadedUrls, [
+      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
+    ]);
     assert.equal("acceptedGeometry" in status.structuredContent, false);
     assert.equal("result" in status.structuredContent, false);
 
@@ -334,13 +357,48 @@ test("app-only perception enforces capability, subject, session, and explicit co
       status.structuredContent.candidateSetIdentity,
     );
 
-    const reviewedCandidates = status._meta.normaPersonalVisualHarmony.prepared.candidates.map(
-      ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => (
+    const recoveryCandidates = status._meta.normaPersonalVisualHarmony.prepared.candidates.map(
+      ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+    );
+    const reviewedCandidates = recoveryCandidates.map(
+      (candidate) => (
         candidate.id === "frame"
           ? { ...candidate, x: 0.04, width: 0.91 }
           : candidate
       ),
     );
+    const recovery = {
+      fileId: "file-perception-mcp",
+      sourceImageMediaType: "image/png",
+      candidates: recoveryCandidates,
+      contractVersion: 2,
+      sourceImageContentIdentity,
+      visualInterpretationSource: "hybrid",
+      perceptionReceiptIdentity: receiptIdentity,
+    };
+    sessionNow = 1_001;
+    const recoveredPixelCandidate = recoveryCandidates.find(
+      ({ primitive }) => primitive?.kind === "axis",
+    );
+    assert.ok(recoveredPixelCandidate);
+    const recoveredPixelProposal = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: status.structuredContent.candidateSetIdentity,
+        candidateId: recoveredPixelCandidate.id,
+        reviewedPrimitive: recoveredPixelCandidate.primitive,
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 1_000,
+        recovery,
+      },
+    });
+    assert.equal(recoveredPixelProposal.isError, undefined, JSON.stringify(recoveredPixelProposal));
+    assert.equal(
+      recoveredPixelProposal.structuredContent.sessionRecovered,
+      true,
+    );
+    sessionNow = 2_002;
     const confirmed = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: {
@@ -351,16 +409,13 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sourcePixelHeight: 1_000,
         reviewedCandidates,
         confirmClientReviewedSelection: true,
-        recovery: {
-          fileId: "file-perception-mcp",
-          sourceImageMediaType: "image/png",
-          candidates: reviewedCandidates,
-        },
+        recovery,
       },
     });
     assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
     assert.equal(confirmed.structuredContent.coreRun, true);
     assert.equal(confirmed.structuredContent.explicitSelectionConfirmation, true);
+    assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionRecovered, true);
     assert.notEqual(
       confirmed.structuredContent.candidateSetIdentity,
       status.structuredContent.candidateSetIdentity,
@@ -378,11 +433,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sourcePixelHeight: 1_000,
         reviewedCandidates,
         confirmClientReviewedSelection: true,
-        recovery: {
-          fileId: "file-perception-mcp",
-          sourceImageMediaType: "image/png",
-          candidates: reviewedCandidates,
-        },
+        recovery,
       },
     });
     assert.equal(repeatedConfirmation.isError, undefined, JSON.stringify(repeatedConfirmation));
@@ -411,6 +462,12 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
   assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
-  assert.match(html, /while\(Date\.now\(\)<expiresAtMs\)/u);
+  assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=18/u);
+  assert.match(html, /while\(Date\.now\(\)<expiresAtMs&&remainingPolls>0\)/u);
+  assert.match(
+    html,
+    /candidates:prepared\.candidates\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
+  );
+  assert.match(html, /recovery\.perceptionReceiptIdentity=prepared\.perceptionReceiptIdentity/u);
   assert.match(html, /points:\[\{x:clampUnit\(x\),y:clampUnit\(y\),label:"include"\}\],box:null/u);
 });

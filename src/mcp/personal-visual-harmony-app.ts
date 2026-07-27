@@ -104,6 +104,34 @@ const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CANONICAL_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 const MISSING_OR_EXPIRED_SESSION_MESSAGE =
   "Visual harmony review session is missing or expired; prepare the image again.";
+const ROTATING_SIGNED_URL_PARAMETER_PATTERN =
+  /^(?:sig|signature|expires|se|st|sp|sv|spr|sr|skoid|sktid|skt|ske|sks|skv|key-pair-id|x-amz-.+|x-goog-.+)$/iu;
+
+function stableSourceImageUrlIdentity(value: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:"
+    || url.username !== ""
+    || url.password !== ""
+    || url.hash !== "") {
+    throw new Error("Source image download URL is invalid.");
+  }
+  const stableSearch = [...url.searchParams.entries()]
+    .filter(([name]) => !ROTATING_SIGNED_URL_PARAMETER_PATTERN.test(name))
+    .sort(([leftName, leftValue], [rightName, rightValue]) => (
+      leftName.localeCompare(rightName) || leftValue.localeCompare(rightValue)
+    ));
+  return JSON.stringify([url.origin, url.pathname, stableSearch]);
+}
+
+function requireMatchingSourceImageRefresh(
+  preparedUrl: string,
+  refreshedUrl: string,
+): string {
+  if (stableSourceImageUrlIdentity(preparedUrl) !== stableSourceImageUrlIdentity(refreshedUrl)) {
+    throw new Error("Fresh source image URL does not match the prepared file.");
+  }
+  return refreshedUrl;
+}
 
 function observationCorrelationId(value: string): string {
   if (!SHA256_PATTERN.test(value)) throw new Error("Invalid observation correlation identity.");
@@ -359,7 +387,24 @@ const ReviewRecoverySchema = z.object({
   triangleConstructionRequests: z.array(TriangleConstructionRequestSchema)
     .max(PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS)
     .optional(),
-}).strict();
+  contractVersion: z.literal(2).optional(),
+  sourceImageContentIdentity: z.string().regex(SHA256_PATTERN).optional(),
+  visualInterpretationSource: z.enum(["chatgpt", "sam3", "manual", "hybrid"]).optional(),
+  perceptionReceiptIdentity: z.string().regex(SHA256_PATTERN).optional(),
+}).strict().superRefine((value, context) => {
+  const provenanceFieldCount = [
+    value.contractVersion,
+    value.sourceImageContentIdentity,
+    value.visualInterpretationSource,
+    value.perceptionReceiptIdentity,
+  ].filter((field) => field !== undefined).length;
+  if (provenanceFieldCount !== 0 && provenanceFieldCount !== 4) {
+    context.addIssue({
+      code: "custom",
+      message: "V2 recovery provenance must be complete.",
+    });
+  }
+});
 
 const PixelRefinementPrimitiveSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -1797,12 +1842,16 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         if (context.prepared.contractVersion !== 1) {
           throw new Error("A perception-assisted candidate set cannot start another provider job.");
         }
+        const boundSourceImageDownloadUrl = requireMatchingSourceImageRefresh(
+          context.sourceImageDownloadUrl,
+          sourceImageDownloadUrl,
+        );
         const job = perceptionJobs.start({
           subjectId,
           sessionId,
           sourceFileId: context.fileId,
           sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
-          sourceImageUrl: sourceImageDownloadUrl,
+          sourceImageUrl: boundSourceImageDownloadUrl,
           sourceImageMediaType: context.prepared.sourceImageMediaType,
           prompt,
           label,
@@ -1948,17 +1997,43 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           ? [null, "image/png", "image/jpeg", "image/webp", "image/gif"] as const
           : [recovery.sourceImageMediaType] as const;
         let matchingMediaType: string | null | undefined;
+        let matchingV2Prepared: PersonalVisualHarmonyPreparedCandidateSetV2 | undefined;
         for (const mediaType of candidateMediaTypes) {
-          const rebuilt = preparePersonalVisualHarmonyCandidateSetV1({
-            sourceFileId: recovery.fileId,
-            sourceImageMediaType: mediaType,
-            candidates: asPersonalVisualHarmonyCandidates(recovery.candidates),
-            ...(recovery.triangleConstructionRequests === undefined
-              ? {}
-              : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
-          });
+          const candidates = asPersonalVisualHarmonyCandidates(recovery.candidates);
+          const triangleConstructionRequests = recovery.triangleConstructionRequests === undefined
+            ? undefined
+            : asTriangleConstructionRequests(recovery.triangleConstructionRequests);
+          const rebuilt = recovery.contractVersion === 2
+            ? (() => {
+                const sourceReference = preparePersonalVisualHarmonyCandidateSetV1({
+                  sourceFileId: recovery.fileId,
+                  sourceImageMediaType: mediaType,
+                  candidates,
+                  ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+                }).sourceImageReferenceIdentity;
+                return preparePersonalVisualHarmonyCandidateSetV2({
+                  sourceFileId: recovery.fileId,
+                  sourceImageContentIdentity: recovery.sourceImageContentIdentity!,
+                  sourceImageMediaType: mediaType,
+                  expectedSourceImageReferenceIdentity: sourceReference,
+                  visualInterpretationSource: recovery.visualInterpretationSource!,
+                  perceptionReceiptIdentity: recovery.perceptionReceiptIdentity!,
+                  candidates: candidates.map((candidate) => ({
+                    ...candidate,
+                    sourceImageReferenceIdentity: sourceReference,
+                  })),
+                  ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+                });
+              })()
+            : preparePersonalVisualHarmonyCandidateSetV1({
+                sourceFileId: recovery.fileId,
+                sourceImageMediaType: mediaType,
+                candidates,
+                ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+              });
           if (rebuilt.candidateSetIdentity === candidateSetIdentity) {
             matchingMediaType = mediaType;
+            if (rebuilt.contractVersion === 2) matchingV2Prepared = rebuilt;
             break;
           }
         }
@@ -1972,8 +2047,19 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           candidates: asPersonalVisualHarmonyCandidates(recovery.candidates),
           ...(recovery.triangleConstructionRequests === undefined
             ? {}
-            : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
+              : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
+        if (matchingV2Prepared !== undefined) {
+          if (subjectId === undefined) {
+            throw new Error("Perception-assisted recovery requires an authenticated subject.");
+          }
+          service.applyPerceptionResult({
+            subjectId,
+            sessionId: recovered.sessionId,
+            expectedCandidateSetIdentity: recovered.prepared.candidateSetIdentity,
+            preparedCandidateSet: matchingV2Prepared,
+          });
+        }
         refined = service.refinePixels({
           ...(subjectId === undefined ? {} : { subjectId }),
           sessionId: recovered.sessionId,
@@ -2067,17 +2153,43 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           ? [null, "image/png", "image/jpeg", "image/webp", "image/gif"] as const
           : [recovery.sourceImageMediaType] as const;
         let matchingMediaType: string | null | undefined;
+        let matchingV2Prepared: PersonalVisualHarmonyPreparedCandidateSetV2 | undefined;
         for (const mediaType of candidateMediaTypes) {
-          const rebuilt = preparePersonalVisualHarmonyCandidateSetV1({
-            sourceFileId: recovery.fileId,
-            sourceImageMediaType: mediaType,
-            candidates: asPersonalVisualHarmonyCandidates(recovery.candidates),
-            ...(recovery.triangleConstructionRequests === undefined
-              ? {}
-              : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
-          });
+          const candidates = asPersonalVisualHarmonyCandidates(recovery.candidates);
+          const triangleConstructionRequests = recovery.triangleConstructionRequests === undefined
+            ? undefined
+            : asTriangleConstructionRequests(recovery.triangleConstructionRequests);
+          const rebuilt = recovery.contractVersion === 2
+            ? (() => {
+                const sourceReference = preparePersonalVisualHarmonyCandidateSetV1({
+                  sourceFileId: recovery.fileId,
+                  sourceImageMediaType: mediaType,
+                  candidates,
+                  ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+                }).sourceImageReferenceIdentity;
+                return preparePersonalVisualHarmonyCandidateSetV2({
+                  sourceFileId: recovery.fileId,
+                  sourceImageContentIdentity: recovery.sourceImageContentIdentity!,
+                  sourceImageMediaType: mediaType,
+                  expectedSourceImageReferenceIdentity: sourceReference,
+                  visualInterpretationSource: recovery.visualInterpretationSource!,
+                  perceptionReceiptIdentity: recovery.perceptionReceiptIdentity!,
+                  candidates: candidates.map((candidate) => ({
+                    ...candidate,
+                    sourceImageReferenceIdentity: sourceReference,
+                  })),
+                  ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+                });
+              })()
+            : preparePersonalVisualHarmonyCandidateSetV1({
+                sourceFileId: recovery.fileId,
+                sourceImageMediaType: mediaType,
+                candidates,
+                ...(triangleConstructionRequests === undefined ? {} : { triangleConstructionRequests }),
+              });
           if (rebuilt.candidateSetIdentity === candidateSetIdentity) {
             matchingMediaType = mediaType;
+            if (rebuilt.contractVersion === 2) matchingV2Prepared = rebuilt;
             break;
           }
         }
@@ -2093,6 +2205,17 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             ? {}
             : { triangleConstructionRequests: asTriangleConstructionRequests(recovery.triangleConstructionRequests) }),
         });
+        if (matchingV2Prepared !== undefined) {
+          if (subjectId === undefined) {
+            throw new Error("Perception-assisted recovery requires an authenticated subject.");
+          }
+          service.applyPerceptionResult({
+            subjectId,
+            sessionId: recovered.sessionId,
+            expectedCandidateSetIdentity: recovered.prepared.candidateSetIdentity,
+            preparedCandidateSet: matchingV2Prepared,
+          });
+        }
         confirmed = service.confirm({
           ...(subjectId === undefined ? {} : { subjectId }),
           sessionId: recovered.sessionId,
@@ -2368,6 +2491,7 @@ const PREPARE_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PREPARE_TOOL)},CONFI
 const OBSERVABILITY_CORRELATION_PATTERN=new RegExp(${JSON.stringify(SHA256_PATTERN.source)},"u");
 const BOOTSTRAP_PENDING_NOTICE_AFTER=50,BOOTSTRAP_RETRY_DELAY_MS=100,BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000;
 const IMAGE_HYDRATION_MAX_ATTEMPTS=2,IMAGE_HYDRATION_RETRY_DELAY_MS=250,IMAGE_HYDRATION_TIMEOUT_MS=10000;
+const PERCEPTION_MAX_STATUS_POLLS=18,PERCEPTION_MIN_STATUS_POLL_DELAY_MS=5000;
 const boundedImageHydrationAttemptCount=${boundedImageHydrationAttemptCount.toString()};
 const boundedImageHydrationRetryDelay=${boundedImageHydrationRetryDelay.toString()};
 const requestPersonalVisualHarmonyDownloadUrlV1=${requestPersonalVisualHarmonyDownloadUrlV1.toString()};
@@ -2558,7 +2682,7 @@ const saved=publicWidgetState(),storedSelection=saved.selectedCandidateIds,store
 for(const [index,item] of state.reviewedCandidates.entries()){if(item.id===state.manualSegmentCandidateId){appendManualSegmentOverlay(item);appendManualSegmentCard(item);continue}const kind=primitiveKind(item),isCore=kind==="rectangle",selection=isCore?state.selected:state.selectedGuides,label=document.createElement("label");label.className="candidate";label.setAttribute("data-primitive-kind",kind);const copy=document.createElement("div"),kindNode=document.createElement("span"),title=document.createElement("strong"),reason=document.createElement("span"),input=document.createElement("input"),pixelEvidence=document.createElement("div");kindNode.className="candidate-kind";kindNode.textContent=primitiveLabel(kind);title.textContent=(index+1)+" · "+item.label;reason.textContent=item.reason;copy.append(kindNode,title,reason);input.type="checkbox";input.checked=selection.has(item.id);input.disabled=state.completed||state.confirming;input.setAttribute("aria-label",(isCore?"Inclure dans Norma Core : ":"Confirmer comme guide visuel : ")+item.label);input.addEventListener("change",()=>{if(state.confirming){input.checked=selection.has(item.id);return}if(input.checked)selection.add(item.id);else selection.delete(item.id);if(state.constructionLayers.has("triangles")&&!triangleLayerReady())invalidateTriangleConstruction();updateConstructionControls();syncOverlaySelection();updateMeasurementRatioControls();persistSelection();updateConfirm()});pixelEvidence.className="pixel-evidence";pixelEvidence.setAttribute("data-pixel-candidate-id",item.id);label.append(input,copy,pixelEvidence);candidateList.append(label)}
  reconcileStoredPixelAdoptions();decorateEditableOverlay();syncOverlayGeometry();syncOverlaySelection();syncFamilyVisibility();syncConstructionVisibility();updatePixelProposalUi();updatePerceptionUi();updateMeasurementRatioControls();updateManualSegmentControls()}
 function luminanceBase64ForCrop(plan){if(plan.status!=="ready")return undefined;try{const canvas=document.createElement("canvas");canvas.width=plan.rasterWidth;canvas.height=plan.rasterHeight;const context=canvas.getContext("2d",{willReadFrequently:true});if(!context)return undefined;context.imageSmoothingEnabled=false;context.drawImage(source,plan.originX,plan.originY,plan.sourceWidth,plan.sourceHeight,0,0,plan.rasterWidth,plan.rasterHeight);const rgba=context.getImageData(0,0,plan.rasterWidth,plan.rasterHeight).data,luminance=new Uint8Array(plan.rasterWidth*plan.rasterHeight);for(let sourceIndex=0,targetIndex=0;targetIndex<luminance.length;sourceIndex+=4,targetIndex++)luminance[targetIndex]=(54*rgba[sourceIndex]+183*rgba[sourceIndex+1]+19*rgba[sourceIndex+2]+128)>>8;let binary="";for(let offset=0;offset<luminance.length;offset+=8192)binary+=String.fromCharCode(...luminance.subarray(offset,Math.min(luminance.length,offset+8192)));return btoa(binary)}catch{return undefined}}
-function pixelRecovery(payload){const recovery={fileId:payload.fileId,sourceImageMediaType:payload.sourceImageMediaType??null,candidates:payload.prepared.candidates};if(Array.isArray(payload.prepared.triangleConstructionRequests))recovery.triangleConstructionRequests=payload.prepared.triangleConstructionRequests;return recovery}
+function pixelRecovery(payload){const prepared=payload.prepared,recovery={fileId:payload.fileId,sourceImageMediaType:payload.sourceImageMediaType??null,candidates:prepared.candidates.map(({sourceImageReferenceIdentity,...candidate})=>candidate)};if(Array.isArray(prepared.triangleConstructionRequests))recovery.triangleConstructionRequests=prepared.triangleConstructionRequests;if(typeof prepared.perceptionReceiptIdentity==="string"){recovery.contractVersion=2;recovery.sourceImageContentIdentity=prepared.sourceImageContentIdentity;recovery.visualInterpretationSource=prepared.visualInterpretationSource;recovery.perceptionReceiptIdentity=prepared.perceptionReceiptIdentity}return recovery}
 async function requestPixelProposal(payload,candidate,plan,expectedPayloadIdentity){const luminanceBase64=luminanceBase64ForCrop(plan),args={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,candidateId:candidate.id,reviewedPrimitive:candidate.primitive,sourcePixelWidth:state.dimensions.width,sourcePixelHeight:state.dimensions.height,recovery:pixelRecovery(payload),...(luminanceBase64===undefined?{}:{luminanceBase64})},response=await callAppTool(REFINE_PIXELS_TOOL,args);if(state.activePayloadIdentity!==expectedPayloadIdentity)return null;const structured=response?.structuredContent||response,proposal=structured?.proposal,reviewedPrepared=preparedWithReviewedCandidates(payload.prepared,[candidate]);if(!validPixelProposal(proposal,reviewedPrepared)||proposal.sourcePixelWidth!==state.dimensions.width||proposal.sourcePixelHeight!==state.dimensions.height)throw new Error("invalid pixel refinement proposal");if(structured.sessionRecovered===true&&typeof structured.sessionId==="string"){state.payload={...state.payload,sessionId:structured.sessionId};if(state.activePayload?.stage==="confirmation_required")state.activePayload={...state.activePayload,sessionId:structured.sessionId}}return proposal}
 async function refreshPixelRefinements(payload=state.payload,expectedPayloadIdentity=state.activePayloadIdentity){if(!state.pixelRefinementEnabled||state.completed||state.confirming||!state.imageReady||!state.dimensions||!payload?.prepared)return;const generation=state.pixelRefinementGeneration+1;state.pixelRefinementGeneration=generation;state.pixelRefinementRunning=true;updatePixelProposalUi();updateManualSegmentControls();updateConfirm();const previousProposals=new Map(state.pixelRefinementProposals),previousAdoptions=new Map(state.adoptedPixelRefinements),nextProposals=new Map();let encounteredToolError=false;try{const candidateSnapshot=pixelRefinementCandidateSnapshot();let refinementPayload=payload;if(geometryChanged(candidateSnapshot)){try{refinementPayload=await prepareReviewedPayload(payload,candidateSnapshot)}catch{encounteredToolError=true}if(state.pixelRefinementGeneration!==generation||state.activePayloadIdentity!==expectedPayloadIdentity||!state.pixelRefinementEnabled||state.confirming||state.completed)return;if(encounteredToolError){document.documentElement.setAttribute("data-norma-pixel-refinement","tool-error");statusNode.textContent="Les guides modifiés n’ont pas pu être re-préparés pour les propositions pixels. Core reste arrêté jusqu’à confirmation.";return}}for(const candidate of candidateSnapshot){if(primitiveKind(candidate)==="rectangle")continue;if(state.pixelRefinementGeneration!==generation||state.activePayloadIdentity!==expectedPayloadIdentity||!state.pixelRefinementEnabled||state.confirming||state.completed)return;try{const plan=createPixelCropPlan({primitive:candidate.primitive,sourcePixelWidth:state.dimensions.width,sourcePixelHeight:state.dimensions.height}),proposal=await requestPixelProposal(refinementPayload,candidate,plan,expectedPayloadIdentity);if(state.pixelRefinementGeneration!==generation||state.activePayloadIdentity!==expectedPayloadIdentity||!state.pixelRefinementEnabled||state.confirming||state.completed)return;if(proposal)nextProposals.set(candidate.id,proposal)}catch{encounteredToolError=true}}if(state.pixelRefinementGeneration!==generation||state.activePayloadIdentity!==expectedPayloadIdentity||!state.pixelRefinementEnabled||state.confirming||state.completed)return;const nextAdoptions=new Map();for(const [candidateId,proposalContentIdentity] of previousAdoptions){const previous=previousProposals.get(candidateId),next=nextProposals.get(candidateId),index=state.reviewedCandidates.findIndex(item=>item.id===candidateId);if(index<0||!previous||previous.status!=="refined")continue;const reviewed=state.reviewedCandidates[index],stillAtPrevious=samePixelProposalPrimitive(reviewed,reviewed.primitive,previous.proposedGeometry);if(next?.status==="refined"&&next.contentIdentity===proposalContentIdentity&&stillAtPrevious){nextAdoptions.set(candidateId,proposalContentIdentity);continue}if(stillAtPrevious)state.reviewedCandidates[index]=candidateWithPrimitive(reviewed,clonePrimitive(previous.originalGeometry),true)}state.pixelRefinementProposals=nextProposals;state.adoptedPixelRefinements=nextAdoptions;document.documentElement.setAttribute("data-norma-pixel-refinement",encounteredToolError?"tool-error":"ready");syncOverlayGeometry();updateMeasurementRatioControls();persistReviewState();statusNode.textContent=encounteredToolError?"Certaines propositions pixels ont été ignorées faute de crop local valide. Core reste arrêté jusqu’à confirmation.":"Propositions pixels locales calculées. Aucune géométrie n’est adoptée sans clic explicite."}finally{if(state.pixelRefinementGeneration===generation){state.pixelRefinementRunning=false;updatePixelProposalUi();updateManualSegmentControls();updateConfirm()}}}
 function applyPixelProposal(candidateId){if(state.completed||state.confirming||state.pixelRefinementRunning)return;const proposal=state.pixelRefinementProposals.get(candidateId),index=state.reviewedCandidates.findIndex(item=>item.id===candidateId);if(!proposal||proposal.status!=="refined"||!proposal.proposedGeometry||index<0)return;const adopted=state.adoptedPixelRefinements.get(candidateId)===proposal.contentIdentity,primitive=adopted?proposal.originalGeometry:proposal.proposedGeometry;state.reviewedCandidates[index]=candidateWithPrimitive(state.reviewedCandidates[index],clonePrimitive(primitive),true);if(adopted)state.adoptedPixelRefinements.delete(candidateId);else state.adoptedPixelRefinements.set(candidateId,proposal.contentIdentity);invalidateTriangleConstruction();syncOverlayGeometry();updateMeasurementRatioControls();updatePixelProposalUi();persistReviewState();statusNode.textContent=adopted?"Retour explicite à la géométrie originale. Core reste arrêté jusqu’à confirmation.":"Proposition pixel adoptée explicitement. La requête triangle éventuelle a été désactivée; vérifiez la géométrie puis confirmez séparément pour lancer Core."}
@@ -2566,7 +2690,7 @@ function disablePixelRefinement(){for(const [candidateId,proposalContentIdentity
 pixelToggle.addEventListener("click",async()=>{if(state.completed||state.confirming||state.pixelRefinementRunning||!state.imageReady)return;if(state.pixelRefinementEnabled){disablePixelRefinement();return}state.pixelRefinementEnabled=true;document.documentElement.setAttribute("data-norma-pixel-refinement","running");persistReviewState();updatePixelProposalUi();await refreshPixelRefinements()});
 function updatePerceptionUi(){const payload=state.payload,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&!payload.prepared?.perceptionReceiptIdentity;perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":"Proposer le masque SAM 3"}
 function perceptionPromptFor(candidate){if(candidate.width>0&&candidate.height>0)return{points:[],box:{x:candidate.x,y:candidate.y,width:candidate.width,height:candidate.height}};const primitive=candidate.primitive,points=primitive?.kind==="segment"||primitive?.kind==="axis"?[primitive.start,primitive.end]:[],x=points.length===2?(points[0].x+points[1].x)/2:candidate.x+candidate.width/2,y=points.length===2?(points[0].y+points[1].y)/2:candidate.y+candidate.height/2;return{points:[{x:clampUnit(x),y:clampUnit(y),label:"include"}],box:null}}
-async function pollPerceptionJob(payload,jobId,expiresAt,expectedPayloadIdentity){const expiresAtMs=Date.parse(expiresAt);if(!Number.isFinite(expiresAtMs))throw new Error("invalid perception job expiry");while(Date.now()<expiresAtMs){if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;const response=await callAppTool(PERCEPTION_STATUS_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,jobId}),job=response?.structuredContent||response;if(job?.state==="pending"){await new Promise(resolve=>setTimeout(resolve,Math.min(1000,Math.max(0,expiresAtMs-Date.now()))));continue}if(job?.state==="ready"){const readyPayload=findPayload(response);if(!readyPayload||readyPayload.stage!=="confirmation_required"||readyPayload.fileId!==payload.fileId||readyPayload.prepared?.perceptionReceiptIdentity!==job.perceptionReceiptIdentity)throw new Error("invalid perception result");await hydrate(readyPayload,response?.structuredContent);statusNode.textContent="Proposition SAM 3 ajoutée comme preuve candidate. Vérifiez-la; Norma Core reste arrêté jusqu’à confirmation.";return}if(job?.state==="abstained"){statusNode.textContent="SAM 3 s’est abstenu. Les candidats existants restent inchangés et Norma Core reste arrêté.";return}throw new Error("perception job failed")}throw new Error("perception status polling expired")}
+async function pollPerceptionJob(payload,jobId,expiresAt,expectedPayloadIdentity){const expiresAtMs=Date.parse(expiresAt);if(!Number.isFinite(expiresAtMs))throw new Error("invalid perception job expiry");let remainingPolls=PERCEPTION_MAX_STATUS_POLLS;while(Date.now()<expiresAtMs&&remainingPolls>0){if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;remainingPolls-=1;const response=await callAppTool(PERCEPTION_STATUS_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,jobId}),job=response?.structuredContent||response;if(job?.state==="pending"){if(remainingPolls===0)break;const remainingMs=Math.max(0,expiresAtMs-Date.now()),delayMs=Math.min(remainingMs,Math.max(PERCEPTION_MIN_STATUS_POLL_DELAY_MS,Math.ceil(remainingMs/remainingPolls)));await new Promise(resolve=>setTimeout(resolve,delayMs));continue}if(job?.state==="ready"){const readyPayload=findPayload(response);if(!readyPayload||readyPayload.stage!=="confirmation_required"||readyPayload.fileId!==payload.fileId||readyPayload.prepared?.perceptionReceiptIdentity!==job.perceptionReceiptIdentity)throw new Error("invalid perception result");await hydrate(readyPayload,response?.structuredContent);statusNode.textContent="Proposition SAM 3 ajoutée comme preuve candidate. Vérifiez-la; Norma Core reste arrêté jusqu’à confirmation.";return}if(job?.state==="abstained"){statusNode.textContent="SAM 3 s’est abstenu. Les candidats existants restent inchangés et Norma Core reste arrêté.";return}throw new Error("perception job failed")}throw new Error("perception status polling expired")}
 perceptionToggle.addEventListener("click",async()=>{const payload=state.payload;if(perceptionToggle.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string")return;const candidate=state.reviewedCandidates.find(item=>state.selected.has(item.id)||state.selectedGuides.has(item.id))||state.reviewedCandidates[0];if(!candidate)return;const expectedPayloadIdentity=state.activePayloadIdentity;state.perceptionRunning=true;updatePerceptionUi();updateConfirm();statusNode.textContent="SAM 3 prépare une proposition bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await fileApi({fileId:payload.fileId}),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,prompt:perceptionPromptFor(candidate),label:candidate.label,role:candidate.role}),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity)}catch{if(state.activePayloadIdentity===expectedPayloadIdentity)statusNode.textContent="La proposition SAM 3 n’a pas abouti. Les candidats existants restent inchangés et Norma Core reste arrêté."}finally{state.perceptionRunning=false;updatePerceptionUi();updateConfirm()}});
 function updateConfirm(){const noCoreRectangle=coreSelectedIds().length===0,incompleteMeasurementRatio=state.measurementRatioEnabled&&measurementRatioRequest()===undefined;confirmButton.disabled=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady||noCoreRectangle||incompleteMeasurementRatio||!state.payload;updateManualSegmentControls();if(!state.completed&&!state.confirming&&state.imageReady&&noCoreRectangle)statusNode.textContent="Sélectionnez au moins un rectangle structurel pour lancer le Core actuel.";else if(!state.completed&&!state.confirming&&state.imageReady&&incompleteMeasurementRatio)statusNode.textContent="Choisissez exactement deux longueurs distinctes pour le rapport déclaré, ou désactivez-le."}
 function setReviewLocked(locked){const disabled=locked||state.completed;overlay.classList.toggle("locked",disabled);candidateList.querySelectorAll("input").forEach(input=>input.disabled=disabled);guidedGoals.querySelectorAll(".guided-goal").forEach(button=>button.disabled=state.confirming);familyFilters.querySelectorAll(".family-filter").forEach(button=>button.disabled=state.confirming);overlay.querySelectorAll("[data-candidate-id]").forEach(group=>{const editable=!disabled;group.setAttribute("tabindex",editable?"0":"-1");group.querySelectorAll(EDIT_HANDLE_SELECTOR).forEach(handle=>handle.setAttribute("tabindex",editable?"0":"-1"));if(disabled)group.setAttribute("aria-disabled","true");else group.removeAttribute("aria-disabled")});updateConstructionControls();updatePixelProposalUi();updatePerceptionUi();updateMeasurementRatioControls();updateManualSegmentControls();updateConfirm()}

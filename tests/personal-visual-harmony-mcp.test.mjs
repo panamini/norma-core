@@ -4817,7 +4817,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /status:"CORE_AND_IMAGE_PLANE_VERIFIED"/u);
     assert.match(resource.contents[0].text, /scrollToBottom:true/u);
     assert.match(resource.contents[0].text, /confirmClientReviewedSelection:true/u);
-    assert.match(resource.contents[0].text, /function pixelRecovery\(payload\)\{const recovery=\{fileId:payload\.fileId/u);
+    assert.match(resource.contents[0].text, /function pixelRecovery\(payload\)\{const prepared=payload\.prepared,recovery=\{fileId:payload\.fileId/u);
     assert.match(resource.contents[0].text, /recovery:pixelRecovery\(payload\)/u);
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
