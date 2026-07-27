@@ -4110,11 +4110,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.ok(refinePixelsTool);
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
     assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+    assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(prepareTool._meta.ui.visibility, ["model", "app"]);
     assert.match(prepareTool.description, new RegExp(PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1, "u"));
     assert.match(prepareTool.description, /Analyze this image with Norma/u);
     assert.match(prepareTool.description, /Do not ask the user to list primitives/u);
     assert.match(prepareTool.description, /compare two confirmed lengths prepares length-bearing guides without enabling the report/u);
+    assert.equal(confirmTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+    assert.equal(refinePixelsTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
@@ -4353,6 +4356,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v2.html");
+    assert.equal(resources.resources.some(({ uri }) => uri.endsWith("-v1.html")), false);
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
