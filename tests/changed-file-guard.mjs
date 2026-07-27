@@ -584,6 +584,13 @@ export const personalVisualHarmonySam3ModalPerceptionChangedFiles = Object.freez
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
+export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
+  "deploy/modal/modal_app.py",
+  "deploy/modal/test_contract.py",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -1995,6 +2002,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,

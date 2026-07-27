@@ -7,10 +7,10 @@ import subprocess
 
 import modal
 
-from contract import MODEL_CODE_REVISION
-
 APP_NAME = "norma-sam3-perception"
 HF_SECRET_NAME = "norma-sam3-hf"
+# Keep this bootstrap module importable before Modal mounts local helper modules.
+MODEL_CODE_REVISION = "46957e47805eaa273f4aa7bbbd25a88bca9108ce"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -21,15 +21,21 @@ image = (
         "--index-url https://download.pytorch.org/whl/cu128"
     )
     .pip_install(
+        "einops==0.8.1",
         "fastapi==0.116.1",
         "huggingface-hub==0.34.4",
         "numpy==1.26.4",
         "pillow==11.3.0",
+        # SAM 3 imports its video predictor while building the image model.
+        # The upstream package omits this runtime import from its base metadata.
+        "psutil==7.0.0",
+        "pycocotools==2.0.10",
         "uvicorn==0.35.0",
     )
     .pip_install(
         f"git+https://github.com/facebookresearch/sam3.git@{MODEL_CODE_REVISION}"
     )
+    .add_local_python_source("contract")
     .add_local_dir("deploy/modal", remote_path="/opt/norma-sam3")
 )
 
