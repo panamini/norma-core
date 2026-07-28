@@ -1,0 +1,196 @@
+{
+  "contractId": "norma.personal-visual-harmony-review-smoke-corpus@1",
+  "cases": [
+    {
+      "id": "clean-confirmation",
+      "prepareDurationMs": 120,
+      "events": [
+        ["draft-visible", 1000],
+        ["confirm-clicked", 1600],
+        ["core-visible", 1800]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": 600,
+        "timeToCoreVisibleMs": 800
+      }
+    },
+    {
+      "id": "candidate-move",
+      "prepareDurationMs": 90,
+      "events": [
+        ["draft-visible", 2000],
+        ["candidate-moved", 2100],
+        ["confirm-clicked", 2400]
+      ],
+      "expected": {
+        "correctionTotal": 1,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": 400,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "candidate-resize",
+      "prepareDurationMs": 95,
+      "events": [
+        ["draft-visible", 3000],
+        ["candidate-resized", 3150],
+        ["confirm-clicked", 3500]
+      ],
+      "expected": {
+        "correctionTotal": 1,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": 500,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "manual-add-remove",
+      "prepareDurationMs": 105,
+      "events": [
+        ["draft-visible", 4000],
+        ["candidate-added", 4100],
+        ["candidate-removed", 4200]
+      ],
+      "expected": {
+        "correctionTotal": 2,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "sam-abstention",
+      "prepareDurationMs": 110,
+      "events": [
+        ["draft-visible", 5000],
+        ["sam-requested", 5100],
+        ["sam-abstained", 5400]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 0,
+        "samOutcome": "abstained",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "sam-ready",
+      "prepareDurationMs": 115,
+      "events": [
+        ["draft-visible", 6000],
+        ["sam-requested", 6100],
+        ["sam-ready", 6500]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 0,
+        "samOutcome": "ready",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "sam-failure",
+      "prepareDurationMs": 115,
+      "events": [
+        ["draft-visible", 7000],
+        ["sam-requested", 7100],
+        ["sam-failed", 7200]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 1,
+        "samOutcome": "failed",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "confirmation-failure",
+      "prepareDurationMs": 125,
+      "events": [
+        ["draft-visible", 8000],
+        ["confirm-clicked", 8200],
+        ["confirm-failed", 8300]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 1,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": 200,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "original-guides-comparison",
+      "prepareDurationMs": 100,
+      "events": [
+        ["draft-visible", 9000],
+        ["view-original", 9100],
+        ["view-guides", 9200]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "focus-all-comparison",
+      "prepareDurationMs": 100,
+      "events": [
+        ["draft-visible", 10000],
+        ["show-all-guides", 10100],
+        ["focus-guides", 10200]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "pixel-ready",
+      "prepareDurationMs": 130,
+      "events": [
+        ["draft-visible", 11000],
+        ["pixel-ready", 11200],
+        ["candidate-resized", 11300]
+      ],
+      "expected": {
+        "correctionTotal": 1,
+        "failureCount": 0,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    },
+    {
+      "id": "pixel-partial-failure",
+      "prepareDurationMs": 140,
+      "events": [
+        ["draft-visible", 12000],
+        ["pixel-partial-failure", 12300]
+      ],
+      "expected": {
+        "correctionTotal": 0,
+        "failureCount": 1,
+        "samOutcome": "not-requested",
+        "timeToConfirmationMs": null,
+        "timeToCoreVisibleMs": null
+      }
+    }
+  ]
+}

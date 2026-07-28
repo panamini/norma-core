@@ -21,6 +21,10 @@ import {
   runPersonalVisualHarmonyImageHydrationV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 import { createPersonalVisualHarmonyPixelCropPlanV1 } from "../dist/src/personal-visual-harmony-pixel-refinement.js";
+import {
+  PERSONAL_VISUAL_HARMONY_REVIEW_EVENT_KINDS,
+  PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
+} from "../dist/src/personal-visual-harmony-review-journal.js";
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
 const GOLDEN_MAJOR = 0.6180339887498949;
@@ -965,6 +969,9 @@ test("widget guided analysis entry is display-only and does not activate measure
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
   assert.match(html, /id="guidedGoals"/u);
+  assert.match(html, /id="originalView"/u);
+  assert.match(html, /id="guidesView"/u);
+  assert.match(html, /id="guideFocusToggle"/u);
   assert.match(html, /Le choix filtre l’affichage seulement/u);
   assert.match(html, /DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry"/u);
   for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
@@ -1080,6 +1087,339 @@ test("widget guided analysis entry is display-only and does not activate measure
   assert.equal(familyPressed.get("axis"), "false");
   assert.equal(familyPressed.get("ellipse"), "false");
   assert.match(guidedGoalStatus.textContent, /rapport reste opt-in et séparé du Core/u);
+});
+
+test("widget defaults to four preparation-ordered guides without changing selection", () => {
+  const candidates = Array.from({ length: 8 }, (_, index) => ({
+    id: `candidate-${index + 1}`,
+    label: `Candidate ${index + 1}`,
+  }));
+  const principalReviewCandidateIds = widgetScriptFunction(
+    "principalReviewCandidateIds",
+    "function guidePresentationScope",
+    {},
+  );
+
+  assert.deepEqual(
+    principalReviewCandidateIds(candidates),
+    ["candidate-1", "candidate-2", "candidate-3", "candidate-4"],
+  );
+  assert.deepEqual(principalReviewCandidateIds(candidates.slice(0, 3)), [
+    "candidate-1",
+    "candidate-2",
+    "candidate-3",
+  ]);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /state\.focusMainGuides=stored\?\.focusMainGuides\?\?true/u);
+  assert.match(
+    html,
+    /state\.principalCandidateIds=new Set\(typeof principalReviewCandidateIds==="function"\?principalReviewCandidateIds/u,
+  );
+  assert.match(html, /selection\.add\(item\.id\)/u);
+  assert.doesNotMatch(html, /principalCandidateIds.*selection\.(?:add|delete)/u);
+});
+
+test("Original and Guides comparison changes presentation only", () => {
+  const state = {
+    guidesVisible: true,
+    completed: false,
+    confirming: false,
+    selected: new Set(["frame"]),
+    selectedGuides: new Set(["axis"]),
+  };
+  const attributes = new Map();
+  const overlay = {
+    setAttribute(name, value) { attributes.set(name, value); },
+  };
+  const originalView = { disabled: false, setAttribute() {} };
+  const guidesView = { disabled: false, setAttribute() {} };
+  let persisted = 0;
+  let recorded;
+  const setGuidesVisible = widgetScriptFunction(
+    "setGuidesVisible",
+    "function updateGuideFocusUi",
+    {
+      state,
+      overlay,
+      originalView,
+      guidesView,
+      persistReviewState() { persisted += 1; },
+      recordReviewEvent(kind) { recorded = kind; },
+    },
+  );
+
+  setGuidesVisible(false);
+
+  assert.equal(state.guidesVisible, false);
+  assert.equal(attributes.get("data-guides-visible"), "false");
+  assert.deepEqual([...state.selected], ["frame"]);
+  assert.deepEqual([...state.selectedGuides], ["axis"]);
+  assert.equal(persisted, 1);
+  assert.equal(recorded, "view-original");
+});
+
+test("guide presentation reload is scoped to the exact analysis", () => {
+  const state = {
+    activePayload: {
+      stage: "confirmation_required",
+      fileId: "file-focus",
+      prepared: { candidateSetIdentity: `sha256:${"a".repeat(64)}` },
+    },
+    proposalCandidateSetIdentity: `sha256:${"a".repeat(64)}`,
+    guidesVisible: true,
+    focusMainGuides: true,
+  };
+  const guidePresentationScope = widgetScriptFunction(
+    "guidePresentationScope",
+    "function guidePresentationSnapshot",
+    { state },
+  );
+  const guidePresentationSnapshot = widgetScriptFunction(
+    "guidePresentationSnapshot",
+    "function storedGuidePresentationFor",
+    { state, guidePresentationScope },
+  );
+  const storedGuidePresentationFor = widgetScriptFunction(
+    "storedGuidePresentationFor",
+    "function restoreGuidePresentation",
+    { guidePresentationScope },
+  );
+
+  assert.deepEqual(guidePresentationSnapshot(), {
+    analysisIdentity: `sha256:${"a".repeat(64)}`,
+    fileId: "file-focus",
+    focusMainGuides: true,
+    guidesVisible: true,
+  });
+  assert.deepEqual(
+    storedGuidePresentationFor({
+      analysisIdentity: `sha256:${"a".repeat(64)}`,
+      fileId: "file-focus",
+      focusMainGuides: false,
+      guidesVisible: false,
+    }),
+    {
+      analysisIdentity: `sha256:${"a".repeat(64)}`,
+      fileId: "file-focus",
+      focusMainGuides: false,
+      guidesVisible: false,
+    },
+  );
+  assert.equal(
+    storedGuidePresentationFor({
+      analysisIdentity: `sha256:${"b".repeat(64)}`,
+      fileId: "file-focus",
+      focusMainGuides: false,
+      guidesVisible: false,
+    }),
+    null,
+  );
+});
+
+test("live widget journal preserves one review lineage across same-session candidate identities", () => {
+  const initialIdentity = `sha256:${"a".repeat(64)}`;
+  const refinedIdentity = `sha256:${"b".repeat(64)}`;
+  const savedJournal = {
+    contractId: PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
+    analysisIdentity: initialIdentity,
+    fileId: "file-lineage",
+    sessionId: "session-lineage",
+    prepareDurationMs: 45,
+    events: [
+      { kind: "draft-visible", atMs: 1_000 },
+      { kind: "candidate-moved", atMs: 1_100 },
+    ],
+  };
+  const state = {
+    displayedPayload: null,
+    activePayload: {
+      fileId: savedJournal.fileId,
+      sessionId: savedJournal.sessionId,
+      prepared: { candidateSetIdentity: refinedIdentity },
+    },
+    payload: null,
+    proposalCandidateSetIdentity: refinedIdentity,
+    reviewJournalAnalysisIdentity: null,
+    reviewJournal: null,
+  };
+  const isStoredIdentity = (value) => (
+    typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value)
+  );
+  const isReviewBindingId = widgetScriptFunction(
+    "isReviewBindingId",
+    "function reviewJournalBinding",
+    {},
+  );
+  const reviewJournalBinding = widgetScriptFunction(
+    "reviewJournalBinding",
+    "function reviewJournalScope",
+    { state, isReviewBindingId },
+  );
+  const reviewJournalScope = widgetScriptFunction(
+    "reviewJournalScope",
+    "function storedReviewJournalFor",
+    { state, reviewJournalBinding, isStoredIdentity },
+  );
+  const storedReviewJournalFor = widgetScriptFunction(
+    "storedReviewJournalFor",
+    "function reviewJournalPrepareDuration",
+    {
+      reviewJournalScope,
+      REVIEW_JOURNAL_CONTRACT_ID: PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
+      MAX_REVIEW_EVENTS: 64,
+      REVIEW_EVENT_KINDS: PERSONAL_VISUAL_HARMONY_REVIEW_EVENT_KINDS,
+    },
+  );
+  const restoreReviewJournal = widgetScriptFunction(
+    "restoreReviewJournal",
+    "function recordReviewEvent",
+    {
+      state,
+      publicWidgetState: () => ({ reviewJournal: savedJournal }),
+      reviewJournalBinding,
+      REVIEW_JOURNAL_CONTRACT_ID: PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
+      isStoredIdentity,
+      storedReviewJournalFor,
+      syncReviewJournalAttributes() {},
+    },
+  );
+
+  restoreReviewJournal();
+  assert.equal(state.reviewJournalAnalysisIdentity, initialIdentity);
+  assert.equal(state.reviewJournal, savedJournal);
+
+  state.proposalCandidateSetIdentity = `sha256:${"c".repeat(64)}`;
+  state.activePayload.prepared.candidateSetIdentity = state.proposalCandidateSetIdentity;
+  const recordReviewEvent = widgetScriptFunction(
+    "recordReviewEvent",
+    "function recordReviewEventOnce",
+    {
+      state,
+      reviewJournalScope,
+      REVIEW_EVENT_KINDS: PERSONAL_VISUAL_HARMONY_REVIEW_EVENT_KINDS,
+      storedReviewJournalFor,
+      REVIEW_JOURNAL_CONTRACT_ID: PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
+      MAX_REVIEW_EVENTS: 64,
+      reviewJournalPrepareDuration: () => null,
+      syncReviewJournalAttributes() {},
+      persistReviewState() {},
+    },
+  );
+  recordReviewEvent("sam-ready", 1_200, false);
+
+  assert.equal(state.reviewJournal.analysisIdentity, initialIdentity);
+  assert.deepEqual(
+    state.reviewJournal.events.map(({ kind }) => kind),
+    ["draft-visible", "candidate-moved", "sam-ready"],
+  );
+});
+
+test("pixel refinement overlays obey the principal-guide focus", () => {
+  const state = {
+    pixelRefinementEnabled: true,
+    pixelRefinementProposals: new Map([[
+      "candidate-5",
+      {
+        candidateId: "candidate-5",
+        contentIdentity: `sha256:${"a".repeat(64)}`,
+        status: "refined",
+        originalGeometry: { kind: "rectangle" },
+        proposedGeometry: { kind: "rectangle" },
+      },
+    ]]),
+    reviewedCandidates: [{
+      id: "candidate-5",
+      primitive: { kind: "rectangle" },
+    }],
+    adoptedPixelRefinements: new Map(),
+    selectedGuides: new Set(["candidate-5"]),
+    visibleKinds: new Set(["rectangle"]),
+    focusMainGuides: true,
+    principalCandidateIds: new Set(["candidate-1"]),
+    manualSegmentCandidateId: null,
+  };
+  const groups = [];
+  const svg = { append(group) { groups.push(group); } };
+  const overlay = {
+    querySelectorAll() { return []; },
+    querySelector() { return svg; },
+  };
+  const document = {
+    createElementNS() {
+      const attributes = new Map();
+      return {
+        style: {},
+        setAttribute(name, value) { attributes.set(name, value); },
+        getAttribute(name) { return attributes.get(name) ?? null; },
+        append() {},
+      };
+    },
+  };
+  const reviewCandidateVisible = widgetScriptFunction(
+    "reviewCandidateVisible",
+    "function updateGuidedAnalysisGoalButtons",
+    { state },
+  );
+  const syncPixelProposalOverlay = widgetScriptFunction(
+    "syncPixelProposalOverlay",
+    "function updatePixelProposalUi",
+    {
+      state,
+      overlay,
+      primitiveKind: (candidate) => candidate.primitive.kind,
+      document,
+      reviewCandidateVisible,
+      pixelShape: () => ({}),
+    },
+  );
+
+  syncPixelProposalOverlay();
+  assert.equal(groups.at(-1).style.display, "none");
+
+  state.focusMainGuides = false;
+  syncPixelProposalOverlay();
+  assert.equal(groups.at(-1).style.display, "");
+});
+
+test("Core-visible review timing is recorded only after the rendered result paint", () => {
+  const sequence = [];
+  const scope = {
+    analysisIdentity: `sha256:${"a".repeat(64)}`,
+    fileId: "file-painted",
+    sessionId: "session-painted",
+  };
+  const state = { completed: true };
+  const recordReviewCoreVisibleAfterPaint = widgetScriptFunction(
+    "recordReviewCoreVisibleAfterPaint",
+    "function renderResult",
+    {
+      state,
+      reviewJournalScope: () => scope,
+      requestAnimationFrame(callback) {
+        sequence.push("animation-frame");
+        callback();
+      },
+      setTimeout(callback) {
+        sequence.push("paint-task");
+        callback();
+      },
+      recordReviewEventOnce(kind) { sequence.push(kind); },
+    },
+  );
+
+  recordReviewCoreVisibleAfterPaint();
+  assert.deepEqual(sequence, ["animation-frame", "paint-task", "core-visible"]);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.doesNotMatch(
+    html,
+    /state\.completed=true;if\(typeof recordReviewEventOnce/u,
+  );
+  assert.match(
+    html,
+    /updateConfirm\(\);recordReviewCoreVisibleAfterPaint\(\)\}/u,
+  );
 });
 
 test("completed guided-goal changes preserve cached review state", () => {
@@ -2037,6 +2377,7 @@ test("completed widget cache round-trips related candidates, guided scope, and r
     updateMeasurementRatioControls() {},
     updatePixelProposalUi() {},
     updateConfirm() {},
+    recordReviewCoreVisibleAfterPaint() {},
   });
   renderResult(
     {

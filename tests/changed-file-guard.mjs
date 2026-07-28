@@ -613,6 +613,18 @@ export const personalVisualHarmonySemanticTargetToolboxChangedFiles = Object.fre
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyMeasuredReviewUxChangedFiles = Object.freeze([
+  "README.md",
+  "docs/decisions/2026-07-28-auditable-visual-measurement-rapid-proof.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-review-journal.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/fixtures/personal-visual-harmony-review-smoke-v1.json",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-review-journal.test.mjs",
+].sort());
+
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -2043,6 +2055,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
+  personalVisualHarmonyMeasuredReviewUxChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
