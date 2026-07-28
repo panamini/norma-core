@@ -553,6 +553,19 @@ export const personalVisualHarmonyWidgetEllipseResponsiveChangedFiles = Object.f
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Stale-instance suppression is intentionally confined to the same widget/test surface.
+export const personalVisualHarmonyStaleWidgetInstanceChangedFiles =
+  personalVisualHarmonyWidgetEllipseResponsiveChangedFiles;
+
+export const personalVisualHarmonyWidgetRuntimeDebugChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
 // Mobile editing hit targets reuse the same closed widget/test surface.
 export const personalVisualHarmonyMobileHitTargetsChangedFiles =
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles;
@@ -2032,6 +2045,8 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
+  personalVisualHarmonyStaleWidgetInstanceChangedFiles,
+  personalVisualHarmonyWidgetRuntimeDebugChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,

@@ -122,6 +122,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   assert.equal(measurementRatioToggle.disabled, false);
   assert.deepEqual(state.measurementRatioRefs, [
     { kind: "segment", candidateId: "kept" },
+    null,
   ]);
 });
 
@@ -549,6 +550,47 @@ test("measurement ratio selectors update only pending widget state", () => {
     /select\.addEventListener\("change",\(\)=>setMeasurementRatioReference\(index,select\.value\)\)/u,
   );
   assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
+});
+
+test("measurement ratio selector B keeps its slot while selector A is empty", () => {
+  const state = {
+    measurementRatioRefs: [],
+  };
+  const setMeasurementRatioReference = widgetScriptFunction(
+    "setMeasurementRatioReference",
+    "for(const [index,select]",
+    {
+      state,
+      updateMeasurementRatioControls() {},
+      persistReviewState() {},
+    },
+  );
+  const first = { kind: "axis", candidateId: "horizontal-axis" };
+  const second = { kind: "axis", candidateId: "vertical-axis" };
+
+  setMeasurementRatioReference(1, JSON.stringify(second));
+  assert.deepEqual(state.measurementRatioRefs, [null, second]);
+
+  setMeasurementRatioReference(0, JSON.stringify(first));
+  assert.deepEqual(state.measurementRatioRefs, [first, second]);
+
+  setMeasurementRatioReference(0, "");
+  assert.deepEqual(state.measurementRatioRefs, [null, second]);
+});
+
+test("semantic target input rejects a comma-separated list before submission", () => {
+  const normalizeSemanticTarget = widgetScriptFunction(
+    "normalizeSemanticTarget",
+    "function selectedSemanticTarget",
+    {},
+  );
+
+  assert.equal(normalizeSemanticTarget("person, batiment, porte"), null);
+  assert.equal(normalizeSemanticTarget("  yellow   school bus  "), "yellow school bus");
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /semanticTargetSubmit\.disabled=!available\|\|!valid\|\|busy/u);
+  assert.match(html, /Saisissez une seule cible courte/u);
 });
 
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
@@ -5109,6 +5151,72 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   } finally {
     await connected.close();
   }
+});
+
+test("widget collapses a stale bootstrap instance and restores it for a late matching payload", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /<html lang="fr" data-norma-widget-bootstrap="pending">/u);
+  assert.match(html, /html\[data-norma-widget-bootstrap="pending"\] \.content\{display:none\}/u);
+  assert.match(html, /document\.body\.hidden=nextState==="stale"/u);
+
+  const bootstrapAttribute = { value: "pending" };
+  const document = {
+    body: { hidden: false },
+    documentElement: {
+      setAttribute: (name, value) => {
+        assert.equal(name, "data-norma-widget-bootstrap");
+        bootstrapAttribute.value = value;
+      },
+    },
+  };
+  const stageNode = { textContent: "CONNEXION" };
+  const setWidgetBootstrapState = widgetScriptFunction(
+    "setWidgetBootstrapState",
+    "function bootstrap",
+    { document, state: { completed: false }, stageNode },
+  );
+
+  setWidgetBootstrapState("stale");
+  assert.equal(document.body.hidden, true);
+  assert.equal(bootstrapAttribute.value, "stale");
+
+  setWidgetBootstrapState("ready");
+  assert.equal(document.body.hidden, false);
+  assert.equal(bootstrapAttribute.value, "ready");
+  assert.equal(stageNode.textContent, "À CONFIRMER");
+
+  let payload = null;
+  let scheduledRetry = null;
+  const bootstrapStates = [];
+  const hydratedPayloads = [];
+  const loading = { textContent: "" };
+  const bootstrap = widgetScriptFunction("bootstrap", "window.addEventListener", {
+    currentPayload: () => payload,
+    state: { payload: null, completed: false },
+    bootstrapRetryCount: 50,
+    BOOTSTRAP_PENDING_NOTICE_AFTER: 50,
+    BOOTSTRAP_RETRY_DELAY_MS: 100,
+    BOOTSTRAP_SLOW_RETRY_DELAY_MS: 1_000,
+    loading,
+    setWidgetBootstrapState: (nextState) => bootstrapStates.push(nextState),
+    hydrate: (nextPayload) => hydratedPayloads.push(nextPayload),
+    setTimeout: (callback, delay) => {
+      scheduledRetry = { callback, delay };
+    },
+  });
+
+  bootstrap();
+
+  assert.deepEqual(bootstrapStates, ["stale"]);
+  assert.equal(loading.textContent, "Connexion au résultat de l’analyse en cours…");
+  assert.equal(scheduledRetry?.delay, 1_000);
+  assert.deepEqual(hydratedPayloads, []);
+
+  payload = { stage: "confirmation_required", fileId: "file-late" };
+  scheduledRetry.callback();
+
+  assert.deepEqual(bootstrapStates, ["stale", "ready"]);
+  assert.deepEqual(hydratedPayloads, [payload]);
 });
 
 test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
