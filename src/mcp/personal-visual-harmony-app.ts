@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
@@ -59,6 +60,10 @@ export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
 // Keep the legacy Skybridge MIME type until the widget is migrated to the
 // explicit MCP Apps client contract.
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html+skybridge";
+const PERSONAL_VISUAL_HARMONY_WIDGET_LEGACY_URIS = new Set([
+  "ui://widget/norma-personal-visual-harmony-v6.html",
+  "ui://widget/norma-personal-visual-harmony-v7.html",
+]);
 const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
   prefersBorder: true,
 } as const;
@@ -1762,6 +1767,21 @@ function decodeCanonicalLuminanceBase64(value: string | undefined): readonly num
   return Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
+function personalVisualHarmonyWidgetResourceResponse(uri: string) {
+  return {
+    contents: [{
+      uri,
+      mimeType: PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
+      text: createPersonalVisualHarmonyWidgetHtmlV1(),
+      _meta: {
+        ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
+        "openai/widgetDescription": "Interactive image overlay for explicit visual candidate confirmation and deterministic Norma Core harmony results.",
+        "openai/widgetPrefersBorder": true,
+      },
+    }],
+  };
+}
+
 export function createPersonalVisualHarmonyMcpServerV1(options: {
   readonly service?: PersonalVisualHarmonySessionServiceV1;
   readonly perceptionJobs?: InMemoryPersonalVisualHarmonyPerceptionJobService;
@@ -1818,19 +1838,23 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
       },
     },
-    (uri) => ({
-      contents: [{
-        uri: uri.href,
-        mimeType: PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
-        text: createPersonalVisualHarmonyWidgetHtmlV1(),
-        _meta: {
-          ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
-          "openai/widgetDescription": "Interactive image overlay for explicit visual candidate confirmation and deterministic Norma Core harmony results.",
-          "openai/widgetPrefersBorder": true,
-        },
-      }],
-    }),
+    (uri) => personalVisualHarmonyWidgetResourceResponse(uri.href),
   );
+
+  const requestHandlers = (server.server as unknown as {
+    readonly _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<Record<string, unknown>>>;
+  })._requestHandlers;
+  const resourceReadHandler = requestHandlers.get("resources/read");
+  if (resourceReadHandler === undefined) {
+    throw new Error("Personal visual harmony MCP resource handler is unavailable.");
+  }
+  server.server.removeRequestHandler("resources/read");
+  server.server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
+    if (PERSONAL_VISUAL_HARMONY_WIDGET_LEGACY_URIS.has(request.params.uri)) {
+      return personalVisualHarmonyWidgetResourceResponse(request.params.uri);
+    }
+    return await resourceReadHandler(request, extra);
+  });
 
   server.registerTool(
     PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,

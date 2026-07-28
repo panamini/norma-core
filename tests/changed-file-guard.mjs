@@ -591,8 +591,8 @@ export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.fre
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
-// Covers the standard UI metadata contract, template cache-busting, and the
-// legacy ChatGPT Apps SDK MIME compatibility fix.
+// Covers the standard UI metadata contract, template cache-busting, legacy
+// ChatGPT Apps SDK MIME compatibility, and stale resource-read aliases.
 export const personalVisualHarmonyMcpAppResourceMetadataChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",

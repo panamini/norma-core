@@ -4759,6 +4759,12 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.ok(widgetScript);
     assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
+    const cachedResource = await connected.client.readResource({
+      uri: "ui://widget/norma-personal-visual-harmony-v7.html",
+    });
+    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v7.html");
+    assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+    assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);

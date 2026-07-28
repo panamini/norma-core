@@ -836,7 +836,7 @@ test("SAM 3 Modal packaging fix allowlist is exact and rejects scope drift", () 
   }
 });
 
-test("MCP App resource metadata, cache-bust, and legacy MIME allowlist is exact and rejects scope drift", () => {
+test("MCP App resource metadata, cache-bust, legacy MIME, and stale-read allowlist is exact and rejects scope drift", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonyMcpAppResourceMetadataChangedFiles),
     personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
