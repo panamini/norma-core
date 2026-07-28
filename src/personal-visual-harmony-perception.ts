@@ -68,6 +68,27 @@ export interface PersonalVisualHarmonyManualPromptV1 {
   readonly box: PersonalVisualHarmonyManualPromptBoxV1 | null;
 }
 
+export const PERSONAL_VISUAL_HARMONY_MAX_SEMANTIC_TARGET_LENGTH = 500;
+
+export type PersonalVisualHarmonyPerceptionPromptV1 =
+  | PersonalVisualHarmonyManualPromptV1
+  | {
+      readonly kind: "text";
+      readonly text: string;
+    };
+
+export function normalizePersonalVisualHarmonySemanticTargetV1(value: unknown): string {
+  if (typeof value !== "string" || /[\u0000-\u001f\u007f]/u.test(value)) {
+    throw new Error("Semantic target is invalid.");
+  }
+  const normalized = value.trim().replace(/\s+/gu, " ");
+  if (normalized.length === 0
+    || normalized.length > PERSONAL_VISUAL_HARMONY_MAX_SEMANTIC_TARGET_LENGTH) {
+    throw new Error("Semantic target is invalid.");
+  }
+  return normalized;
+}
+
 export interface PersonalVisualHarmonySegmentationProviderRefV1 {
   readonly providerId: string;
   readonly modelId: string;
@@ -94,7 +115,7 @@ export interface PersonalVisualHarmonyManualPerceptionResultV1 {
   readonly interactionId: string;
   readonly sourceImageReferenceIdentity: string;
   readonly provider: PersonalVisualHarmonySegmentationProviderRefV1;
-  readonly prompt: PersonalVisualHarmonyManualPromptV1;
+  readonly prompt: PersonalVisualHarmonyPerceptionPromptV1;
   readonly maskIdentity: string;
   readonly perceptionIdentity: string;
   readonly fit: PersonalVisualHarmonyManualPerceptionFitV1;
@@ -153,7 +174,7 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
   readonly interactionId: string;
   readonly sourceImageReferenceIdentity: string;
   readonly provider: PersonalVisualHarmonySegmentationProviderRefV1;
-  readonly prompt: PersonalVisualHarmonyManualPromptV1;
+  readonly prompt: PersonalVisualHarmonyPerceptionPromptV1;
   readonly mask: PersonalVisualHarmonySegmentationMaskV1;
   readonly providerConfidence?: number | null;
   readonly candidateIdPrefix: string;
@@ -174,7 +195,7 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
   const label = requireBoundedString(input.label, "label", 1, 60);
   const role = validateRole(input.role);
   const decoded = decodeMask(input.mask);
-  validatePromptAgainstMask(prompt, decoded);
+  if (!("kind" in prompt)) validatePromptAgainstMask(prompt, decoded);
 
   const maskIdentity = contentIdentityFor({
     contractId: input.mask.contractId,
@@ -560,8 +581,18 @@ function floodMaskValue(
 }
 
 function validatePrompt(
-  prompt: PersonalVisualHarmonyManualPromptV1,
-): PersonalVisualHarmonyManualPromptV1 {
+  prompt: PersonalVisualHarmonyPerceptionPromptV1,
+): PersonalVisualHarmonyPerceptionPromptV1 {
+  if (prompt !== null && typeof prompt === "object" && "kind" in prompt) {
+    if (prompt.kind !== "text") throw new Error("Perception prompt is invalid.");
+    let text: string;
+    try {
+      text = normalizePersonalVisualHarmonySemanticTargetV1(prompt.text);
+    } catch {
+      throw new Error("Semantic target is invalid.");
+    }
+    return { kind: "text", text };
+  }
   if (prompt === null || typeof prompt !== "object"
     || Object.keys(prompt).sort().join("|") !== "box|points"
     || !Array.isArray(prompt.points)

@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import {
   extractPersonalVisualHarmonyManualPerceptionV1,
   mergePersonalVisualHarmonyPerceptionCandidatesV1,
+  normalizePersonalVisualHarmonySemanticTargetV1,
   type PersonalVisualHarmonyManualPromptV1,
+  type PersonalVisualHarmonyPerceptionPromptV1,
 } from "./personal-visual-harmony-perception.js";
 import {
   preparePersonalVisualHarmonyMergedPerceptionCandidatesV2,
@@ -16,6 +18,7 @@ import {
   PersonalVisualHarmonySegmentationError,
   downloadPersonalVisualHarmonySourceImage,
   type PersonalVisualHarmonyFetch,
+  type PersonalVisualHarmonySegmentationPromptV1,
   type PersonalVisualHarmonySegmentationProvider,
 } from "./personal-visual-harmony-segmentation.js";
 
@@ -153,7 +156,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     readonly sourceImageReferenceIdentity: string;
     readonly sourceImageUrl: string;
     readonly sourceImageMediaType?: string | null;
-    readonly prompt: PersonalVisualHarmonyManualPromptV1;
+    readonly prompt: PersonalVisualHarmonyPerceptionPromptV1 | PersonalVisualHarmonySegmentationPromptV1;
     readonly label: string;
     readonly role: PersonalVisualHarmonyCandidateRoleV1;
     readonly automaticCandidateSet?: PersonalVisualHarmonyPreparedCandidateSetV1;
@@ -167,6 +170,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     );
     requireBoundedString(input.sourceImageUrl, "sourceImageUrl", 1, 8_192);
     const label = requireBoundedString(input.label, "label", 1, 60);
+    const prompt = normalizeJobPrompt(input.prompt);
     if (!["primary-subject", "secondary-subject", "structural-region", "frame"].includes(input.role)) {
       throw new PersonalVisualHarmonyPerceptionJobError("request_invalid", "Perception role is invalid.");
     }
@@ -215,7 +219,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       ...(input.sourceImageMediaType === undefined
         ? {}
         : { sourceImageMediaType: input.sourceImageMediaType }),
-      prompt: input.prompt,
+      prompt,
       label,
       role: input.role,
       ...(input.automaticCandidateSet === undefined
@@ -253,7 +257,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       readonly sourceFileId: string;
       readonly sourceImageUrl: string;
       readonly sourceImageMediaType?: string | null;
-      readonly prompt: PersonalVisualHarmonyManualPromptV1;
+      readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
       readonly label: string;
       readonly role: PersonalVisualHarmonyCandidateRoleV1;
       readonly automaticCandidateSet?: PersonalVisualHarmonyPreparedCandidateSetV1;
@@ -273,11 +277,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       const segmentation = await this.#provider.segment({
         sourceImageBytes: source.bytes,
         sourceImageMediaType: source.mediaType,
-        prompt: {
-          kind: "interactive",
-          points: input.prompt.points,
-          box: input.prompt.box,
-        },
+        prompt: input.prompt,
       });
       if (this.#now() >= job.expiresAtMs) return;
       job.perceptionReceiptIdentity = segmentation.receipt.receiptIdentity;
@@ -291,11 +291,14 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
           "Segmentation ready response omitted its mask.",
         );
       }
+      const perceptionPrompt = input.prompt.kind === "interactive"
+        ? { points: input.prompt.points, box: input.prompt.box }
+        : input.prompt;
       const manualPerception = extractPersonalVisualHarmonyManualPerceptionV1({
         interactionId: safeInteractionId(job.jobId),
         sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
         provider: segmentation.response.provider,
-        prompt: input.prompt,
+        prompt: perceptionPrompt,
         mask: segmentation.response.mask,
         providerConfidence: segmentation.response.providerConfidence,
         candidateIdPrefix: safeCandidatePrefix(job.jobId),
@@ -371,6 +374,39 @@ function safeInteractionId(jobId: string): string {
 
 function safeCandidatePrefix(jobId: string): string {
   return `sam3-${jobId.replace(/[^A-Za-z0-9._:-]/gu, "-")}`.slice(0, 48);
+}
+
+function normalizeJobPrompt(
+  prompt: PersonalVisualHarmonyPerceptionPromptV1 | PersonalVisualHarmonySegmentationPromptV1,
+): PersonalVisualHarmonySegmentationPromptV1 {
+  try {
+    if (typeof prompt === "object" && prompt !== null && "kind" in prompt) {
+      if (prompt.kind === "text") {
+        return {
+          kind: "text",
+          text: normalizePersonalVisualHarmonySemanticTargetV1(prompt.text),
+        };
+      }
+      if (prompt.kind === "interactive") {
+        return {
+          kind: "interactive",
+          points: prompt.points,
+          box: prompt.box,
+        };
+      }
+      throw new Error("Perception prompt is invalid.");
+    }
+    return {
+      kind: "interactive",
+      points: prompt.points,
+      box: prompt.box,
+    };
+  } catch {
+    throw new PersonalVisualHarmonyPerceptionJobError(
+      "request_invalid",
+      "Perception prompt is invalid.",
+    );
+  }
 }
 
 function requireSafeId(value: string, field: string): string {

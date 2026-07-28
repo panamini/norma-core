@@ -164,6 +164,54 @@ test("perception job produces truthful V2 candidate evidence without Core author
   assert.equal("acceptedGeometry" in ready, false);
 });
 
+test("perception job forwards one normalized semantic target without confirmation or Core", async () => {
+  const prompts = [];
+  const service = createService({
+    provider: {
+      async segment(input) {
+        prompts.push(input.prompt);
+        return successfulProvider().segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const pending = service.start({
+    ...startInput(prepared),
+    prompt: { kind: "text", text: "  person   " },
+  });
+  const ready = await waitForTerminal(service, {
+    jobId: pending.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  });
+  assert.deepEqual(prompts, [{ kind: "text", text: "person" }]);
+  assert.equal(ready.state, "ready");
+  assert.equal(ready.preparedCandidateSet.explicitSelectionConfirmationRequired, true);
+  assert.equal(ready.coreRun, false);
+});
+
+test("perception job rejects invalid semantic targets before creating a provider job", () => {
+  let providerCalls = 0;
+  const service = createService({
+    provider: {
+      async segment() {
+        providerCalls += 1;
+        return successfulProvider().segment();
+      },
+    },
+  });
+  assert.throws(
+    () => service.start({
+      ...startInput(),
+      prompt: { kind: "text", text: "   " },
+    }),
+    (error) => error instanceof PersonalVisualHarmonyPerceptionJobError
+      && error.code === "request_invalid",
+  );
+  assert.equal(providerCalls, 0);
+});
+
 test("perception job preserves a provider abstention without candidates", async () => {
   const provider = {
     async segment() {

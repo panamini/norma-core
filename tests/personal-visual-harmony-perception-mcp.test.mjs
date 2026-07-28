@@ -13,6 +13,7 @@ import {
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+  PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1,
   PersonalVisualHarmonySessionServiceV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 import {
@@ -95,9 +96,10 @@ function triangleConstructionRequests() {
   }];
 }
 
-function successfulProvider() {
+function successfulProvider(prompts = []) {
   return {
-    async segment() {
+    async segment(input) {
+      prompts.push(input.prompt);
       return {
         response: {
           contractId: "norma.personal-visual-harmony-segmentation-response@1",
@@ -151,9 +153,9 @@ function successfulProvider() {
   };
 }
 
-function perceptionJobs(downloadedUrls) {
+function perceptionJobs(downloadedUrls, prompts) {
   return new InMemoryPersonalVisualHarmonyPerceptionJobService({
-    provider: successfulProvider(),
+    provider: successfulProvider(prompts),
     allowedSourceImageOrigins: ["https://files.example.test"],
     fetch: async (url) => {
       downloadedUrls?.push(String(url));
@@ -602,6 +604,103 @@ test("app-only perception enforces capability, subject, session, and explicit co
   }
 });
 
+test("app-only semantic targeting accepts exactly one normalized target and preserves the interactive boundary", async () => {
+  const prompts = [];
+  const downloadedUrls = [];
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:mcp-semantic-target-test",
+  });
+  const jobs = perceptionJobs(downloadedUrls, prompts);
+  const owner = await connect({ service, jobs, subjectId: "subject:owner" });
+  try {
+    const prepared = await prepare(owner.client);
+    const privatePayload = prepared._meta.normaPersonalVisualHarmony;
+    const invalid = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=invalid",
+        semanticTarget: "   ",
+        label: "Cible sémantique",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(invalid.isError, true);
+    assert.deepEqual(prompts, []);
+
+    const bothModes = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=both",
+        prompt: { points: [], box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 } },
+        semanticTarget: "person",
+        label: "Cible sémantique",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(bothModes.isError, true);
+    assert.deepEqual(prompts, []);
+
+    const mismatchedSource = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=semantic",
+        semanticTarget: "person",
+        label: "Cible sémantique",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(mismatchedSource.isError, true);
+    assert.deepEqual(prompts, []);
+
+    const started = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=semantic",
+        semanticTarget: "  yellow   school bus  ",
+        label: "Cible sémantique",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+    assert.equal(started.structuredContent.state, "pending");
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      status = await owner.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: privatePayload.sessionId,
+          candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+          appCapability: privatePayload.perceptionAppCapability,
+          jobId: started.structuredContent.jobId,
+        },
+      });
+      if (status.structuredContent?.state !== "pending") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(status.isError, undefined, JSON.stringify(status));
+    assert.equal(status.structuredContent.state, "ready");
+    assert.deepEqual(prompts, [{ kind: "text", text: "yellow school bus" }]);
+    assert.equal(downloadedUrls.length, 1);
+    assert.equal(status.structuredContent.coreRun, false);
+    assert.equal(status.structuredContent.explicitSelectionConfirmationRequired, true);
+    assert.equal("result" in status.structuredContent, false);
+  } finally {
+    await owner.close();
+  }
+});
+
 test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /Proposer le masque SAM 3/u);
@@ -625,4 +724,14 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /recovery\.perceptionReceiptIdentity=prepared\.perceptionReceiptIdentity/u);
   assert.match(html, /points:\[\{x:clampUnit\(x\),y:clampUnit\(y\),label:"include"\}\],box:null/u);
+  assert.match(html, /Cibler un concept avec SAM 3/u);
+  assert.match(html, /maxlength="500"/u);
+  assert.match(html, /semanticTarget:target,label:"Cible sémantique"/u);
+  assert.match(html, /normalizeSemanticTarget\(value\)/u);
+  assert.match(html, /chip\.disabled=busy/u);
+  assert.match(html, /Raccourcis Norma · pas une liste officielle de SAM 3/u);
+  for (const target of PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1) {
+    assert.match(html, new RegExp(`"value":"${target.value}"`, "u"));
+    assert.equal(target.value.includes(" "), false);
+  }
 });
