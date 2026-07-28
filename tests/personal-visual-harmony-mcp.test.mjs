@@ -4504,8 +4504,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(prepareTool.description, /Analyze this image with Norma/u);
     assert.match(prepareTool.description, /Do not ask the user to list primitives/u);
     assert.match(prepareTool.description, /compare two confirmed lengths prepares length-bearing guides without enabling the report/u);
-    assert.equal(confirmTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
-    assert.equal(refinePixelsTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+    assert.equal(Object.hasOwn(confirmTool._meta.ui, "resourceUri"), false);
+    assert.equal(Object.hasOwn(refinePixelsTool._meta.ui, "resourceUri"), false);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);

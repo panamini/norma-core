@@ -93,8 +93,12 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
     analyzeToolName,
   ]);
   const prepareTool = list.json.result.tools[0];
+  const refinePixelsTool = list.json.result.tools[1];
+  const confirmTool = list.json.result.tools[2];
   assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
+  assert.equal(Object.hasOwn(refinePixelsTool._meta.ui, "resourceUri"), false);
+  assert.equal(Object.hasOwn(confirmTool._meta.ui, "resourceUri"), false);
   assert.deepEqual(prepareTool._meta.securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
