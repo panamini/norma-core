@@ -25,6 +25,9 @@ import {
   type PersonalVisualHarmonyPerceptionJobV1,
 } from "../personal-visual-harmony-perception-jobs.js";
 import {
+  normalizePersonalVisualHarmonySemanticTargetV1,
+} from "../personal-visual-harmony-perception.js";
+import {
   PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES,
 } from "../personal-visual-harmony-segmentation.js";
 import {
@@ -109,6 +112,18 @@ export const PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1 = [
     visibleKinds: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
   },
 ] as const;
+export const PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1 = Object.freeze([
+  { value: "person", label: "Personne" },
+  { value: "face", label: "Visage" },
+  { value: "animal", label: "Animal" },
+  { value: "plant", label: "Plante" },
+  { value: "vehicle", label: "Véhicule" },
+  { value: "building", label: "Bâtiment" },
+  { value: "door", label: "Porte" },
+  { value: "window", label: "Fenêtre" },
+  { value: "furniture", label: "Mobilier" },
+  { value: "sign", label: "Panneau" },
+] as const);
 
 const SESSION_TTL_MS = 30 * 60 * 1_000;
 const MAX_SESSIONS = 32;
@@ -613,10 +628,18 @@ const StartPerceptionInputSchema = z.object({
   sourceImageDownloadUrl: z.url().refine((value) => value.startsWith("https://"), {
     message: "Source image download URL must use HTTPS.",
   }),
-  prompt: PerceptionPromptSchema,
+  prompt: PerceptionPromptSchema.optional(),
+  semanticTarget: z.string().min(1).max(500).optional(),
   label: z.string().min(1).max(60),
   role: z.enum(["primary-subject", "secondary-subject", "structural-region", "frame"]),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.prompt === undefined && value.semanticTarget === undefined) {
+    context.addIssue({ code: "custom", message: "Perception requires one interactive prompt or semantic target." });
+  }
+  if (value.prompt !== undefined && value.semanticTarget !== undefined) {
+    context.addIssue({ code: "custom", message: "Perception accepts one prompt mode per inference." });
+  }
+});
 
 const PerceptionStatusInputSchema = z.object({
   sessionId: z.string().min(1).max(160),
@@ -1976,6 +1999,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         appCapability,
         sourceImageDownloadUrl,
         prompt,
+        semanticTarget,
         label,
         role,
       }) => {
@@ -1992,6 +2016,9 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           context.sourceImageDownloadUrl,
           sourceImageDownloadUrl,
         );
+        const normalizedSemanticTarget = semanticTarget === undefined
+          ? undefined
+          : normalizePersonalVisualHarmonySemanticTargetV1(semanticTarget);
         const job = perceptionJobs.start({
           subjectId,
           sessionId,
@@ -1999,7 +2026,16 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
           sourceImageUrl: boundSourceImageDownloadUrl,
           sourceImageMediaType: context.prepared.sourceImageMediaType,
-          prompt,
+          prompt: normalizedSemanticTarget === undefined
+            ? {
+                kind: "interactive",
+                points: prompt!.points,
+                box: prompt!.box,
+              }
+            : {
+                kind: "text",
+                text: normalizedSemanticTarget,
+              },
           label,
           role,
           automaticCandidateSet: context.prepared,
@@ -2591,7 +2627,7 @@ export async function runPersonalVisualHarmonyImageHydrationV1({
 }
 
 export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -2615,7 +2651,8 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
 .guided-entry{display:grid;gap:8px;padding:11px 12px 9px;border-bottom:1px solid var(--rule);background:var(--white)}
 .guided-entry-head{display:grid;gap:2px}.guided-entry-head strong{font-size:13px;font-weight:650}.guided-entry-head span,.guided-goal-note{color:var(--graphite);font-size:10px;line-height:1.4}
 .guided-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.guided-goal{display:grid;min-width:0;gap:3px;border:1px solid var(--ink);border-radius:2px;padding:7px 8px;background:var(--white);color:var(--ink);text-align:left;cursor:pointer}.guided-goal[aria-pressed="true"]{background:var(--ink);color:var(--white)}.guided-goal:hover{background:var(--paper-hover)}.guided-goal[aria-pressed="true"]:hover{background:var(--ink)}.guided-goal strong{font-size:11px;font-weight:650}.guided-goal span{color:var(--graphite);font-size:10px;line-height:1.35}.guided-goal[aria-pressed="true"] span{color:var(--white)}.guided-goal-note{margin:0}
-@media(max-width:520px){.guided-goals{grid-template-columns:minmax(0,1fr)}}
+ @media(max-width:520px){.guided-goals{grid-template-columns:minmax(0,1fr)}}
+.semantic-target-panel{display:grid;gap:7px;margin:0 12px 10px;padding:9px;border:1px solid var(--rule);border-radius:2px;background:var(--white)}.semantic-target-head{display:grid;gap:2px}.semantic-target-head strong{font-size:13px;font-weight:650}.semantic-target-head span,.semantic-target-note,.semantic-target-validation{margin:0;color:var(--graphite);font-size:10px;line-height:1.4}.semantic-target-chips{display:flex;flex-wrap:wrap;gap:5px}.semantic-target-chip{border:1px solid var(--ink);border-radius:2px;padding:6px 8px;background:var(--white);color:var(--ink);font-size:11px;font-weight:650;cursor:pointer}.semantic-target-chip[aria-pressed="true"]{background:var(--ink);color:var(--white)}.semantic-target-chip:hover{background:var(--paper-hover)}.semantic-target-chip[aria-pressed="true"]:hover{background:var(--ink)}.semantic-target-input{width:100%;min-height:34px;border:1px solid var(--rule);border-radius:2px;padding:7px 8px;background:var(--white);color:var(--ink);font-size:12px}.semantic-target-submit{width:100%;border:1px solid var(--ink);border-radius:2px;padding:8px;background:var(--ink);color:var(--white);font-size:12px;font-weight:650;cursor:pointer}.semantic-target-submit:disabled{border-color:var(--rule);background:var(--paper);color:var(--disabled);cursor:not-allowed}.semantic-target-validation[data-invalid="true"]{color:var(--danger)}
 </style>
 </head>
 <body>
@@ -2634,6 +2671,7 @@ export function createPersonalVisualHarmonyWidgetHtmlV1(): string {
       <div class="construction-controls" aria-label="Constructions dérivées optionnelles"><button id="supportLineToggle" class="construction-toggle" type="button" aria-pressed="false">Prolongements · masqués</button><button id="formatDiagonalToggle" class="construction-toggle" type="button" aria-pressed="false">Diagonales format · masquées</button><button id="junctionAngleToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Angles jonction · masqués</button><button id="triangleToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Triangles · masqués</button><button id="triangleMedianToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Médianes · masquées</button><button id="trianglePerpendicularBisectorToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Médiatrices · masquées</button><button id="triangleAngleBisectorToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Bissectrices · masquées</button><button id="triangleAltitudeToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Hauteurs · masquées</button><button id="triangleCentroidToggle" class="construction-toggle" type="button" aria-pressed="false" disabled>Centroïde · masqué</button></div>
       <button id="pixelToggle" class="pixel-toggle" type="button" aria-pressed="false">Propositions pixels · désactivées</button>
       <button id="perceptionToggle" class="pixel-toggle" type="button" hidden>Proposer le masque SAM 3</button>
+      <section id="semanticTargetPanel" class="semantic-target-panel" hidden aria-labelledby="semanticTargetHeading"><div class="semantic-target-head"><strong id="semanticTargetHeading">Cibler un concept avec SAM 3</strong><span>Raccourcis Norma · pas une liste officielle de SAM 3.</span></div><div id="semanticTargetChips" class="semantic-target-chips" aria-label="Cibles sémantiques recommandées"></div><label class="semantic-target-note" for="semanticTargetInput">Cible libre · nom court ou expression nominale</label><input id="semanticTargetInput" class="semantic-target-input" type="text" maxlength="500" autocomplete="off" placeholder="ex. yellow school bus"><p id="semanticTargetValidation" class="semantic-target-validation" aria-live="polite"></p><button id="semanticTargetSubmit" class="semantic-target-submit" type="button" disabled>Proposer ce concept</button></section>
       <div id="candidateList" class="candidate-list"></div>
       <div class="measurement-ratio"><button id="measurementRatioToggle" class="measurement-ratio-toggle" type="button" aria-pressed="false">Rapport de deux longueurs · désactivé</button><div class="measurement-ratio-selects"><select id="measurementRatioFirst" aria-label="Première longueur déclarée" disabled></select><select id="measurementRatioSecond" aria-label="Deuxième longueur déclarée" disabled></select></div><p id="measurementRatioPreview" class="measurement-ratio-preview" aria-live="polite">Activez le rapport pour choisir deux longueurs visibles.</p><p class="measurement-ratio-note">Opt-in · part dominante / somme · packs φ, moitiés, tiers · tolérance 2,5 pt · hors autorité Core.</p></div>
       <button id="confirm" class="confirm" type="button" disabled>Confirmer et analyser avec Norma Core</button>
@@ -2822,7 +2860,7 @@ function showImageLoading(){loading.replaceChildren(document.createTextNode("Cha
 function imageFailureMessage(failure){if(failure==="file_api_unavailable")return"L’API fichiers de ChatGPT n’est pas disponible dans cette vue.";if(failure==="image_load_failed")return"L’image n’a pas pu être chargée depuis deux liens temporaires successifs.";return"ChatGPT n’a pas pu fournir un lien temporaire valide pour cette image."}
 function showImageFailure(failure){if(!state.activePayload)return;const message=document.createElement("span"),retry=document.createElement("button");message.textContent=imageFailureMessage(failure);retry.type="button";retry.className="loading-retry";retry.textContent="Réessayer l’affichage";retry.addEventListener("click",()=>{const payload=state.activePayload;if(payload)void hydrate(payload,state.pendingStructuredContent,{forceImageReload:true})});loading.replaceChildren(message,retry);loading.style.display="grid";setImageHydrationStatus("failed",failure)}
 function loadDisplayedImage(downloadUrl,generation,fileId,payloadIdentity){return new Promise((resolve,reject)=>{let settled=false,timeout;const finish=(callback,value)=>{if(settled)return;settled=true;clearTimeout(timeout);if(source.onload===handleLoad)source.onload=null;if(source.onerror===handleError)source.onerror=null;callback(value)},handleLoad=()=>finish(resolve,{width:source.naturalWidth,height:source.naturalHeight}),handleError=()=>finish(reject,new Error("image hydration failed"));timeout=setTimeout(()=>finish(reject,new Error("image hydration timeout")),IMAGE_HYDRATION_TIMEOUT_MS);source.crossOrigin="anonymous";source.referrerPolicy="no-referrer";source.onload=handleLoad;source.onerror=handleError;source.src=downloadUrl;if(!imageLoadIsCurrent(generation,fileId,payloadIdentity))finish(reject,new Error("stale image hydration"))})}
-async function performImageLoad(fileId,generation,payloadIdentity){const payloadUrl=state.activePayload?.sourceImageDownloadUrl,payloadDownloadUrl=typeof payloadUrl==="string"&&payloadUrl.startsWith("https://")?payloadUrl:null,fileApi=window.openai?.getFileDownloadUrl;if(payloadDownloadUrl===null&&typeof fileApi!=="function"){if(imageLoadIsCurrent(generation,fileId,payloadIdentity))showImageFailure("file_api_unavailable");return false}let freshUrlPending=typeof fileApi==="function",payloadUrlPending=payloadDownloadUrl!==null;const result=await runImageHydration({fileId,maxAttempts:IMAGE_HYDRATION_MAX_ATTEMPTS,retryDelayMs:IMAGE_HYDRATION_RETRY_DELAY_MS,getDownloadUrl:requestedFileId=>{if(freshUrlPending){freshUrlPending=false;return fileApi({fileId:requestedFileId})}if(payloadUrlPending){payloadUrlPending=false;return{downloadUrl:payloadDownloadUrl}}if(typeof fileApi!=="function")return{downloadUrl:payloadDownloadUrl};return fileApi({fileId:requestedFileId})},loadDownloadUrl:downloadUrl=>loadDisplayedImage(downloadUrl,generation,fileId,payloadIdentity),isCurrent:()=>imageLoadIsCurrent(generation,fileId,payloadIdentity),waitBeforeRetry:delayMs=>new Promise(resolve=>setTimeout(resolve,delayMs))});if(result.status==="stale")return false;if(result.status==="failed"){if(imageLoadIsCurrent(generation,fileId,payloadIdentity))showImageFailure(result.failure);return false}if(!imageLoadIsCurrent(generation,fileId,payloadIdentity))return false;state.downloadUrl=result.downloadUrl;state.imageReady=true;state.dimensions={width:result.width,height:result.height};visual.style.aspectRatio=result.width+" / "+result.height;loading.style.display="none";setImageHydrationStatus("ready",null);if(!state.completed&&!state.confirming)statusNode.textContent="Rectangles : glissez ou redimensionnez · segments : ajustez les extrémités · quadrilatères : ajustez les quatre sommets · ellipses : déplacez le centre ou ajustez les deux rayons; une poignée hors cadre reste accessible sur le bord · puis confirmez.";updatePixelProposalUi();updateMeasurementRatioControls();return true}
+async function performImageLoad(fileId,generation,payloadIdentity){const payloadUrl=state.activePayload?.sourceImageDownloadUrl,payloadDownloadUrl=typeof payloadUrl==="string"&&payloadUrl.startsWith("https://")?payloadUrl:null,fileApi=window.openai?.getFileDownloadUrl;if(payloadDownloadUrl===null&&typeof fileApi!=="function"){if(imageLoadIsCurrent(generation,fileId,payloadIdentity))showImageFailure("file_api_unavailable");return false}let freshUrlPending=typeof fileApi==="function",payloadUrlPending=payloadDownloadUrl!==null;const result=await runImageHydration({fileId,maxAttempts:IMAGE_HYDRATION_MAX_ATTEMPTS,retryDelayMs:IMAGE_HYDRATION_RETRY_DELAY_MS,getDownloadUrl:requestedFileId=>{if(freshUrlPending){freshUrlPending=false;return fileApi({fileId:requestedFileId})}if(payloadUrlPending){payloadUrlPending=false;return{downloadUrl:payloadDownloadUrl}}if(typeof fileApi!=="function")return{downloadUrl:payloadDownloadUrl};return fileApi({fileId:requestedFileId})},loadDownloadUrl:downloadUrl=>loadDisplayedImage(downloadUrl,generation,fileId,payloadIdentity),isCurrent:()=>imageLoadIsCurrent(generation,fileId,payloadIdentity),waitBeforeRetry:delayMs=>new Promise(resolve=>setTimeout(resolve,delayMs))});if(result.status==="stale")return false;if(result.status==="failed"){if(imageLoadIsCurrent(generation,fileId,payloadIdentity))showImageFailure(result.failure);return false}if(!imageLoadIsCurrent(generation,fileId,payloadIdentity))return false;state.downloadUrl=result.downloadUrl;state.imageReady=true;state.dimensions={width:result.width,height:result.height};refreshSemanticTargetUi();visual.style.aspectRatio=result.width+" / "+result.height;loading.style.display="none";setImageHydrationStatus("ready",null);if(!state.completed&&!state.confirming)statusNode.textContent="Rectangles : glissez ou redimensionnez · segments : ajustez les extrémités · quadrilatères : ajustez les quatre sommets · ellipses : déplacez le centre ou ajustez les deux rayons; une poignée hors cadre reste accessible sur le bord · puis confirmez.";updatePixelProposalUi();updateMeasurementRatioControls();return true}
 async function loadImage(fileId,payloadIdentity,{force=false}={}){if(!force&&state.imageReady&&state.imageLoadFileId===fileId&&state.imageLoadPayloadIdentity===payloadIdentity)return true;if(!force&&state.imageLoadTask&&state.imageLoadFileId===fileId&&state.imageLoadPayloadIdentity===payloadIdentity)return state.imageLoadTask;const generation=state.imageLoadGeneration+1;state.imageLoadGeneration=generation;state.imageReady=false;state.dimensions=null;state.downloadUrl=null;state.imageLoadFileId=fileId;state.imageLoadPayloadIdentity=payloadIdentity;source.removeAttribute("src");showImageLoading();const task=performImageLoad(fileId,generation,payloadIdentity);state.imageLoadTask=task;try{return await task}finally{if(state.imageLoadTask===task)state.imageLoadTask=null}}
 function canonicalPixelProposalPrimitive(candidate,primitive){return candidateWithPrimitive(candidate,clonePrimitive(primitive),true).primitive}
 function samePixelProposalPrimitive(candidate,left,right){return JSON.stringify(canonicalPixelProposalPrimitive(candidate,left))===JSON.stringify(canonicalPixelProposalPrimitive(candidate,right))}
@@ -2906,6 +2944,19 @@ bootstrap();
 </script>
 </body>
 </html>`;
+  const semanticTargetScript = `
+const SEMANTIC_TARGETS=${JSON.stringify(PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1)};
+const semanticTargetPanel=document.getElementById("semanticTargetPanel"),semanticTargetChips=document.getElementById("semanticTargetChips"),semanticTargetInput=document.getElementById("semanticTargetInput"),semanticTargetValidation=document.getElementById("semanticTargetValidation"),semanticTargetSubmit=document.getElementById("semanticTargetSubmit");
+function normalizeSemanticTarget(value){if(typeof value!=="string"||/[\\u0000-\\u001f\\u007f]/u.test(value))return null;const normalized=value.trim().replace(/\\s+/gu," ");return normalized.length>0&&normalized.length<=500?normalized:null}
+function selectedSemanticTarget(){return normalizeSemanticTarget(semanticTargetInput?.value||"")}
+function refreshSemanticTargetUi(){if(!semanticTargetPanel||!semanticTargetInput||!semanticTargetSubmit)return;const available=!perceptionToggle.hidden,valid=selectedSemanticTarget()!==null,busy=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;semanticTargetPanel.hidden=!available;semanticTargetInput.disabled=busy;semanticTargetSubmit.disabled=!available||!valid||busy;semanticTargetValidation.dataset.invalid=String(!valid&&semanticTargetInput.value.length>0);semanticTargetValidation.textContent=valid||semanticTargetInput.value.length===0?"":"Cible vide, invalide ou trop longue : corrigez-la avant l’inférence.";semanticTargetChips?.querySelectorAll(".semantic-target-chip").forEach(chip=>{chip.disabled=busy;chip.setAttribute("aria-pressed",String(chip.dataset.targetValue===selectedSemanticTarget()))})}
+SEMANTIC_TARGETS.forEach(target=>{const chip=document.createElement("button");chip.type="button";chip.className="semantic-target-chip";chip.textContent=target.label;chip.dataset.targetValue=target.value;chip.setAttribute("aria-pressed","false");chip.addEventListener("click",()=>{if(semanticTargetInput.disabled)return;semanticTargetInput.value=target.value;refreshSemanticTargetUi();semanticTargetInput.focus()});semanticTargetChips?.append(chip)});
+semanticTargetInput?.addEventListener("input",refreshSemanticTargetUi);
+semanticTargetSubmit?.addEventListener("click",async()=>{const payload=state.payload,target=selectedSemanticTarget();if(semanticTargetSubmit.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string"||target===null)return;const expectedPayloadIdentity=state.activePayloadIdentity;state.perceptionRunning=true;updatePerceptionUi();updateConfirm();refreshSemanticTargetUi();statusNode.textContent="SAM 3 prépare une proposition sémantique bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await fileApi({fileId:payload.fileId}),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,semanticTarget:target,label:"Cible sémantique",role:"primary-subject"}),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity)}catch{if(state.activePayloadIdentity===expectedPayloadIdentity)statusNode.textContent="La proposition sémantique SAM 3 n’a pas abouti. Les candidats existants restent inchangés et Norma Core reste arrêté."}finally{state.perceptionRunning=false;updatePerceptionUi();updateConfirm();refreshSemanticTargetUi()}});
+new MutationObserver(refreshSemanticTargetUi).observe(perceptionToggle,{attributes:true,attributeFilter:["hidden","disabled"]});
+refreshSemanticTargetUi();
+`;
+  return html.replace("</script>\n</body>", `${semanticTargetScript}</script>\n</body>`);
 }
 
 function trianglePreparationDiagnosticText(

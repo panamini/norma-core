@@ -5458,6 +5458,7 @@ async function runWidgetImageHydrationScenario({
   });
   let pixelUiUpdates = 0;
   let confirmUpdates = 0;
+  const semanticUiRefreshes = [];
   const requestedFileIds = [];
   const loadedUrls = [];
   const retryDelays = [];
@@ -5500,6 +5501,7 @@ async function runWidgetImageHydrationScenario({
       loading: { style: {} },
       setImageHydrationStatus() {},
       statusNode: { textContent: "" },
+      refreshSemanticTargetUi() { semanticUiRefreshes.push(state.imageReady); },
       updatePixelProposalUi() { pixelUiUpdates += 1; },
       updateMeasurementRatioControls() { confirmUpdates += 1; },
     },
@@ -5516,6 +5518,7 @@ async function runWidgetImageHydrationScenario({
     maxActiveLoads,
     pixelUiUpdates,
     confirmUpdates,
+    semanticUiRefreshes,
   };
 }
 
@@ -5537,6 +5540,7 @@ test("widget image hydration loads a fresh file URL before the payload URL", asy
   assert.equal(result.maxActiveLoads, 1);
   assert.equal(result.pixelUiUpdates, 1);
   assert.equal(result.confirmUpdates, 1);
+  assert.deepEqual(result.semanticUiRefreshes, [true]);
 });
 
 test("widget image hydration falls back to the payload URL after a fresh URL fails", async () => {
@@ -5594,6 +5598,7 @@ test("widget image hydration retries the payload URL when the file API is absent
   assert.deepEqual(result.retryDelays, [250]);
   assert.equal(result.failure, "image_load_failed");
   assert.equal(result.maxActiveLoads, 1);
+  assert.deepEqual(result.semanticUiRefreshes, []);
 });
 
 test("ready image cache refreshes when the same file receives a new payload identity", async () => {

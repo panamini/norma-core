@@ -95,6 +95,40 @@ test("segmentation client creates deterministic source-bound receipts and one in
   assert.equal(first.receipt.coreRun, false);
 });
 
+test("segmentation client normalizes one bounded semantic text prompt", async () => {
+  let request;
+  const fetch = async (url, init) => {
+    if (init.method === "GET") return new Response(null, { status: 200 });
+    request = JSON.parse(init.body);
+    return Response.json(responseFor(request));
+  };
+  await clientWith(fetch).segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt: { kind: "text", text: "  yellow   school bus  " },
+  });
+  assert.deepEqual(request.prompt, { kind: "text", text: "yellow school bus" });
+});
+
+test("segmentation client rejects empty, invalid, and overlong semantic targets before network access", async () => {
+  let fetchCount = 0;
+  const fetch = async () => {
+    fetchCount += 1;
+    return new Response(null, { status: 500 });
+  };
+  for (const text of ["", "   ", "bad\nvalue", "x".repeat(501)]) {
+    await assert.rejects(
+      clientWith(fetch).segment({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: "image/png",
+        prompt: { kind: "text", text },
+      }),
+      (error) => error.code === "provider_response_invalid",
+    );
+  }
+  assert.equal(fetchCount, 0);
+});
+
 test("segmentation client accepts a bounded provider abstention", async () => {
   const fetch = async (_url, init) => {
     if (init.method === "GET") return new Response(null, { status: 200 });

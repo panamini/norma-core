@@ -4,6 +4,7 @@ import {
   PERSONAL_VISUAL_HARMONY_MAX_MASK_RUNS,
   PERSONAL_VISUAL_HARMONY_MAX_PROMPT_POINTS,
   PERSONAL_VISUAL_HARMONY_SEGMENTATION_MASK_CONTRACT_ID,
+  normalizePersonalVisualHarmonySemanticTargetV1,
   type PersonalVisualHarmonyManualPromptV1,
   type PersonalVisualHarmonySegmentationMaskV1,
   type PersonalVisualHarmonySegmentationProviderRefV1,
@@ -609,15 +610,23 @@ function validateSegmentationPrompt(
   }
   if (prompt.kind === "text") {
     if (Object.keys(prompt).sort().join("|") !== "kind|text"
-      || typeof prompt.text !== "string"
-      || prompt.text.trim().length === 0
-      || prompt.text.length > 500) {
+      || typeof prompt.text !== "string") {
       throw new PersonalVisualHarmonySegmentationError(
         "provider_response_invalid",
         "Segmentation text prompt is invalid.",
       );
     }
-    return { kind: "text", text: prompt.text };
+    try {
+      return {
+        kind: "text",
+        text: normalizePersonalVisualHarmonySemanticTargetV1(prompt.text),
+      };
+    } catch {
+      throw new PersonalVisualHarmonySegmentationError(
+        "provider_response_invalid",
+        "Segmentation text prompt is invalid.",
+      );
+    }
   }
   if (prompt.kind !== "interactive"
     || Object.keys(prompt).sort().join("|") !== "box|kind|points"
