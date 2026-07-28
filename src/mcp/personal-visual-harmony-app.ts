@@ -53,7 +53,7 @@ export const PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL =
 export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
   "norma.getPersonalVisualHarmonyPerceptionStatusV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
-  "ui://widget/norma-personal-visual-harmony-v6.html";
+  "ui://widget/norma-personal-visual-harmony-v7.html";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
 const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
   prefersBorder: true,
