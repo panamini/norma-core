@@ -648,7 +648,7 @@ test("personal axis measurement-ratio allowlist is exact and fail-closed", () =>
   }
 });
 
-test("personal measurement-ratio clarity allowlist is exact and fail-closed", () => {
+test("personal measurement-ratio selector clarity allowlist is exact and fail-closed", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonyMeasurementRatioClarityChangedFiles),
     personalVisualHarmonyMeasurementRatioClarityChangedFiles,

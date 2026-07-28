@@ -535,6 +535,8 @@ export const personalVisualHarmonyMeasurementRatioClarityChangedFiles = Object.f
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// This closed surface also covers selected-guide length availability and explicit empty-state messaging.
+
 // Covers the redacted handler-duration/correlation metadata contract and its bounded widget proof.
 export const personalVisualHarmonyObservabilityChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
