@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Norma Private Web Lab</title>
+    <link rel="stylesheet" href="/private-web-lab.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">NORMA / PRIVATE WEB LAB</p>
+        <h1>Mesurer avant d’interpréter.</h1>
+        <p>
+          L’image reste dans ce navigateur. Le serveur local reçoit uniquement son identité
+          SHA-256, ses dimensions et la géométrie que vous confirmez.
+        </p>
+      </header>
+
+      <section class="setup" aria-labelledby="setup-title">
+        <h2 id="setup-title">1. Source et objectif</h2>
+        <label>
+          Image locale
+          <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+        </label>
+        <label>
+          Objectif
+          <select id="goal-input">
+            <option value="">Choisir un objectif…</option>
+            <option value="general-geometry">Géométrie générale</option>
+            <option value="frames-proportions">Cadres / proportions</option>
+            <option value="ellipses-lines">Ellipses / lignes</option>
+            <option value="triangles-constructions">Triangles / constructions</option>
+            <option value="compare-two-lengths">Comparer 2 longueurs</option>
+          </select>
+        </label>
+        <button id="prepare-button" type="button" disabled>Préparer le brouillon local</button>
+        <p id="setup-status" role="status">Chargez une image et choisissez un objectif.</p>
+      </section>
+
+      <section id="review-section" class="review" aria-labelledby="review-title" hidden>
+        <div class="review-heading">
+          <div>
+            <h2 id="review-title">2. Revue explicite</h2>
+            <p>
+              Brouillon déterministe de démonstration · aucun modèle · aucun fournisseur.
+              Ajustez les candidats sur l’image avant confirmation.
+            </p>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Présentation">
+            <button id="original-button" type="button">Original</button>
+            <button id="guides-button" type="button" aria-pressed="true">Guides</button>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <div class="image-stage">
+            <div id="image-plane" class="image-plane">
+              <img id="source-image" alt="Image locale à mesurer">
+              <svg
+                id="guide-overlay"
+                viewBox="0 0 1000 1000"
+                preserveAspectRatio="none"
+                aria-label="Guides candidats"
+              ></svg>
+            </div>
+            <p id="guide-mode">4 guides prioritaires visibles</p>
+          </div>
+          <aside>
+            <div id="candidate-list"></div>
+            <button id="reveal-button" type="button">Afficher tous les candidats</button>
+          </aside>
+        </div>
+
+        <div id="measurement-section" class="confirmation" hidden>
+          <h3>Comparaison déclarée de deux longueurs</h3>
+          <p>
+            Choisissez exactement deux segments ou axes sélectionnés. Ce rapport reste
+            séparé du résultat Core.
+          </p>
+          <label>
+            Première longueur
+            <select id="measurement-first">
+              <option value="">Choisir une longueur…</option>
+            </select>
+          </label>
+          <label>
+            Deuxième longueur
+            <select id="measurement-second">
+              <option value="">Choisir une longueur…</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="confirmation">
+          <label class="explicit-confirmation">
+            <input id="confirmation-input" type="checkbox">
+            J’ai revu la source, les guides sélectionnés et la géométrie affichée.
+          </label>
+          <button id="run-button" type="button" disabled>Confirmer puis lancer Norma Core</button>
+          <p id="core-gate" role="status">Core arrêté — confirmation explicite requise.</p>
+        </div>
+      </section>
+
+      <section id="receipt-section" class="receipt" aria-labelledby="receipt-title" hidden>
+        <h2 id="receipt-title">3. Reçu déterministe</h2>
+        <dl>
+          <div><dt>Reçu</dt><dd id="receipt-identity"></dd></div>
+          <div><dt>Résultat Core</dt><dd id="result-identity"></dd></div>
+          <div><dt>Packs</dt><dd id="pack-refs"></dd></div>
+          <div id="measurement-report-row" hidden>
+            <dt>Comparaison déclarée</dt><dd id="measurement-report"></dd>
+          </div>
+          <div><dt>Appels fournisseur</dt><dd>0</dd></div>
+        </dl>
+        <a id="export-link" download="norma-private-web-lab-result.json">
+          Exporter le résultat canonique
+        </a>
+      </section>
+    </main>
+    <script type="module" src="/private-web-lab.js"></script>
+  </body>
+</html>
