@@ -55,6 +55,9 @@ export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
   "ui://widget/norma-personal-visual-harmony-v6.html";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
+const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
+  prefersBorder: true,
+} as const;
 export const PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1 =
   "Analyse cette image avec Norma";
 const PERSONAL_VISUAL_HARMONY_OBSERVABILITY_CONTRACT_ID =
@@ -1807,6 +1810,9 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       title: "NORMA.SCIENCE",
       description: "Review ChatGPT visual candidates, confirm them, and inspect deterministic Norma Core ratio matches.",
       mimeType: PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
+      _meta: {
+        ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
+      },
     },
     (uri) => ({
       contents: [{
@@ -1814,6 +1820,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         mimeType: PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
         text: createPersonalVisualHarmonyWidgetHtmlV1(),
         _meta: {
+          ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
           "openai/widgetDescription": "Interactive image overlay for explicit visual candidate confirmation and deterministic Norma Core harmony results.",
           "openai/widgetPrefersBorder": true,
         },
