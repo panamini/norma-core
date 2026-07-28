@@ -194,6 +194,161 @@ test("measurement ratio choices expose two confirmed axes without changing their
   assert.equal(state.reviewedCandidates[1].primitive.kind, "axis");
 });
 
+test("measurement ratio choices expose every selected axis and segment with unambiguous labels", () => {
+  const guide = (id, label, kind, start, end) => ({ id, label, primitive: { kind, start, end } });
+  const state = {
+    dimensions: { width: 1_000, height: 500 },
+    reviewedCandidates: [
+      guide("axis", "Guide principal", "axis", { x: 0.1, y: 0.2 }, { x: 0.9, y: 0.2 }),
+      guide("segment-a", "Guide principal", "segment", { x: 0.1, y: 0.4 }, { x: 0.5, y: 0.4 }),
+      guide("segment-b", "Segment secondaire", "segment", { x: 0.2, y: 0.7 }, { x: 0.2, y: 0.9 }),
+      guide("unselected", "Guide non retenu", "segment", { x: 0.1, y: 0.8 }, { x: 0.4, y: 0.8 }),
+      { id: "ellipse", label: "Ellipse hors périmètre", primitive: { kind: "ellipse" } },
+    ],
+    selectedGuides: new Set(["axis", "segment-a", "segment-b", "ellipse"]),
+  };
+  const measurementReferenceGeometry = widgetScriptFunction(
+    "measurementReferenceGeometry",
+    "function measurementReferenceLengthPixels",
+    { state },
+  );
+  const measurementReferenceLengthPixels = widgetScriptFunction(
+    "measurementReferenceLengthPixels",
+    "function measurementReferenceOption",
+    { state, measurementReferenceGeometry },
+  );
+  const measurementReferenceOption = widgetScriptFunction(
+    "measurementReferenceOption",
+    "function eligibleMeasurementReferences",
+    {
+      displayNumber: (value) => value.toLocaleString("fr-FR", { maximumFractionDigits: 3 }),
+      measurementReferenceGeometry,
+      measurementReferenceLengthPixels,
+    },
+  );
+  const eligibleMeasurementReferences = widgetScriptFunction(
+    "eligibleMeasurementReferences",
+    "function syncMeasurementRatioPreview",
+    {
+      state,
+      primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
+      measurementReferenceOption,
+    },
+  );
+
+  const choices = eligibleMeasurementReferences();
+
+  assert.deepEqual(choices.map(({ reference }) => reference), [
+    { kind: "axis", candidateId: "axis" },
+    { kind: "segment", candidateId: "segment-a" },
+    { kind: "segment", candidateId: "segment-b" },
+  ]);
+  assert.match(choices[0].label, /^1 · Guide principal · longueur de l’axe · 800 px/u);
+  assert.match(choices[1].label, /^2 · Guide principal · longueur du segment · 400 px/u);
+  assert.match(choices[2].label, /^3 · Segment secondaire · longueur du segment · 100 px/u);
+  assert.doesNotMatch(choices.map(({ label }) => label).join("\n"), /non retenu|Ellipse hors périmètre/u);
+});
+
+test("measurement ratio choices expose every selected quadrilateral side and diagonal", () => {
+  const state = {
+    dimensions: { width: 1_000, height: 500 },
+    reviewedCandidates: [{
+      id: "table",
+      label: "Face principale de la table",
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.9, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.2, y: 0.8 },
+        ],
+      },
+    }, {
+      id: "unselected-table",
+      label: "Quadrilatère non retenu",
+      primitive: {
+        kind: "quadrilateral",
+        vertices: [
+          { x: 0.2, y: 0.1 },
+          { x: 0.4, y: 0.1 },
+          { x: 0.4, y: 0.3 },
+          { x: 0.2, y: 0.3 },
+        ],
+      },
+    }],
+    selectedGuides: new Set(["table"]),
+  };
+  const measurementReferenceGeometry = widgetScriptFunction(
+    "measurementReferenceGeometry",
+    "function measurementReferenceLengthPixels",
+    { state },
+  );
+  const measurementReferenceLengthPixels = widgetScriptFunction(
+    "measurementReferenceLengthPixels",
+    "function measurementReferenceOption",
+    { state, measurementReferenceGeometry },
+  );
+  const measurementReferenceOption = widgetScriptFunction(
+    "measurementReferenceOption",
+    "function eligibleMeasurementReferences",
+    {
+      displayNumber: (value) => value.toLocaleString("fr-FR", { maximumFractionDigits: 3 }),
+      measurementReferenceGeometry,
+      measurementReferenceLengthPixels,
+    },
+  );
+  const eligibleMeasurementReferences = widgetScriptFunction(
+    "eligibleMeasurementReferences",
+    "function syncMeasurementRatioPreview",
+    {
+      state,
+      primitiveKind: (candidate) => candidate.primitive?.kind ?? "rectangle",
+      measurementReferenceOption,
+    },
+  );
+
+  const choices = eligibleMeasurementReferences();
+
+  assert.deepEqual(choices.map(({ reference }) => reference), [
+    { kind: "quadrilateral-side", candidateId: "table", sideIndex: 0 },
+    { kind: "quadrilateral-side", candidateId: "table", sideIndex: 1 },
+    { kind: "quadrilateral-side", candidateId: "table", sideIndex: 2 },
+    { kind: "quadrilateral-side", candidateId: "table", sideIndex: 3 },
+    { kind: "quadrilateral-diagonal", candidateId: "table", diagonalIndex: 0 },
+    { kind: "quadrilateral-diagonal", candidateId: "table", diagonalIndex: 1 },
+  ]);
+  assert.match(choices[0].label, /^1 · Face principale de la table · côté 1 · bord supérieur/u);
+  assert.match(choices[4].label, /^1 · Face principale de la table · diagonale 1 ·/u);
+  assert.doesNotMatch(choices.map(({ label }) => label).join("\n"), /non retenu/u);
+});
+
+test("measurement ratio preview explains the empty and one-length states", () => {
+  const state = { completed: false, measurementRatioEnabled: false, measurementRatioRefs: [] };
+  const measurementRatioPreview = { textContent: "" };
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: { querySelectorAll: () => [] },
+      measurementRatioPreview,
+      measurementRatioAvailabilityMessage: (options) => options.length === 0
+        ? "Aucune longueur éligible"
+        : "Une seule longueur éligible",
+    },
+  );
+
+  syncMeasurementRatioPreview([]);
+  assert.match(measurementRatioPreview.textContent, /Aucune longueur éligible/u);
+
+  syncMeasurementRatioPreview([{
+    reference: { kind: "axis", candidateId: "axis" },
+    label: "1 · Guide · longueur de l’axe · 800 px",
+  }]);
+  assert.match(measurementRatioPreview.textContent, /Une seule longueur éligible/u);
+});
+
 test("measurement ratio choices expose pixel lengths and spatial quadrilateral labels before confirmation", () => {
   const state = {
     dimensions: { width: 1_000, height: 500 },
