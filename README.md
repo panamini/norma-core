@@ -35,7 +35,10 @@ MCP, remote HTTP/MCP, ChatGPT widget, perception-job, and sandbox deployment
 code, but a checkout does not prove that any hosted environment is deployed or
 production-qualified.
 
-Application behavior remains implemented in the active MCP/runtime path. It is not being extracted into a universal SDK until a second real client requires that boundary.
+The private Web Lab is the second local client of the existing Personal Visual
+Harmony preparation and confirmation functions. It reuses that narrow
+application boundary directly; it does not introduce a universal schema or
+public SDK.
 
 The following remain outside the current proof:
 
@@ -53,6 +56,27 @@ The widget journal contract is `norma.personal-visual-harmony-review-journal@1`.
 It measures review time from the first interactive draft visible in the widget. Server prepare duration is recorded separately when available. End-to-end host latency before the prepare tool call is not observable from the widget and requires an external test harness.
 
 The initial 12-case smoke corpus validates instrumentation and gross regressions. It is not a product-quality benchmark.
+
+## Private Web Lab
+
+Launch the loopback-only lab:
+
+```bash
+npm run build
+node web-lab/start-private-web-lab.mjs --enable-private-web-lab
+```
+
+Open `http://127.0.0.1:4177`. The browser loads the image locally, computes its
+SHA-256 identity, and sends only that identity, media type, dimensions, selected
+goal, and reviewed structured geometry to the local server. The initial draft is
+an explicitly labeled deterministic fixture with no model or provider call.
+Norma Core remains stopped until the checkbox confirmation is submitted, then
+the lab returns one deterministic receipt and an exportable canonical JSON
+result.
+
+`NORMA_PRIVATE_WEB_LAB_PORT` may replace the default port. Sessions are
+in-memory, bounded, replaceable, and non-authoritative; no database or browser
+history is used.
 
 ## Verification
 
