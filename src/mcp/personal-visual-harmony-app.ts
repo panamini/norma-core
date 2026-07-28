@@ -53,8 +53,12 @@ export const PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL =
 export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
   "norma.getPersonalVisualHarmonyPerceptionStatusV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
-  "ui://widget/norma-personal-visual-harmony-v7.html";
-export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
+  "ui://widget/norma-personal-visual-harmony-v8.html";
+// The ChatGPT connector still consumes the OpenAI Apps SDK contract: the
+// widget uses window.openai and the tool advertises openai/outputTemplate.
+// Keep the legacy Skybridge MIME type until the widget is migrated to the
+// explicit MCP Apps client contract.
+export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html+skybridge";
 const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
   prefersBorder: true,
 } as const;
