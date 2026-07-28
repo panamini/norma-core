@@ -1,84 +1,73 @@
 # Norma Core
 
-Norma Core is a deterministic proportional geometry engine. It applies explicit, versioned proportional systems to structured geometric inputs and returns traceable structured outputs.
+Norma Core is a deterministic proportional-geometry engine. It applies explicit, versioned systems to accepted structured geometry and returns traceable structured results.
 
-The current repository proves the MVP core and local trust-layer surfaces. It is not a production product, public package, hosted service, or image/CAD adapter stack.
+The repository also contains bounded visual-review surfaces that can propose geometry before Core runs. Those proposals are evidence candidates, never source truth.
 
-## Current State
+## Current architecture
 
-The MVP core works for explicit structured inputs:
+The active Personal Visual Harmony flow separates four responsibilities:
 
-- structured input;
-- proportional system;
-- rule resolution;
-- construction;
-- measurement;
-- evaluation;
-- comparison and decision;
-- explanation;
-- derived artifacts;
-- run and replay metadata.
+- a host vision model may propose composition and visible construction geometry;
+- SAM 3 may propose one explicitly requested semantic object or region;
+- deterministic local pixel/CV refinement may propose tighter lines, axes, quadrilaterals, or ellipses;
+- Norma Core measures only after explicit human review and confirmation.
 
-The local trust-layer surfaces now exist:
+The current Core mapping remains rectangle-based. Confirmed quadrilaterals, segments, axes, ellipses, derived constructions, and declared two-length reports remain separate image-plane evidence and do not silently become Core rectangles.
 
-- local CLI for approved operations;
-- run verification;
-- artifact freshness verification;
-- MVP replay;
-- local read-only viewer and prototype documentation;
-- local MCP STDIO.
+The ChatGPT widget supports:
 
-These surfaces preserve the core rule that source truth comes from explicit structured data. Artifacts, displays, prompts, files, MCP calls, and CLI envelopes are derived or transport surfaces; they do not become the core model.
+- normalized candidate geometry with editable handles;
+- optional manual segments and deterministic constructions;
+- explicit semantic SAM targeting;
+- an `Original / Guides` comparison;
+- an initial four-candidate focus with an explicit show-all control;
+- bounded, analysis-scoped review metrics containing event codes, timestamps, and counts only;
+- explicit confirmation before any Core execution.
 
-## Local Boundaries
+No model output or visual calculation is automatically accepted. Norma does not infer beauty or intent.
 
-The package remains private and local. `package.json` has `private: true`, no package-level `bin`, no `publishConfig`, and no license field because this repository has no authoritative root license file. Public npm publication is not ready.
+## Runtime boundaries
 
-Local MCP STDIO is the only approved MCP runtime. It is local-only and hardened, not remote, hosted, or production. It does not approve remote MCP, ChatGPT integration, deployment, provider auth, resources, prompts, sampling, elicitation, filesystem access, network access, shell execution, package metadata drift, or new dependencies.
+This package remains private. There is no authoritative root license file, so
+public package publication remains blocked. The repository contains CLI, local
+MCP, remote HTTP/MCP, ChatGPT widget, perception-job, and sandbox deployment
+code, but a checkout does not prove that any hosted environment is deployed or
+production-qualified.
 
-The local CLI is also local-only. It calls approved package-root operations and writes structured JSON envelopes; it does not publish a package, create a production API, or add product/adaptation behavior.
+Application behavior remains implemented in the active MCP/runtime path. It is not being extracted into a universal SDK until a second real client requires that boundary.
 
-## Audit Checkpoint
+The following remain outside the current proof:
 
-The current checkpoint after PR73 is:
+- a public SDK or npm package;
+- a general-purpose vision platform;
+- mobile, OEM, Figma, Illustrator, AutoCAD, or mapping adapters;
+- automatic provider selection or multi-provider orchestration;
+- automatic confirmation;
+- production deployment or commercial qualification.
 
-- MVP core works for explicit structured inputs.
-- PR71 fixed duplicate sibling source IDs.
-- PR72 hardened MCP STDIO input bounds and process survival.
-- PR73 added minimal CI for clean install, build, tests, repository checks, and diff whitespace checks.
+## Review measurement
 
-## What Is Not Implemented
+The widget journal contract is `norma.personal-visual-harmony-review-journal@1`. It is bounded to 64 events and stores no image content, prompt, label, provider response, secret, token, claim, email, or user-history vocabulary.
 
-The following are not implemented:
+It measures review time from the first interactive draft visible in the widget. Server prepare duration is recorded separately when available. End-to-end host latency before the prepare tool call is not observable from the widget and requires an external test harness.
 
-- image pipeline;
-- vision pipeline;
-- camera integration;
-- CAD integration;
-- adapters;
-- ChatGPT integration;
-- remote MCP;
-- production API or cloud service;
-- deployment;
-- public package publication.
-
-Norma Core evaluates closeness to a declared proportional system. It does not judge beauty, infer author intent, or derive source truth from prompts, images, renders, exports, UI state, native CAD objects, or hidden defaults.
+The initial 12-case smoke corpus validates instrumentation and gross regressions. It is not a product-quality benchmark.
 
 ## Verification
 
-Use the repository scripts for local verification:
+Use the repository scripts:
 
 ```bash
 npm run build
 npm test
 npm run check
+git diff --check
 ```
 
-Available scripts are defined in `package.json`.
+## Related documentation
 
-## Related Documentation
-
-- `docs/CLI.md` documents the local CLI boundary.
-- `docs/MCP_TOOL_CONTRACT.md` documents the local MCP tool contract.
-- `docs/PUBLIC_PACKAGE_PUBLISHING_GATE.md` documents why public package publication remains blocked.
-- `docs/examples/` and `docs/onboarding/` document local viewer and onboarding examples.
+- `docs/decisions/2026-07-28-auditable-visual-measurement-rapid-proof.md`
+- `docs/MCP_TOOL_CONTRACT.md`
+- `docs/CLI.md`
+- `docs/examples/`
