@@ -586,6 +586,18 @@ export const personalVisualHarmonySam3ModalPerceptionChangedFiles = Object.freez
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
+export const personalVisualHarmonySemanticTargetToolboxChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-perception.ts",
+  "src/personal-visual-harmony-segmentation.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  "tests/personal-visual-harmony-segmentation.test.mjs",
+].sort());
+
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -2015,6 +2027,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
