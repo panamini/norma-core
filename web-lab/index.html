@@ -72,6 +72,26 @@
           </aside>
         </div>
 
+        <div id="measurement-section" class="confirmation" hidden>
+          <h3>Comparaison déclarée de deux longueurs</h3>
+          <p>
+            Choisissez exactement deux segments ou axes sélectionnés. Ce rapport reste
+            séparé du résultat Core.
+          </p>
+          <label>
+            Première longueur
+            <select id="measurement-first">
+              <option value="">Choisir une longueur…</option>
+            </select>
+          </label>
+          <label>
+            Deuxième longueur
+            <select id="measurement-second">
+              <option value="">Choisir une longueur…</option>
+            </select>
+          </label>
+        </div>
+
         <div class="confirmation">
           <label class="explicit-confirmation">
             <input id="confirmation-input" type="checkbox">
@@ -88,6 +108,9 @@
           <div><dt>Reçu</dt><dd id="receipt-identity"></dd></div>
           <div><dt>Résultat Core</dt><dd id="result-identity"></dd></div>
           <div><dt>Packs</dt><dd id="pack-refs"></dd></div>
+          <div id="measurement-report-row" hidden>
+            <dt>Comparaison déclarée</dt><dd id="measurement-report"></dd>
+          </div>
           <div><dt>Appels fournisseur</dt><dd>0</dd></div>
         </dl>
         <a id="export-link" download="norma-private-web-lab-result.json">

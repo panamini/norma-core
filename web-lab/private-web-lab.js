@@ -1,6 +1,7 @@
 import {
   canRunPrivateWebLabCoreV1,
   createPrivateWebLabConfirmationPayloadV1,
+  privateWebLabMeasurementLengthCandidatesV1,
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "/private-web-lab-browser-model.js";
@@ -12,6 +13,7 @@ const state = {
   draft: null,
   candidates: [],
   selectedCandidateIds: new Set(),
+  measurementCandidateIds: [null, null],
   revealAll: false,
   receiptUrl: null,
   preparationRevision: 0,
@@ -30,6 +32,9 @@ const sourceImage = document.querySelector("#source-image");
 const guideOverlay = document.querySelector("#guide-overlay");
 const candidateList = document.querySelector("#candidate-list");
 const revealButton = document.querySelector("#reveal-button");
+const measurementSection = document.querySelector("#measurement-section");
+const measurementFirst = document.querySelector("#measurement-first");
+const measurementSecond = document.querySelector("#measurement-second");
 const originalButton = document.querySelector("#original-button");
 const guidesButton = document.querySelector("#guides-button");
 const guideMode = document.querySelector("#guide-mode");
@@ -40,7 +45,16 @@ const receiptSection = document.querySelector("#receipt-section");
 const receiptIdentity = document.querySelector("#receipt-identity");
 const resultIdentity = document.querySelector("#result-identity");
 const packRefs = document.querySelector("#pack-refs");
+const measurementReportRow = document.querySelector("#measurement-report-row");
+const measurementReport = document.querySelector("#measurement-report");
 const exportLink = document.querySelector("#export-link");
+
+[measurementFirst, measurementSecond].forEach((select, index) => {
+  select.addEventListener("change", () => {
+    state.measurementCandidateIds[index] = select.value === "" ? null : select.value;
+    invalidateConfirmation();
+  });
+});
 
 imageInput.addEventListener("change", () => {
   state.preparationRevision += 1;
@@ -65,6 +79,7 @@ prepareButton.addEventListener("click", async () => {
   const preparationRevision = state.preparationRevision;
   const previousReviewLocked = state.reviewLocked;
   const abortController = new AbortController();
+  let displayedImageStage = null;
   state.prepareAbortController?.abort();
   state.prepareAbortController = abortController;
   state.reviewLocked = true;
@@ -76,8 +91,16 @@ prepareButton.addEventListener("click", async () => {
     requireCurrentPreparation(preparationRevision, image, abortController.signal);
     const sourceImageContentIdentity = await sha256FileIdentity(image);
     requireCurrentPreparation(preparationRevision, image, abortController.signal);
+    displayedImageStage = await loadDisplayedSourceImage(
+      image,
+      dimensions,
+      preparationRevision,
+      abortController.signal,
+    );
+    requireCurrentPreparation(preparationRevision, image, abortController.signal);
     const draft = await postJson("/api/draft", {
       browserSessionId: state.browserSessionId,
+      previousLabSessionId: state.draft?.labSessionId ?? null,
       sourceImageContentIdentity,
       sourceImageMediaType: image.type,
       sourcePixelWidth: dimensions.width,
@@ -86,14 +109,16 @@ prepareButton.addEventListener("click", async () => {
     }, abortController.signal);
     requireCurrentPreparation(preparationRevision, image, abortController.signal);
     invalidateConfirmation();
+    if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set(draft.selectedCandidateIds);
+    state.measurementCandidateIds = [null, null];
     state.revealAll = false;
     state.reviewLocked = false;
-    state.objectUrl = URL.createObjectURL(image);
+    state.objectUrl = displayedImageStage.objectUrl;
+    displayedImageStage = null;
     imagePlane.style.setProperty("--image-aspect", String(dimensions.width / dimensions.height));
-    sourceImage.src = state.objectUrl;
     reviewSection.hidden = false;
     receiptSection.hidden = true;
     confirmationInput.checked = false;
@@ -101,10 +126,12 @@ prepareButton.addEventListener("click", async () => {
     setupStatus.textContent =
       "Brouillon prêt. Les octets de l’image ne quittent pas ce navigateur.";
     renderCandidates();
+    renderMeasurementSelection();
     renderOverlay();
     setSetupControlsDisabled(false);
     setReviewEditingLocked(false);
   } catch (error) {
+    if (displayedImageStage !== null) rollbackDisplayedSourceImage(displayedImageStage);
     if (abortController.signal.aborted || preparationRevision !== state.preparationRevision) return;
     state.reviewLocked = previousReviewLocked;
     setSetupControlsDisabled(false);
@@ -152,6 +179,7 @@ runButton.addEventListener("click", async () => {
         draft: state.draft,
         selectedCandidateIds: state.selectedCandidateIds,
         reviewedCandidates: state.candidates,
+        measurementCandidateIds: currentMeasurementCandidateIds(),
       }),
     );
     state.confirmationInFlight = false;
@@ -160,6 +188,7 @@ runButton.addEventListener("click", async () => {
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
     packRefs.textContent = receipt.ratioPackRefs.join(", ");
+    renderMeasurementReceipt(receipt.declaredMeasurementRatioReport);
     if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
     state.receiptUrl = URL.createObjectURL(
       new Blob([receipt.exportJson], { type: "application/json" }),
@@ -185,6 +214,8 @@ runButton.addEventListener("click", async () => {
       confirmationInput.checked,
       state.selectedCandidateIds,
       state.candidates,
+      state.draft?.goal.id ?? null,
+      currentMeasurementCandidateIds(),
     );
   }
 });
@@ -205,10 +236,14 @@ function resetReview() {
   state.draft = null;
   state.candidates = [];
   state.selectedCandidateIds = new Set();
+  state.measurementCandidateIds = [null, null];
   confirmationInput.checked = false;
   receiptIdentity.textContent = "";
   resultIdentity.textContent = "";
   packRefs.textContent = "";
+  measurementReport.textContent = "";
+  measurementReportRow.hidden = true;
+  measurementSection.hidden = true;
   reviewSection.hidden = true;
   receiptSection.hidden = true;
   setReviewEditingLocked(false);
@@ -243,6 +278,7 @@ function candidateCard(candidate, index) {
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
     else state.selectedCandidateIds.delete(candidate.id);
+    renderMeasurementSelection();
     invalidateConfirmation();
     renderOverlay();
   });
@@ -365,12 +401,17 @@ function updateCoreAvailability() {
     confirmationInput.checked,
     state.selectedCandidateIds,
     state.candidates,
+    state.draft.goal.id,
+    currentMeasurementCandidateIds(),
   );
   runButton.disabled = !canRun;
   if (!confirmationInput.checked) {
     coreGate.textContent = "Core arrêté — confirmation explicite requise.";
   } else if (canRun) {
     coreGate.textContent = "Confirmation explicite prête — Core n’a pas encore été lancé.";
+  } else if (state.draft?.goal.id === "compare-two-lengths") {
+    coreGate.textContent =
+      "Core arrêté — choisissez exactement deux segments ou axes sélectionnés.";
   } else {
     coreGate.textContent =
       "Core arrêté — sélectionnez au moins un rectangle visible et valide.";
@@ -385,6 +426,8 @@ function invalidateConfirmation() {
   receiptIdentity.textContent = "";
   resultIdentity.textContent = "";
   packRefs.textContent = "";
+  measurementReport.textContent = "";
+  measurementReportRow.hidden = true;
   updateCoreAvailability();
 }
 
@@ -397,9 +440,62 @@ function setSetupControlsDisabled(disabled) {
 
 function setReviewEditingLocked(locked) {
   confirmationInput.disabled = locked;
-  for (const input of candidateList.querySelectorAll("input")) {
+  for (const input of reviewSection.querySelectorAll(
+    "#candidate-list input, #measurement-section select",
+  )) {
     input.disabled = locked;
   }
+}
+
+function renderMeasurementSelection() {
+  const enabled = state.draft?.goal.id === "compare-two-lengths";
+  measurementSection.hidden = !enabled;
+  if (!enabled) {
+    state.measurementCandidateIds = [null, null];
+    return;
+  }
+  const available = privateWebLabMeasurementLengthCandidatesV1(
+    state.selectedCandidateIds,
+    state.candidates,
+  );
+  const availableIds = new Set(available.map(({ id }) => id));
+  state.measurementCandidateIds = state.measurementCandidateIds.map((candidateId) => (
+    candidateId !== null && availableIds.has(candidateId) ? candidateId : null
+  ));
+  [measurementFirst, measurementSecond].forEach((select, index) => {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choisir une longueur…";
+    const options = available.map(({ id, label, kind }) => {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = `${label} · ${kind}`;
+      return option;
+    });
+    select.replaceChildren(placeholder, ...options);
+    select.value = state.measurementCandidateIds[index] ?? "";
+    select.disabled = state.reviewLocked;
+  });
+}
+
+function currentMeasurementCandidateIds() {
+  return state.draft?.goal.id === "compare-two-lengths"
+    ? [...state.measurementCandidateIds]
+    : null;
+}
+
+function renderMeasurementReceipt(report) {
+  if (report === undefined) {
+    measurementReport.textContent = "";
+    measurementReportRow.hidden = true;
+    return;
+  }
+  const [first, second] = report.measurements;
+  measurementReport.textContent =
+    `${first.candidateLabel}: ${String(first.lengthPixels)} px · `
+    + `${second.candidateLabel}: ${String(second.lengthPixels)} px · `
+    + `part dominante ${String(report.observedDominantShare)}`;
+  measurementReportRow.hidden = false;
 }
 
 function readBrowserSessionId() {
@@ -436,6 +532,34 @@ async function readImageDimensions(file) {
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+async function loadDisplayedSourceImage(file, dimensions, revision, signal) {
+  const previousSource = sourceImage.getAttribute("src");
+  const objectUrl = URL.createObjectURL(file);
+  sourceImage.src = objectUrl;
+  try {
+    await sourceImage.decode();
+    requireCurrentPreparation(revision, file, signal);
+    if (
+      sourceImage.naturalWidth !== dimensions.width
+      || sourceImage.naturalHeight !== dimensions.height
+    ) {
+      throw new Error("L’image affichée ne correspond pas aux dimensions validées.");
+    }
+    return { objectUrl, previousSource };
+  } catch (error) {
+    if (previousSource === null) sourceImage.removeAttribute("src");
+    else sourceImage.setAttribute("src", previousSource);
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+}
+
+function rollbackDisplayedSourceImage({ objectUrl, previousSource }) {
+  if (previousSource === null) sourceImage.removeAttribute("src");
+  else sourceImage.setAttribute("src", previousSource);
+  URL.revokeObjectURL(objectUrl);
 }
 
 async function sha256FileIdentity(file) {

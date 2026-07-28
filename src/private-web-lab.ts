@@ -3,9 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
   createPersonalVisualHarmonyOverlaySvgV1,
+  PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
+  PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
   preparePersonalVisualHarmonyCandidateSetV1,
   type PersonalVisualHarmonyCandidateInputV1,
   type PersonalVisualHarmonyConfirmationV1,
+  type PersonalVisualHarmonyDeclaredMeasurementRatioReportV1,
+  type PersonalVisualHarmonyMeasurementRatioRequestV1,
   type PersonalVisualHarmonyPreparedCandidateSetV1,
 } from "./personal-visual-harmony.js";
 import { serializeCanonicalJson } from "./serialization.js";
@@ -29,6 +33,7 @@ type GuidedGoal = typeof PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1[number
 
 export interface PrivateWebLabDraftRequestV1 {
   readonly browserSessionId: string;
+  readonly previousLabSessionId: string | null;
   readonly sourceImageContentIdentity: string;
   readonly sourceImageMediaType: string;
   readonly sourcePixelWidth: number;
@@ -67,6 +72,7 @@ export interface PrivateWebLabConfirmRequestV1 {
   readonly sourcePixelHeight: number;
   readonly selectedCandidateIds: readonly string[];
   readonly reviewedCandidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly measurementCandidateIds: readonly [string, string] | null;
 }
 
 export interface PrivateWebLabReceiptV1 {
@@ -87,6 +93,8 @@ export interface PrivateWebLabReceiptV1 {
   readonly canonicalCoreResult: PersonalVisualHarmonyConfirmationV1["result"]["harmonicAnalysis"];
   readonly canonicalGuideAnalysis: PrivateWebLabGuideAnalysisV1;
   readonly canonicalGuideAnalysisIdentity: string;
+  readonly declaredMeasurementRatioReport?: PrivateWebLabDeclaredMeasurementRatioReportV1;
+  readonly declaredMeasurementRatioReportIdentity?: string;
   readonly exportFileName: "norma-private-web-lab-result.json";
   readonly exportJson: string;
 }
@@ -97,6 +105,14 @@ export type PrivateWebLabGuideAnalysisV1 = Omit<
 > & {
   readonly sourceImageDimensionsObservedBy: "private_web_lab_browser";
   readonly confirmationMode: "client_asserted_private_web_lab_interaction";
+  readonly contentIdentity: string;
+};
+
+export type PrivateWebLabDeclaredMeasurementRatioReportV1 = Omit<
+  PersonalVisualHarmonyDeclaredMeasurementRatioReportV1,
+  "contentIdentity" | "sourceImageReferenceIdentity"
+> & {
+  readonly sourceImageReferenceIdentity: string;
   readonly contentIdentity: string;
 };
 
@@ -158,10 +174,16 @@ export class PrivateWebLabApplicationV1 {
     const input = parseDraftRequest(value);
     const now = this.now();
     this.pruneExpired(now);
-    const supersededSessionIds = [...this.sessions]
-      .filter(([, session]) => session.browserSessionId === input.browserSessionId)
-      .map(([sessionId]) => sessionId);
-    if (this.sessions.size - supersededSessionIds.length >= this.maxSessions) {
+    const previousSession = input.previousLabSessionId === null
+      ? undefined
+      : this.sessions.get(input.previousLabSessionId);
+    if (
+      previousSession !== undefined
+      && previousSession.browserSessionId !== input.browserSessionId
+    ) {
+      throw new Error("Private Web Lab replacement session belongs to a different browser.");
+    }
+    if (this.sessions.size - (previousSession === undefined ? 0 : 1) >= this.maxSessions) {
       throw new Error("Private Web Lab session capacity is exhausted.");
     }
 
@@ -190,7 +212,7 @@ export class PrivateWebLabApplicationV1 {
       createdAtMs: now,
       expiresAtMs: now + this.sessionTtlMs,
     };
-    for (const sessionId of supersededSessionIds) this.sessions.delete(sessionId);
+    if (previousSession !== undefined) this.sessions.delete(previousSession.labSessionId);
     this.sessions.set(labSessionId, session);
     const visibleCandidateIds = strongestGuideCandidateIds(prepared.candidates);
     const selectedCandidateIds = visibleCandidateIds;
@@ -253,6 +275,12 @@ export class PrivateWebLabApplicationV1 {
     if (selectedCoreCandidateIds.length === 0) {
       throw new Error("Private Web Lab confirmation requires one selected rectangle for Norma Core.");
     }
+    const measurementRatioRequest = createPrivateWebLabMeasurementRatioRequest(
+      session.goal.id,
+      reviewedPrepared.candidates,
+      confirmedVisualGuideCandidateIds,
+      input.measurementCandidateIds,
+    );
 
     const confirmationRequestIdentity = contentIdentityFor({
       browserSessionId: input.browserSessionId,
@@ -261,6 +289,7 @@ export class PrivateWebLabApplicationV1 {
       draftCandidateSetIdentity: input.candidateSetIdentity,
       acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
       selectedCandidateIds,
+      measurementCandidateIds: input.measurementCandidateIds,
       sourcePixelWidth: input.sourcePixelWidth,
       sourcePixelHeight: input.sourcePixelHeight,
     });
@@ -276,6 +305,7 @@ export class PrivateWebLabApplicationV1 {
       expectedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
       selectedCandidateIds: selectedCoreCandidateIds,
       confirmedVisualGuideCandidateIds,
+      ...(measurementRatioRequest === undefined ? {} : { measurementRatioRequest }),
       sourcePixelWidth: input.sourcePixelWidth,
       sourcePixelHeight: input.sourcePixelHeight,
       acceptedAt: new Date(now).toISOString(),
@@ -285,6 +315,13 @@ export class PrivateWebLabApplicationV1 {
       confirmation.imagePlaneGuideAnalysis,
       session.sourceImageContentIdentity,
     );
+    const declaredMeasurementRatioReport =
+      confirmation.declaredMeasurementRatioReport === undefined
+        ? undefined
+        : createPrivateWebLabDeclaredMeasurementRatioReport(
+            confirmation.declaredMeasurementRatioReport,
+            session.sourceImageContentIdentity,
+          );
     const canonicalExport = {
       contractId: PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID,
       sourceImageContentIdentity: session.sourceImageContentIdentity,
@@ -293,6 +330,9 @@ export class PrivateWebLabApplicationV1 {
       ratioPackRefs: canonicalCoreResult.ratioPackRefs,
       canonicalCoreResult,
       canonicalGuideAnalysis,
+      ...(declaredMeasurementRatioReport === undefined
+        ? {}
+        : { declaredMeasurementRatioReport }),
     };
     const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
     const receiptPayload: Omit<PrivateWebLabReceiptV1, "receiptIdentity"> = {
@@ -312,6 +352,13 @@ export class PrivateWebLabApplicationV1 {
       canonicalCoreResult,
       canonicalGuideAnalysis,
       canonicalGuideAnalysisIdentity: canonicalGuideAnalysis.contentIdentity,
+      ...(declaredMeasurementRatioReport === undefined
+        ? {}
+        : {
+            declaredMeasurementRatioReport,
+            declaredMeasurementRatioReportIdentity:
+              declaredMeasurementRatioReport.contentIdentity,
+          }),
       exportFileName: "norma-private-web-lab-result.json",
       exportJson,
     };
@@ -340,12 +387,14 @@ function parseDraftRequest(value: unknown): PrivateWebLabDraftRequestV1 {
   const input = requireExactRecord(value, [
     "browserSessionId",
     "goalId",
+    "previousLabSessionId",
     "sourceImageContentIdentity",
     "sourceImageMediaType",
     "sourcePixelHeight",
     "sourcePixelWidth",
   ]);
   const browserSessionId = requireBrowserSessionId(input.browserSessionId);
+  const previousLabSessionId = requireOptionalLabSessionId(input.previousLabSessionId);
   const sourceImageContentIdentity = requireSourceContentIdentity(
     input.sourceImageContentIdentity,
   );
@@ -355,6 +404,7 @@ function parseDraftRequest(value: unknown): PrivateWebLabDraftRequestV1 {
   const goalId = requireGoal(input.goalId).id;
   return {
     browserSessionId,
+    previousLabSessionId,
     sourceImageContentIdentity,
     sourceImageMediaType,
     sourcePixelWidth,
@@ -369,6 +419,7 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
     "candidateSetIdentity",
     "explicitConfirmation",
     "labSessionId",
+    "measurementCandidateIds",
     "reviewedCandidates",
     "selectedCandidateIds",
     "sourceImageContentIdentity",
@@ -390,6 +441,12 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
   if (!Array.isArray(input.selectedCandidateIds) || !Array.isArray(input.reviewedCandidates)) {
     throw new Error("Private Web Lab reviewed candidates and selection must be arrays.");
   }
+  if (
+    input.measurementCandidateIds !== null
+    && !Array.isArray(input.measurementCandidateIds)
+  ) {
+    throw new Error("Private Web Lab measurement selection must be an array or null.");
+  }
   return {
     explicitConfirmation: true,
     browserSessionId: requireBrowserSessionId(input.browserSessionId),
@@ -403,6 +460,8 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
     selectedCandidateIds: input.selectedCandidateIds as readonly string[],
     reviewedCandidates:
       input.reviewedCandidates as readonly PersonalVisualHarmonyCandidateInputV1[],
+    measurementCandidateIds:
+      input.measurementCandidateIds as readonly [string, string] | null,
   };
 }
 
@@ -618,6 +677,74 @@ function createPrivateWebLabGuideAnalysis(
   };
 }
 
+function createPrivateWebLabMeasurementRatioRequest(
+  goalId: GuidedGoal["id"],
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  confirmedVisualGuideCandidateIds: readonly string[],
+  measurementCandidateIds: readonly [string, string] | null,
+): PersonalVisualHarmonyMeasurementRatioRequestV1 | undefined {
+  if (goalId !== "compare-two-lengths") {
+    if (measurementCandidateIds !== null) {
+      throw new Error("This Private Web Lab goal does not accept a length comparison.");
+    }
+    return undefined;
+  }
+  if (
+    measurementCandidateIds === null
+    || measurementCandidateIds.length !== 2
+    || measurementCandidateIds.some((candidateId) => typeof candidateId !== "string")
+    || new Set(measurementCandidateIds).size !== 2
+  ) {
+    throw new Error("Compare two lengths requires exactly two confirmed lengths.");
+  }
+  const confirmedIds = new Set(confirmedVisualGuideCandidateIds);
+  const measurementFor = (
+    candidateId: string,
+  ): PersonalVisualHarmonyMeasurementRatioRequestV1["measurements"][number] => {
+    const candidate = candidates.find(({ id }) => id === candidateId);
+    const kind = candidate === undefined ? undefined : primitiveKind(candidate);
+    if (
+      candidate === undefined
+      || !confirmedIds.has(candidateId)
+      || (kind !== "segment" && kind !== "axis")
+    ) {
+      throw new Error("Each compared length must be a selected segment or axis.");
+    }
+    return { kind, candidateId };
+  };
+  const measurements = [
+    measurementFor(measurementCandidateIds[0]),
+    measurementFor(measurementCandidateIds[1]),
+  ] as const;
+  return {
+    requestId: "web-lab-two-lengths",
+    measurements,
+    ratioPackRefs: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
+    matchTolerance: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
+  };
+}
+
+function createPrivateWebLabDeclaredMeasurementRatioReport(
+  report: PersonalVisualHarmonyDeclaredMeasurementRatioReportV1,
+  sourceImageContentIdentity: string,
+): PrivateWebLabDeclaredMeasurementRatioReportV1 {
+  const {
+    contentIdentity: previousContentIdentity,
+    ...reportWithoutIdentity
+  } = report;
+  if (!SOURCE_CONTENT_IDENTITY_PATTERN.test(previousContentIdentity)) {
+    throw new Error("Personal Visual Harmony measurement report identity is invalid.");
+  }
+  const withoutIdentity = {
+    ...reportWithoutIdentity,
+    sourceImageReferenceIdentity: sourceImageContentIdentity,
+  };
+  return {
+    ...withoutIdentity,
+    contentIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
 function primitiveKind(candidate: PersonalVisualHarmonyCandidateInputV1): string {
   return candidate.primitive?.kind ?? "rectangle";
 }
@@ -650,6 +777,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function requireBrowserSessionId(value: unknown): string {
   if (typeof value !== "string" || !BROWSER_SESSION_ID_PATTERN.test(value)) {
     throw new Error("Private Web Lab browser session identity is invalid.");
+  }
+  return value;
+}
+
+function requireOptionalLabSessionId(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string" || !LAB_SESSION_ID_PATTERN.test(value)) {
+    throw new Error("Private Web Lab replacement session identity is invalid.");
   }
   return value;
 }

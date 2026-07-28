@@ -14,6 +14,8 @@ export function canRunPrivateWebLabCoreV1(
   explicitConfirmation,
   selectedCandidateIds,
   reviewedCandidates,
+  goalId = null,
+  measurementCandidateIds = null,
 ) {
   if (
     explicitConfirmation !== true
@@ -23,10 +25,60 @@ export function canRunPrivateWebLabCoreV1(
   ) {
     return false;
   }
-  return reviewedCandidates.some((candidate) => (
+  const hasCoreRectangle = reviewedCandidates.some((candidate) => (
     selectedCandidateIds.has(candidate.id)
     && (candidate.primitive?.kind ?? "rectangle") === "rectangle"
   ));
+  return (
+    hasCoreRectangle
+    && (
+      goalId === null
+      || isValidPrivateWebLabMeasurementPairV1(
+        goalId,
+        measurementCandidateIds,
+        selectedCandidateIds,
+        reviewedCandidates,
+      )
+    )
+  );
+}
+
+export function privateWebLabMeasurementLengthCandidatesV1(
+  selectedCandidateIds,
+  reviewedCandidates,
+) {
+  if (!(selectedCandidateIds instanceof Set) || !Array.isArray(reviewedCandidates)) {
+    return [];
+  }
+  return reviewedCandidates.flatMap((candidate) => {
+    const kind = candidate.primitive?.kind ?? "rectangle";
+    return selectedCandidateIds.has(candidate.id) && (kind === "segment" || kind === "axis")
+      ? [{ id: candidate.id, label: candidate.label, kind }]
+      : [];
+  });
+}
+
+export function isValidPrivateWebLabMeasurementPairV1(
+  goalId,
+  measurementCandidateIds,
+  selectedCandidateIds,
+  reviewedCandidates,
+) {
+  if (goalId !== "compare-two-lengths") return measurementCandidateIds === null;
+  if (
+    !Array.isArray(measurementCandidateIds)
+    || measurementCandidateIds.length !== 2
+    || new Set(measurementCandidateIds).size !== 2
+  ) {
+    return false;
+  }
+  const availableIds = new Set(
+    privateWebLabMeasurementLengthCandidatesV1(
+      selectedCandidateIds,
+      reviewedCandidates,
+    ).map(({ id }) => id),
+  );
+  return measurementCandidateIds.every((candidateId) => availableIds.has(candidateId));
 }
 
 export function boundedPrivateWebLabCoordinateV1(value, fallback) {
@@ -60,6 +112,7 @@ export function createPrivateWebLabConfirmationPayloadV1({
   explicitConfirmation,
   browserSessionId,
   draft,
+  measurementCandidateIds,
   selectedCandidateIds,
   reviewedCandidates,
 }) {
@@ -67,6 +120,8 @@ export function createPrivateWebLabConfirmationPayloadV1({
     explicitConfirmation,
     selectedCandidateIds,
     reviewedCandidates,
+    draft.goal.id,
+    measurementCandidateIds,
   )) {
     throw new Error("Norma Core requires an explicit browser confirmation and selection.");
   }
@@ -80,6 +135,10 @@ export function createPrivateWebLabConfirmationPayloadV1({
     sourcePixelHeight: draft.sourcePixelHeight,
     selectedCandidateIds: [...selectedCandidateIds],
     reviewedCandidates,
+    measurementCandidateIds:
+      draft.goal.id === "compare-two-lengths"
+        ? [...measurementCandidateIds]
+        : null,
   };
 }
 

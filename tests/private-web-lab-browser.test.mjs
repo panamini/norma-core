@@ -15,6 +15,7 @@ import {
   canRunPrivateWebLabCoreV1,
   createPrivateWebLabConfirmationPayloadV1,
   isPrivateWebLabCandidateGeometryValidV1,
+  isValidPrivateWebLabMeasurementPairV1,
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
@@ -153,6 +154,7 @@ test("browser flow validates complete primitive geometry and emits confirmation 
     candidateSetIdentity: `sha256:${"b".repeat(64)}`,
     sourcePixelWidth: 1200,
     sourcePixelHeight: 800,
+    goal: { id: "general-geometry" },
   };
   const options = {
     explicitConfirmation: false,
@@ -160,6 +162,7 @@ test("browser flow validates complete primitive geometry and emits confirmation 
     draft,
     selectedCandidateIds: new Set(["fixture-frame"]),
     reviewedCandidates: [rectangle],
+    measurementCandidateIds: null,
   };
   assert.throws(
     () => createPrivateWebLabConfirmationPayloadV1(options),
@@ -180,7 +183,33 @@ test("browser flow validates complete primitive geometry and emits confirmation 
       sourcePixelHeight: draft.sourcePixelHeight,
       selectedCandidateIds: ["fixture-frame"],
       reviewedCandidates: options.reviewedCandidates,
+      measurementCandidateIds: null,
     },
+  );
+
+  const comparisonCandidates = [rectangle, segment, {
+    ...segment,
+    id: "fixture-axis",
+    primitive: { ...segment.primitive, kind: "axis" },
+  }];
+  const comparisonSelection = new Set(comparisonCandidates.map(({ id }) => id));
+  assert.equal(
+    isValidPrivateWebLabMeasurementPairV1(
+      "compare-two-lengths",
+      ["fixture-segment", "fixture-axis"],
+      comparisonSelection,
+      comparisonCandidates,
+    ),
+    true,
+  );
+  assert.equal(
+    isValidPrivateWebLabMeasurementPairV1(
+      "compare-two-lengths",
+      ["fixture-segment", "fixture-frame"],
+      comparisonSelection,
+      comparisonCandidates,
+    ),
+    false,
   );
 });
 
@@ -241,10 +270,26 @@ test(
         connection,
         sessionId,
         `(() => {
+          const displayedImage = document.querySelector("#source-image");
+          const decodeDisplayedImage = displayedImage.decode.bind(displayedImage);
+          const fetchNormally = window.fetch.bind(window);
+          window.__draftCalls = 0;
+          window.fetch = (...args) => {
+            if (args[0] === "/api/draft") window.__draftCalls += 1;
+            return fetchNormally(...args);
+          };
+          displayedImage.decode = async () => {
+            await decodeDisplayedImage();
+            await new Promise((resolve) => {
+              window.__releaseDisplayedImageDecode = resolve;
+            });
+            displayedImage.decode = decodeDisplayedImage;
+            throw new Error("Échec de décodage affiché simulé.");
+          };
           const imageInput = document.querySelector("#image-input");
           imageInput.dispatchEvent(new Event("change", { bubbles: true }));
           const goal = document.querySelector("#goal-input");
-          goal.value = "frames-proportions";
+          goal.value = "compare-two-lengths";
           goal.dispatchEvent(new Event("change", { bubbles: true }));
           document.querySelector("#prepare-button").click();
         })()`,
@@ -252,7 +297,67 @@ test(
       await waitForBrowserCondition(
         connection,
         sessionId,
+        "typeof window.__releaseDisplayedImageDecode === 'function'",
+      );
+      const beforeDisplayedImageDecode = await evaluate(
+        connection,
+        sessionId,
+        `({
+          reviewHidden: document.querySelector("#review-section").hidden,
+          imageDisabled: document.querySelector("#image-input").disabled,
+          goalDisabled: document.querySelector("#goal-input").disabled,
+          prepareDisabled: document.querySelector("#prepare-button").disabled,
+          draftCalls: window.__draftCalls,
+        })`,
+      );
+      assert.deepEqual(beforeDisplayedImageDecode, {
+        reviewHidden: true,
+        imageDisabled: true,
+        goalDisabled: true,
+        prepareDisabled: true,
+        draftCalls: 0,
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        "window.__releaseDisplayedImageDecode()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#setup-status').textContent.includes('simulé')",
+      );
+      const failedDisplayedImageDecode = await evaluate(
+        connection,
+        sessionId,
+        `({
+          reviewHidden: document.querySelector("#review-section").hidden,
+          imageDisabled: document.querySelector("#image-input").disabled,
+          goalDisabled: document.querySelector("#goal-input").disabled,
+          prepareDisabled: document.querySelector("#prepare-button").disabled,
+          draftCalls: window.__draftCalls,
+        })`,
+      );
+      assert.deepEqual(failedDisplayedImageDecode, {
+        reviewHidden: true,
+        imageDisabled: false,
+        goalDisabled: false,
+        prepareDisabled: false,
+        draftCalls: 0,
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#prepare-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
         "!document.querySelector('#review-section').hidden",
+      );
+      assert.equal(
+        await evaluate(connection, sessionId, "window.__draftCalls"),
+        1,
       );
 
       assert.equal(coreExecutions, 0);
@@ -336,6 +441,12 @@ test(
           );
           diagonalStartX.value = "0.1";
           diagonalStartX.dispatchEvent(new Event("change", { bubbles: true }));
+          const firstMeasurement = document.querySelector("#measurement-first");
+          const secondMeasurement = document.querySelector("#measurement-second");
+          firstMeasurement.value = "fixture-horizontal-guide";
+          firstMeasurement.dispatchEvent(new Event("change", { bubbles: true }));
+          secondMeasurement.value = "fixture-diagonal";
+          secondMeasurement.dispatchEvent(new Event("change", { bubbles: true }));
           const confirmation = document.querySelector("#confirmation-input");
           confirmation.checked = true;
           confirmation.dispatchEvent(new Event("change", { bubbles: true }));
@@ -346,6 +457,10 @@ test(
             hiddenWereUnselected,
             reviewedWidth: widthInput.value,
             reviewedDiagonalStartX: diagonalStartX.value,
+            measurementSectionHidden:
+              document.querySelector("#measurement-section").hidden,
+            firstMeasurement: firstMeasurement.value,
+            secondMeasurement: secondMeasurement.value,
             runDisabled: document.querySelector("#run-button").disabled,
           };
         })()`,
@@ -356,6 +471,9 @@ test(
         hiddenWereUnselected: true,
         reviewedWidth: "0.55",
         reviewedDiagonalStartX: "0.1",
+        measurementSectionHidden: false,
+        firstMeasurement: "fixture-horizontal-guide",
+        secondMeasurement: "fixture-diagonal",
         runDisabled: false,
       });
       assert.equal(coreExecutions, 0);
@@ -383,6 +501,9 @@ test(
             ...document.querySelectorAll("#candidate-list input")
           ].every((input) => input.disabled),
           confirmationDisabled: document.querySelector("#confirmation-input").disabled,
+          measurementInputsDisabled: [
+            ...document.querySelectorAll("#measurement-section select")
+          ].every((input) => input.disabled),
           imageDisabled: document.querySelector("#image-input").disabled,
           goalDisabled: document.querySelector("#goal-input").disabled,
           prepareDisabled: document.querySelector("#prepare-button").disabled,
@@ -391,6 +512,7 @@ test(
       assert.deepEqual(confirmationLock, {
         candidateInputsDisabled: true,
         confirmationDisabled: true,
+        measurementInputsDisabled: true,
         imageDisabled: true,
         goalDisabled: true,
         prepareDisabled: true,
@@ -417,6 +539,10 @@ test(
               document.querySelector("#receipt-section dl div:last-child dd").textContent,
             download: link.download,
             exportContractId: exported.contractId,
+            measurementReportIdentity:
+              exported.declaredMeasurementRatioReport?.contentIdentity ?? "",
+            measurementReportVisible:
+              !document.querySelector("#measurement-report-row").hidden,
             candidateInputsDisabled: [
               ...document.querySelectorAll("#candidate-list input")
             ].every((input) => input.disabled),
@@ -435,6 +561,8 @@ test(
       assert.equal(receipt.download, "norma-private-web-lab-result.json");
       assert.equal(receipt.providerCalls, "0");
       assert.equal(receipt.exportContractId, "norma.private-web-lab-canonical-result@1");
+      assert.match(receipt.measurementReportIdentity, /^sha256:[0-9a-f]{64}$/u);
+      assert.equal(receipt.measurementReportVisible, true);
       assert.equal(receipt.candidateInputsDisabled, true);
       assert.equal(receipt.confirmationDisabled, true);
       assert.equal(receipt.imageDisabled, false);

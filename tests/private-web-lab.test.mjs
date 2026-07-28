@@ -23,6 +23,7 @@ import {
 } from "../dist/src/private-web-lab.js";
 import {
   createPrivateWebLabHttpServerV1,
+  isTrustedLoopbackRequestV1,
 } from "../web-lab/private-web-lab-http-server.mjs";
 
 const sourceImageContentIdentity = `sha256:${"a".repeat(64)}`;
@@ -59,11 +60,11 @@ test("private Web Lab prepares a bounded provider-free draft with Core stopped",
   assert.equal(coreCalls, 0);
 });
 
-test("a valid replacement draft supersedes the same browser session without consuming capacity", () => {
+test("copied browser session identifiers keep independent lab sessions", () => {
   let sessionSequence = 0;
   const application = new PrivateWebLabApplicationV1({
     now: () => fixedNow,
-    maxSessions: 1,
+    maxSessions: 2,
     createSessionId: () => {
       sessionSequence += 1;
       return `web-lab-session:00000000-0000-4000-8000-${String(sessionSequence).padStart(12, "0")}`;
@@ -76,16 +77,69 @@ test("a valid replacement draft supersedes the same browser session without cons
   });
 
   assert.notEqual(first.labSessionId, second.labSessionId);
+  assert.equal(application.confirm(confirmationRequest(first)).stage, "completed");
+  assert.equal(application.confirm(confirmationRequest(second)).stage, "completed");
+  const replacement = application.prepareDraft({
+    ...draftRequest(),
+    previousLabSessionId: first.labSessionId,
+    sourceImageContentIdentity: `sha256:${"c".repeat(64)}`,
+  });
   assert.throws(
     () => application.confirm(confirmationRequest(first)),
     /missing or expired/u,
   );
+  assert.equal(application.confirm(confirmationRequest(second)).stage, "completed");
+  assert.equal(application.confirm(confirmationRequest(replacement)).stage, "completed");
   assert.throws(
     () => application.prepareDraft({
       ...draftRequest(),
       browserSessionId: "browser:another-session",
     }),
     /capacity is exhausted/u,
+  );
+});
+
+test("compare-two-lengths requires an explicit confirmed pair and exports its declared report", () => {
+  let coreCalls = 0;
+  const application = applicationWithCounter(() => {
+    coreCalls += 1;
+  });
+  const draft = application.prepareDraft({
+    ...draftRequest(),
+    goalId: "compare-two-lengths",
+  });
+  const request = confirmationRequest(draft);
+
+  assert.throws(
+    () => application.confirm(request),
+    /exactly two confirmed lengths/u,
+  );
+  assert.throws(
+    () => application.confirm({
+      ...request,
+      measurementCandidateIds: ["fixture-horizontal-guide", "fixture-frame"],
+    }),
+    /segment or axis/u,
+  );
+  assert.equal(coreCalls, 0);
+
+  const receipt = application.confirm({
+    ...request,
+    measurementCandidateIds: ["fixture-horizontal-guide", "fixture-diagonal"],
+  });
+  assert.equal(coreCalls, 1);
+  assert.equal(receipt.declaredMeasurementRatioReport.status, "completed");
+  assert.equal(
+    receipt.declaredMeasurementRatioReportIdentity,
+    receipt.declaredMeasurementRatioReport.contentIdentity,
+  );
+  assert.equal(
+    receipt.declaredMeasurementRatioReport.sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
+  );
+  assert.deepEqual(
+    JSON.parse(receipt.exportJson).declaredMeasurementRatioReport,
+    receipt.declaredMeasurementRatioReport,
   );
 });
 
@@ -369,6 +423,33 @@ test("loopback HTTP surface serves the lab and rejects raw image-shaped request 
   }
 });
 
+test("loopback request validation accepts normalized default-port host and origin forms", () => {
+  const request = (host, origin) => ({
+    socket: {
+      remoteAddress: "127.0.0.1",
+      localPort: 80,
+    },
+    headers: {
+      host,
+      ...(origin === undefined ? {} : { origin }),
+    },
+  });
+
+  assert.equal(isTrustedLoopbackRequestV1(request("127.0.0.1")), true);
+  assert.equal(
+    isTrustedLoopbackRequestV1(request("localhost", "http://localhost")),
+    true,
+  );
+  assert.equal(
+    isTrustedLoopbackRequestV1(request("127.0.0.1:80", "http://127.0.0.1")),
+    true,
+  );
+  assert.equal(
+    isTrustedLoopbackRequestV1(request("localhost", "http://localhost:4177")),
+    false,
+  );
+});
+
 test("deterministic candidate fixture remains stable for the same visible goal", () => {
   assert.deepEqual(
     deterministicPrivateWebLabCandidatesV1("general-geometry"),
@@ -390,6 +471,7 @@ function applicationWithCounter(onCoreCall) {
 function draftRequest() {
   return {
     browserSessionId,
+    previousLabSessionId: null,
     sourceImageContentIdentity,
     sourceImageMediaType: "image/png",
     sourcePixelWidth,
@@ -409,6 +491,7 @@ function confirmationRequest(draft) {
     sourcePixelHeight: draft.sourcePixelHeight,
     selectedCandidateIds: draft.selectedCandidateIds,
     reviewedCandidates: structuredClone(draft.candidates),
+    measurementCandidateIds: null,
   };
 }
 

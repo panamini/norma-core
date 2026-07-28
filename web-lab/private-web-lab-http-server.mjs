@@ -36,7 +36,7 @@ export function createPrivateWebLabHttpServerV1(options = {}) {
 }
 
 async function routeRequest(request, response, application, maxRequestBytes) {
-  if (!isTrustedLoopbackRequest(request)) {
+  if (!isTrustedLoopbackRequestV1(request)) {
     sendJson(response, 403, { error: "loopback_request_required" });
     return;
   }
@@ -97,7 +97,7 @@ async function routeRequest(request, response, application, maxRequestBytes) {
   }
 }
 
-function isTrustedLoopbackRequest(request) {
+export function isTrustedLoopbackRequestV1(request) {
   const remoteAddress = request.socket.remoteAddress;
   if (
     remoteAddress !== "127.0.0.1"
@@ -114,9 +114,27 @@ function isTrustedLoopbackRequest(request) {
     `localhost:${String(localPort)}`,
     `[::1]:${String(localPort)}`,
   ]);
-  if (!allowedHosts.has(host.toLowerCase())) return false;
+  if (localPort === 80) {
+    allowedHosts.add("127.0.0.1");
+    allowedHosts.add("localhost");
+    allowedHosts.add("[::1]");
+  }
+  const normalizedHost = host.toLowerCase();
+  if (!allowedHosts.has(normalizedHost)) return false;
   const origin = request.headers.origin;
-  return origin === undefined || origin === `http://${host.toLowerCase()}`;
+  if (origin === undefined) return true;
+  try {
+    const expectedOrigin = new URL(`http://${normalizedHost}`).origin;
+    const parsedOrigin = new URL(origin);
+    return (
+      parsedOrigin.origin === expectedOrigin
+      && parsedOrigin.pathname === "/"
+      && parsedOrigin.search === ""
+      && parsedOrigin.hash === ""
+    );
+  } catch {
+    return false;
+  }
 }
 
 function requestPathname(rawUrl) {
