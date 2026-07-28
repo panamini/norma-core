@@ -562,6 +562,7 @@ export const personalVisualHarmonyWidgetRuntimeDebugChangedFiles = Object.freeze
   "src/personal-visual-harmony-perception.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());

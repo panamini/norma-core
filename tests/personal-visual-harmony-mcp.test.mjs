@@ -516,6 +516,44 @@ test("measurement ratio preview ignores invalid restored references and complete
   assert.match(measurementRatioPreview.textContent, /non demandé/u);
 });
 
+test("measurement ratio preview directs a sparse B-only selection back to A", () => {
+  const reference = { kind: "segment", candidateId: "second" };
+  const state = {
+    completed: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [null, reference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [],
+        querySelector: () => null,
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: (value) => value,
+      measurementReferenceGeometry: (value) => value === reference
+        ? { start: { x: 0.1, y: 0.1 }, end: { x: 0.9, y: 0.1 } }
+        : null,
+      measurementReferenceOption: (value) => value === reference
+        ? "Guide · longueur du segment · 800 px"
+        : null,
+    },
+  );
+
+  syncMeasurementRatioPreview();
+
+  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la première longueur/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la seconde longueur/u);
+});
+
 test("measurement ratio selectors update only pending widget state", () => {
   const state = {
     measurementRatioRefs: [],
@@ -4942,7 +4980,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v8.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v9.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -4957,9 +4995,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
-      uri: "ui://widget/norma-personal-visual-harmony-v7.html",
+      uri: "ui://widget/norma-personal-visual-harmony-v8.html",
     });
-    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v7.html");
+    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
     assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
@@ -5217,6 +5255,36 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
 
   assert.deepEqual(bootstrapStates, ["stale", "ready"]);
   assert.deepEqual(hydratedPayloads, [payload]);
+});
+
+test("message-only hydration cannot make an already-ready widget stale again", () => {
+  let scheduledRetry = null;
+  const bootstrapStates = [];
+  const state = { payload: null, completed: false };
+  const bootstrap = widgetScriptFunction("bootstrap", "window.addEventListener", {
+    currentPayload: () => null,
+    state,
+    bootstrapRetryCount: 50,
+    BOOTSTRAP_PENDING_NOTICE_AFTER: 50,
+    BOOTSTRAP_RETRY_DELAY_MS: 100,
+    BOOTSTRAP_SLOW_RETRY_DELAY_MS: 1_000,
+    loading: { textContent: "" },
+    setWidgetBootstrapState: (nextState) => bootstrapStates.push(nextState),
+    hydrate: () => {},
+    setTimeout: (callback, delay) => {
+      scheduledRetry = { callback, delay };
+    },
+  });
+
+  bootstrap();
+  assert.deepEqual(bootstrapStates, ["stale"]);
+  assert.equal(scheduledRetry?.delay, 1_000);
+
+  state.payload = { stage: "confirmation_required", fileId: "file-notification" };
+  bootstrapStates.push("ready");
+  scheduledRetry.callback();
+
+  assert.equal(bootstrapStates.at(-1), "ready");
 });
 
 test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
