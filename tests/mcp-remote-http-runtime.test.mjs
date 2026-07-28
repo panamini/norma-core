@@ -117,6 +117,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   });
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
+  assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -126,6 +127,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(widget.status, 200);
   assert.equal(widget.json.result.contents[0].uri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(widget.json.result.contents[0].mimeType, "text/html;profile=mcp-app");
+  assert.deepEqual(widget.json.result.contents[0]._meta.ui, { prefersBorder: true });
   assert.match(widget.json.result.contents[0].text, /window[.]openai/u);
 
   const prepared = await mcpRequest(port, {

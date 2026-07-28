@@ -4744,6 +4744,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
+    assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
   assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v6.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
@@ -4752,6 +4753,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+    assert.deepEqual(resource.contents[0]._meta.ui, { prefersBorder: true });
     assert.equal(resource.contents[0].text, createPersonalVisualHarmonyWidgetHtmlV1());
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
