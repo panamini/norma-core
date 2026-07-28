@@ -346,6 +346,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
       const tool = listed.tools.find((candidate) => candidate.name === name);
       assert.ok(tool);
       assert.deepEqual(tool._meta.ui.visibility, ["app"]);
+      assert.equal(Object.hasOwn(tool._meta.ui, "resourceUri"), false);
     }
 
     const prepared = await prepare(owner.client);

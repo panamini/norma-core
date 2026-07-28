@@ -1966,7 +1966,6 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         _meta: {
           "openai/widgetAccessible": true,
           ui: {
-            resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
             visibility: ["app"],
           },
         },
@@ -2031,7 +2030,6 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         _meta: {
           "openai/widgetAccessible": true,
           ui: {
-            resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
             visibility: ["app"],
           },
         },
@@ -2105,7 +2103,6 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       _meta: {
         "openai/widgetAccessible": true,
         ui: {
-          resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
           visibility: ["app"],
         },
       },
@@ -2255,7 +2252,6 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       _meta: {
         "openai/widgetAccessible": true,
         ui: {
-          resourceUri: PERSONAL_VISUAL_HARMONY_WIDGET_URI,
           visibility: ["app"],
         },
       },
