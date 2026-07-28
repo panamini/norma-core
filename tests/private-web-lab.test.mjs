@@ -89,6 +89,18 @@ test("a valid replacement draft supersedes the same browser session without cons
   );
 });
 
+test("ellipses and lines keeps a Core-compatible rectangle in the strongest defaults", () => {
+  const application = applicationWithCounter(() => {});
+  const draft = application.prepareDraft({
+    ...draftRequest(),
+    goalId: "ellipses-lines",
+  });
+
+  assert.equal(draft.visibleCandidateIds.length, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT);
+  assert.ok(draft.visibleCandidateIds.includes("fixture-frame"));
+  assert.deepEqual(draft.selectedCandidateIds, draft.visibleCandidateIds);
+});
+
 test("invalid, stale, cross-source, cross-session, and candidate-mismatched confirmations fail before Core", () => {
   let coreCalls = 0;
   const application = applicationWithCounter(() => {
@@ -171,6 +183,14 @@ test("explicit confirmation executes Core once, returns a canonical receipt, and
     receipt.canonicalGuideAnalysis,
   );
   assert.equal(coreCalls, 1);
+
+  const alternateApplication = applicationWithCounter(() => {});
+  const alternateDraft = alternateApplication.prepareDraft({
+    ...draftRequest(),
+    goalId: "correct-omitted-primitive",
+  });
+  const alternateReceipt = alternateApplication.confirm(confirmationRequest(alternateDraft));
+  assert.notEqual(alternateReceipt.receiptIdentity, receipt.receiptIdentity);
 
   assert.deepEqual(
     application.confirm({ ...confirmation, reviewedCandidates }),
@@ -282,6 +302,7 @@ test("loopback HTTP surface serves the lab and rejects raw image-shaped request 
     const pageHtml = await page.text();
     assert.match(pageHtml, /Original/u);
     assert.match(pageHtml, /Guides/u);
+    assert.doesNotMatch(pageHtml, /correct-omitted-primitive/u);
     assert.equal(browserModel.status, 200);
     assert.equal((await health.json()).providerCalls, 0);
 

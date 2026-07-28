@@ -6,7 +6,7 @@ import {
 } from "/private-web-lab-browser-model.js";
 
 const state = {
-  browserSessionId: `browser:${crypto.randomUUID()}`,
+  browserSessionId: readBrowserSessionId(),
   image: null,
   objectUrl: null,
   draft: null,
@@ -15,6 +15,7 @@ const state = {
   revealAll: false,
   receiptUrl: null,
   preparationRevision: 0,
+  reviewRevision: 0,
   prepareAbortController: null,
 };
 
@@ -64,6 +65,7 @@ prepareButton.addEventListener("click", async () => {
   const abortController = new AbortController();
   state.prepareAbortController?.abort();
   state.prepareAbortController = abortController;
+  invalidateConfirmation();
   prepareButton.disabled = true;
   setupStatus.textContent = "Calcul de l’identité locale et préparation…";
   try {
@@ -93,6 +95,7 @@ prepareButton.addEventListener("click", async () => {
     runButton.disabled = true;
     setupStatus.textContent =
       "Brouillon prêt. Les octets de l’image ne quittent pas ce navigateur.";
+    prepareButton.disabled = false;
     renderCandidates();
     renderOverlay();
   } catch (error) {
@@ -116,11 +119,13 @@ revealButton.addEventListener("click", () => {
 });
 
 confirmationInput.addEventListener("change", () => {
+  state.reviewRevision += 1;
   updateCoreAvailability();
 });
 
 runButton.addEventListener("click", async () => {
   if (state.draft === null || !confirmationInput.checked) return;
+  const confirmationRevision = state.reviewRevision;
   runButton.disabled = true;
   coreGate.textContent = "Confirmation reçue. Exécution déterministe unique…";
   try {
@@ -134,6 +139,7 @@ runButton.addEventListener("click", async () => {
         reviewedCandidates: state.candidates,
       }),
     );
+    if (state.reviewRevision !== confirmationRevision) return;
     coreGate.textContent = "Core exécuté une fois après confirmation explicite.";
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
@@ -147,7 +153,15 @@ runButton.addEventListener("click", async () => {
     receiptSection.hidden = false;
     receiptSection.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
+    if (state.reviewRevision !== confirmationRevision) return;
     coreGate.textContent = error instanceof Error ? error.message : "Confirmation refusée.";
+    if (error instanceof Error && /missing or expired/u.test(error.message)) {
+      prepareButton.disabled = false;
+      invalidateConfirmation();
+      setupStatus.textContent =
+        "Session locale expirée. Préparez un nouveau brouillon avant de confirmer.";
+      return;
+    }
     runButton.disabled = !canRunPrivateWebLabCoreV1(
       confirmationInput.checked,
       state.selectedCandidateIds,
@@ -164,6 +178,7 @@ function updatePrepareAvailability() {
 }
 
 function resetReview() {
+  state.reviewRevision += 1;
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
   state.objectUrl = null;
@@ -171,6 +186,10 @@ function resetReview() {
   state.draft = null;
   state.candidates = [];
   state.selectedCandidateIds = new Set();
+  confirmationInput.checked = false;
+  receiptIdentity.textContent = "";
+  resultIdentity.textContent = "";
+  packRefs.textContent = "";
   reviewSection.hidden = true;
   receiptSection.hidden = true;
 }
@@ -203,7 +222,7 @@ function candidateCard(candidate, index) {
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
     else state.selectedCandidateIds.delete(candidate.id);
-    updateCoreAvailability();
+    invalidateConfirmation();
     renderOverlay();
   });
   const title = document.createElement("strong");
@@ -231,7 +250,7 @@ function candidateCard(candidate, index) {
         const updated = updatePrivateWebLabCandidateGeometryV1(current, path, input.value);
         state.candidates[index] = updated;
         input.value = String(candidateValueAtPath(updated, path));
-        updateCoreAvailability();
+        invalidateConfirmation();
         renderOverlay();
       });
       label.append(input);
@@ -333,6 +352,33 @@ function updateCoreAvailability() {
   } else {
     coreGate.textContent =
       "Core arrêté — sélectionnez au moins un rectangle visible et valide.";
+  }
+}
+
+function invalidateConfirmation() {
+  state.reviewRevision += 1;
+  confirmationInput.checked = false;
+  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
+  state.receiptUrl = null;
+  receiptSection.hidden = true;
+  receiptIdentity.textContent = "";
+  resultIdentity.textContent = "";
+  packRefs.textContent = "";
+  updateCoreAvailability();
+}
+
+function readBrowserSessionId() {
+  const storageKey = "norma.private-web-lab.browser-session@1";
+  try {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing !== null && /^browser:[A-Za-z0-9:_-]{8,160}$/u.test(existing)) {
+      return existing;
+    }
+    const created = `browser:${crypto.randomUUID()}`;
+    sessionStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    return `browser:${crypto.randomUUID()}`;
   }
 }
 

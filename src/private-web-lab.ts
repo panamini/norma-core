@@ -183,9 +183,7 @@ export class PrivateWebLabApplicationV1 {
     };
     for (const sessionId of supersededSessionIds) this.sessions.delete(sessionId);
     this.sessions.set(labSessionId, session);
-    const visibleCandidateIds = prepared.candidates
-      .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
-      .map(({ id }) => id);
+    const visibleCandidateIds = strongestGuideCandidateIds(prepared.candidates);
     const selectedCandidateIds = visibleCandidateIds;
     return {
       contractId: PRIVATE_WEB_LAB_CONTRACT_ID,
@@ -285,10 +283,9 @@ export class PrivateWebLabApplicationV1 {
       canonicalGuideAnalysis,
     };
     const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
-    const receipt: PrivateWebLabReceiptV1 = {
+    const receiptPayload: Omit<PrivateWebLabReceiptV1, "receiptIdentity"> = {
       contractId: PRIVATE_WEB_LAB_RECEIPT_CONTRACT_ID,
       stage: "completed",
-      receiptIdentity: sha256Identity(exportJson),
       draftKind: "deterministic_fixture_no_provider",
       providerCalls: 0,
       coreRun: true,
@@ -305,6 +302,10 @@ export class PrivateWebLabApplicationV1 {
       canonicalGuideAnalysisIdentity: canonicalGuideAnalysis.contentIdentity,
       exportFileName: "norma-private-web-lab-result.json",
       exportJson,
+    };
+    const receipt: PrivateWebLabReceiptV1 = {
+      ...receiptPayload,
+      receiptIdentity: sha256Identity(serializeCanonicalJson(receiptPayload)),
     };
     session.completed = { confirmationRequestIdentity, receipt };
     return receipt;
@@ -547,7 +548,7 @@ function deterministicFixtureCandidates(
     },
   ];
   const priorityKinds = requireGoal(goalId).visibleKinds as readonly string[];
-  return candidates
+  const orderedCandidates = candidates
     .map((candidate, index) => ({
       candidate,
       index,
@@ -559,6 +560,27 @@ function deterministicFixtureCandidates(
       return firstPriority - secondPriority || first.index - second.index;
     })
     .map(({ candidate }) => candidate);
+  const firstRectangleIndex = orderedCandidates.findIndex(
+    (candidate) => primitiveKind(candidate) === "rectangle",
+  );
+  if (
+    firstRectangleIndex >= PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT
+    && firstRectangleIndex >= 0
+  ) {
+    const [rectangle] = orderedCandidates.splice(firstRectangleIndex, 1);
+    if (rectangle !== undefined) {
+      orderedCandidates.splice(PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT - 1, 0, rectangle);
+    }
+  }
+  return orderedCandidates;
+}
+
+function strongestGuideCandidateIds(
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+): readonly string[] {
+  return candidates
+    .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
+    .map(({ id }) => id);
 }
 
 function primitiveKind(candidate: PersonalVisualHarmonyCandidateInputV1): string {

@@ -259,6 +259,7 @@ test(
               document.querySelectorAll(".candidate input[type=checkbox]:checked").length,
             coreGate: document.querySelector("#core-gate").textContent,
             runDisabled: document.querySelector("#run-button").disabled,
+            prepareDisabled: document.querySelector("#prepare-button").disabled,
           };
         })()`,
       );
@@ -270,6 +271,7 @@ test(
       assert.equal(initial.selectedCandidates, 4);
       assert.match(initial.coreGate, /Core arrêté/u);
       assert.equal(initial.runDisabled, true);
+      assert.equal(initial.prepareDisabled, false);
 
       const toggles = await evaluate(
         connection,
@@ -375,6 +377,114 @@ test(
       assert.equal(receipt.download, "norma-private-web-lab-result.json");
       assert.equal(receipt.providerCalls, "0");
       assert.equal(receipt.exportContractId, "norma.private-web-lab-canonical-result@1");
+
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...args) => {
+            if (args[0] !== "/api/confirm") return originalFetch(...args);
+            return originalFetch(...args).then(async (response) => {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return response;
+            });
+          };
+          document.querySelector("#confirmation-input").checked = true;
+          document.querySelector("#confirmation-input").dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#run-button").click();
+        })()`,
+      );
+      const inFlightEdit = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const widthInput = document.querySelectorAll(
+            '[data-candidate-id="fixture-major-region"] .candidate-controls input'
+          )[2];
+          widthInput.value = "0.53";
+          widthInput.dispatchEvent(new Event("change", { bubbles: true }));
+          return {
+            confirmationChecked: document.querySelector("#confirmation-input").checked,
+            receiptHidden: document.querySelector("#receipt-section").hidden,
+          };
+        })()`,
+      );
+      assert.deepEqual(inFlightEdit, {
+        confirmationChecked: false,
+        receiptHidden: true,
+      });
+      await delay(150);
+      const staleReceipt = await evaluate(
+        connection,
+        sessionId,
+        `({
+          confirmationChecked: document.querySelector("#confirmation-input").checked,
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+          runDisabled: document.querySelector("#run-button").disabled,
+        })`,
+      );
+      assert.deepEqual(staleReceipt, {
+        confirmationChecked: false,
+        receiptHidden: true,
+        runDisabled: true,
+      });
+      assert.equal(coreExecutions, 1);
+
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const confirmation = document.querySelector("#confirmation-input");
+          confirmation.checked = true;
+          confirmation.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#run-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#prepare-button').disabled",
+      );
+      await delay(150);
+      const reprepareStaleReceipt = await evaluate(
+        connection,
+        sessionId,
+        `({
+          confirmationChecked: document.querySelector("#confirmation-input").checked,
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+          runDisabled: document.querySelector("#run-button").disabled,
+        })`,
+      );
+      assert.deepEqual(reprepareStaleReceipt, {
+        confirmationChecked: false,
+        receiptHidden: true,
+        runDisabled: true,
+      });
+      assert.equal(coreExecutions, 1);
+
+      const editedAfterConfirmation = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const widthInput = document.querySelectorAll(
+            '[data-candidate-id="fixture-major-region"] .candidate-controls input'
+          )[2];
+          widthInput.value = "0.54";
+          widthInput.dispatchEvent(new Event("change", { bubbles: true }));
+          return {
+            confirmationChecked: document.querySelector("#confirmation-input").checked,
+            receiptHidden: document.querySelector("#receipt-section").hidden,
+            runDisabled: document.querySelector("#run-button").disabled,
+          };
+        })()`,
+      );
+      assert.deepEqual(editedAfterConfirmation, {
+        confirmationChecked: false,
+        receiptHidden: true,
+        runDisabled: true,
+      });
       assert.deepEqual(connection.runtimeExceptions, []);
     } finally {
       connection?.close();
