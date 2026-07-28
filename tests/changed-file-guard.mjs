@@ -591,6 +591,14 @@ export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.fre
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyMcpAppResourceMetadataChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -2003,6 +2011,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
+  personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
