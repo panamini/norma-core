@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import test from "node:test";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -48,7 +49,44 @@ test("private Web Lab prepares a bounded provider-free draft with Core stopped",
     draft.visibleCandidateIds,
     draft.candidates.slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT).map(({ id }) => id),
   );
+  assert.deepEqual(draft.selectedCandidateIds, draft.visibleCandidateIds);
+  assert.equal(
+    draft.candidates
+      .slice(PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
+      .some(({ id }) => draft.selectedCandidateIds.includes(id)),
+    false,
+  );
   assert.equal(coreCalls, 0);
+});
+
+test("a valid replacement draft supersedes the same browser session without consuming capacity", () => {
+  let sessionSequence = 0;
+  const application = new PrivateWebLabApplicationV1({
+    now: () => fixedNow,
+    maxSessions: 1,
+    createSessionId: () => {
+      sessionSequence += 1;
+      return `web-lab-session:00000000-0000-4000-8000-${String(sessionSequence).padStart(12, "0")}`;
+    },
+  });
+  const first = application.prepareDraft(draftRequest());
+  const second = application.prepareDraft({
+    ...draftRequest(),
+    sourceImageContentIdentity: `sha256:${"b".repeat(64)}`,
+  });
+
+  assert.notEqual(first.labSessionId, second.labSessionId);
+  assert.throws(
+    () => application.confirm(confirmationRequest(first)),
+    /missing or expired/u,
+  );
+  assert.throws(
+    () => application.prepareDraft({
+      ...draftRequest(),
+      browserSessionId: "browser:another-session",
+    }),
+    /capacity is exhausted/u,
+  );
 });
 
 test("invalid, stale, cross-source, cross-session, and candidate-mismatched confirmations fail before Core", () => {
@@ -124,6 +162,14 @@ test("explicit confirmation executes Core once, returns a canonical receipt, and
   assert.match(receipt.canonicalResultIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.equal(receipt.exportFileName, "norma-private-web-lab-result.json");
   assert.equal(`${JSON.stringify(JSON.parse(receipt.exportJson))}\n`, receipt.exportJson);
+  assert.equal(
+    receipt.canonicalGuideAnalysisIdentity,
+    receipt.canonicalGuideAnalysis.contentIdentity,
+  );
+  assert.deepEqual(
+    JSON.parse(receipt.exportJson).canonicalGuideAnalysis,
+    receipt.canonicalGuideAnalysis,
+  );
   assert.equal(coreCalls, 1);
 
   assert.deepEqual(
@@ -148,7 +194,10 @@ test("MCP and Web Lab return deep-equal canonical Core results for identical acc
     createSessionId: () => "web-lab-session:11111111-1111-4111-8111-111111111111",
   });
   const draft = application.prepareDraft(draftRequest());
-  const webReceipt = application.confirm(confirmationRequest(draft));
+  const webReceipt = application.confirm({
+    ...confirmationRequest(draft),
+    selectedCandidateIds: draft.candidates.map(({ id }) => id),
+  });
 
   const service = new PersonalVisualHarmonySessionServiceV1({
     now: () => fixedNow,
@@ -202,7 +251,10 @@ test("MCP and Web Lab return deep-equal canonical Core results for identical acc
     assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
     const mcpCoreResult =
       confirmed._meta.normaPersonalVisualHarmony.result.harmonicAnalysis;
+    const mcpGuideAnalysis =
+      confirmed._meta.normaPersonalVisualHarmony.imagePlaneGuideAnalysis;
     assert.deepEqual(mcpCoreResult, webReceipt.canonicalCoreResult);
+    assert.deepEqual(mcpGuideAnalysis, webReceipt.canonicalGuideAnalysis);
     assert.equal(
       mcpCoreResult.contentIdentity,
       webReceipt.canonicalResultIdentity,
@@ -240,6 +292,25 @@ test("loopback HTTP surface serves the lab and rejects raw image-shaped request 
     });
     assert.equal(rejected.status, 400);
     assert.match((await rejected.json()).message, /fields are invalid/u);
+
+    const rejectedHost = await requestWithHost(
+      address.port,
+      "/healthz",
+      "attacker.example",
+    );
+    assert.equal(rejectedHost.status, 403);
+    assert.equal(rejectedHost.body.error, "loopback_request_required");
+
+    const rejectedOrigin = await fetch(`${origin}/api/draft`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://attacker.example",
+      },
+      body: JSON.stringify(draftRequest()),
+    });
+    assert.equal(rejectedOrigin.status, 403);
+    assert.equal((await rejectedOrigin.json()).error, "loopback_request_required");
   } finally {
     await close(server);
   }
@@ -298,5 +369,27 @@ function listen(server) {
 function close(server) {
   return new Promise((resolve, reject) => {
     server.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
+}
+
+function requestWithHost(port, path, host) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: "127.0.0.1",
+      port,
+      path,
+      headers: { host },
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        resolve({
+          status: response.statusCode,
+          body: JSON.parse(Buffer.concat(chunks).toString("utf8")),
+        });
+      });
+    });
+    request.once("error", reject);
+    request.end();
   });
 }

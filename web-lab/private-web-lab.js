@@ -1,7 +1,7 @@
 import {
-  boundedPrivateWebLabCoordinateV1,
   canRunPrivateWebLabCoreV1,
   createPrivateWebLabConfirmationPayloadV1,
+  updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "/private-web-lab-browser-model.js";
 
@@ -14,6 +14,8 @@ const state = {
   selectedCandidateIds: new Set(),
   revealAll: false,
   receiptUrl: null,
+  preparationRevision: 0,
+  prepareAbortController: null,
 };
 
 const imageInput = document.querySelector("#image-input");
@@ -39,6 +41,8 @@ const packRefs = document.querySelector("#pack-refs");
 const exportLink = document.querySelector("#export-link");
 
 imageInput.addEventListener("change", () => {
+  state.preparationRevision += 1;
+  state.prepareAbortController?.abort();
   const [file] = imageInput.files;
   state.image = file ?? null;
   resetReview();
@@ -46,30 +50,41 @@ imageInput.addEventListener("change", () => {
 });
 
 goalInput.addEventListener("change", () => {
+  state.preparationRevision += 1;
+  state.prepareAbortController?.abort();
   resetReview();
   updatePrepareAvailability();
 });
 
 prepareButton.addEventListener("click", async () => {
   if (state.image === null || goalInput.value === "") return;
+  const image = state.image;
+  const goalId = goalInput.value;
+  const preparationRevision = state.preparationRevision;
+  const abortController = new AbortController();
+  state.prepareAbortController?.abort();
+  state.prepareAbortController = abortController;
   prepareButton.disabled = true;
   setupStatus.textContent = "Calcul de l’identité locale et préparation…";
   try {
-    const dimensions = await readImageDimensions(state.image);
-    const sourceImageContentIdentity = await sha256FileIdentity(state.image);
+    const dimensions = await readImageDimensions(image);
+    requireCurrentPreparation(preparationRevision, image, abortController.signal);
+    const sourceImageContentIdentity = await sha256FileIdentity(image);
+    requireCurrentPreparation(preparationRevision, image, abortController.signal);
     const draft = await postJson("/api/draft", {
       browserSessionId: state.browserSessionId,
       sourceImageContentIdentity,
-      sourceImageMediaType: state.image.type,
+      sourceImageMediaType: image.type,
       sourcePixelWidth: dimensions.width,
       sourcePixelHeight: dimensions.height,
-      goalId: goalInput.value,
-    });
+      goalId,
+    }, abortController.signal);
+    requireCurrentPreparation(preparationRevision, image, abortController.signal);
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set(draft.selectedCandidateIds);
     state.revealAll = false;
-    state.objectUrl = URL.createObjectURL(state.image);
+    state.objectUrl = URL.createObjectURL(image);
     imagePlane.style.setProperty("--image-aspect", String(dimensions.width / dimensions.height));
     sourceImage.src = state.objectUrl;
     reviewSection.hidden = false;
@@ -81,8 +96,13 @@ prepareButton.addEventListener("click", async () => {
     renderCandidates();
     renderOverlay();
   } catch (error) {
+    if (abortController.signal.aborted || preparationRevision !== state.preparationRevision) return;
     setupStatus.textContent = error instanceof Error ? error.message : "Préparation impossible.";
     prepareButton.disabled = false;
+  } finally {
+    if (state.prepareAbortController === abortController) {
+      state.prepareAbortController = null;
+    }
   }
 });
 
@@ -96,13 +116,7 @@ revealButton.addEventListener("click", () => {
 });
 
 confirmationInput.addEventListener("change", () => {
-  runButton.disabled = !canRunPrivateWebLabCoreV1(
-    confirmationInput.checked,
-    state.selectedCandidateIds,
-  );
-  coreGate.textContent = confirmationInput.checked
-    ? "Confirmation explicite prête — Core n’a pas encore été lancé."
-    : "Core arrêté — confirmation explicite requise.";
+  updateCoreAvailability();
 });
 
 runButton.addEventListener("click", async () => {
@@ -134,7 +148,11 @@ runButton.addEventListener("click", async () => {
     receiptSection.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     coreGate.textContent = error instanceof Error ? error.message : "Confirmation refusée.";
-    runButton.disabled = false;
+    runButton.disabled = !canRunPrivateWebLabCoreV1(
+      confirmationInput.checked,
+      state.selectedCandidateIds,
+      state.candidates,
+    );
   }
 });
 
@@ -185,10 +203,7 @@ function candidateCard(candidate, index) {
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
     else state.selectedCandidateIds.delete(candidate.id);
-    runButton.disabled = !canRunPrivateWebLabCoreV1(
-      confirmationInput.checked,
-      state.selectedCandidateIds,
-    );
+    updateCoreAvailability();
     renderOverlay();
   });
   const title = document.createElement("strong");
@@ -198,21 +213,25 @@ function candidateCard(candidate, index) {
   reason.textContent = candidate.reason;
   article.append(selection, reason);
 
-  if ((candidate.primitive?.kind ?? "rectangle") === "rectangle") {
+  const geometryFields = candidateGeometryFields(candidate);
+  if (geometryFields.length > 0) {
     const controls = document.createElement("div");
     controls.className = "candidate-controls";
-    for (const field of ["x", "y", "width", "height"]) {
+    for (const { label: fieldLabel, path } of geometryFields) {
       const label = document.createElement("label");
-      label.textContent = field;
+      label.textContent = fieldLabel;
       const input = document.createElement("input");
       input.type = "number";
       input.min = "0";
       input.max = "1";
       input.step = "0.001";
-      input.value = String(candidate[field]);
+      input.value = String(candidateValueAtPath(candidate, path));
       input.addEventListener("change", () => {
-        candidate[field] = boundedNumber(input.value, candidate[field]);
-        input.value = String(candidate[field]);
+        const current = state.candidates[index];
+        const updated = updatePrivateWebLabCandidateGeometryV1(current, path, input.value);
+        state.candidates[index] = updated;
+        input.value = String(candidateValueAtPath(updated, path));
+        updateCoreAvailability();
         renderOverlay();
       });
       label.append(input);
@@ -221,6 +240,34 @@ function candidateCard(candidate, index) {
     article.append(controls);
   }
   return article;
+}
+
+function candidateGeometryFields(candidate) {
+  const kind = candidate.primitive?.kind ?? "rectangle";
+  if (kind === "rectangle") {
+    return ["x", "y", "width", "height"].map((path) => ({ label: path, path }));
+  }
+  if (kind === "segment" || kind === "axis") {
+    return [
+      { label: "start x", path: "primitive.start.x" },
+      { label: "start y", path: "primitive.start.y" },
+      { label: "end x", path: "primitive.end.x" },
+      { label: "end y", path: "primitive.end.y" },
+    ];
+  }
+  if (kind === "ellipse") {
+    return [
+      { label: "center x", path: "primitive.center.x" },
+      { label: "center y", path: "primitive.center.y" },
+      { label: "radius x", path: "primitive.radiusX" },
+      { label: "radius y", path: "primitive.radiusY" },
+    ];
+  }
+  return [];
+}
+
+function candidateValueAtPath(candidate, path) {
+  return path.split(".").reduce((value, part) => value[part], candidate);
 }
 
 function renderOverlay() {
@@ -272,8 +319,27 @@ function setGuidesVisible(visible) {
   originalButton.setAttribute("aria-pressed", String(!visible));
 }
 
-function boundedNumber(value, fallback) {
-  return boundedPrivateWebLabCoordinateV1(value, fallback);
+function updateCoreAvailability() {
+  const canRun = state.draft !== null && canRunPrivateWebLabCoreV1(
+    confirmationInput.checked,
+    state.selectedCandidateIds,
+    state.candidates,
+  );
+  runButton.disabled = !canRun;
+  if (!confirmationInput.checked) {
+    coreGate.textContent = "Core arrêté — confirmation explicite requise.";
+  } else if (canRun) {
+    coreGate.textContent = "Confirmation explicite prête — Core n’a pas encore été lancé.";
+  } else {
+    coreGate.textContent =
+      "Core arrêté — sélectionnez au moins un rectangle visible et valide.";
+  }
+}
+
+function requireCurrentPreparation(revision, image, signal) {
+  if (signal.aborted || revision !== state.preparationRevision || image !== state.image) {
+    throw new DOMException("Préparation remplacée.", "AbortError");
+  }
 }
 
 async function readImageDimensions(file) {
@@ -298,11 +364,12 @@ async function sha256FileIdentity(file) {
     .join("")}`;
 }
 
-async function postJson(path, body) {
+async function postJson(path, body, signal = undefined) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
   const value = await response.json();
   if (!response.ok) {

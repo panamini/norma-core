@@ -36,6 +36,10 @@ export function createPrivateWebLabHttpServerV1(options = {}) {
 }
 
 async function routeRequest(request, response, application, maxRequestBytes) {
+  if (!isTrustedLoopbackRequest(request)) {
+    sendJson(response, 403, { error: "loopback_request_required" });
+    return;
+  }
   const method = request.method ?? "GET";
   const pathname = requestPathname(request.url);
   if (method === "GET" && pathname === "/healthz") {
@@ -91,6 +95,28 @@ async function routeRequest(request, response, application, maxRequestBytes) {
         : "Private Web Lab request was rejected.",
     });
   }
+}
+
+function isTrustedLoopbackRequest(request) {
+  const remoteAddress = request.socket.remoteAddress;
+  if (
+    remoteAddress !== "127.0.0.1"
+    && remoteAddress !== "::1"
+    && remoteAddress !== "::ffff:127.0.0.1"
+  ) {
+    return false;
+  }
+  const localPort = request.socket.localPort;
+  const host = request.headers.host;
+  if (!Number.isSafeInteger(localPort) || typeof host !== "string") return false;
+  const allowedHosts = new Set([
+    `127.0.0.1:${String(localPort)}`,
+    `localhost:${String(localPort)}`,
+    `[::1]:${String(localPort)}`,
+  ]);
+  if (!allowedHosts.has(host.toLowerCase())) return false;
+  const origin = request.headers.origin;
+  return origin === undefined || origin === `http://${host.toLowerCase()}`;
 }
 
 function requestPathname(rawUrl) {

@@ -85,6 +85,8 @@ export interface PrivateWebLabReceiptV1 {
   readonly canonicalResultIdentity: string;
   readonly ratioPackRefs: readonly string[];
   readonly canonicalCoreResult: PersonalVisualHarmonyConfirmationV1["result"]["harmonicAnalysis"];
+  readonly canonicalGuideAnalysis: PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"];
+  readonly canonicalGuideAnalysisIdentity: string;
   readonly exportFileName: "norma-private-web-lab-result.json";
   readonly exportJson: string;
 }
@@ -147,7 +149,10 @@ export class PrivateWebLabApplicationV1 {
     const input = parseDraftRequest(value);
     const now = this.now();
     this.pruneExpired(now);
-    if (this.sessions.size >= this.maxSessions) {
+    const supersededSessionIds = [...this.sessions]
+      .filter(([, session]) => session.browserSessionId === input.browserSessionId)
+      .map(([sessionId]) => sessionId);
+    if (this.sessions.size - supersededSessionIds.length >= this.maxSessions) {
       throw new Error("Private Web Lab session capacity is exhausted.");
     }
 
@@ -176,8 +181,12 @@ export class PrivateWebLabApplicationV1 {
       createdAtMs: now,
       expiresAtMs: now + this.sessionTtlMs,
     };
+    for (const sessionId of supersededSessionIds) this.sessions.delete(sessionId);
     this.sessions.set(labSessionId, session);
-    const selectedCandidateIds = prepared.candidates.map(({ id }) => id);
+    const visibleCandidateIds = prepared.candidates
+      .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
+      .map(({ id }) => id);
+    const selectedCandidateIds = visibleCandidateIds;
     return {
       contractId: PRIVATE_WEB_LAB_CONTRACT_ID,
       stage: "confirmation_required",
@@ -195,9 +204,7 @@ export class PrivateWebLabApplicationV1 {
       candidates: prepared.candidates,
       selectedCandidateIds,
       strongestGuideCount: PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT,
-      visibleCandidateIds: prepared.candidates
-        .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
-        .map(({ id }) => id),
+      visibleCandidateIds,
       overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({
         preparedCandidateSet: prepared,
         selectedCandidateIds,
@@ -267,6 +274,7 @@ export class PrivateWebLabApplicationV1 {
       acceptedAt: new Date(now).toISOString(),
     });
     const canonicalCoreResult = confirmation.result.harmonicAnalysis;
+    const canonicalGuideAnalysis = confirmation.imagePlaneGuideAnalysis;
     const canonicalExport = {
       contractId: PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID,
       sourceImageContentIdentity: session.sourceImageContentIdentity,
@@ -274,6 +282,7 @@ export class PrivateWebLabApplicationV1 {
       selectedCandidateIds,
       ratioPackRefs: canonicalCoreResult.ratioPackRefs,
       canonicalCoreResult,
+      canonicalGuideAnalysis,
     };
     const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
     const receipt: PrivateWebLabReceiptV1 = {
@@ -292,6 +301,8 @@ export class PrivateWebLabApplicationV1 {
       canonicalResultIdentity: canonicalCoreResult.contentIdentity,
       ratioPackRefs: canonicalCoreResult.ratioPackRefs,
       canonicalCoreResult,
+      canonicalGuideAnalysis,
+      canonicalGuideAnalysisIdentity: canonicalGuideAnalysis.contentIdentity,
       exportFileName: "norma-private-web-lab-result.json",
       exportJson,
     };

@@ -14,6 +14,8 @@ import {
   boundedPrivateWebLabCoordinateV1,
   canRunPrivateWebLabCoreV1,
   createPrivateWebLabConfirmationPayloadV1,
+  isPrivateWebLabCandidateGeometryValidV1,
+  updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
 import { createPrivateWebLabHttpServerV1 } from "../web-lab/private-web-lab-http-server.mjs";
@@ -22,7 +24,15 @@ const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
 
 test("browser flow keeps Core stopped before explicit confirmation and exposes strongest guides first", () => {
-  const candidates = Array.from({ length: 6 }, (_, index) => ({ id: `candidate-${index}` }));
+  const candidates = Array.from({ length: 6 }, (_, index) => ({
+    id: `candidate-${index}`,
+    x: 0.05,
+    y: 0.05,
+    width: 0.9,
+    height: 0.9,
+    primitive: { kind: index === 0 ? "rectangle" : "segment",
+      ...(index === 0 ? {} : { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } }) },
+  }));
   const selectedCandidateIds = new Set(candidates.map(({ id }) => id));
 
   assert.deepEqual(
@@ -33,14 +43,88 @@ test("browser flow keeps Core stopped before explicit confirmation and exposes s
     visiblePrivateWebLabCandidateIdsV1(candidates, 4, true),
     candidates.map(({ id }) => id),
   );
-  assert.equal(canRunPrivateWebLabCoreV1(false, selectedCandidateIds), false);
-  assert.equal(canRunPrivateWebLabCoreV1(true, new Set()), false);
-  assert.equal(canRunPrivateWebLabCoreV1(true, selectedCandidateIds), true);
+  assert.equal(canRunPrivateWebLabCoreV1(false, selectedCandidateIds, candidates), false);
+  assert.equal(canRunPrivateWebLabCoreV1(true, new Set(), candidates), false);
+  assert.equal(canRunPrivateWebLabCoreV1(true, selectedCandidateIds, candidates), true);
+  assert.equal(
+    canRunPrivateWebLabCoreV1(
+      true,
+      new Set(candidates.slice(1).map(({ id }) => id)),
+      candidates,
+    ),
+    false,
+  );
 });
 
-test("browser flow supports bounded edit and emits confirmation only after the explicit gate", () => {
+test("browser flow validates complete primitive geometry and emits confirmation only after the explicit gate", () => {
   assert.equal(boundedPrivateWebLabCoordinateV1("0.55555555", 0.4), 0.555556);
   assert.equal(boundedPrivateWebLabCoordinateV1("1.2", 0.4), 0.4);
+
+  const rectangle = {
+    id: "fixture-frame",
+    x: 0.05,
+    y: 0.05,
+    width: 0.9,
+    height: 0.9,
+    primitive: { kind: "rectangle" },
+  };
+  assert.deepEqual(
+    updatePrivateWebLabCandidateGeometryV1(rectangle, "x", "0.2"),
+    rectangle,
+  );
+  const resizedRectangle = updatePrivateWebLabCandidateGeometryV1(
+    rectangle,
+    "width",
+    "0.8",
+  );
+  assert.equal(resizedRectangle.width, 0.8);
+  assert.equal(isPrivateWebLabCandidateGeometryValidV1(resizedRectangle), true);
+
+  const segment = {
+    id: "fixture-segment",
+    x: 0.1,
+    y: 0.2,
+    width: 0.7,
+    height: 0.6,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.1, y: 0.2 },
+      end: { x: 0.8, y: 0.8 },
+    },
+  };
+  const editedSegment = updatePrivateWebLabCandidateGeometryV1(
+    segment,
+    "primitive.start.x",
+    "0.2",
+  );
+  assert.equal(editedSegment.primitive.start.x, 0.2);
+  assert.equal(editedSegment.x, 0.2);
+
+  const ellipse = {
+    id: "fixture-ellipse",
+    x: 0.6,
+    y: 0.15,
+    width: 0.24,
+    height: 0.36,
+    primitive: {
+      kind: "ellipse",
+      center: { x: 0.72, y: 0.33 },
+      radiusX: 0.12,
+      radiusY: 0.18,
+    },
+  };
+  assert.deepEqual(
+    updatePrivateWebLabCandidateGeometryV1(ellipse, "primitive.radiusX", "0.8"),
+    ellipse,
+  );
+  assert.equal(
+    updatePrivateWebLabCandidateGeometryV1(
+      ellipse,
+      "primitive.center.x",
+      "0.7",
+    ).primitive.center.x,
+    0.7,
+  );
 
   const draft = {
     labSessionId: "web-lab-session:11111111-1111-4111-8111-111111111111",
@@ -54,7 +138,7 @@ test("browser flow supports bounded edit and emits confirmation only after the e
     browserSessionId: "browser:test-session",
     draft,
     selectedCandidateIds: new Set(["fixture-frame"]),
-    reviewedCandidates: [{ id: "fixture-frame", x: 0.05, y: 0.05, width: 0.9, height: 0.9 }],
+    reviewedCandidates: [rectangle],
   };
   assert.throws(
     () => createPrivateWebLabConfirmationPayloadV1(options),
@@ -171,6 +255,8 @@ test(
             visibleCandidates:
               document.querySelectorAll(".candidate:not([hidden])").length,
             visibleGuides: overlay.children.length,
+            selectedCandidates:
+              document.querySelectorAll(".candidate input[type=checkbox]:checked").length,
             coreGate: document.querySelector("#core-gate").textContent,
             runDisabled: document.querySelector("#run-button").disabled,
           };
@@ -181,6 +267,7 @@ test(
       assertRectsEqual(initial.overlay, initial.plane);
       assert.equal(initial.visibleCandidates, 4);
       assert.equal(initial.visibleGuides, 4);
+      assert.equal(initial.selectedCandidates, 4);
       assert.match(initial.coreGate, /Core arrêté/u);
       assert.equal(initial.runDisabled, true);
 
@@ -208,11 +295,24 @@ test(
         sessionId,
         `(() => {
           document.querySelector("#reveal-button").click();
+          const hiddenSelections = [
+            ...document.querySelectorAll(".candidate input[type=checkbox]")
+          ].slice(4);
+          const hiddenWereUnselected = hiddenSelections.every((input) => !input.checked);
+          for (const input of hiddenSelections) {
+            input.checked = true;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
           const widthInput = document.querySelectorAll(
             '[data-candidate-id="fixture-major-region"] .candidate-controls input'
           )[2];
           widthInput.value = "0.55";
           widthInput.dispatchEvent(new Event("change", { bubbles: true }));
+          const diagonalStartX = document.querySelector(
+            '[data-candidate-id="fixture-diagonal"] .candidate-controls input'
+          );
+          diagonalStartX.value = "0.1";
+          diagonalStartX.dispatchEvent(new Event("change", { bubbles: true }));
           const confirmation = document.querySelector("#confirmation-input");
           confirmation.checked = true;
           confirmation.dispatchEvent(new Event("change", { bubbles: true }));
@@ -220,7 +320,9 @@ test(
             visibleCandidates:
               document.querySelectorAll(".candidate:not([hidden])").length,
             visibleGuides: document.querySelector("#guide-overlay").children.length,
+            hiddenWereUnselected,
             reviewedWidth: widthInput.value,
+            reviewedDiagonalStartX: diagonalStartX.value,
             runDisabled: document.querySelector("#run-button").disabled,
           };
         })()`,
@@ -228,7 +330,9 @@ test(
       assert.deepEqual(reviewed, {
         visibleCandidates: 6,
         visibleGuides: 6,
+        hiddenWereUnselected: true,
         reviewedWidth: "0.55",
+        reviewedDiagonalStartX: "0.1",
         runDisabled: false,
       });
       assert.equal(coreExecutions, 0);
