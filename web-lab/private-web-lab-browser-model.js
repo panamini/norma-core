@@ -100,10 +100,14 @@ function synchronizeCandidateBounds(candidate) {
     candidate.height = Math.abs(end.y - start.y);
   } else if (kind === "ellipse") {
     const { center, radiusX, radiusY } = candidate.primitive;
-    candidate.x = center.x - radiusX;
-    candidate.y = center.y - radiusY;
-    candidate.width = radiusX * 2;
-    candidate.height = radiusY * 2;
+    const minX = Math.max(0, center.x - radiusX);
+    const minY = Math.max(0, center.y - radiusY);
+    const maxX = Math.min(1, center.x + radiusX);
+    const maxY = Math.min(1, center.y + radiusY);
+    candidate.x = minX;
+    candidate.y = minY;
+    candidate.width = maxX - minX;
+    candidate.height = maxY - minY;
   }
   for (const field of ["x", "y", "width", "height"]) {
     candidate[field] = Number(candidate[field].toFixed(6));
@@ -153,9 +157,19 @@ function ellipseGeometryIsValid(primitive) {
     isUnitPoint(center)
     && isPositiveUnitCoordinate(radiusX)
     && isPositiveUnitCoordinate(radiusY)
-    && center.x - radiusX >= 0
-    && center.x + radiusX <= 1
-    && center.y - radiusY >= 0
-    && center.y + radiusY <= 1
+    && ellipsePerimeterIntersectsImageFrame(primitive)
   );
+}
+
+function ellipsePerimeterIntersectsImageFrame({ center, radiusX, radiusY }) {
+  return [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ].some((corner) => {
+    const normalizedX = (corner.x - center.x) / radiusX;
+    const normalizedY = (corner.y - center.y) / radiusY;
+    return (normalizedX ** 2) + (normalizedY ** 2) >= 1 - 1e-12;
+  });
 }

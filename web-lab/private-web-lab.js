@@ -15,7 +15,8 @@ const state = {
   revealAll: false,
   receiptUrl: null,
   preparationRevision: 0,
-  reviewRevision: 0,
+  confirmationInFlight: false,
+  reviewLocked: false,
   prepareAbortController: null,
 };
 
@@ -58,15 +59,17 @@ goalInput.addEventListener("change", () => {
 });
 
 prepareButton.addEventListener("click", async () => {
-  if (state.image === null || goalInput.value === "") return;
+  if (state.image === null || goalInput.value === "" || state.confirmationInFlight) return;
   const image = state.image;
   const goalId = goalInput.value;
   const preparationRevision = state.preparationRevision;
+  const previousReviewLocked = state.reviewLocked;
   const abortController = new AbortController();
   state.prepareAbortController?.abort();
   state.prepareAbortController = abortController;
-  invalidateConfirmation();
-  prepareButton.disabled = true;
+  state.reviewLocked = true;
+  setSetupControlsDisabled(true);
+  setReviewEditingLocked(true);
   setupStatus.textContent = "Calcul de l’identité locale et préparation…";
   try {
     const dimensions = await readImageDimensions(image);
@@ -82,10 +85,12 @@ prepareButton.addEventListener("click", async () => {
       goalId,
     }, abortController.signal);
     requireCurrentPreparation(preparationRevision, image, abortController.signal);
+    invalidateConfirmation();
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set(draft.selectedCandidateIds);
     state.revealAll = false;
+    state.reviewLocked = false;
     state.objectUrl = URL.createObjectURL(image);
     imagePlane.style.setProperty("--image-aspect", String(dimensions.width / dimensions.height));
     sourceImage.src = state.objectUrl;
@@ -95,13 +100,16 @@ prepareButton.addEventListener("click", async () => {
     runButton.disabled = true;
     setupStatus.textContent =
       "Brouillon prêt. Les octets de l’image ne quittent pas ce navigateur.";
-    prepareButton.disabled = false;
     renderCandidates();
     renderOverlay();
+    setSetupControlsDisabled(false);
+    setReviewEditingLocked(false);
   } catch (error) {
     if (abortController.signal.aborted || preparationRevision !== state.preparationRevision) return;
+    state.reviewLocked = previousReviewLocked;
+    setSetupControlsDisabled(false);
+    setReviewEditingLocked(previousReviewLocked);
     setupStatus.textContent = error instanceof Error ? error.message : "Préparation impossible.";
-    prepareButton.disabled = false;
   } finally {
     if (state.prepareAbortController === abortController) {
       state.prepareAbortController = null;
@@ -119,13 +127,20 @@ revealButton.addEventListener("click", () => {
 });
 
 confirmationInput.addEventListener("change", () => {
-  state.reviewRevision += 1;
   updateCoreAvailability();
 });
 
 runButton.addEventListener("click", async () => {
-  if (state.draft === null || !confirmationInput.checked) return;
-  const confirmationRevision = state.reviewRevision;
+  if (
+    state.draft === null
+    || !confirmationInput.checked
+    || state.confirmationInFlight
+    || state.reviewLocked
+  ) return;
+  state.confirmationInFlight = true;
+  state.reviewLocked = true;
+  setSetupControlsDisabled(true);
+  setReviewEditingLocked(true);
   runButton.disabled = true;
   coreGate.textContent = "Confirmation reçue. Exécution déterministe unique…";
   try {
@@ -139,7 +154,8 @@ runButton.addEventListener("click", async () => {
         reviewedCandidates: state.candidates,
       }),
     );
-    if (state.reviewRevision !== confirmationRevision) return;
+    state.confirmationInFlight = false;
+    setSetupControlsDisabled(false);
     coreGate.textContent = "Core exécuté une fois après confirmation explicite.";
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
@@ -153,7 +169,10 @@ runButton.addEventListener("click", async () => {
     receiptSection.hidden = false;
     receiptSection.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
-    if (state.reviewRevision !== confirmationRevision) return;
+    state.confirmationInFlight = false;
+    state.reviewLocked = false;
+    setSetupControlsDisabled(false);
+    setReviewEditingLocked(false);
     coreGate.textContent = error instanceof Error ? error.message : "Confirmation refusée.";
     if (error instanceof Error && /missing or expired/u.test(error.message)) {
       prepareButton.disabled = false;
@@ -178,7 +197,7 @@ function updatePrepareAvailability() {
 }
 
 function resetReview() {
-  state.reviewRevision += 1;
+  state.reviewLocked = false;
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
   state.objectUrl = null;
@@ -192,6 +211,7 @@ function resetReview() {
   packRefs.textContent = "";
   reviewSection.hidden = true;
   receiptSection.hidden = true;
+  setReviewEditingLocked(false);
 }
 
 function renderCandidates() {
@@ -219,6 +239,7 @@ function candidateCard(candidate, index) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = state.selectedCandidateIds.has(candidate.id);
+  checkbox.disabled = state.reviewLocked;
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
     else state.selectedCandidateIds.delete(candidate.id);
@@ -245,6 +266,7 @@ function candidateCard(candidate, index) {
       input.max = "1";
       input.step = "0.001";
       input.value = String(candidateValueAtPath(candidate, path));
+      input.disabled = state.reviewLocked;
       input.addEventListener("change", () => {
         const current = state.candidates[index];
         const updated = updatePrivateWebLabCandidateGeometryV1(current, path, input.value);
@@ -339,7 +361,7 @@ function setGuidesVisible(visible) {
 }
 
 function updateCoreAvailability() {
-  const canRun = state.draft !== null && canRunPrivateWebLabCoreV1(
+  const canRun = !state.reviewLocked && state.draft !== null && canRunPrivateWebLabCoreV1(
     confirmationInput.checked,
     state.selectedCandidateIds,
     state.candidates,
@@ -356,7 +378,6 @@ function updateCoreAvailability() {
 }
 
 function invalidateConfirmation() {
-  state.reviewRevision += 1;
   confirmationInput.checked = false;
   if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
   state.receiptUrl = null;
@@ -365,6 +386,20 @@ function invalidateConfirmation() {
   resultIdentity.textContent = "";
   packRefs.textContent = "";
   updateCoreAvailability();
+}
+
+function setSetupControlsDisabled(disabled) {
+  imageInput.disabled = disabled;
+  goalInput.disabled = disabled;
+  prepareButton.disabled =
+    disabled || state.image === null || goalInput.value === "";
+}
+
+function setReviewEditingLocked(locked) {
+  confirmationInput.disabled = locked;
+  for (const input of candidateList.querySelectorAll("input")) {
+    input.disabled = locked;
+  }
 }
 
 function readBrowserSessionId() {

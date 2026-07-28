@@ -85,11 +85,20 @@ export interface PrivateWebLabReceiptV1 {
   readonly canonicalResultIdentity: string;
   readonly ratioPackRefs: readonly string[];
   readonly canonicalCoreResult: PersonalVisualHarmonyConfirmationV1["result"]["harmonicAnalysis"];
-  readonly canonicalGuideAnalysis: PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"];
+  readonly canonicalGuideAnalysis: PrivateWebLabGuideAnalysisV1;
   readonly canonicalGuideAnalysisIdentity: string;
   readonly exportFileName: "norma-private-web-lab-result.json";
   readonly exportJson: string;
 }
+
+export type PrivateWebLabGuideAnalysisV1 = Omit<
+  PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"],
+  "confirmationMode" | "contentIdentity" | "sourceImageDimensionsObservedBy"
+> & {
+  readonly sourceImageDimensionsObservedBy: "private_web_lab_browser";
+  readonly confirmationMode: "client_asserted_private_web_lab_interaction";
+  readonly contentIdentity: string;
+};
 
 interface PrivateWebLabSessionV1 {
   readonly browserSessionId: string;
@@ -272,7 +281,10 @@ export class PrivateWebLabApplicationV1 {
       acceptedAt: new Date(now).toISOString(),
     });
     const canonicalCoreResult = confirmation.result.harmonicAnalysis;
-    const canonicalGuideAnalysis = confirmation.imagePlaneGuideAnalysis;
+    const canonicalGuideAnalysis = createPrivateWebLabGuideAnalysis(
+      confirmation.imagePlaneGuideAnalysis,
+      session.sourceImageContentIdentity,
+    );
     const canonicalExport = {
       contractId: PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID,
       sourceImageContentIdentity: session.sourceImageContentIdentity,
@@ -581,6 +593,29 @@ function strongestGuideCandidateIds(
   return candidates
     .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
     .map(({ id }) => id);
+}
+
+function createPrivateWebLabGuideAnalysis(
+  analysis: PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"],
+  sourceImageContentIdentity: string,
+): PrivateWebLabGuideAnalysisV1 {
+  const {
+    contentIdentity: previousContentIdentity,
+    ...analysisWithoutIdentity
+  } = analysis;
+  if (!SOURCE_CONTENT_IDENTITY_PATTERN.test(previousContentIdentity)) {
+    throw new Error("Personal Visual Harmony guide analysis identity is invalid.");
+  }
+  const withoutIdentity = {
+    ...analysisWithoutIdentity,
+    sourceImageReferenceIdentity: sourceImageContentIdentity,
+    sourceImageDimensionsObservedBy: "private_web_lab_browser" as const,
+    confirmationMode: "client_asserted_private_web_lab_interaction" as const,
+  };
+  return {
+    ...withoutIdentity,
+    contentIdentity: contentIdentityFor(withoutIdentity),
+  };
 }
 
 function primitiveKind(candidate: PersonalVisualHarmonyCandidateInputV1): string {

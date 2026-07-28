@@ -162,7 +162,11 @@ test("explicit confirmation executes Core once, returns a canonical receipt, and
   const confirmation = confirmationRequest(draft);
   const reviewedCandidates = structuredClone(confirmation.reviewedCandidates);
   const editableRectangle = reviewedCandidates.find(({ id }) => id === "fixture-major-region");
+  const clippedEllipse = reviewedCandidates.find(({ id }) => id === "fixture-ellipse");
   editableRectangle.width = 0.55;
+  clippedEllipse.x = 0;
+  clippedEllipse.width = 1;
+  clippedEllipse.primitive.radiusX = 0.8;
 
   const receipt = application.confirm({ ...confirmation, reviewedCandidates });
   assert.equal(receipt.contractId, PRIVATE_WEB_LAB_RECEIPT_CONTRACT_ID);
@@ -177,6 +181,18 @@ test("explicit confirmation executes Core once, returns a canonical receipt, and
   assert.equal(
     receipt.canonicalGuideAnalysisIdentity,
     receipt.canonicalGuideAnalysis.contentIdentity,
+  );
+  assert.equal(
+    receipt.canonicalGuideAnalysis.sourceImageDimensionsObservedBy,
+    "private_web_lab_browser",
+  );
+  assert.equal(
+    receipt.canonicalGuideAnalysis.confirmationMode,
+    "client_asserted_private_web_lab_interaction",
+  );
+  assert.equal(
+    receipt.canonicalGuideAnalysis.sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
   );
   assert.deepEqual(
     JSON.parse(receipt.exportJson).canonicalGuideAnalysis,
@@ -274,7 +290,23 @@ test("MCP and Web Lab return deep-equal canonical Core results for identical acc
     const mcpGuideAnalysis =
       confirmed._meta.normaPersonalVisualHarmony.imagePlaneGuideAnalysis;
     assert.deepEqual(mcpCoreResult, webReceipt.canonicalCoreResult);
-    assert.deepEqual(mcpGuideAnalysis, webReceipt.canonicalGuideAnalysis);
+    assert.equal(mcpGuideAnalysis.sourceImageDimensionsObservedBy, "chatgpt_widget");
+    assert.equal(
+      webReceipt.canonicalGuideAnalysis.sourceImageDimensionsObservedBy,
+      "private_web_lab_browser",
+    );
+    assert.equal(
+      webReceipt.canonicalGuideAnalysis.sourceImageReferenceIdentity,
+      sourceImageContentIdentity,
+    );
+    assert.deepEqual(
+      guideAnalysisWithoutHostProvenance(mcpGuideAnalysis),
+      guideAnalysisWithoutHostProvenance(webReceipt.canonicalGuideAnalysis),
+    );
+    assert.notEqual(
+      mcpGuideAnalysis.contentIdentity,
+      webReceipt.canonicalGuideAnalysis.contentIdentity,
+    );
     assert.equal(
       mcpCoreResult.contentIdentity,
       webReceipt.canonicalResultIdentity,
@@ -378,6 +410,17 @@ function confirmationRequest(draft) {
     selectedCandidateIds: draft.selectedCandidateIds,
     reviewedCandidates: structuredClone(draft.candidates),
   };
+}
+
+function guideAnalysisWithoutHostProvenance(analysis) {
+  const {
+    confirmationMode,
+    contentIdentity,
+    sourceImageReferenceIdentity,
+    sourceImageDimensionsObservedBy,
+    ...hostIndependentAnalysis
+  } = analysis;
+  return hostIndependentAnalysis;
 }
 
 function listen(server) {

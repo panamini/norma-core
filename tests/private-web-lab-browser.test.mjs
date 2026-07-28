@@ -113,9 +113,30 @@ test("browser flow validates complete primitive geometry and emits confirmation 
       radiusY: 0.18,
     },
   };
-  assert.deepEqual(
-    updatePrivateWebLabCandidateGeometryV1(ellipse, "primitive.radiusX", "0.8"),
+  const clippedEllipse = updatePrivateWebLabCandidateGeometryV1(
     ellipse,
+    "primitive.radiusX",
+    "0.8",
+  );
+  assert.equal(clippedEllipse.primitive.radiusX, 0.8);
+  assert.equal(clippedEllipse.x, 0);
+  assert.equal(clippedEllipse.width, 1);
+  assert.equal(isPrivateWebLabCandidateGeometryValidV1(clippedEllipse), true);
+  assert.equal(
+    isPrivateWebLabCandidateGeometryValidV1({
+      ...ellipse,
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      primitive: {
+        kind: "ellipse",
+        center: { x: 0.5, y: 0.5 },
+        radiusX: 1,
+        radiusY: 1,
+      },
+    }),
+    false,
   );
   assert.equal(
     updatePrivateWebLabCandidateGeometryV1(
@@ -342,8 +363,38 @@ test(
       await evaluate(
         connection,
         sessionId,
-        "document.querySelector('#run-button').click()",
+        `(() => {
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...args) => {
+            if (args[0] !== "/api/confirm") return originalFetch(...args);
+            return originalFetch(...args).then(async (response) => {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              return response;
+            });
+          };
+          document.querySelector("#run-button").click();
+        })()`,
       );
+      const confirmationLock = await evaluate(
+        connection,
+        sessionId,
+        `({
+          candidateInputsDisabled: [
+            ...document.querySelectorAll("#candidate-list input")
+          ].every((input) => input.disabled),
+          confirmationDisabled: document.querySelector("#confirmation-input").disabled,
+          imageDisabled: document.querySelector("#image-input").disabled,
+          goalDisabled: document.querySelector("#goal-input").disabled,
+          prepareDisabled: document.querySelector("#prepare-button").disabled,
+        })`,
+      );
+      assert.deepEqual(confirmationLock, {
+        candidateInputsDisabled: true,
+        confirmationDisabled: true,
+        imageDisabled: true,
+        goalDisabled: true,
+        prepareDisabled: true,
+      });
       await waitForBrowserCondition(
         connection,
         sessionId,
@@ -366,6 +417,13 @@ test(
               document.querySelector("#receipt-section dl div:last-child dd").textContent,
             download: link.download,
             exportContractId: exported.contractId,
+            candidateInputsDisabled: [
+              ...document.querySelectorAll("#candidate-list input")
+            ].every((input) => input.disabled),
+            confirmationDisabled: document.querySelector("#confirmation-input").disabled,
+            imageDisabled: document.querySelector("#image-input").disabled,
+            goalDisabled: document.querySelector("#goal-input").disabled,
+            prepareDisabled: document.querySelector("#prepare-button").disabled,
           };
         })()`,
       );
@@ -377,114 +435,41 @@ test(
       assert.equal(receipt.download, "norma-private-web-lab-result.json");
       assert.equal(receipt.providerCalls, "0");
       assert.equal(receipt.exportContractId, "norma.private-web-lab-canonical-result@1");
+      assert.equal(receipt.candidateInputsDisabled, true);
+      assert.equal(receipt.confirmationDisabled, true);
+      assert.equal(receipt.imageDisabled, false);
+      assert.equal(receipt.goalDisabled, false);
+      assert.equal(receipt.prepareDisabled, false);
 
       await evaluate(
         connection,
         sessionId,
-        `(() => {
-          const originalFetch = window.fetch.bind(window);
-          window.fetch = (...args) => {
-            if (args[0] !== "/api/confirm") return originalFetch(...args);
-            return originalFetch(...args).then(async (response) => {
-              await new Promise((resolve) => setTimeout(resolve, 100));
-              return response;
-            });
-          };
-          document.querySelector("#confirmation-input").checked = true;
-          document.querySelector("#confirmation-input").dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#run-button").click();
-        })()`,
-      );
-      const inFlightEdit = await evaluate(
-        connection,
-        sessionId,
-        `(() => {
-          const widthInput = document.querySelectorAll(
-            '[data-candidate-id="fixture-major-region"] .candidate-controls input'
-          )[2];
-          widthInput.value = "0.53";
-          widthInput.dispatchEvent(new Event("change", { bubbles: true }));
-          return {
-            confirmationChecked: document.querySelector("#confirmation-input").checked,
-            receiptHidden: document.querySelector("#receipt-section").hidden,
-          };
-        })()`,
-      );
-      assert.deepEqual(inFlightEdit, {
-        confirmationChecked: false,
-        receiptHidden: true,
-      });
-      await delay(150);
-      const staleReceipt = await evaluate(
-        connection,
-        sessionId,
-        `({
-          confirmationChecked: document.querySelector("#confirmation-input").checked,
-          receiptHidden: document.querySelector("#receipt-section").hidden,
-          runDisabled: document.querySelector("#run-button").disabled,
-        })`,
-      );
-      assert.deepEqual(staleReceipt, {
-        confirmationChecked: false,
-        receiptHidden: true,
-        runDisabled: true,
-      });
-      assert.equal(coreExecutions, 1);
-
-      await evaluate(
-        connection,
-        sessionId,
-        `(() => {
-          const confirmation = document.querySelector("#confirmation-input");
-          confirmation.checked = true;
-          confirmation.dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#run-button").click();
-          document.querySelector("#prepare-button").click();
-        })()`,
+        "document.querySelector('#prepare-button').click()",
       );
       await waitForBrowserCondition(
         connection,
         sessionId,
         "!document.querySelector('#prepare-button').disabled",
       );
-      await delay(150);
-      const reprepareStaleReceipt = await evaluate(
+      const replacementDraft = await evaluate(
         connection,
         sessionId,
         `({
           confirmationChecked: document.querySelector("#confirmation-input").checked,
           receiptHidden: document.querySelector("#receipt-section").hidden,
           runDisabled: document.querySelector("#run-button").disabled,
+          candidateInputsEnabled: [
+            ...document.querySelectorAll("#candidate-list input")
+          ].every((input) => !input.disabled),
         })`,
       );
-      assert.deepEqual(reprepareStaleReceipt, {
+      assert.deepEqual(replacementDraft, {
         confirmationChecked: false,
         receiptHidden: true,
         runDisabled: true,
+        candidateInputsEnabled: true,
       });
       assert.equal(coreExecutions, 1);
-
-      const editedAfterConfirmation = await evaluate(
-        connection,
-        sessionId,
-        `(() => {
-          const widthInput = document.querySelectorAll(
-            '[data-candidate-id="fixture-major-region"] .candidate-controls input'
-          )[2];
-          widthInput.value = "0.54";
-          widthInput.dispatchEvent(new Event("change", { bubbles: true }));
-          return {
-            confirmationChecked: document.querySelector("#confirmation-input").checked,
-            receiptHidden: document.querySelector("#receipt-section").hidden,
-            runDisabled: document.querySelector("#run-button").disabled,
-          };
-        })()`,
-      );
-      assert.deepEqual(editedAfterConfirmation, {
-        confirmationChecked: false,
-        receiptHidden: true,
-        runDisabled: true,
-      });
       assert.deepEqual(connection.runtimeExceptions, []);
     } finally {
       connection?.close();
