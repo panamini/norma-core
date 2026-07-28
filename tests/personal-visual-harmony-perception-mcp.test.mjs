@@ -630,6 +630,21 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
     assert.equal(invalid.isError, true);
     assert.deepEqual(prompts, []);
 
+    const listedTarget = await owner.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: privatePayload.sessionId,
+        candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+        appCapability: privatePayload.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=listed",
+        semanticTarget: "person, batiment, porte",
+        label: "Cible sémantique",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(listedTarget.isError, true);
+    assert.deepEqual(prompts, []);
+
     const bothModes = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
@@ -728,6 +743,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /maxlength="500"/u);
   assert.match(html, /semanticTarget:target,label:"Cible sémantique"/u);
   assert.match(html, /normalizeSemanticTarget\(value\)/u);
+  assert.match(html, /\/\[,;\|\]\/u\.test\(value\)/u);
+  assert.match(html, /Saisissez une seule cible courte/u);
   assert.match(html, /chip\.disabled=busy/u);
   assert.match(
     html,

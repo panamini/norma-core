@@ -123,7 +123,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
   assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v8.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v9.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -139,10 +139,10 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
     jsonrpc: "2.0",
     id: "cached-widget",
     method: "resources/read",
-    params: { uri: "ui://widget/norma-personal-visual-harmony-v7.html" },
+    params: { uri: "ui://widget/norma-personal-visual-harmony-v8.html" },
   });
   assert.equal(cachedWidget.status, 200);
-  assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v7.html");
+  assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
   assert.equal(cachedWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
 
   const prepared = await mcpRequest(port, {

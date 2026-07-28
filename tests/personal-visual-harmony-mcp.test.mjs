@@ -122,6 +122,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
   assert.equal(measurementRatioToggle.disabled, false);
   assert.deepEqual(state.measurementRatioRefs, [
     { kind: "segment", candidateId: "kept" },
+    null,
   ]);
 });
 
@@ -515,6 +516,44 @@ test("measurement ratio preview ignores invalid restored references and complete
   assert.match(measurementRatioPreview.textContent, /non demandé/u);
 });
 
+test("measurement ratio preview directs a sparse B-only selection back to A", () => {
+  const reference = { kind: "segment", candidateId: "second" };
+  const state = {
+    completed: false,
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [null, reference],
+  };
+  const measurementRatioPreview = { textContent: "" };
+  const syncMeasurementRatioPreview = widgetScriptFunction(
+    "syncMeasurementRatioPreview",
+    "function measurementRatioRequest",
+    {
+      state,
+      overlay: {
+        querySelectorAll: () => [],
+        querySelector: () => null,
+      },
+      document: {
+        createElementNS: () => ({ setAttribute() {} }),
+      },
+      measurementRatioPreview,
+      measurementRefKey: JSON.stringify,
+      canonicalMeasurementReferenceForReviewedGeometry: (value) => value,
+      measurementReferenceGeometry: (value) => value === reference
+        ? { start: { x: 0.1, y: 0.1 }, end: { x: 0.9, y: 0.1 } }
+        : null,
+      measurementReferenceOption: (value) => value === reference
+        ? "Guide · longueur du segment · 800 px"
+        : null,
+    },
+  );
+
+  syncMeasurementRatioPreview();
+
+  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la première longueur/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la seconde longueur/u);
+});
+
 test("measurement ratio selectors update only pending widget state", () => {
   const state = {
     measurementRatioRefs: [],
@@ -549,6 +588,47 @@ test("measurement ratio selectors update only pending widget state", () => {
     /select\.addEventListener\("change",\(\)=>setMeasurementRatioReference\(index,select\.value\)\)/u,
   );
   assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
+});
+
+test("measurement ratio selector B keeps its slot while selector A is empty", () => {
+  const state = {
+    measurementRatioRefs: [],
+  };
+  const setMeasurementRatioReference = widgetScriptFunction(
+    "setMeasurementRatioReference",
+    "for(const [index,select]",
+    {
+      state,
+      updateMeasurementRatioControls() {},
+      persistReviewState() {},
+    },
+  );
+  const first = { kind: "axis", candidateId: "horizontal-axis" };
+  const second = { kind: "axis", candidateId: "vertical-axis" };
+
+  setMeasurementRatioReference(1, JSON.stringify(second));
+  assert.deepEqual(state.measurementRatioRefs, [null, second]);
+
+  setMeasurementRatioReference(0, JSON.stringify(first));
+  assert.deepEqual(state.measurementRatioRefs, [first, second]);
+
+  setMeasurementRatioReference(0, "");
+  assert.deepEqual(state.measurementRatioRefs, [null, second]);
+});
+
+test("semantic target input rejects a comma-separated list before submission", () => {
+  const normalizeSemanticTarget = widgetScriptFunction(
+    "normalizeSemanticTarget",
+    "function selectedSemanticTarget",
+    {},
+  );
+
+  assert.equal(normalizeSemanticTarget("person, batiment, porte"), null);
+  assert.equal(normalizeSemanticTarget("  yellow   school bus  "), "yellow school bus");
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /semanticTargetSubmit\.disabled=!available\|\|!valid\|\|busy/u);
+  assert.match(html, /Saisissez une seule cible courte/u);
 });
 
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
@@ -1551,7 +1631,7 @@ test("widget restores a persisted manual segment only for the same file and mark
   assert.equal(restoredManualSegmentFor(prepared), null);
 });
 
-test("removing a manual segment clears its pixel proposal and overlay state", () => {
+test("removing a manual segment preserves the remaining ratio selector slot", () => {
   const manualId = "manual-segment-1";
   const calls = [];
   let overlayRemoved = false;
@@ -1617,7 +1697,7 @@ test("removing a manual segment clears its pixel proposal and overlay state", ()
   assert.deepEqual([...state.selectedGuides], ["frame"]);
   assert.equal(state.pixelRefinementProposals.has(manualId), false);
   assert.equal(state.adoptedPixelRefinements.has(manualId), false);
-  assert.deepEqual(state.measurementRatioRefs, [{ candidateId: "frame", metric: "width" }]);
+  assert.deepEqual(state.measurementRatioRefs, [null, { candidateId: "frame", metric: "width" }]);
   assert.equal(overlayRemoved, true);
   assert.equal(cardRemoved, true);
   assert.ok(calls.includes("syncPixelProposalOverlay"));
@@ -4900,7 +4980,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v8.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v9.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -4915,9 +4995,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
-      uri: "ui://widget/norma-personal-visual-harmony-v7.html",
+      uri: "ui://widget/norma-personal-visual-harmony-v8.html",
     });
-    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v7.html");
+    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
     assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
@@ -5109,6 +5189,102 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   } finally {
     await connected.close();
   }
+});
+
+test("widget collapses a stale bootstrap instance and restores it for a late matching payload", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /<html lang="fr" data-norma-widget-bootstrap="pending">/u);
+  assert.match(html, /html\[data-norma-widget-bootstrap="pending"\] \.content\{display:none\}/u);
+  assert.match(html, /document\.body\.hidden=nextState==="stale"/u);
+
+  const bootstrapAttribute = { value: "pending" };
+  const document = {
+    body: { hidden: false },
+    documentElement: {
+      setAttribute: (name, value) => {
+        assert.equal(name, "data-norma-widget-bootstrap");
+        bootstrapAttribute.value = value;
+      },
+    },
+  };
+  const stageNode = { textContent: "CONNEXION" };
+  const setWidgetBootstrapState = widgetScriptFunction(
+    "setWidgetBootstrapState",
+    "function bootstrap",
+    { document, state: { completed: false }, stageNode },
+  );
+
+  setWidgetBootstrapState("stale");
+  assert.equal(document.body.hidden, true);
+  assert.equal(bootstrapAttribute.value, "stale");
+
+  setWidgetBootstrapState("ready");
+  assert.equal(document.body.hidden, false);
+  assert.equal(bootstrapAttribute.value, "ready");
+  assert.equal(stageNode.textContent, "À CONFIRMER");
+
+  let payload = null;
+  let scheduledRetry = null;
+  const bootstrapStates = [];
+  const hydratedPayloads = [];
+  const loading = { textContent: "" };
+  const bootstrap = widgetScriptFunction("bootstrap", "window.addEventListener", {
+    currentPayload: () => payload,
+    state: { payload: null, completed: false },
+    bootstrapRetryCount: 50,
+    BOOTSTRAP_PENDING_NOTICE_AFTER: 50,
+    BOOTSTRAP_RETRY_DELAY_MS: 100,
+    BOOTSTRAP_SLOW_RETRY_DELAY_MS: 1_000,
+    loading,
+    setWidgetBootstrapState: (nextState) => bootstrapStates.push(nextState),
+    hydrate: (nextPayload) => hydratedPayloads.push(nextPayload),
+    setTimeout: (callback, delay) => {
+      scheduledRetry = { callback, delay };
+    },
+  });
+
+  bootstrap();
+
+  assert.deepEqual(bootstrapStates, ["stale"]);
+  assert.equal(loading.textContent, "Connexion au résultat de l’analyse en cours…");
+  assert.equal(scheduledRetry?.delay, 1_000);
+  assert.deepEqual(hydratedPayloads, []);
+
+  payload = { stage: "confirmation_required", fileId: "file-late" };
+  scheduledRetry.callback();
+
+  assert.deepEqual(bootstrapStates, ["stale", "ready"]);
+  assert.deepEqual(hydratedPayloads, [payload]);
+});
+
+test("message-only hydration cannot make an already-ready widget stale again", () => {
+  let scheduledRetry = null;
+  const bootstrapStates = [];
+  const state = { payload: null, completed: false };
+  const bootstrap = widgetScriptFunction("bootstrap", "window.addEventListener", {
+    currentPayload: () => null,
+    state,
+    bootstrapRetryCount: 50,
+    BOOTSTRAP_PENDING_NOTICE_AFTER: 50,
+    BOOTSTRAP_RETRY_DELAY_MS: 100,
+    BOOTSTRAP_SLOW_RETRY_DELAY_MS: 1_000,
+    loading: { textContent: "" },
+    setWidgetBootstrapState: (nextState) => bootstrapStates.push(nextState),
+    hydrate: () => {},
+    setTimeout: (callback, delay) => {
+      scheduledRetry = { callback, delay };
+    },
+  });
+
+  bootstrap();
+  assert.deepEqual(bootstrapStates, ["stale"]);
+  assert.equal(scheduledRetry?.delay, 1_000);
+
+  state.payload = { stage: "confirmation_required", fileId: "file-notification" };
+  bootstrapStates.push("ready");
+  scheduledRetry.callback();
+
+  assert.equal(bootstrapStates.at(-1), "ready");
 });
 
 test("guided analysis entry exposes the short default and every goal without activating analysis", () => {

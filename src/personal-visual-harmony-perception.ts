@@ -78,7 +78,9 @@ export type PersonalVisualHarmonyPerceptionPromptV1 =
     };
 
 export function normalizePersonalVisualHarmonySemanticTargetV1(value: unknown): string {
-  if (typeof value !== "string" || /[\u0000-\u001f\u007f]/u.test(value)) {
+  if (typeof value !== "string"
+    || /[\u0000-\u001f\u007f]/u.test(value)
+    || /[,;|]/u.test(value)) {
     throw new Error("Semantic target is invalid.");
   }
   const normalized = value.trim().replace(/\s+/gu, " ");
