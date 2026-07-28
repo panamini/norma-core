@@ -1631,7 +1631,7 @@ test("widget restores a persisted manual segment only for the same file and mark
   assert.equal(restoredManualSegmentFor(prepared), null);
 });
 
-test("removing a manual segment clears its pixel proposal and overlay state", () => {
+test("removing a manual segment preserves the remaining ratio selector slot", () => {
   const manualId = "manual-segment-1";
   const calls = [];
   let overlayRemoved = false;
@@ -1697,7 +1697,7 @@ test("removing a manual segment clears its pixel proposal and overlay state", ()
   assert.deepEqual([...state.selectedGuides], ["frame"]);
   assert.equal(state.pixelRefinementProposals.has(manualId), false);
   assert.equal(state.adoptedPixelRefinements.has(manualId), false);
-  assert.deepEqual(state.measurementRatioRefs, [{ candidateId: "frame", metric: "width" }]);
+  assert.deepEqual(state.measurementRatioRefs, [null, { candidateId: "frame", metric: "width" }]);
   assert.equal(overlayRemoved, true);
   assert.equal(cardRemoved, true);
   assert.ok(calls.includes("syncPixelProposalOverlay"));
