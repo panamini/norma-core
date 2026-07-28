@@ -729,6 +729,10 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /semanticTarget:target,label:"Cible sémantique"/u);
   assert.match(html, /normalizeSemanticTarget\(value\)/u);
   assert.match(html, /chip\.disabled=busy/u);
+  assert.match(
+    html,
+    /state\.imageReady=true;state\.dimensions=\{width:result\.width,height:result\.height\};.*?refreshSemanticTargetUi\(\)/u,
+  );
   assert.match(html, /Raccourcis Norma · pas une liste officielle de SAM 3/u);
   for (const target of PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1) {
     assert.match(html, new RegExp(`"value":"${target.value}"`, "u"));
