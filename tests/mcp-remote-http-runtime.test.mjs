@@ -18,6 +18,7 @@ import {
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+  PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
   PERSONAL_VISUAL_HARMONY_WIDGET_URI,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 import { createInMemoryRlsDataAdapter } from "../dist/src/mcp/remote-http-authorization-data.js";
@@ -130,6 +131,15 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(widget.json.result.contents[0].mimeType, "text/html+skybridge");
   assert.deepEqual(widget.json.result.contents[0]._meta.ui, { prefersBorder: true });
   assert.match(widget.json.result.contents[0].text, /window[.]openai/u);
+  const cachedWidget = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "cached-widget",
+    method: "resources/read",
+    params: { uri: "ui://widget/norma-personal-visual-harmony-v7.html" },
+  });
+  assert.equal(cachedWidget.status, 200);
+  assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v7.html");
+  assert.equal(cachedWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
 
   const prepared = await mcpRequest(port, {
     jsonrpc: "2.0",
