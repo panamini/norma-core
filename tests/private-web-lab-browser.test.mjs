@@ -40,9 +40,9 @@ test("measurement result presentation explains no-match and matched outcomes", (
     ratioText: "1,113 : 1",
     firstMeasurementText: "Segment manuel 2 · 389,6 px",
     secondMeasurementText: "Segment manuel 1 · 433,5 px",
-    toleranceText: "±2,5 %",
+    toleranceText: "±2,5 pt",
     verdictKind: "no-match",
-    verdictText: "Aucune correspondance dans les packs actifs à ±2,5 %.",
+    verdictText: "Aucune correspondance dans les packs actifs à ±2,5 pt.",
   });
   assert.deepEqual(presentPrivateWebLabMeasurementReportV1({
     ...baseReport,
@@ -56,7 +56,7 @@ test("measurement result presentation explains no-match and matched outcomes", (
     ratioText: "2,000 : 1",
     firstMeasurementText: "Segment manuel 2 · 389,6 px",
     secondMeasurementText: "Segment manuel 1 · 433,5 px",
-    toleranceText: "±2,5 %",
+    toleranceText: "±2,5 pt",
     verdictKind: "match",
     verdictText:
       "Correspondance forte avec la proportion normalisée 2/3 · écart 0,18 pt.",
@@ -85,10 +85,48 @@ test("measurement result presentation explains no-match and matched outcomes", (
       ratioText: "1,113 : 1",
       firstMeasurementText: "Segment manuel 3 · 433,5 px",
       secondMeasurementText: "Segment manuel 2 · 389,6 px",
-      toleranceText: "±2,5 %",
+      toleranceText: "±2,5 pt",
       verdictKind: "no-match",
-      verdictText: "Aucune correspondance dans les packs actifs à ±2,5 %.",
+      verdictText: "Aucune correspondance dans les packs actifs à ±2,5 pt.",
     },
+  );
+  assert.deepEqual(presentPrivateWebLabMeasurementReportV1({
+    ...baseReport,
+    measurements: [
+      { candidateLabel: "Segment infime 1", lengthPixels: 0.049 },
+      { candidateLabel: "Segment infime 2", lengthPixels: 0.000000123 },
+    ],
+  }), {
+    ratioText: "1,113 : 1",
+    firstMeasurementText: "Segment infime 1 · 0,049 px",
+    secondMeasurementText: "Segment infime 2 · 1,23e-7 px",
+    toleranceText: "±2,5 pt",
+    verdictKind: "no-match",
+    verdictText: "Aucune correspondance dans les packs actifs à ±2,5 pt.",
+  });
+  assert.equal(
+    presentPrivateWebLabMeasurementReportV1({
+      ...baseReport,
+      observedDominantShare: 2 / 3,
+      match: {
+        quality: "exact",
+        absoluteDelta: 0.001,
+        ratio: { displayLabel: "2/3" },
+      },
+    })?.verdictText,
+    "Correspondance très forte avec la proportion normalisée 2/3 · écart 0,10 pt.",
+  );
+  assert.equal(
+    presentPrivateWebLabMeasurementReportV1({
+      ...baseReport,
+      observedDominantShare: 2 / 3,
+      match: {
+        quality: "exact",
+        absoluteDelta: 0,
+        ratio: { displayLabel: "2/3" },
+      },
+    })?.verdictText,
+    "Correspondance exacte avec la proportion normalisée 2/3 · écart 0,00 pt.",
   );
   assert.equal(
     presentPrivateWebLabMeasurementReportV1(canonicalReport, [
@@ -1923,6 +1961,16 @@ test(
               document.querySelector("#measurement-second-result").textContent,
             receiptDetailsOpen: document.querySelector(".receipt-details").open,
             focusedSection: document.activeElement?.id ?? "",
+            ratioOverflowWrap:
+              getComputedStyle(document.querySelector("#measurement-ratio")).overflowWrap,
+            longRatioContained: (() => {
+              const ratio = document.querySelector("#measurement-ratio");
+              const originalText = ratio.textContent;
+              ratio.textContent = "999999999999,999 : 1";
+              const contained = ratio.scrollWidth <= ratio.clientWidth + 1;
+              ratio.textContent = originalText;
+              return contained;
+            })(),
             candidateInputsDisabled: [
               ...document.querySelectorAll("#candidate-list input")
             ].every((input) => input.disabled),
@@ -1946,11 +1994,13 @@ test(
       assert.equal(receipt.receiptTitle, "3. Résultat confirmé");
       assert.match(receipt.measurementRatio, /^\d+,\d{3} : 1$/u);
       assert.match(receipt.measurementVerdict, /Correspondance|Aucune correspondance/u);
-      assert.equal(receipt.measurementTolerance, "±2,5 %");
+      assert.equal(receipt.measurementTolerance, "±2,5 pt");
       assert.match(receipt.firstMeasurementResult, /^Segment manuel 3 · \d+,\d px$/u);
       assert.match(receipt.secondMeasurementResult, /^Segment manuel 2 · \d+,\d px$/u);
       assert.equal(receipt.receiptDetailsOpen, false);
       assert.equal(receipt.focusedSection, "receipt-section");
+      assert.equal(receipt.ratioOverflowWrap, "anywhere");
+      assert.equal(receipt.longRatioContained, true);
       assert.equal(receipt.candidateInputsDisabled, true);
       assert.equal(receipt.confirmationDisabled, true);
       assert.equal(receipt.imageDisabled, false);

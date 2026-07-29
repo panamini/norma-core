@@ -78,15 +78,15 @@ export function presentPrivateWebLabMeasurementReportV1(report, selectedCandidat
   if (!isPresentableMeasurement(first) || !isPresentableMeasurement(second)) return null;
   const dominantShare = report.observedDominantShare;
   const ratio = dominantShare / (1 - dominantShare);
-  const toleranceText = `±${formatDecimal(report.matchTolerance * 100, 1)} %`;
+  const toleranceText = `±${formatDecimal(report.matchTolerance * 100, 1)} pt`;
   const matchPresentation = presentMeasurementMatch(report.match);
   if (matchPresentation === null) return null;
   return {
     ratioText: `${formatDecimal(ratio, 3)} : 1`,
     firstMeasurementText:
-      `${first.candidateLabel} · ${formatDecimal(first.lengthPixels, 1)} px`,
+      `${first.candidateLabel} · ${formatMeasurementLength(first.lengthPixels)} px`,
     secondMeasurementText:
-      `${second.candidateLabel} · ${formatDecimal(second.lengthPixels, 1)} px`,
+      `${second.candidateLabel} · ${formatMeasurementLength(second.lengthPixels)} px`,
     toleranceText,
     verdictKind: matchPresentation.kind,
     verdictText: matchPresentation.kind === "match"
@@ -271,7 +271,9 @@ function presentMeasurementMatch(match) {
     return null;
   }
   const qualityLabels = {
-    exact: "Correspondance exacte",
+    exact: match.absoluteDelta === 0
+      ? "Correspondance exacte"
+      : "Correspondance très forte",
     strong: "Correspondance forte",
     near: "Correspondance proche",
   };
@@ -285,6 +287,14 @@ function presentMeasurementMatch(match) {
 
 function formatDecimal(value, fractionDigits) {
   return value.toFixed(fractionDigits).replace(".", ",");
+}
+
+function formatMeasurementLength(value) {
+  if (value >= 0.05) return formatDecimal(value, 1);
+  if (value >= 0.0001) {
+    return formatDecimal(value, 4).replace(/0+$/u, "").replace(/,$/u, "");
+  }
+  return value.toExponential(2).replace(".", ",");
 }
 
 function isPositiveUnitCoordinate(value) {

@@ -331,9 +331,12 @@ aside {
 }
 
 .measurement-ratio {
+  max-width: 100%;
   margin-bottom: 14px;
   font: 750 clamp(3.5rem, 10vw, 7rem)/0.86 Inter, ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.075em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .measurement-verdict {
