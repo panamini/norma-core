@@ -29,6 +29,7 @@ const state = {
   imageRevision: 0,
   preparationRevision: 0,
   preparationInFlight: false,
+  sessionResetInFlight: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -70,6 +71,7 @@ const measurementReportRow = $("#measurement-report-row");
 const measurementReport = $("#measurement-report");
 const exportLink = $("#export-link");
 const newMeasurementButton = $("#new-measurement-button");
+const changeGoalButton = $("#change-goal-button");
 const imagePlaneResizeObserver = new ResizeObserver(reconcileViewAfterResize);
 imagePlaneResizeObserver.observe(imagePlane);
 
@@ -386,23 +388,33 @@ newMeasurementButton.addEventListener("click", async () => {
     newMeasurementButton.disabled = false;
     return;
   }
-  state.phase = "authoring";
-  state.draft = null;
-  state.authored = [];
-  state.candidates = [];
-  state.selectedCandidateIds = new Set();
-  state.measurementCandidateIds = [null, null];
-  state.activeCandidateId = null;
-  confirmationInput.checked = false;
-  receiptSection.hidden = true;
-  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
-  state.receiptUrl = null;
+  returnLinkedReviewToAuthoring({ preserveAuthored: false });
   resetView();
-  setTool("rectangle");
   setupStatus.textContent =
     `Nouvelle mesure prête; image conservée. Exécutions Core: ${String(state.coreExecutionCount)}.`;
   newMeasurementButton.disabled = false;
   render();
+});
+
+changeGoalButton.addEventListener("click", async () => {
+  if (state.draft === null || state.phase !== "review" || state.sessionResetInFlight) return;
+  state.sessionResetInFlight = true;
+  render();
+  try {
+    await postJson("/api/new-measurement", {
+      browserSessionId: state.browserSessionId,
+      labSessionId: state.draft.labSessionId,
+    });
+    returnLinkedReviewToAuthoring({ preserveAuthored: true });
+    setupStatus.textContent =
+      "Objectif modifiable; image et tracés manuels conservés. Core n’a pas été lancé.";
+  } catch (error) {
+    setupStatus.textContent =
+      error instanceof Error ? error.message : "Réinitialisation de la revue refusée.";
+  } finally {
+    state.sessionResetInFlight = false;
+    render();
+  }
 });
 
 resetView();
@@ -411,6 +423,7 @@ setTool("rectangle");
 function render() {
   const authoring = state.phase === "authoring";
   const locked = state.preparationInFlight
+    || state.sessionResetInFlight
     || state.phase === "confirming"
     || state.phase === "completed";
   authoringToolbar.hidden = state.phase === "empty";
@@ -419,6 +432,8 @@ function render() {
   addRectangleButton.hidden = !authoring;
   addSegmentButton.hidden = !authoring;
   prepareButton.hidden = !authoring;
+  changeGoalButton.hidden = state.phase !== "review";
+  changeGoalButton.disabled = state.phase !== "review" || state.sessionResetInFlight;
   prepareButton.disabled =
     !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
   phaseDescription.textContent = authoring
@@ -934,6 +949,7 @@ function updateAvailability() {
     || state.preparationInFlight
     || !canPrepareAuthoredReview();
   const setupLocked = state.preparationInFlight
+    || state.sessionResetInFlight
     || (state.phase !== "empty" && state.phase !== "authoring");
   imageInput.disabled = setupLocked;
   goalInput.disabled = setupLocked;
@@ -948,15 +964,44 @@ function canPrepareAuthoredReview() {
 }
 
 function returnExpiredReviewToAuthoring() {
+  returnLinkedReviewToAuthoring({ preserveAuthored: true });
+}
+
+function returnLinkedReviewToAuthoring({ preserveAuthored }) {
+  if (preserveAuthored && state.candidates.length > 0) {
+    state.authored = state.candidates.map(reviewedCandidateToAuthored);
+  }
   state.phase = "authoring";
   state.draft = null;
+  if (!preserveAuthored) state.authored = [];
   state.candidates = [];
   state.selectedCandidateIds = new Set();
   state.measurementCandidateIds = [null, null];
   state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
+  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
+  state.receiptUrl = null;
   setTool("rectangle");
+}
+
+function reviewedCandidateToAuthored(candidate) {
+  if (candidate.primitive.kind === "rectangle") {
+    return {
+      id: candidate.id,
+      kind: "rectangle",
+      x: candidate.x,
+      y: candidate.y,
+      width: candidate.width,
+      height: candidate.height,
+    };
+  }
+  return {
+    id: candidate.id,
+    kind: "segment",
+    start: structuredClone(candidate.primitive.start),
+    end: structuredClone(candidate.primitive.end),
+  };
 }
 
 function setGuidesVisible(visible) {
@@ -968,6 +1013,7 @@ function setGuidesVisible(visible) {
 function clearImage() {
   state.preparationRevision += 1;
   state.preparationInFlight = false;
+  state.sessionResetInFlight = false;
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   state.image = null;
   state.dimensions = null;

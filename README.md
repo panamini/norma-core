@@ -62,7 +62,6 @@ The initial 12-case smoke corpus validates instrumentation and gross regressions
 Launch the loopback-only lab:
 
 ```bash
-npm run build
 node web-lab/start-private-web-lab.mjs --enable-private-web-lab
 ```
 
@@ -76,11 +75,16 @@ for explicit demonstrations and contract tests; it is not the normal Web Lab
 path. Norma Core remains stopped until the linked selection is explicitly
 confirmed, then the lab returns one deterministic receipt and an exportable
 canonical JSON result. “Nouvelle mesure” invalidates the completed server
-session while retaining the local image and goal.
+session while retaining the local image and goal. Avant confirmation,
+“Modifier l’objectif / Recommencer” invalide la revue liée, conserve l’image et
+les tracés manuels, puis rend l’objectif modifiable sans rechargement.
 
 `NORMA_PRIVATE_WEB_LAB_PORT` may replace the default port. Sessions are
 in-memory, bounded, replaceable, and non-authoritative; no database or browser
-history is used.
+history is used. The launcher is idempotent on that loopback port: if the same
+Web Lab is already running, repeating the launch command reports its URL and
+exits successfully. It refuses to treat an unrelated service on the port as
+Norma.
 
 ## Verification
 

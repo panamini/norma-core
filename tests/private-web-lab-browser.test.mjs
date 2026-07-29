@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,6 +27,87 @@ import { createPrivateWebLabHttpServerV1 } from "../web-lab/private-web-lab-http
 
 const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
+
+test("launcher starts once and reuses the same verified loopback Web Lab", {
+  timeout: 10_000,
+}, async () => {
+  const reservation = createPrivateWebLabHttpServerV1();
+  const port = await listen(reservation);
+  await close(reservation);
+  const launcherPath = new URL(
+    "../web-lab/start-private-web-lab.mjs",
+    import.meta.url,
+  ).pathname;
+  const options = {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: {
+      ...process.env,
+      NORMA_PRIVATE_WEB_LAB_PORT: String(port),
+    },
+    stdio: ["ignore", "ignore", "pipe"],
+  };
+  const first = spawn(process.execPath, [launcherPath, "--enable-private-web-lab"], options);
+  const firstExit = once(first, "exit");
+  try {
+    const started = await waitForJsonLineEvent(first, "private_web_lab_started");
+    assert.equal(started.url, `http://127.0.0.1:${String(port)}`);
+    assert.equal(started.providerCalls, 0);
+
+    const second = spawn(process.execPath, [launcherPath, "--enable-private-web-lab"], options);
+    const secondExit = once(second, "exit");
+    const reused = await waitForJsonLineEvent(second, "private_web_lab_already_running");
+    const [secondCode] = await secondExit;
+    assert.equal(secondCode, 0);
+    assert.deepEqual(reused, {
+      event: "private_web_lab_already_running",
+      url: started.url,
+      exposure: "private_loopback_only",
+      providerCalls: 0,
+    });
+  } finally {
+    if (first.exitCode === null) first.kill("SIGTERM");
+    await Promise.race([firstExit, delay(2_000)]);
+    if (first.exitCode === null) first.kill("SIGKILL");
+  }
+});
+
+test("launcher refuses an unrelated service on the configured port", {
+  timeout: 10_000,
+}, async () => {
+  const unrelated = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", contractId: "unrelated-service@1" }));
+  });
+  const port = await listen(unrelated);
+  try {
+    const launcher = spawn(
+      process.execPath,
+      [
+        new URL("../web-lab/start-private-web-lab.mjs", import.meta.url).pathname,
+        "--enable-private-web-lab",
+      ],
+      {
+        cwd: new URL("..", import.meta.url).pathname,
+        env: {
+          ...process.env,
+          NORMA_PRIVATE_WEB_LAB_PORT: String(port),
+        },
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    const exit = once(launcher, "exit");
+    const occupied = await waitForJsonLineEvent(
+      launcher,
+      "private_web_lab_port_in_use",
+    );
+    const [code] = await exit;
+    assert.equal(code, 69);
+    assert.equal(occupied.url, `http://127.0.0.1:${String(port)}`);
+    assert.equal(occupied.providerCalls, 0);
+  } finally {
+    await close(unrelated);
+  }
+});
 
 test("measurement result presentation explains no-match and matched outcomes", () => {
   const baseReport = {
@@ -329,6 +412,272 @@ test("browser flow validates complete primitive geometry and emits confirmation 
     false,
   );
 });
+
+test(
+  "rendered browser changes a linked goal without reload and rejects the stale session",
+  {
+    skip: RUN_RENDERED_BROWSER_TEST
+      ? false
+      : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    let coreExecutions = 0;
+    const application = new PrivateWebLabApplicationV1({
+      executeConfirmation(input) {
+        coreExecutions += 1;
+        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+    });
+    const server = createPrivateWebLabHttpServerV1({ application });
+    const port = await listen(server);
+    const fixturePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const fetchNormally = window.fetch.bind(window);
+          window.__manualDrafts = [];
+          window.__manualDraftRequests = [];
+          window.fetch = async (input, init) => {
+            const response = await fetchNormally(input, init);
+            if (input === "/api/manual-draft" && response.ok) {
+              window.__manualDraftRequests.push(JSON.parse(init.body));
+              window.__manualDrafts.push(await response.clone().json());
+            }
+            return response;
+          };
+        })()`,
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [fixturePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#image-input")
+            .dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "general-geometry";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#review-section').hidden",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__manualDrafts.length === 1 && !document.querySelector('#change-goal-button').hidden",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const rectangleX = document.querySelector(
+            ".candidate input[type=number]",
+          );
+          rectangleX.value = "0.2";
+          rectangleX.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      const beforeReset = await evaluate(
+        connection,
+        sessionId,
+        `({
+          source: document.querySelector("#source-image").src,
+          oldSessionId: window.__manualDrafts[0].labSessionId,
+          goalDisabled: document.querySelector("#goal-input").disabled,
+          candidateCount: document.querySelectorAll(".candidate").length,
+          rectangleX: document.querySelector(
+            ".candidate input[type=number]",
+          ).value,
+        })`,
+      );
+      assert.equal(beforeReset.goalDisabled, true);
+      assert.equal(beforeReset.candidateCount, 1);
+      assert.equal(beforeReset.rectangleX, "0.2");
+      assert.equal(coreExecutions, 0);
+
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#change-goal-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Dessinez')",
+      );
+      const staleAttempt = await evaluate(
+        connection,
+        sessionId,
+        `(async () => {
+          const draft = window.__manualDrafts[0];
+          const request = window.__manualDraftRequests[0];
+          const response = await fetch("/api/manual-confirm", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              explicitConfirmation: true,
+              browserSessionId: request.browserSessionId,
+              labSessionId: draft.labSessionId,
+              sourceImageContentIdentity: draft.sourceImageContentIdentity,
+              candidateSetIdentity: draft.candidateSetIdentity,
+              perceptionReceiptIdentity: draft.perceptionReceiptIdentity,
+              sourcePixelWidth: draft.sourcePixelWidth,
+              sourcePixelHeight: draft.sourcePixelHeight,
+              selectedCandidateIds: [draft.candidates[0].id],
+              reviewedCandidates: draft.candidates,
+              measurementCandidateIds: null,
+            }),
+          });
+          return { status: response.status, body: await response.json() };
+        })()`,
+      );
+      assert.equal(staleAttempt.status, 400);
+      assert.match(staleAttempt.body.message, /missing or expired/u);
+      assert.equal(coreExecutions, 0);
+
+      const authoring = await evaluate(
+        connection,
+        sessionId,
+        `({
+          imageRetained: document.querySelector("#source-image").src,
+          goalDisabled: document.querySelector("#goal-input").disabled,
+          candidateCount: document.querySelectorAll(".candidate").length,
+          resetHidden: document.querySelector("#change-goal-button").hidden,
+          rectangleX: document.querySelector(
+            ".candidate input[type=number]",
+          ).value,
+        })`,
+      );
+      assert.equal(authoring.imageRetained, beforeReset.source);
+      assert.equal(authoring.goalDisabled, false);
+      assert.equal(authoring.candidateCount, 1);
+      assert.equal(authoring.resetHidden, true);
+      assert.equal(authoring.rectangleX, "0.2");
+
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const goal = document.querySelector("#goal-input");
+          goal.value = "compare-two-lengths";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__manualDrafts.length === 2",
+      );
+      assert.notEqual(
+        await evaluate(connection, sessionId, "window.__manualDrafts[1].labSessionId"),
+        beforeReset.oldSessionId,
+      );
+      const confirmationReady = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const candidateIds = [...document.querySelectorAll(".candidate")]
+            .map((candidate) => candidate.dataset.candidateId);
+          for (const candidateId of candidateIds) {
+            const candidate = [...document.querySelectorAll(".candidate")]
+              .find((item) => item.dataset.candidateId === candidateId);
+            const checkbox = candidate.querySelector("input[type=checkbox]");
+            if (!checkbox.checked) checkbox.click();
+          }
+          const segments = [...document.querySelectorAll(
+            ".candidate input[type=checkbox]:checked",
+          )].map((checkbox) => checkbox.closest(".candidate").dataset.candidateId)
+            .filter((id) => id.includes("segment"));
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = segments[0];
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = segments[1];
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#confirmation-input").click();
+          return {
+            selectedCount: document.querySelectorAll(
+              ".candidate input[type=checkbox]:checked",
+            ).length,
+            first: first.value,
+            second: second.value,
+            runDisabled: document.querySelector("#run-button").disabled,
+          };
+        })()`,
+      );
+      assert.deepEqual(confirmationReady, {
+        selectedCount: 3,
+        first: "manual-segment-1",
+        second: "manual-segment-2",
+        runDisabled: false,
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#receipt-section').hidden",
+      );
+      assert.equal(coreExecutions, 1);
+      assert.deepEqual(connection.runtimeExceptions, []);
+    } finally {
+      connection?.close();
+      await browser.close();
+      await close(server);
+    }
+  },
+);
 
 test(
   "rendered browser authors a rectangle and two segments, confirms once, exports, and starts over",
@@ -2116,6 +2465,45 @@ function waitForDevtoolsUrl(child) {
     const onExit = (code) => {
       cleanup();
       reject(new Error(`Chrome exited before DevTools was ready (${String(code)}).`));
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.stderr.off("data", onData);
+      child.off("exit", onExit);
+    };
+    child.stderr.on("data", onData);
+    child.once("exit", onExit);
+  });
+}
+
+function waitForJsonLineEvent(child, expectedEvent) {
+  return new Promise((resolve, reject) => {
+    let output = "";
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Launcher did not emit ${expectedEvent}.`));
+    }, 5_000);
+    const onData = (chunk) => {
+      output += chunk.toString();
+      const lines = output.split("\n");
+      output = lines.pop() ?? "";
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+          if (event.event !== expectedEvent) continue;
+          cleanup();
+          resolve(event);
+          return;
+        } catch {
+          // Ignore non-JSON diagnostics until the bounded event arrives.
+        }
+      }
+    };
+    const onExit = (code) => {
+      cleanup();
+      reject(new Error(
+        `Launcher exited before ${expectedEvent} (${String(code)}).`,
+      ));
     };
     const cleanup = () => {
       clearTimeout(timeout);
