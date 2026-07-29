@@ -29,6 +29,7 @@ const state = {
   imageRevision: 0,
   preparationRevision: 0,
   preparationInFlight: false,
+  sessionResetInFlight: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -70,6 +71,7 @@ const measurementReportRow = $("#measurement-report-row");
 const measurementReport = $("#measurement-report");
 const exportLink = $("#export-link");
 const newMeasurementButton = $("#new-measurement-button");
+const changeGoalButton = $("#change-goal-button");
 const imagePlaneResizeObserver = new ResizeObserver(reconcileViewAfterResize);
 imagePlaneResizeObserver.observe(imagePlane);
 
@@ -319,7 +321,13 @@ prepareButton.addEventListener("click", async () => {
 confirmationInput.addEventListener("change", updateCoreAvailability);
 
 runButton.addEventListener("click", async () => {
-  if (state.phase !== "review" || state.draft === null || !confirmationInput.checked) return;
+  if (
+    state.phase !== "review"
+    || state.draft === null
+    || !confirmationInput.checked
+    || state.sessionResetInFlight
+    || state.confirmationInFlight
+  ) return;
   state.confirmationInFlight = true;
   state.phase = "confirming";
   render();
@@ -369,6 +377,7 @@ runButton.addEventListener("click", async () => {
     render();
   } finally {
     state.confirmationInFlight = false;
+    render();
   }
 });
 
@@ -378,6 +387,7 @@ newMeasurementButton.addEventListener("click", async () => {
   try {
     await postJson("/api/new-measurement", {
       browserSessionId: state.browserSessionId,
+      expectedSessionState: "completed",
       labSessionId: state.draft.labSessionId,
     });
   } catch (error) {
@@ -386,23 +396,43 @@ newMeasurementButton.addEventListener("click", async () => {
     newMeasurementButton.disabled = false;
     return;
   }
-  state.phase = "authoring";
-  state.draft = null;
-  state.authored = [];
-  state.candidates = [];
-  state.selectedCandidateIds = new Set();
-  state.measurementCandidateIds = [null, null];
-  state.activeCandidateId = null;
-  confirmationInput.checked = false;
-  receiptSection.hidden = true;
-  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
-  state.receiptUrl = null;
+  returnLinkedReviewToAuthoring({ preserveAuthored: false });
   resetView();
-  setTool("rectangle");
   setupStatus.textContent =
     `Nouvelle mesure prête; image conservée. Exécutions Core: ${String(state.coreExecutionCount)}.`;
   newMeasurementButton.disabled = false;
   render();
+});
+
+changeGoalButton.addEventListener("click", async () => {
+  if (state.draft === null || state.phase !== "review" || state.sessionResetInFlight) return;
+  state.sessionResetInFlight = true;
+  render();
+  try {
+    await postJson("/api/new-measurement", {
+      browserSessionId: state.browserSessionId,
+      expectedSessionState: "review",
+      labSessionId: state.draft.labSessionId,
+    });
+    returnLinkedReviewToAuthoring({ preserveAuthored: true });
+    setupStatus.textContent =
+      "Objectif modifiable; image et tracés manuels conservés. Core n’a pas été lancé.";
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : "Réinitialisation de la revue refusée.";
+    if (isMissingPrivateWebLabSessionError(message)) {
+      returnLinkedReviewToAuthoring({ preserveAuthored: true });
+      setupStatus.textContent =
+        "Session déjà expirée; objectif modifiable, image et tracés manuels conservés.";
+      coreGate.textContent = "Core arrêté — la session absente a été effacée localement.";
+    } else {
+      setupStatus.textContent = message;
+    }
+  } finally {
+    state.sessionResetInFlight = false;
+    render();
+  }
 });
 
 resetView();
@@ -411,6 +441,7 @@ setTool("rectangle");
 function render() {
   const authoring = state.phase === "authoring";
   const locked = state.preparationInFlight
+    || state.sessionResetInFlight
     || state.phase === "confirming"
     || state.phase === "completed";
   authoringToolbar.hidden = state.phase === "empty";
@@ -419,6 +450,8 @@ function render() {
   addRectangleButton.hidden = !authoring;
   addSegmentButton.hidden = !authoring;
   prepareButton.hidden = !authoring;
+  changeGoalButton.hidden = state.phase !== "review";
+  changeGoalButton.disabled = state.phase !== "review" || state.sessionResetInFlight;
   prepareButton.disabled =
     !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
   phaseDescription.textContent = authoring
@@ -430,7 +463,9 @@ function render() {
   );
   renderOverlay(candidates, authoring);
   renderMeasurementSelection();
-  confirmationInput.disabled = state.phase !== "review";
+  confirmationInput.disabled = state.phase !== "review"
+    || state.sessionResetInFlight
+    || state.confirmationInFlight;
   if (authoring) {
     guideMode.textContent = `${String(candidates.length)} candidat(s) manuel(s), maximum 12.`;
     coreGate.textContent = "Core arrêté — préparez puis confirmez une revue liée.";
@@ -670,12 +705,17 @@ function renderMeasurementSelection() {
     );
     select.replaceChildren(placeholder, ...options);
     select.value = state.measurementCandidateIds[index] ?? "";
-    select.disabled = state.phase !== "review";
+    select.disabled = state.phase !== "review"
+      || state.sessionResetInFlight
+      || state.confirmationInFlight;
   });
 }
 
 function updateCoreAvailability() {
-  const canRun = state.phase === "review" && state.draft !== null
+  const canRun = state.phase === "review"
+    && state.draft !== null
+    && !state.sessionResetInFlight
+    && !state.confirmationInFlight
     && canRunPrivateWebLabCoreV1(
       confirmationInput.checked,
       state.selectedCandidateIds,
@@ -685,7 +725,9 @@ function updateCoreAvailability() {
     );
   runButton.disabled = !canRun;
   if (state.phase === "review") {
-    coreGate.textContent = !confirmationInput.checked
+    coreGate.textContent = state.sessionResetInFlight
+      ? "Core arrêté — abandon de la revue en cours."
+      : !confirmationInput.checked
       ? "Core arrêté — confirmation explicite requise."
       : canRun
         ? "Confirmation explicite prête — Core n’a pas encore été lancé."
@@ -934,6 +976,7 @@ function updateAvailability() {
     || state.preparationInFlight
     || !canPrepareAuthoredReview();
   const setupLocked = state.preparationInFlight
+    || state.sessionResetInFlight
     || (state.phase !== "empty" && state.phase !== "authoring");
   imageInput.disabled = setupLocked;
   goalInput.disabled = setupLocked;
@@ -948,15 +991,48 @@ function canPrepareAuthoredReview() {
 }
 
 function returnExpiredReviewToAuthoring() {
+  returnLinkedReviewToAuthoring({ preserveAuthored: true });
+}
+
+function isMissingPrivateWebLabSessionError(message) {
+  return /session is missing or (?:expired|belongs to another browser)/iu.test(message);
+}
+
+function returnLinkedReviewToAuthoring({ preserveAuthored }) {
+  if (preserveAuthored && state.candidates.length > 0) {
+    state.authored = state.candidates.map(reviewedCandidateToAuthored);
+  }
   state.phase = "authoring";
   state.draft = null;
+  if (!preserveAuthored) state.authored = [];
   state.candidates = [];
   state.selectedCandidateIds = new Set();
   state.measurementCandidateIds = [null, null];
   state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
+  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
+  state.receiptUrl = null;
   setTool("rectangle");
+}
+
+function reviewedCandidateToAuthored(candidate) {
+  if (candidate.primitive.kind === "rectangle") {
+    return {
+      id: candidate.id,
+      kind: "rectangle",
+      x: candidate.x,
+      y: candidate.y,
+      width: candidate.width,
+      height: candidate.height,
+    };
+  }
+  return {
+    id: candidate.id,
+    kind: "segment",
+    start: structuredClone(candidate.primitive.start),
+    end: structuredClone(candidate.primitive.end),
+  };
 }
 
 function setGuidesVisible(visible) {
@@ -968,6 +1044,7 @@ function setGuidesVisible(visible) {
 function clearImage() {
   state.preparationRevision += 1;
   state.preparationInFlight = false;
+  state.sessionResetInFlight = false;
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   state.image = null;
   state.dimensions = null;
