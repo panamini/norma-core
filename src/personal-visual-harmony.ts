@@ -52,6 +52,8 @@ export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@1" as const;
 export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V2_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@2" as const;
+export const PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID =
+  "norma.personal-visual-harmony-manual-candidate-set@1" as const;
 export const PERSONAL_VISUAL_HARMONY_RESULT_CONTRACT_ID =
   "norma.personal-visual-harmony-result@1" as const;
 export const PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID =
@@ -180,9 +182,31 @@ export interface PersonalVisualHarmonyPreparedCandidateSetV2 {
   readonly candidateSetIdentity: string;
 }
 
+export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID;
+  readonly contractVersion: 3;
+  readonly status: "confirmation_required";
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType: string | null;
+  readonly imageBytesObservedByNorma: false;
+  readonly sourceImageIdentityBasis: "browser_sha256_and_dimensions_not_image_bytes";
+  readonly visualInterpretationSource: "manual";
+  readonly perceptionReceiptIdentity: string;
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly explicitSelectionConfirmationRequired: true;
+  readonly coreRun: false;
+  readonly coordinateFrame: PersonalVisualHarmonyPreparedCandidateSetV1["coordinateFrame"];
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+  readonly candidateSetIdentity: string;
+}
+
 export type PersonalVisualHarmonyPreparedCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSetV1
-  | PersonalVisualHarmonyPreparedCandidateSetV2;
+  | PersonalVisualHarmonyPreparedCandidateSetV2
+  | PersonalVisualHarmonyPreparedManualCandidateSetV1;
 
 export interface PersonalVisualHarmonyExplanationV1 {
   readonly relationshipId: string;
@@ -542,6 +566,62 @@ export function preparePersonalVisualHarmonyCandidateSetV2(input: {
   };
 }
 
+export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType?: string | null;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly perceptionReceiptIdentity: string;
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+}): PersonalVisualHarmonyPreparedManualCandidateSetV1 {
+  if (!SHA256_PATTERN.test(input.sourceImageContentIdentity)) {
+    throw new Error("sourceImageContentIdentity must be a sha256 identity.");
+  }
+  if (!SHA256_PATTERN.test(input.perceptionReceiptIdentity)) {
+    throw new Error("perceptionReceiptIdentity must be a sha256 identity.");
+  }
+  requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const sourceImageMediaType = normalizeMediaType(input.sourceImageMediaType);
+  const sourceImageReferenceIdentity = contentIdentityFor({
+    kind: "private-browser-image-reference",
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+  });
+  const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
+  const coordinateFrame = {
+    dimensions: 2 as const,
+    coordinateScale: "normalized" as const,
+    origin: "top-left" as const,
+    xDirection: "right" as const,
+    yDirection: "down" as const,
+    bounds: { x: [0, 1] as const, y: [0, 1] as const },
+  };
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID,
+    contractVersion: 3 as const,
+    status: "confirmation_required" as const,
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    sourceImageMediaType,
+    imageBytesObservedByNorma: false as const,
+    sourceImageIdentityBasis: "browser_sha256_and_dimensions_not_image_bytes" as const,
+    visualInterpretationSource: "manual" as const,
+    perceptionReceiptIdentity: input.perceptionReceiptIdentity,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateFrame,
+    candidates,
+  };
+  return {
+    ...withoutIdentity,
+    candidateSetIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
 export function preparePersonalVisualHarmonyMergedPerceptionCandidatesV1(input: {
   readonly sourceFileId: string;
   readonly sourceImageMediaType?: string | null;
@@ -639,8 +719,15 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   if (!UTC_TIMESTAMP_PATTERN.test(input.acceptedAt)) {
     throw new Error("acceptedAt must be an explicit UTC RFC3339 timestamp.");
   }
+  const coreCandidateSetIdentity = prepared.contractVersion === 3
+    ? preparePersonalVisualHarmonyCandidateSetV1({
+        sourceFileId: `web-lab:${prepared.sourceImageContentIdentity.slice("sha256:".length)}`,
+        sourceImageMediaType: prepared.sourceImageMediaType,
+        candidates: prepared.candidates,
+      }).candidateSetIdentity
+    : prepared.candidateSetIdentity;
   const selectionIdentity = contentIdentityFor({
-    candidateSetIdentity: prepared.candidateSetIdentity,
+    candidateSetIdentity: coreCandidateSetIdentity,
     selectedCandidateIds,
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
@@ -2133,6 +2220,7 @@ function createAcceptedGeometry(
   });
   const selectionToken = identityToken(selectionIdentity);
   const isObservedImageCandidateSet = prepared.contractVersion === 2;
+  const isManualBrowserCandidateSet = prepared.contractVersion === 3;
   const sourceObservationContentIdentity = contentIdentityFor(isObservedImageCandidateSet
     ? {
         candidateSetIdentity: prepared.candidateSetIdentity,
@@ -2143,6 +2231,16 @@ function createAcceptedGeometry(
         sourcePixelHeight,
         dimensionsObservedBy: "chatgpt-widget",
       }
+    : isManualBrowserCandidateSet
+      ? {
+          candidateSetIdentity: prepared.candidateSetIdentity,
+          sourceImageContentIdentity: prepared.sourceImageContentIdentity,
+          perceptionReceiptIdentity: prepared.perceptionReceiptIdentity,
+          visualInterpretationSource: prepared.visualInterpretationSource,
+          sourcePixelWidth,
+          sourcePixelHeight,
+          dimensionsObservedBy: "private-web-lab-browser",
+        }
     : {
         candidateSetIdentity: prepared.candidateSetIdentity,
         sourcePixelWidth,
@@ -2151,12 +2249,18 @@ function createAcceptedGeometry(
       });
   const sourceObservationId = isObservedImageCandidateSet
     ? `observation:perception-assisted:${identityToken(prepared.candidateSetIdentity)}`
+    : isManualBrowserCandidateSet
+      ? `observation:manual-browser:${identityToken(prepared.candidateSetIdentity)}`
     : `observation:chatgpt-visual:${identityToken(prepared.candidateSetIdentity)}`;
   const actorId = isObservedImageCandidateSet
     ? "norma-personal-visual-harmony-widget"
+    : isManualBrowserCandidateSet
+      ? "norma-private-web-lab-browser"
     : "chatgpt-widget-client";
   const provenanceNotes = isObservedImageCandidateSet
     ? "Perception-assisted candidates were explicitly confirmed by a client-asserted widget interaction; server-side human presence was not attested and provider evidence did not enter Norma Core before confirmation."
+    : isManualBrowserCandidateSet
+      ? "Manual browser-authored candidates were explicitly confirmed; the server received source identity, dimensions, and canonical geometry, but no image bytes."
     : "ChatGPT visual candidates confirmed by a client-asserted widget interaction; server-side human presence was not attested and Norma did not inspect the image bytes.";
   const provenance = (provenanceId: string, inputContentIdentity: string) => ({
     provenanceId,
@@ -2295,7 +2399,15 @@ function validatePreparedCandidateSet(
     && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
     && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity)
     && ["chatgpt", "sam3", "manual", "hybrid"].includes(prepared.visualInterpretationSource);
-  if ((!v1IsValid && !v2IsValid)
+  const manualV1IsValid = prepared.contractVersion === 3
+    && prepared.contractId === PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID
+    && prepared.imageBytesObservedByNorma === false
+    && prepared.sourceImageIdentityBasis === "browser_sha256_and_dimensions_not_image_bytes"
+    && prepared.visualInterpretationSource === "manual"
+    && prepared.sourceTruth === false
+    && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
+    && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity);
+  if ((!v1IsValid && !v2IsValid && !manualV1IsValid)
     || prepared.status !== "confirmation_required"
     || prepared.candidateEvidenceOnly !== true
     || prepared.explicitSelectionConfirmationRequired !== true
@@ -2344,6 +2456,7 @@ function prepareCandidateIdentityProjection(
       ? {}
       : { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }),
     candidateEvidenceOnly: prepared.candidateEvidenceOnly,
+    ...(prepared.contractVersion === 3 ? { sourceTruth: prepared.sourceTruth } : {}),
     explicitSelectionConfirmationRequired: prepared.explicitSelectionConfirmationRequired,
     coreRun: prepared.coreRun,
     coordinateFrame: prepared.coordinateFrame,

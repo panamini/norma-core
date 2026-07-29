@@ -3,188 +3,201 @@ import {
   createPrivateWebLabConfirmationPayloadV1,
   privateWebLabMeasurementLengthCandidatesV1,
   updatePrivateWebLabCandidateGeometryV1,
-  visiblePrivateWebLabCandidateIdsV1,
 } from "/private-web-lab-browser-model.js";
 
 const state = {
   browserSessionId: readBrowserSessionId(),
   image: null,
+  dimensions: null,
+  sourceIdentity: null,
   objectUrl: null,
+  phase: "empty",
+  tool: "rectangle",
+  authored: [],
   draft: null,
   candidates: [],
   selectedCandidateIds: new Set(),
   measurementCandidateIds: [null, null],
-  revealAll: false,
-  receiptUrl: null,
-  preparationRevision: 0,
   confirmationInFlight: false,
-  reviewLocked: false,
-  prepareAbortController: null,
+  coreExecutionCount: 0,
+  receiptUrl: null,
+  pointerStart: null,
 };
 
-const imageInput = document.querySelector("#image-input");
-const goalInput = document.querySelector("#goal-input");
-const prepareButton = document.querySelector("#prepare-button");
-const setupStatus = document.querySelector("#setup-status");
-const reviewSection = document.querySelector("#review-section");
-const imagePlane = document.querySelector("#image-plane");
-const sourceImage = document.querySelector("#source-image");
-const guideOverlay = document.querySelector("#guide-overlay");
-const candidateList = document.querySelector("#candidate-list");
-const revealButton = document.querySelector("#reveal-button");
-const measurementSection = document.querySelector("#measurement-section");
-const measurementFirst = document.querySelector("#measurement-first");
-const measurementSecond = document.querySelector("#measurement-second");
-const originalButton = document.querySelector("#original-button");
-const guidesButton = document.querySelector("#guides-button");
-const guideMode = document.querySelector("#guide-mode");
-const confirmationInput = document.querySelector("#confirmation-input");
-const runButton = document.querySelector("#run-button");
-const coreGate = document.querySelector("#core-gate");
-const receiptSection = document.querySelector("#receipt-section");
-const receiptIdentity = document.querySelector("#receipt-identity");
-const resultIdentity = document.querySelector("#result-identity");
-const packRefs = document.querySelector("#pack-refs");
-const measurementReportRow = document.querySelector("#measurement-report-row");
-const measurementReport = document.querySelector("#measurement-report");
-const exportLink = document.querySelector("#export-link");
+const $ = (selector) => document.querySelector(selector);
+const imageInput = $("#image-input");
+const goalInput = $("#goal-input");
+const prepareButton = $("#prepare-button");
+const setupStatus = $("#setup-status");
+const reviewSection = $("#review-section");
+const phaseDescription = $("#phase-description");
+const imagePlane = $("#image-plane");
+const sourceImage = $("#source-image");
+const guideOverlay = $("#guide-overlay");
+const candidateList = $("#candidate-list");
+const authoringToolbar = $("#authoring-toolbar");
+const rectangleTool = $("#rectangle-tool");
+const segmentTool = $("#segment-tool");
+const measurementSection = $("#measurement-section");
+const measurementFirst = $("#measurement-first");
+const measurementSecond = $("#measurement-second");
+const confirmationInput = $("#confirmation-input");
+const runButton = $("#run-button");
+const coreGate = $("#core-gate");
+const receiptSection = $("#receipt-section");
+const guideMode = $("#guide-mode");
+const receiptIdentity = $("#receipt-identity");
+const resultIdentity = $("#result-identity");
+const packRefs = $("#pack-refs");
+const measurementReportRow = $("#measurement-report-row");
+const measurementReport = $("#measurement-report");
+const exportLink = $("#export-link");
+const newMeasurementButton = $("#new-measurement-button");
 
-[measurementFirst, measurementSecond].forEach((select, index) => {
-  select.addEventListener("change", () => {
-    state.measurementCandidateIds[index] = select.value === "" ? null : select.value;
-    invalidateConfirmation();
-  });
-});
-
-imageInput.addEventListener("change", () => {
-  state.preparationRevision += 1;
-  state.prepareAbortController?.abort();
+imageInput.addEventListener("change", async () => {
   const [file] = imageInput.files;
+  clearImage();
   state.image = file ?? null;
-  resetReview();
-  updatePrepareAvailability();
-});
-
-goalInput.addEventListener("change", () => {
-  state.preparationRevision += 1;
-  state.prepareAbortController?.abort();
-  resetReview();
-  updatePrepareAvailability();
-});
-
-prepareButton.addEventListener("click", async () => {
-  if (state.image === null || goalInput.value === "" || state.confirmationInFlight) return;
-  const image = state.image;
-  const goalId = goalInput.value;
-  const preparationRevision = state.preparationRevision;
-  const previousReviewLocked = state.reviewLocked;
-  const abortController = new AbortController();
-  let displayedImageStage = null;
-  state.prepareAbortController?.abort();
-  state.prepareAbortController = abortController;
-  state.reviewLocked = true;
-  setSetupControlsDisabled(true);
-  setReviewEditingLocked(true);
-  setupStatus.textContent = "Calcul de l’identité locale et préparation…";
+  if (state.image === null) return updateAvailability();
+  setupStatus.textContent = "Lecture locale de l’image…";
   try {
-    const dimensions = await readImageDimensions(image);
-    requireCurrentPreparation(preparationRevision, image, abortController.signal);
-    const sourceImageContentIdentity = await sha256FileIdentity(image);
-    requireCurrentPreparation(preparationRevision, image, abortController.signal);
-    displayedImageStage = await loadDisplayedSourceImage(
-      image,
-      dimensions,
-      preparationRevision,
-      abortController.signal,
+    state.dimensions = await readImageDimensions(state.image);
+    state.sourceIdentity = await sha256FileIdentity(state.image);
+    state.objectUrl = URL.createObjectURL(state.image);
+    sourceImage.src = state.objectUrl;
+    await sourceImage.decode();
+    imagePlane.style.setProperty(
+      "--image-aspect",
+      String(state.dimensions.width / state.dimensions.height),
     );
-    requireCurrentPreparation(preparationRevision, image, abortController.signal);
-    const draft = await postJson("/api/draft", {
-      browserSessionId: state.browserSessionId,
-      previousLabSessionId: state.draft?.labSessionId ?? null,
-      sourceImageContentIdentity,
-      sourceImageMediaType: image.type,
-      sourcePixelWidth: dimensions.width,
-      sourcePixelHeight: dimensions.height,
-      goalId,
-    }, abortController.signal);
-    requireCurrentPreparation(preparationRevision, image, abortController.signal);
-    invalidateConfirmation();
-    if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
-    state.draft = draft;
-    state.candidates = structuredClone(draft.candidates);
-    state.selectedCandidateIds = new Set(draft.selectedCandidateIds);
-    state.measurementCandidateIds = [null, null];
-    state.revealAll = false;
-    state.reviewLocked = false;
-    state.objectUrl = displayedImageStage.objectUrl;
-    displayedImageStage = null;
-    imagePlane.style.setProperty("--image-aspect", String(dimensions.width / dimensions.height));
+    state.phase = "authoring";
     reviewSection.hidden = false;
-    receiptSection.hidden = true;
-    confirmationInput.checked = false;
-    runButton.disabled = true;
-    setupStatus.textContent =
-      "Brouillon prêt. Les octets de l’image ne quittent pas ce navigateur.";
-    renderCandidates();
-    renderMeasurementSelection();
-    renderOverlay();
-    setSetupControlsDisabled(false);
-    setReviewEditingLocked(false);
+    render();
   } catch (error) {
-    if (displayedImageStage !== null) rollbackDisplayedSourceImage(displayedImageStage);
-    if (abortController.signal.aborted || preparationRevision !== state.preparationRevision) return;
-    state.reviewLocked = previousReviewLocked;
-    setSetupControlsDisabled(false);
-    setReviewEditingLocked(previousReviewLocked);
-    setupStatus.textContent = error instanceof Error ? error.message : "Préparation impossible.";
-  } finally {
-    if (state.prepareAbortController === abortController) {
-      state.prepareAbortController = null;
-    }
+    clearImage();
+    setupStatus.textContent = error instanceof Error ? error.message : "Image illisible.";
   }
 });
 
-originalButton.addEventListener("click", () => setGuidesVisible(false));
-guidesButton.addEventListener("click", () => setGuidesVisible(true));
+goalInput.addEventListener("change", updateAvailability);
+rectangleTool.addEventListener("click", () => setTool("rectangle"));
+segmentTool.addEventListener("click", () => setTool("segment"));
+$("#add-rectangle-button").addEventListener("click", () => {
+  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  state.authored.push({
+    id: "",
+    kind: "rectangle",
+    x: 0.1,
+    y: 0.1,
+    width: 0.6,
+    height: 0.7,
+  });
+  renumberAuthoredIds();
+  render();
+});
+$("#add-segment-button").addEventListener("click", () => {
+  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  state.authored.push({
+    id: "",
+    kind: "segment",
+    start: { x: 0.1, y: 0.25 },
+    end: { x: 0.9, y: 0.25 },
+  });
+  renumberAuthoredIds();
+  render();
+});
+$("#original-button").addEventListener("click", () => setGuidesVisible(false));
+$("#guides-button").addEventListener("click", () => setGuidesVisible(true));
 
-revealButton.addEventListener("click", () => {
-  state.revealAll = true;
-  renderCandidates();
-  renderOverlay();
+imagePlane.addEventListener("pointerdown", (event) => {
+  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  state.pointerStart = normalizedPointer(event);
+  imagePlane.setPointerCapture(event.pointerId);
+});
+imagePlane.addEventListener("pointerup", (event) => {
+  if (state.pointerStart === null || state.phase !== "authoring") return;
+  const end = normalizedPointer(event);
+  const start = state.pointerStart;
+  state.pointerStart = null;
+  const candidate = state.tool === "rectangle"
+    ? rectangleFromPoints(start, end)
+    : segmentFromPoints(start, end);
+  if (candidate === null) {
+    setupStatus.textContent = "Le tracé doit avoir une longueur ou une surface non nulle.";
+    return;
+  }
+  state.authored.push(candidate);
+  renumberAuthoredIds();
+  render();
 });
 
-confirmationInput.addEventListener("change", () => {
-  updateCoreAvailability();
+prepareButton.addEventListener("click", async () => {
+  if (
+    state.phase !== "authoring"
+    || state.image === null
+    || state.dimensions === null
+    || state.sourceIdentity === null
+    || goalInput.value === ""
+  ) return;
+  setBusy(true);
+  setupStatus.textContent = "Validation et liaison exacte de la revue…";
+  try {
+    const draft = await postJson("/api/manual-draft", {
+      browserSessionId: state.browserSessionId,
+      previousLabSessionId: state.draft?.labSessionId ?? null,
+      sourceImageContentIdentity: state.sourceIdentity,
+      sourceImageMediaType: state.image.type,
+      sourcePixelWidth: state.dimensions.width,
+      sourcePixelHeight: state.dimensions.height,
+      goalId: goalInput.value,
+      candidates: state.authored,
+    });
+    state.draft = draft;
+    state.candidates = structuredClone(draft.candidates);
+    state.selectedCandidateIds = new Set();
+    state.measurementCandidateIds = [null, null];
+    state.phase = "review";
+    confirmationInput.checked = false;
+    receiptSection.hidden = true;
+    setupStatus.textContent =
+      "Revue liée prête. Les octets de l’image ne quittent pas ce navigateur.";
+    render();
+  } catch (error) {
+    setupStatus.textContent = error instanceof Error ? error.message : "Revue refusée.";
+  } finally {
+    setBusy(false);
+  }
 });
+
+[measurementFirst, measurementSecond].forEach((select, index) => {
+  select.addEventListener("change", () => {
+    state.measurementCandidateIds[index] = select.value || null;
+    invalidateConfirmation();
+  });
+});
+confirmationInput.addEventListener("change", updateCoreAvailability);
 
 runButton.addEventListener("click", async () => {
-  if (
-    state.draft === null
-    || !confirmationInput.checked
-    || state.confirmationInFlight
-    || state.reviewLocked
-  ) return;
+  if (state.phase !== "review" || state.draft === null || !confirmationInput.checked) return;
   state.confirmationInFlight = true;
-  state.reviewLocked = true;
-  setSetupControlsDisabled(true);
-  setReviewEditingLocked(true);
-  runButton.disabled = true;
+  state.phase = "confirming";
+  render();
   coreGate.textContent = "Confirmation reçue. Exécution déterministe unique…";
   try {
-    const receipt = await postJson(
-      "/api/confirm",
-      createPrivateWebLabConfirmationPayloadV1({
-        explicitConfirmation: confirmationInput.checked,
-        browserSessionId: state.browserSessionId,
-        draft: state.draft,
-        selectedCandidateIds: state.selectedCandidateIds,
-        reviewedCandidates: state.candidates,
-        measurementCandidateIds: currentMeasurementCandidateIds(),
-      }),
-    );
-    state.confirmationInFlight = false;
-    setSetupControlsDisabled(false);
-    coreGate.textContent = "Core exécuté une fois après confirmation explicite.";
+    const payload = createPrivateWebLabConfirmationPayloadV1({
+      explicitConfirmation: true,
+      browserSessionId: state.browserSessionId,
+      draft: state.draft,
+      selectedCandidateIds: state.selectedCandidateIds,
+      reviewedCandidates: state.candidates,
+      measurementCandidateIds: currentMeasurementCandidateIds(),
+    });
+    const receipt = await postJson("/api/manual-confirm", {
+      ...payload,
+      perceptionReceiptIdentity: state.draft.perceptionReceiptIdentity,
+    });
+    state.coreExecutionCount += 1;
+    state.phase = "completed";
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
     packRefs.textContent = receipt.ratioPackRefs.join(", ");
@@ -196,286 +209,243 @@ runButton.addEventListener("click", async () => {
     exportLink.href = state.receiptUrl;
     exportLink.download = receipt.exportFileName;
     receiptSection.hidden = false;
-    receiptSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    coreGate.textContent = "Core exécuté exactement une fois après confirmation explicite.";
+    render();
   } catch (error) {
-    state.confirmationInFlight = false;
-    state.reviewLocked = false;
-    setSetupControlsDisabled(false);
-    setReviewEditingLocked(false);
+    state.phase = "review";
     coreGate.textContent = error instanceof Error ? error.message : "Confirmation refusée.";
-    if (error instanceof Error && /missing or expired/u.test(error.message)) {
-      prepareButton.disabled = false;
-      invalidateConfirmation();
-      setupStatus.textContent =
-        "Session locale expirée. Préparez un nouveau brouillon avant de confirmer.";
-      return;
-    }
-    runButton.disabled = !canRunPrivateWebLabCoreV1(
-      confirmationInput.checked,
-      state.selectedCandidateIds,
-      state.candidates,
-      state.draft?.goal.id ?? null,
-      currentMeasurementCandidateIds(),
-    );
+    render();
+  } finally {
+    state.confirmationInFlight = false;
   }
 });
 
-function updatePrepareAvailability() {
-  prepareButton.disabled = state.image === null || goalInput.value === "";
-  setupStatus.textContent = prepareButton.disabled
-    ? "Chargez une image et choisissez un objectif."
-    : "Prêt à créer un brouillon déterministe sans fournisseur.";
-}
-
-function resetReview() {
-  state.reviewLocked = false;
-  if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
-  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
-  state.objectUrl = null;
-  state.receiptUrl = null;
+newMeasurementButton.addEventListener("click", async () => {
+  if (state.draft === null || state.phase !== "completed") return;
+  newMeasurementButton.disabled = true;
+  try {
+    await postJson("/api/new-measurement", {
+      browserSessionId: state.browserSessionId,
+      labSessionId: state.draft.labSessionId,
+    });
+  } catch (error) {
+    setupStatus.textContent =
+      error instanceof Error ? error.message : "Nouvelle mesure refusée.";
+    newMeasurementButton.disabled = false;
+    return;
+  }
+  state.phase = "authoring";
   state.draft = null;
+  state.authored = [];
   state.candidates = [];
   state.selectedCandidateIds = new Set();
   state.measurementCandidateIds = [null, null];
   confirmationInput.checked = false;
-  receiptIdentity.textContent = "";
-  resultIdentity.textContent = "";
-  packRefs.textContent = "";
-  measurementReport.textContent = "";
-  measurementReportRow.hidden = true;
-  measurementSection.hidden = true;
-  reviewSection.hidden = true;
   receiptSection.hidden = true;
-  setReviewEditingLocked(false);
-}
+  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
+  state.receiptUrl = null;
+  setupStatus.textContent =
+    `Nouvelle mesure prête; image conservée. Exécutions Core: ${String(state.coreExecutionCount)}.`;
+  newMeasurementButton.disabled = false;
+  render();
+});
 
-function renderCandidates() {
+function render() {
+  const authoring = state.phase === "authoring";
+  const locked = state.phase === "confirming" || state.phase === "completed";
+  authoringToolbar.hidden = !authoring;
+  prepareButton.hidden = !authoring;
+  prepareButton.disabled =
+    !authoring || state.authored.length === 0 || goalInput.value === "";
+  phaseDescription.textContent = authoring
+    ? "Dessinez vos propres cadres et segments. Aucun guide n’est inféré ou détecté."
+    : "Liste liée au serveur: nombre, ordre, identités, métadonnées et types sont figés.";
+  const candidates = authoring ? authoredDisplayCandidates() : state.candidates;
   candidateList.replaceChildren(
-    ...state.candidates.map((candidate, index) => candidateCard(candidate, index)),
+    ...candidates.map((candidate, index) => candidateCard(candidate, index, authoring, locked)),
   );
-  const visibleCandidateIds = visiblePrivateWebLabCandidateIdsV1(
-    state.candidates,
-    state.draft.strongestGuideCount,
-    state.revealAll,
-  );
-  revealButton.hidden = state.revealAll || state.candidates.length <= state.draft.strongestGuideCount;
-  guideMode.textContent = state.revealAll
-    ? `${visibleCandidateIds.length} candidats visibles`
-    : `${visibleCandidateIds.length} guides prioritaires visibles`;
+  renderOverlay(candidates, authoring);
+  renderMeasurementSelection();
+  confirmationInput.disabled = state.phase !== "review";
+  if (authoring) {
+    guideMode.textContent = `${String(candidates.length)} candidat(s) manuel(s), maximum 12.`;
+    coreGate.textContent = "Core arrêté — préparez puis confirmez une revue liée.";
+  } else if (state.phase === "completed") {
+    guideMode.textContent = `${String(candidates.length)} candidat(s) verrouillé(s).`;
+  } else {
+    guideMode.textContent = `${String(candidates.length)} candidat(s) liés; sélection explicite requise.`;
+  }
+  updateAvailability();
+  updateCoreAvailability();
 }
 
-function candidateCard(candidate, index) {
+function candidateCard(candidate, index, authoring, locked) {
   const article = document.createElement("article");
   article.className = "candidate";
-  article.hidden = !state.revealAll && index >= state.draft.strongestGuideCount;
   article.dataset.candidateId = candidate.id;
-
-  const selection = document.createElement("label");
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = state.selectedCandidateIds.has(candidate.id);
-  checkbox.disabled = state.reviewLocked;
-  checkbox.addEventListener("change", () => {
-    if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
-    else state.selectedCandidateIds.delete(candidate.id);
-    renderMeasurementSelection();
-    invalidateConfirmation();
-    renderOverlay();
-  });
+  const header = document.createElement("label");
+  if (!authoring) {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.selectedCandidateIds.has(candidate.id);
+    checkbox.disabled = locked;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
+      else state.selectedCandidateIds.delete(candidate.id);
+      invalidateConfirmation();
+      render();
+    });
+    header.append(checkbox);
+  }
   const title = document.createElement("strong");
-  title.textContent = `${index + 1}. ${candidate.label}`;
-  selection.append(checkbox, title);
-  const reason = document.createElement("p");
-  reason.textContent = candidate.reason;
-  article.append(selection, reason);
-
-  const geometryFields = candidateGeometryFields(candidate);
-  if (geometryFields.length > 0) {
-    const controls = document.createElement("div");
-    controls.className = "candidate-controls";
-    for (const { label: fieldLabel, path } of geometryFields) {
-      const label = document.createElement("label");
-      label.textContent = fieldLabel;
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
-      input.max = "1";
-      input.step = "0.001";
-      input.value = String(candidateValueAtPath(candidate, path));
-      input.disabled = state.reviewLocked;
-      input.addEventListener("change", () => {
-        const current = state.candidates[index];
-        const updated = updatePrivateWebLabCandidateGeometryV1(current, path, input.value);
-        state.candidates[index] = updated;
-        input.value = String(candidateValueAtPath(updated, path));
+  title.textContent = authoring
+    ? `${String(index + 1)}. ${candidate.kind === "rectangle" ? "Cadre manuel" : "Segment manuel"}`
+    : `${String(index + 1)}. ${candidate.label}`;
+  header.append(title);
+  article.append(header);
+  const controls = document.createElement("div");
+  controls.className = "candidate-controls";
+  const fields = geometryFields(candidate, authoring);
+  for (const field of fields) {
+    const label = document.createElement("label");
+    label.textContent = field.label;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.max = "1";
+    input.step = "0.001";
+    input.value = String(valueAt(candidate, field.path));
+    input.disabled = locked;
+    input.addEventListener("change", () => {
+      if (authoring) {
+        setValueAt(state.authored[index], field.path, boundedNumber(input.value));
+      } else {
+        state.candidates[index] = updatePrivateWebLabCandidateGeometryV1(
+          state.candidates[index],
+          field.path,
+          input.value,
+        );
         invalidateConfirmation();
-        renderOverlay();
-      });
-      label.append(input);
-      controls.append(label);
-    }
-    article.append(controls);
+      }
+      render();
+    });
+    label.append(input);
+    controls.append(label);
+  }
+  article.append(controls);
+  if (authoring) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Supprimer";
+    remove.addEventListener("click", () => {
+      state.authored.splice(index, 1);
+      renumberAuthoredIds();
+      render();
+    });
+    article.append(remove);
   }
   return article;
 }
 
-function candidateGeometryFields(candidate) {
-  const kind = candidate.primitive?.kind ?? "rectangle";
+function geometryFields(candidate, authoring) {
+  const kind = authoring ? candidate.kind : candidate.primitive?.kind ?? "rectangle";
   if (kind === "rectangle") {
     return ["x", "y", "width", "height"].map((path) => ({ label: path, path }));
   }
-  if (kind === "segment" || kind === "axis") {
-    return [
-      { label: "start x", path: "primitive.start.x" },
-      { label: "start y", path: "primitive.start.y" },
-      { label: "end x", path: "primitive.end.x" },
-      { label: "end y", path: "primitive.end.y" },
-    ];
-  }
-  if (kind === "ellipse") {
-    return [
-      { label: "center x", path: "primitive.center.x" },
-      { label: "center y", path: "primitive.center.y" },
-      { label: "radius x", path: "primitive.radiusX" },
-      { label: "radius y", path: "primitive.radiusY" },
-    ];
-  }
-  return [];
+  const prefix = authoring ? "" : "primitive.";
+  return [
+    { label: "start x", path: `${prefix}start.x` },
+    { label: "start y", path: `${prefix}start.y` },
+    { label: "end x", path: `${prefix}end.x` },
+    { label: "end y", path: `${prefix}end.y` },
+  ];
 }
 
-function candidateValueAtPath(candidate, path) {
-  return path.split(".").reduce((value, part) => value[part], candidate);
+function authoredDisplayCandidates() {
+  return state.authored;
 }
 
-function renderOverlay() {
-  const visible = state.candidates.filter((candidate, index) => {
-    return (
-      state.selectedCandidateIds.has(candidate.id) &&
-      (state.revealAll || index < state.draft.strongestGuideCount)
-    );
-  });
-  guideOverlay.replaceChildren(
-    ...visible.map((candidate) => guideElement(candidate)),
-  );
+function renderOverlay(candidates, authoring) {
+  const visible = authoring
+    ? candidates
+    : candidates.filter(({ id }) => state.selectedCandidateIds.has(id));
+  guideOverlay.replaceChildren(...visible.map((candidate) => guideElement(candidate, authoring)));
 }
 
-function guideElement(candidate) {
-  const kind = candidate.primitive?.kind ?? "rectangle";
+function guideElement(candidate, authoring) {
   const namespace = "http://www.w3.org/2000/svg";
-  let element;
-  if (kind === "segment" || kind === "axis") {
-    element = document.createElementNS(namespace, "line");
-    element.setAttribute("x1", String(candidate.primitive.start.x * 1000));
-    element.setAttribute("y1", String(candidate.primitive.start.y * 1000));
-    element.setAttribute("x2", String(candidate.primitive.end.x * 1000));
-    element.setAttribute("y2", String(candidate.primitive.end.y * 1000));
-  } else if (kind === "ellipse") {
-    element = document.createElementNS(namespace, "ellipse");
-    element.setAttribute("cx", String(candidate.primitive.center.x * 1000));
-    element.setAttribute("cy", String(candidate.primitive.center.y * 1000));
-    element.setAttribute("rx", String(candidate.primitive.radiusX * 1000));
-    element.setAttribute("ry", String(candidate.primitive.radiusY * 1000));
-  } else {
-    element = document.createElementNS(namespace, "rect");
-    element.setAttribute("x", String(candidate.x * 1000));
-    element.setAttribute("y", String(candidate.y * 1000));
-    element.setAttribute("width", String(candidate.width * 1000));
-    element.setAttribute("height", String(candidate.height * 1000));
+  const kind = authoring ? candidate.kind : candidate.primitive?.kind ?? "rectangle";
+  if (kind === "rectangle") {
+    const element = document.createElementNS(namespace, "rect");
+    for (const field of ["x", "y", "width", "height"]) {
+      element.setAttribute(field, String(candidate[field] * 1000));
+    }
+    styleGuide(element);
+    return element;
   }
-  element.setAttribute("fill", "none");
-  element.setAttribute("stroke", "#c7ff4a");
-  element.setAttribute("stroke-width", kind === "axis" ? "4" : "6");
-  element.setAttribute("vector-effect", "non-scaling-stroke");
+  const primitive = authoring ? candidate : candidate.primitive;
+  const element = document.createElementNS(namespace, "line");
+  element.setAttribute("x1", String(primitive.start.x * 1000));
+  element.setAttribute("y1", String(primitive.start.y * 1000));
+  element.setAttribute("x2", String(primitive.end.x * 1000));
+  element.setAttribute("y2", String(primitive.end.y * 1000));
+  styleGuide(element);
   return element;
 }
 
-function setGuidesVisible(visible) {
-  guideOverlay.toggleAttribute("hidden", !visible);
-  guideMode.hidden = !visible;
-  guidesButton.setAttribute("aria-pressed", String(visible));
-  originalButton.setAttribute("aria-pressed", String(!visible));
-}
-
-function updateCoreAvailability() {
-  const canRun = !state.reviewLocked && state.draft !== null && canRunPrivateWebLabCoreV1(
-    confirmationInput.checked,
-    state.selectedCandidateIds,
-    state.candidates,
-    state.draft.goal.id,
-    currentMeasurementCandidateIds(),
-  );
-  runButton.disabled = !canRun;
-  if (!confirmationInput.checked) {
-    coreGate.textContent = "Core arrêté — confirmation explicite requise.";
-  } else if (canRun) {
-    coreGate.textContent = "Confirmation explicite prête — Core n’a pas encore été lancé.";
-  } else if (state.draft?.goal.id === "compare-two-lengths") {
-    coreGate.textContent =
-      "Core arrêté — choisissez exactement deux segments ou axes sélectionnés.";
-  } else {
-    coreGate.textContent =
-      "Core arrêté — sélectionnez au moins un rectangle visible et valide.";
-  }
-}
-
-function invalidateConfirmation() {
-  confirmationInput.checked = false;
-  if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
-  state.receiptUrl = null;
-  receiptSection.hidden = true;
-  receiptIdentity.textContent = "";
-  resultIdentity.textContent = "";
-  packRefs.textContent = "";
-  measurementReport.textContent = "";
-  measurementReportRow.hidden = true;
-  updateCoreAvailability();
-}
-
-function setSetupControlsDisabled(disabled) {
-  imageInput.disabled = disabled;
-  goalInput.disabled = disabled;
-  prepareButton.disabled =
-    disabled || state.image === null || goalInput.value === "";
-}
-
-function setReviewEditingLocked(locked) {
-  confirmationInput.disabled = locked;
-  for (const input of reviewSection.querySelectorAll(
-    "#candidate-list input, #measurement-section select",
-  )) {
-    input.disabled = locked;
-  }
+function styleGuide(element) {
+  element.setAttribute("fill", "none");
+  element.setAttribute("stroke", "#c7ff4a");
+  element.setAttribute("stroke-width", "6");
+  element.setAttribute("vector-effect", "non-scaling-stroke");
 }
 
 function renderMeasurementSelection() {
-  const enabled = state.draft?.goal.id === "compare-two-lengths";
+  const enabled = state.draft?.goal.id === "compare-two-lengths" && state.phase !== "authoring";
   measurementSection.hidden = !enabled;
-  if (!enabled) {
-    state.measurementCandidateIds = [null, null];
-    return;
-  }
+  if (!enabled) return;
   const available = privateWebLabMeasurementLengthCandidatesV1(
     state.selectedCandidateIds,
     state.candidates,
   );
   const availableIds = new Set(available.map(({ id }) => id));
-  state.measurementCandidateIds = state.measurementCandidateIds.map((candidateId) => (
-    candidateId !== null && availableIds.has(candidateId) ? candidateId : null
-  ));
+  state.measurementCandidateIds = state.measurementCandidateIds.map(
+    (id) => id !== null && availableIds.has(id) ? id : null,
+  );
   [measurementFirst, measurementSecond].forEach((select, index) => {
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Choisir une longueur…";
-    const options = available.map(({ id, label, kind }) => {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = `${label} · ${kind}`;
-      return option;
-    });
+    const placeholder = new Option("Choisir une longueur…", "");
+    const options = available.map(
+      ({ id, label }) => new Option(label, id),
+    );
     select.replaceChildren(placeholder, ...options);
     select.value = state.measurementCandidateIds[index] ?? "";
-    select.disabled = state.reviewLocked;
+    select.disabled = state.phase !== "review";
   });
+}
+
+function updateCoreAvailability() {
+  const canRun = state.phase === "review" && state.draft !== null
+    && canRunPrivateWebLabCoreV1(
+      confirmationInput.checked,
+      state.selectedCandidateIds,
+      state.candidates,
+      state.draft.goal.id,
+      currentMeasurementCandidateIds(),
+    );
+  runButton.disabled = !canRun;
+  if (state.phase === "review") {
+    coreGate.textContent = !confirmationInput.checked
+      ? "Core arrêté — confirmation explicite requise."
+      : canRun
+        ? "Confirmation explicite prête — Core n’a pas encore été lancé."
+        : "Core arrêté — sélectionnez un cadre et deux segments distincts si requis.";
+  }
+}
+
+function invalidateConfirmation() {
+  confirmationInput.checked = false;
+  receiptSection.hidden = true;
+  updateCoreAvailability();
 }
 
 function currentMeasurementCandidateIds() {
@@ -484,17 +454,120 @@ function currentMeasurementCandidateIds() {
     : null;
 }
 
+function setTool(tool) {
+  state.tool = tool;
+  rectangleTool.setAttribute("aria-pressed", String(tool === "rectangle"));
+  segmentTool.setAttribute("aria-pressed", String(tool === "segment"));
+}
+
+function normalizedPointer(event) {
+  const bounds = imagePlane.getBoundingClientRect();
+  return {
+    x: clamp((event.clientX - bounds.left) / bounds.width),
+    y: clamp((event.clientY - bounds.top) / bounds.height),
+  };
+}
+
+function rectangleFromPoints(start, end) {
+  const width = Math.abs(end.x - start.x);
+  const height = Math.abs(end.y - start.y);
+  if (width < 0.001 || height < 0.001) return null;
+  return {
+    id: "",
+    kind: "rectangle",
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width,
+    height,
+  };
+}
+
+function segmentFromPoints(start, end) {
+  if (Math.hypot(end.x - start.x, end.y - start.y) < 0.001) return null;
+  return { id: "", kind: "segment", start, end };
+}
+
+function renumberAuthoredIds() {
+  let rectangle = 0;
+  let segment = 0;
+  state.authored.forEach((candidate) => {
+    if (candidate.kind === "rectangle") {
+      rectangle += 1;
+      candidate.id = `manual-rectangle-${String(rectangle)}`;
+    } else {
+      segment += 1;
+      candidate.id = `manual-segment-${String(segment)}`;
+    }
+  });
+}
+
+function valueAt(value, path) {
+  return path.split(".").reduce((current, key) => current[key], value);
+}
+
+function setValueAt(value, path, next) {
+  const keys = path.split(".");
+  const leaf = keys.pop();
+  const owner = keys.reduce((current, key) => current[key], value);
+  owner[leaf] = next;
+}
+
+function boundedNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? clamp(number) : 0;
+}
+
+function clamp(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function setBusy(busy) {
+  const setupLocked = busy || (state.phase !== "empty" && state.phase !== "authoring");
+  imageInput.disabled = setupLocked;
+  goalInput.disabled = setupLocked;
+  prepareButton.disabled = busy || state.phase !== "authoring";
+}
+
+function updateAvailability() {
+  if (state.phase === "empty") {
+    setupStatus.textContent = "Chargez une image et choisissez un objectif.";
+  } else if (state.phase === "authoring" && state.authored.length === 0) {
+    setupStatus.textContent = "Tracez au moins un cadre ou segment manuel.";
+  }
+  prepareButton.disabled =
+    state.phase !== "authoring" || state.authored.length === 0 || goalInput.value === "";
+  const setupLocked = state.phase !== "empty" && state.phase !== "authoring";
+  imageInput.disabled = setupLocked;
+  goalInput.disabled = setupLocked;
+}
+
+function setGuidesVisible(visible) {
+  guideOverlay.toggleAttribute("hidden", !visible);
+  $("#guides-button").setAttribute("aria-pressed", String(visible));
+  $("#original-button").setAttribute("aria-pressed", String(!visible));
+}
+
+function clearImage() {
+  if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
+  state.objectUrl = null;
+  state.phase = "empty";
+  state.authored = [];
+  state.draft = null;
+  state.candidates = [];
+  state.selectedCandidateIds = new Set();
+  reviewSection.hidden = true;
+  receiptSection.hidden = true;
+}
+
 function renderMeasurementReceipt(report) {
   if (report === undefined) {
-    measurementReport.textContent = "";
     measurementReportRow.hidden = true;
     return;
   }
   const [first, second] = report.measurements;
   measurementReport.textContent =
     `${first.candidateLabel}: ${String(first.lengthPixels)} px · `
-    + `${second.candidateLabel}: ${String(second.lengthPixels)} px · `
-    + `part dominante ${String(report.observedDominantShare)}`;
+    + `${second.candidateLabel}: ${String(second.lengthPixels)} px`;
   measurementReportRow.hidden = false;
 }
 
@@ -502,20 +575,12 @@ function readBrowserSessionId() {
   const storageKey = "norma.private-web-lab.browser-session@1";
   try {
     const existing = sessionStorage.getItem(storageKey);
-    if (existing !== null && /^browser:[A-Za-z0-9:_-]{8,160}$/u.test(existing)) {
-      return existing;
-    }
+    if (existing !== null && /^browser:[A-Za-z0-9:_-]{8,160}$/u.test(existing)) return existing;
     const created = `browser:${crypto.randomUUID()}`;
     sessionStorage.setItem(storageKey, created);
     return created;
   } catch {
     return `browser:${crypto.randomUUID()}`;
-  }
-}
-
-function requireCurrentPreparation(revision, image, signal) {
-  if (signal.aborted || revision !== state.preparationRevision || image !== state.image) {
-    throw new DOMException("Préparation remplacée.", "AbortError");
   }
 }
 
@@ -525,41 +590,11 @@ async function readImageDimensions(file) {
     const image = new Image();
     image.src = objectUrl;
     await image.decode();
-    if (image.naturalWidth < 1 || image.naturalHeight < 1) {
-      throw new Error("L’image locale n’a pas de dimensions utilisables.");
-    }
+    if (image.naturalWidth < 1 || image.naturalHeight < 1) throw new Error("Image invalide.");
     return { width: image.naturalWidth, height: image.naturalHeight };
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
-}
-
-async function loadDisplayedSourceImage(file, dimensions, revision, signal) {
-  const previousSource = sourceImage.getAttribute("src");
-  const objectUrl = URL.createObjectURL(file);
-  sourceImage.src = objectUrl;
-  try {
-    await sourceImage.decode();
-    requireCurrentPreparation(revision, file, signal);
-    if (
-      sourceImage.naturalWidth !== dimensions.width
-      || sourceImage.naturalHeight !== dimensions.height
-    ) {
-      throw new Error("L’image affichée ne correspond pas aux dimensions validées.");
-    }
-    return { objectUrl, previousSource };
-  } catch (error) {
-    if (previousSource === null) sourceImage.removeAttribute("src");
-    else sourceImage.setAttribute("src", previousSource);
-    URL.revokeObjectURL(objectUrl);
-    throw error;
-  }
-}
-
-function rollbackDisplayedSourceImage({ objectUrl, previousSource }) {
-  if (previousSource === null) sourceImage.removeAttribute("src");
-  else sourceImage.setAttribute("src", previousSource);
-  URL.revokeObjectURL(objectUrl);
 }
 
 async function sha256FileIdentity(file) {
@@ -569,16 +604,13 @@ async function sha256FileIdentity(file) {
     .join("")}`;
 }
 
-async function postJson(path, body, signal = undefined) {
+async function postJson(path, body) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-    signal,
   });
   const value = await response.json();
-  if (!response.ok) {
-    throw new Error(value.message ?? value.error ?? "Requête locale refusée.");
-  }
+  if (!response.ok) throw new Error(value.message ?? value.error ?? "Requête locale refusée.");
   return value;
 }

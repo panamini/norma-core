@@ -214,11 +214,188 @@ test("browser flow validates complete primitive geometry and emits confirmation 
 });
 
 test(
-  "rendered browser uploads a non-square image, aligns guides, gates one Core run, and exports",
+  "rendered browser authors a rectangle and two segments, confirms once, exports, and starts over",
   {
     skip: RUN_RENDERED_BROWSER_TEST
       ? false
       : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    let coreExecutions = 0;
+    const application = new PrivateWebLabApplicationV1({
+      executeConfirmation(input) {
+        coreExecutions += 1;
+        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+    });
+    const server = createPrivateWebLabHttpServerV1({ application });
+    const port = await listen(server);
+    const fixturePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [fixturePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#image-input")
+            .dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "compare-two-lengths";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#review-section').hidden",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Liste liée')",
+      );
+      assert.equal(coreExecutions, 0);
+      const reviewState = await evaluate(
+        connection,
+        sessionId,
+        `({
+          candidateCount: document.querySelectorAll(".candidate").length,
+          checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+          disabledCheckboxCount:
+            document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+        })`,
+      );
+      assert.deepEqual(reviewState, {
+        candidateCount: 3,
+        checkboxCount: 3,
+        disabledCheckboxCount: 0,
+        receiptHidden: true,
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          let checkbox;
+          while ((checkbox = document.querySelector(".candidate input[type=checkbox]:not(:checked)"))) {
+            checkbox.click();
+          }
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = "manual-segment-1";
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = "manual-segment-2";
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#confirmation-input").click();
+        })()`,
+      );
+      assert.equal(coreExecutions, 0);
+      assert.equal(
+        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#receipt-section').hidden",
+      );
+      assert.equal(coreExecutions, 1);
+      const completed = await evaluate(
+        connection,
+        sessionId,
+        `({
+          exportReady: document.querySelector("#export-link").href.startsWith("blob:"),
+          lockedCheckboxes:
+            document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
+          source: document.querySelector("#source-image").src,
+        })`,
+      );
+      assert.equal(completed.exportReady, true);
+      assert.equal(completed.lockedCheckboxes, 3);
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#new-measurement-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Dessinez')",
+      );
+      const restarted = await evaluate(
+        connection,
+        sessionId,
+        `({
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+          addDisabled: document.querySelector("#add-rectangle-button").disabled,
+          imageRetained: document.querySelector("#source-image").src.length > 0,
+        })`,
+      );
+      assert.deepEqual(restarted, {
+        receiptHidden: true,
+        addDisabled: false,
+        imageRetained: true,
+      });
+      assert.equal(coreExecutions, 1);
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+    }
+  },
+);
+
+test(
+  "rendered browser uploads a non-square image, aligns guides, gates one Core run, and exports",
+  {
+    skip: "Legacy deterministic-fixture browser path remains covered by contract tests only.",
     timeout: 30_000,
   },
   async () => {

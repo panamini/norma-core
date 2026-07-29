@@ -640,6 +640,19 @@ export const privateWebLabChangedFiles = Object.freeze([
   "web-lab/private-web-lab.js",
 ].sort());
 
+export const privateWebLabManualAuthoringChangedFiles = Object.freeze([
+  "README.md",
+  "src/personal-visual-harmony.ts",
+  "src/private-web-lab.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+  "tests/private-web-lab-manual.test.mjs",
+  "web-lab/index.html",
+  "web-lab/private-web-lab-http-server.mjs",
+  "web-lab/private-web-lab.js",
+].sort());
+
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -2072,6 +2085,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
+  privateWebLabManualAuthoringChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,

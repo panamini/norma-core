@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 
 import {
   PRIVATE_WEB_LAB_CONTRACT_ID,
+  PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
   PrivateWebLabApplicationV1,
 } from "../dist/src/private-web-lab.js";
 
@@ -46,6 +47,7 @@ async function routeRequest(request, response, application, maxRequestBytes) {
     sendJson(response, 200, {
       status: "ok",
       contractId: PRIVATE_WEB_LAB_CONTRACT_ID,
+      manualDraftContractId: PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
       exposure: "private_loopback_only",
       providerCalls: 0,
     });
@@ -61,7 +63,14 @@ async function routeRequest(request, response, application, maxRequestBytes) {
     sendStatic(response, asset.contentType, body);
     return;
   }
-  if (method !== "POST" || (pathname !== "/api/draft" && pathname !== "/api/confirm")) {
+  const apiPaths = new Set([
+    "/api/draft",
+    "/api/confirm",
+    "/api/manual-draft",
+    "/api/manual-confirm",
+    "/api/new-measurement",
+  ]);
+  if (method !== "POST" || !apiPaths.has(pathname)) {
     response.setHeader("allow", "GET, POST");
     sendJson(response, method === "POST" ? 404 : 405, {
       error: method === "POST" ? "not_found" : "method_not_allowed",
@@ -82,10 +91,15 @@ async function routeRequest(request, response, application, maxRequestBytes) {
     return;
   }
   try {
-    const result =
-      pathname === "/api/draft"
-        ? application.prepareDraft(body.value)
-        : application.confirm(body.value);
+    const result = pathname === "/api/draft"
+      ? application.prepareDraft(body.value)
+      : pathname === "/api/confirm"
+        ? application.confirm(body.value)
+        : pathname === "/api/manual-draft"
+          ? application.prepareManualDraft(body.value)
+          : pathname === "/api/manual-confirm"
+            ? application.confirmManual(body.value)
+            : application.startNewMeasurement(body.value);
     sendJson(response, 200, result);
   } catch (error) {
     sendJson(response, 400, {
