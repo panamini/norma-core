@@ -13,6 +13,7 @@ await ensurePrivateWebLabBuild();
 const {
   createPrivateWebLabHttpServerV1,
   PRIVATE_WEB_LAB_DEFAULT_PORT,
+  PRIVATE_WEB_LAB_RUNTIME_IDENTITY,
 } = await import("./private-web-lab-http-server.mjs");
 const {
   PRIVATE_WEB_LAB_CONTRACT_ID,
@@ -92,6 +93,7 @@ async function inspectLoopbackPort(portToInspect) {
     const body = await response.json();
     return body?.contractId === PRIVATE_WEB_LAB_CONTRACT_ID
       && body?.manualDraftContractId === PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID
+      && body?.runtimeIdentity === PRIVATE_WEB_LAB_RUNTIME_IDENTITY
       && body?.exposure === "private_loopback_only"
       && body?.providerCalls === 0
       ? { status: "private_web_lab" }

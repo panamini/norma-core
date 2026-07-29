@@ -12,7 +12,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
-import { PrivateWebLabApplicationV1 } from "../dist/src/private-web-lab.js";
+import {
+  PRIVATE_WEB_LAB_CONTRACT_ID,
+  PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
+  PrivateWebLabApplicationV1,
+} from "../dist/src/private-web-lab.js";
 import {
   boundedPrivateWebLabCoordinateV1,
   canRunPrivateWebLabCoreV1,
@@ -128,6 +132,53 @@ test("launcher refuses an unrelated service on the configured port", {
   } finally {
     await stopChild(launcher);
     await close(unrelated);
+  }
+});
+
+test("launcher refuses a stale Web Lab runtime on the configured port", {
+  timeout: 30_000,
+}, async () => {
+  const staleLab = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      status: "ok",
+      contractId: PRIVATE_WEB_LAB_CONTRACT_ID,
+      manualDraftContractId: PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
+      runtimeIdentity: `sha256:${"0".repeat(64)}`,
+      exposure: "private_loopback_only",
+      providerCalls: 0,
+    }));
+  });
+  const port = await listen(staleLab);
+  let launcher;
+  try {
+    launcher = spawn(
+      process.execPath,
+      [
+        new URL("../web-lab/start-private-web-lab.mjs", import.meta.url).pathname,
+        "--enable-private-web-lab",
+      ],
+      {
+        cwd: new URL("..", import.meta.url).pathname,
+        env: {
+          ...process.env,
+          NORMA_PRIVATE_WEB_LAB_PORT: String(port),
+        },
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    const exit = once(launcher, "exit");
+    const occupied = await waitForJsonLineEvent(
+      launcher,
+      "private_web_lab_port_in_use",
+    );
+    const [code] = await exit;
+    assert.equal(code, 69);
+    assert.equal(occupied.url, `http://127.0.0.1:${String(port)}`);
+    assert.equal(occupied.providerCalls, 0);
+  } finally {
+    await stopChild(launcher);
+    await close(staleLab);
   }
 });
 

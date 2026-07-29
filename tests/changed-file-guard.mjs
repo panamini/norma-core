@@ -680,6 +680,7 @@ export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "tests/private-web-lab-browser.test.mjs",
   "tests/private-web-lab-manual.test.mjs",
   "web-lab/index.html",
+  "web-lab/private-web-lab-http-server.mjs",
   "web-lab/private-web-lab.js",
   "web-lab/start-private-web-lab.mjs",
 ].sort());

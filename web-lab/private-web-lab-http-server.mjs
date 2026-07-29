@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 
@@ -9,6 +11,16 @@ import {
 
 export const PRIVATE_WEB_LAB_DEFAULT_PORT = 4177;
 export const PRIVATE_WEB_LAB_MAX_REQUEST_BYTES = 256 * 1_024;
+
+const RUNTIME_IDENTITY_FILES = Object.freeze([
+  ["core-runtime", new URL("../dist/src/private-web-lab.js", import.meta.url)],
+  ["http-server", new URL("./private-web-lab-http-server.mjs", import.meta.url)],
+  ["browser-runtime", new URL("./private-web-lab.js", import.meta.url)],
+  ["browser-model", new URL("./private-web-lab-browser-model.js", import.meta.url)],
+  ["document", new URL("./index.html", import.meta.url)],
+  ["styles", new URL("./private-web-lab.css", import.meta.url)],
+]);
+export const PRIVATE_WEB_LAB_RUNTIME_IDENTITY = createPrivateWebLabRuntimeIdentity();
 
 const STATIC_ASSETS = new Map([
   ["/", { file: "index.html", contentType: "text/html; charset=utf-8" }],
@@ -48,6 +60,7 @@ async function routeRequest(request, response, application, maxRequestBytes) {
       status: "ok",
       contractId: PRIVATE_WEB_LAB_CONTRACT_ID,
       manualDraftContractId: PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
+      runtimeIdentity: PRIVATE_WEB_LAB_RUNTIME_IDENTITY,
       exposure: "private_loopback_only",
       providerCalls: 0,
     });
@@ -109,6 +122,18 @@ async function routeRequest(request, response, application, maxRequestBytes) {
         : "Private Web Lab request was rejected.",
     });
   }
+}
+
+function createPrivateWebLabRuntimeIdentity() {
+  const hash = createHash("sha256");
+  hash.update("norma.private-web-lab-runtime@1\0");
+  for (const [label, file] of RUNTIME_IDENTITY_FILES) {
+    hash.update(label);
+    hash.update("\0");
+    hash.update(readFileSync(file));
+    hash.update("\0");
+  }
+  return `sha256:${hash.digest("hex")}`;
 }
 
 export function isTrustedLoopbackRequestV1(request) {
