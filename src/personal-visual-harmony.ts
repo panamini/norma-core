@@ -184,7 +184,7 @@ export interface PersonalVisualHarmonyPreparedCandidateSetV2 {
 
 export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID;
-  readonly contractVersion: 3;
+  readonly contractVersion: 1;
   readonly status: "confirmation_required";
   readonly sourceImageReferenceIdentity: string;
   readonly sourceImageContentIdentity: string;
@@ -200,12 +200,16 @@ export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
   readonly coordinateFrame: PersonalVisualHarmonyPreparedCandidateSetV1["coordinateFrame"];
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+  readonly coreCompatibilityCandidateSetIdentity: string;
   readonly candidateSetIdentity: string;
 }
 
 export type PersonalVisualHarmonyPreparedCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSetV1
-  | PersonalVisualHarmonyPreparedCandidateSetV2
+  | PersonalVisualHarmonyPreparedCandidateSetV2;
+
+export type PersonalVisualHarmonyConfirmableCandidateSet =
+  | PersonalVisualHarmonyPreparedCandidateSet
   | PersonalVisualHarmonyPreparedManualCandidateSetV1;
 
 export interface PersonalVisualHarmonyExplanationV1 {
@@ -249,6 +253,15 @@ export interface PersonalVisualHarmonyResultV1 {
     readonly geometricMatchesWithinDeclaredToleranceOnly: true;
   };
   readonly contentIdentity: string;
+}
+
+export interface PersonalVisualHarmonyManualResultV1
+  extends Omit<
+    PersonalVisualHarmonyResultV1,
+    "confirmationMode" | "sourceImageDimensionsObservedBy"
+  > {
+  readonly sourceImageDimensionsObservedBy: "private_web_lab_browser";
+  readonly confirmationMode: "client_asserted_private_web_lab_interaction";
 }
 
 export type PersonalVisualHarmonyEllipseContactLocationV1 =
@@ -428,6 +441,15 @@ export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
   readonly contentIdentity: string;
 }
 
+export interface PersonalVisualHarmonyManualImagePlaneRelationsV1
+  extends Omit<
+    PersonalVisualHarmonyImagePlaneRelationsV1,
+    "confirmationMode" | "sourceImageDimensionsObservedBy"
+  > {
+  readonly sourceImageDimensionsObservedBy: "private_web_lab_browser";
+  readonly confirmationMode: "client_asserted_private_web_lab_interaction";
+}
+
 export interface PersonalVisualHarmonyConfirmationV1 {
   readonly result: PersonalVisualHarmonyResultV1;
   readonly imagePlaneGuideAnalysis: PersonalVisualHarmonyImagePlaneRelationsV1;
@@ -436,6 +458,30 @@ export interface PersonalVisualHarmonyConfirmationV1 {
   readonly acceptedGeometryContentIdentity: string;
   readonly mappingResultContentIdentity: string;
 }
+
+export interface PersonalVisualHarmonyManualConfirmationV1
+  extends Omit<
+    PersonalVisualHarmonyConfirmationV1,
+    "imagePlaneGuideAnalysis" | "result"
+  > {
+  readonly result: PersonalVisualHarmonyManualResultV1;
+  readonly imagePlaneGuideAnalysis: PersonalVisualHarmonyManualImagePlaneRelationsV1;
+}
+
+export type PersonalVisualHarmonyConfirmationInputV1<
+  Prepared extends PersonalVisualHarmonyConfirmableCandidateSet =
+    PersonalVisualHarmonyPreparedCandidateSet,
+> = {
+  readonly preparedCandidateSet: Prepared;
+  readonly expectedCandidateSetIdentity: string;
+  readonly selectedCandidateIds: readonly string[];
+  readonly confirmedVisualGuideCandidateIds?: readonly string[];
+  readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
+  readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly acceptedAt: string;
+};
 
 const CANDIDATE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
@@ -566,6 +612,12 @@ export function preparePersonalVisualHarmonyCandidateSetV2(input: {
   };
 }
 
+function isManualBrowserCandidateSet(
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
+): prepared is PersonalVisualHarmonyPreparedManualCandidateSetV1 {
+  return prepared.contractId === PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID;
+}
+
 export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
   readonly sourceImageContentIdentity: string;
   readonly sourceImageMediaType?: string | null;
@@ -590,6 +642,11 @@ export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
     sourcePixelHeight: input.sourcePixelHeight,
   });
   const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
+  const coreCompatibilityCandidateSetIdentity = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: `web-lab:${input.sourceImageContentIdentity.slice("sha256:".length)}`,
+    sourceImageMediaType,
+    candidates,
+  }).candidateSetIdentity;
   const coordinateFrame = {
     dimensions: 2 as const,
     coordinateScale: "normalized" as const,
@@ -600,7 +657,7 @@ export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
   };
   const withoutIdentity = {
     contractId: PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID,
-    contractVersion: 3 as const,
+    contractVersion: 1 as const,
     status: "confirmation_required" as const,
     sourceImageReferenceIdentity,
     sourceImageContentIdentity: input.sourceImageContentIdentity,
@@ -615,6 +672,7 @@ export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
     coreRun: false as const,
     coordinateFrame,
     candidates,
+    coreCompatibilityCandidateSetIdentity,
   };
   return {
     ...withoutIdentity,
@@ -694,17 +752,26 @@ export function preparePersonalVisualHarmonyMergedPerceptionCandidatesV2(input: 
   });
 }
 
-export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
-  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
-  readonly expectedCandidateSetIdentity: string;
-  readonly selectedCandidateIds: readonly string[];
-  readonly confirmedVisualGuideCandidateIds?: readonly string[];
-  readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
-  readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
-  readonly sourcePixelWidth: number;
-  readonly sourcePixelHeight: number;
-  readonly acceptedAt: string;
-}): PersonalVisualHarmonyConfirmationV1 {
+export function confirmPersonalVisualHarmonyCandidateSetV1(
+  input: PersonalVisualHarmonyConfirmationInputV1<
+    PersonalVisualHarmonyPreparedManualCandidateSetV1
+  >,
+): PersonalVisualHarmonyManualConfirmationV1;
+export function confirmPersonalVisualHarmonyCandidateSetV1(
+  input: PersonalVisualHarmonyConfirmationInputV1<
+    PersonalVisualHarmonyPreparedCandidateSet
+  >,
+): PersonalVisualHarmonyConfirmationV1;
+export function confirmPersonalVisualHarmonyCandidateSetV1(
+  input: PersonalVisualHarmonyConfirmationInputV1<
+    PersonalVisualHarmonyConfirmableCandidateSet
+  >,
+): PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1;
+export function confirmPersonalVisualHarmonyCandidateSetV1(
+  input: PersonalVisualHarmonyConfirmationInputV1<
+    PersonalVisualHarmonyConfirmableCandidateSet
+  >,
+): PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1 {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
   if (input.expectedCandidateSetIdentity !== prepared.candidateSetIdentity) {
     throw new Error("Candidate set identity does not match the prepared review.");
@@ -719,15 +786,8 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
   if (!UTC_TIMESTAMP_PATTERN.test(input.acceptedAt)) {
     throw new Error("acceptedAt must be an explicit UTC RFC3339 timestamp.");
   }
-  const coreCandidateSetIdentity = prepared.contractVersion === 3
-    ? preparePersonalVisualHarmonyCandidateSetV1({
-        sourceFileId: `web-lab:${prepared.sourceImageContentIdentity.slice("sha256:".length)}`,
-        sourceImageMediaType: prepared.sourceImageMediaType,
-        candidates: prepared.candidates,
-      }).candidateSetIdentity
-    : prepared.candidateSetIdentity;
   const selectionIdentity = contentIdentityFor({
-    candidateSetIdentity: coreCandidateSetIdentity,
+    candidateSetIdentity: prepared.candidateSetIdentity,
     selectedCandidateIds,
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
@@ -740,6 +800,35 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     input.sourcePixelHeight,
     input.acceptedAt,
   );
+  const corePrepared = isManualBrowserCandidateSet(prepared)
+    ? preparePersonalVisualHarmonyCandidateSetV1({
+        sourceFileId: `web-lab:${prepared.sourceImageContentIdentity.slice("sha256:".length)}`,
+        sourceImageMediaType: prepared.sourceImageMediaType,
+        candidates: prepared.candidates,
+      })
+    : prepared;
+  if (isManualBrowserCandidateSet(prepared)
+    && corePrepared.candidateSetIdentity !== prepared.coreCompatibilityCandidateSetIdentity) {
+    throw new Error("Manual candidate set Core compatibility identity is invalid.");
+  }
+  const coreSelectionIdentity = isManualBrowserCandidateSet(prepared)
+    ? contentIdentityFor({
+        candidateSetIdentity: corePrepared.candidateSetIdentity,
+        selectedCandidateIds,
+        sourcePixelWidth: input.sourcePixelWidth,
+        sourcePixelHeight: input.sourcePixelHeight,
+      })
+    : selectionIdentity;
+  const coreAcceptedGeometry = isManualBrowserCandidateSet(prepared)
+    ? createAcceptedGeometry(
+        corePrepared,
+        selectedCandidateIds,
+        coreSelectionIdentity,
+        input.sourcePixelWidth,
+        input.sourcePixelHeight,
+        input.acceptedAt,
+      )
+    : acceptedGeometry;
   const mapping = mapAcceptedGeometryToCoreV1({
     contractId: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_ID,
     contractVersion: ACCEPTED_GEOMETRY_TO_CORE_MAPPING_CONTRACT_VERSION,
@@ -751,10 +840,10 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     targetCoreProfileId: ACCEPTED_GEOMETRY_TO_CORE_TARGET_PROFILE_ID,
     targetCoreGeometryKind: ACCEPTED_GEOMETRY_TO_CORE_TARGET_GEOMETRY_KIND,
     targetCoordinateSystem: ACCEPTED_GEOMETRY_TO_CORE_TARGET_COORDINATE_SYSTEM,
-    acceptedGeometry,
-    acceptedGeometryContentIdentity: acceptedGeometry.contentIdentity,
-    sourceObservationId: acceptedGeometry.sourceObservationId,
-    sourceObservationContentIdentity: acceptedGeometry.sourceObservationContentIdentity,
+    acceptedGeometry: coreAcceptedGeometry,
+    acceptedGeometryContentIdentity: coreAcceptedGeometry.contentIdentity,
+    sourceObservationId: coreAcceptedGeometry.sourceObservationId,
+    sourceObservationContentIdentity: coreAcceptedGeometry.sourceObservationContentIdentity,
     mappingContext: {
       boundary: "explicit-external-evidence-acceptance@1",
       primitiveLossPolicy: "reject",
@@ -792,10 +881,14 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     confirmedSelectionIdentity: selectionIdentity,
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
     imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
-    sourceImageDimensionsObservedBy: "chatgpt_widget" as const,
+    sourceImageDimensionsObservedBy: isManualBrowserCandidateSet(prepared)
+      ? "private_web_lab_browser" as const
+      : "chatgpt_widget" as const,
     selectedCandidateIds,
     explicitSelectionConfirmation: true as const,
-    confirmationMode: "client_asserted_widget_interaction" as const,
+    confirmationMode: isManualBrowserCandidateSet(prepared)
+      ? "client_asserted_private_web_lab_interaction" as const
+      : "client_asserted_widget_interaction" as const,
     serverVerifiedHumanPresence: false as const,
     acceptedStructuredGeometryCreated: true as const,
     coreInputAuthority: "confirmed_structured_geometry" as const,
@@ -810,10 +903,10 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
       geometricMatchesWithinDeclaredToleranceOnly: true as const,
     },
   };
-  const result: PersonalVisualHarmonyResultV1 = {
+  const result = {
     ...resultWithoutIdentity,
     contentIdentity: contentIdentityFor(resultWithoutIdentity),
-  };
+  } as PersonalVisualHarmonyResultV1 | PersonalVisualHarmonyManualResultV1;
   const imagePlaneGuideAnalysis = analyzePersonalVisualHarmonyImagePlaneRelationsV1({
     preparedCandidateSet: prepared,
     confirmedVisualGuideCandidateIds,
@@ -841,11 +934,11 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(input: {
     }),
     acceptedGeometryContentIdentity: acceptedGeometry.contentIdentity,
     mappingResultContentIdentity: mapping.resultContentIdentity,
-  };
+  } as PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1;
 }
 
 function createDeclaredMeasurementRatioReport(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   confirmedVisualGuideCandidateIds: readonly string[],
   request: PersonalVisualHarmonyMeasurementRatioRequestV1,
   sourcePixelWidth: number,
@@ -972,7 +1065,7 @@ function validateMeasurementLengthReference(
 }
 
 function resolveMeasurementLengthEvidence(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   confirmed: ReadonlySet<string>,
   reference: PersonalVisualHarmonyMeasurementLengthReferenceV1,
   sourcePixelWidth: number,
@@ -1024,13 +1117,37 @@ function resolveMeasurementLengthEvidence(
   };
 }
 
-export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
-  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
+export type PersonalVisualHarmonyImagePlaneRelationsInputV1<
+  Prepared extends PersonalVisualHarmonyConfirmableCandidateSet =
+    PersonalVisualHarmonyPreparedCandidateSet,
+> = {
+  readonly preparedCandidateSet: Prepared;
   readonly confirmedVisualGuideCandidateIds: readonly string[];
   readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
-}): PersonalVisualHarmonyImagePlaneRelationsV1 {
+};
+
+export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
+  input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
+    PersonalVisualHarmonyPreparedManualCandidateSetV1
+  >,
+): PersonalVisualHarmonyManualImagePlaneRelationsV1;
+export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
+  input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
+    PersonalVisualHarmonyPreparedCandidateSet
+  >,
+): PersonalVisualHarmonyImagePlaneRelationsV1;
+export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
+  input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
+    PersonalVisualHarmonyConfirmableCandidateSet
+  >,
+): PersonalVisualHarmonyImagePlaneRelationsV1 | PersonalVisualHarmonyManualImagePlaneRelationsV1;
+export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
+  input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
+    PersonalVisualHarmonyConfirmableCandidateSet
+  >,
+): PersonalVisualHarmonyImagePlaneRelationsV1 | PersonalVisualHarmonyManualImagePlaneRelationsV1 {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
   requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
@@ -1116,12 +1233,16 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
     candidateSetIdentity: prepared.candidateSetIdentity,
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
     imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
-    sourceImageDimensionsObservedBy: "chatgpt_widget" as const,
+    sourceImageDimensionsObservedBy: isManualBrowserCandidateSet(prepared)
+      ? "private_web_lab_browser" as const
+      : "chatgpt_widget" as const,
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
     coordinateSpace: "image_plane_pixels_v1" as const,
     normalization: "image_width" as const,
-    confirmationMode: "client_asserted_widget_interaction" as const,
+    confirmationMode: isManualBrowserCandidateSet(prepared)
+      ? "client_asserted_private_web_lab_interaction" as const
+      : "client_asserted_widget_interaction" as const,
     serverVerifiedHumanPresence: false as const,
     confirmedVisualGuideCandidateIds,
     positionToleranceImageWidthShare: IMAGE_PLANE_NEAR_CONTACT_IMAGE_WIDTH_SHARE,
@@ -1145,7 +1266,8 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(input: {
   return {
     ...withoutIdentity,
     contentIdentity: contentIdentityFor(withoutIdentity),
-  };
+  } as PersonalVisualHarmonyImagePlaneRelationsV1
+    | PersonalVisualHarmonyManualImagePlaneRelationsV1;
 }
 
 interface PersonalVisualHarmonyImagePlaneLineEvidenceV1 {
@@ -1984,9 +2106,11 @@ export function layoutPersonalVisualHarmonyCandidateLabelsV1(input: {
 }
 
 export function createPersonalVisualHarmonyOverlaySvgV1(input: {
-  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
-  readonly result?: PersonalVisualHarmonyResultV1;
-  readonly imagePlaneGuideAnalysis?: PersonalVisualHarmonyImagePlaneRelationsV1;
+  readonly preparedCandidateSet: PersonalVisualHarmonyConfirmableCandidateSet;
+  readonly result?: PersonalVisualHarmonyResultV1 | PersonalVisualHarmonyManualResultV1;
+  readonly imagePlaneGuideAnalysis?:
+    | PersonalVisualHarmonyImagePlaneRelationsV1
+    | PersonalVisualHarmonyManualImagePlaneRelationsV1;
   readonly selectedCandidateIds?: readonly string[];
 }): string {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
@@ -2205,7 +2329,7 @@ export function createPersonalVisualHarmonyOverlaySvgV1(input: {
 }
 
 function createAcceptedGeometry(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   selectedCandidateIds: readonly string[],
   selectionIdentity: string,
   sourcePixelWidth: number,
@@ -2220,7 +2344,7 @@ function createAcceptedGeometry(
   });
   const selectionToken = identityToken(selectionIdentity);
   const isObservedImageCandidateSet = prepared.contractVersion === 2;
-  const isManualBrowserCandidateSet = prepared.contractVersion === 3;
+  const manualBrowserCandidateSet = isManualBrowserCandidateSet(prepared);
   const sourceObservationContentIdentity = contentIdentityFor(isObservedImageCandidateSet
     ? {
         candidateSetIdentity: prepared.candidateSetIdentity,
@@ -2231,7 +2355,7 @@ function createAcceptedGeometry(
         sourcePixelHeight,
         dimensionsObservedBy: "chatgpt-widget",
       }
-    : isManualBrowserCandidateSet
+    : manualBrowserCandidateSet
       ? {
           candidateSetIdentity: prepared.candidateSetIdentity,
           sourceImageContentIdentity: prepared.sourceImageContentIdentity,
@@ -2249,17 +2373,17 @@ function createAcceptedGeometry(
       });
   const sourceObservationId = isObservedImageCandidateSet
     ? `observation:perception-assisted:${identityToken(prepared.candidateSetIdentity)}`
-    : isManualBrowserCandidateSet
+    : manualBrowserCandidateSet
       ? `observation:manual-browser:${identityToken(prepared.candidateSetIdentity)}`
     : `observation:chatgpt-visual:${identityToken(prepared.candidateSetIdentity)}`;
   const actorId = isObservedImageCandidateSet
     ? "norma-personal-visual-harmony-widget"
-    : isManualBrowserCandidateSet
+    : manualBrowserCandidateSet
       ? "norma-private-web-lab-browser"
     : "chatgpt-widget-client";
   const provenanceNotes = isObservedImageCandidateSet
     ? "Perception-assisted candidates were explicitly confirmed by a client-asserted widget interaction; server-side human presence was not attested and provider evidence did not enter Norma Core before confirmation."
-    : isManualBrowserCandidateSet
+    : manualBrowserCandidateSet
       ? "Manual browser-authored candidates were explicitly confirmed; the server received source identity, dimensions, and canonical geometry, but no image bytes."
     : "ChatGPT visual candidates confirmed by a client-asserted widget interaction; server-side human presence was not attested and Norma did not inspect the image bytes.";
   const provenance = (provenanceId: string, inputContentIdentity: string) => ({
@@ -2385,8 +2509,8 @@ function metricLabel(metric: HarmonicRelationshipMetricV1): string {
 }
 
 function validatePreparedCandidateSet(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
-): PersonalVisualHarmonyPreparedCandidateSet {
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
+): PersonalVisualHarmonyConfirmableCandidateSet {
   const v1IsValid = prepared.contractVersion === 1
     && prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
     && prepared.imageBytesObservedByNorma === false
@@ -2399,14 +2523,15 @@ function validatePreparedCandidateSet(
     && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
     && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity)
     && ["chatgpt", "sam3", "manual", "hybrid"].includes(prepared.visualInterpretationSource);
-  const manualV1IsValid = prepared.contractVersion === 3
+  const manualV1IsValid = prepared.contractVersion === 1
     && prepared.contractId === PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID
     && prepared.imageBytesObservedByNorma === false
     && prepared.sourceImageIdentityBasis === "browser_sha256_and_dimensions_not_image_bytes"
     && prepared.visualInterpretationSource === "manual"
     && prepared.sourceTruth === false
     && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
-    && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity);
+    && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity)
+    && SHA256_PATTERN.test(prepared.coreCompatibilityCandidateSetIdentity);
   if ((!v1IsValid && !v2IsValid && !manualV1IsValid)
     || prepared.status !== "confirmation_required"
     || prepared.candidateEvidenceOnly !== true
@@ -2424,6 +2549,18 @@ function validatePreparedCandidateSet(
     prepared.triangleConstructionRequests ?? [],
   );
   validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
+  if (isManualBrowserCandidateSet(prepared)) {
+    const expectedCoreCompatibilityCandidateSetIdentity =
+      preparePersonalVisualHarmonyCandidateSetV1({
+        sourceFileId: `web-lab:${prepared.sourceImageContentIdentity.slice("sha256:".length)}`,
+        sourceImageMediaType: prepared.sourceImageMediaType,
+        candidates,
+      }).candidateSetIdentity;
+    if (prepared.coreCompatibilityCandidateSetIdentity
+      !== expectedCoreCompatibilityCandidateSetIdentity) {
+      throw new Error("Manual candidate set Core compatibility identity is invalid.");
+    }
+  }
   const expected = prepareCandidateIdentityProjection(
     prepared,
     candidates,
@@ -2436,7 +2573,7 @@ function validatePreparedCandidateSet(
 }
 
 function prepareCandidateIdentityProjection(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
   triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
 ) {
@@ -2445,18 +2582,24 @@ function prepareCandidateIdentityProjection(
     contractVersion: prepared.contractVersion,
     status: prepared.status,
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
-    ...(prepared.contractVersion === 1
+    ...(prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
       ? {}
       : { sourceImageContentIdentity: prepared.sourceImageContentIdentity }),
     sourceImageMediaType: prepared.sourceImageMediaType,
     imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
     sourceImageIdentityBasis: prepared.sourceImageIdentityBasis,
     visualInterpretationSource: prepared.visualInterpretationSource,
-    ...(prepared.contractVersion === 1
+    ...(prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
       ? {}
       : { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }),
     candidateEvidenceOnly: prepared.candidateEvidenceOnly,
-    ...(prepared.contractVersion === 3 ? { sourceTruth: prepared.sourceTruth } : {}),
+    ...(isManualBrowserCandidateSet(prepared)
+      ? {
+          sourceTruth: prepared.sourceTruth,
+          coreCompatibilityCandidateSetIdentity:
+            prepared.coreCompatibilityCandidateSetIdentity,
+        }
+      : {}),
     explicitSelectionConfirmationRequired: prepared.explicitSelectionConfirmationRequired,
     coreRun: prepared.coreRun,
     coordinateFrame: prepared.coordinateFrame,
@@ -2930,7 +3073,7 @@ function requirePositiveRectangleBounds(
 }
 
 function normalizeSelectedCandidateIds(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   selectedCandidateIds: readonly string[],
 ): readonly string[] {
   if (!Array.isArray(selectedCandidateIds) || selectedCandidateIds.length === 0) {
@@ -2957,7 +3100,7 @@ function normalizeSelectedCandidateIds(
 }
 
 function normalizeVisualGuideCandidateIds(
-  prepared: PersonalVisualHarmonyPreparedCandidateSet,
+  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
   confirmedVisualGuideCandidateIds: readonly string[],
 ): readonly string[] {
   if (!Array.isArray(confirmedVisualGuideCandidateIds)) {

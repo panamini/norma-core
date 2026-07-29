@@ -22,6 +22,7 @@ const state = {
   coreExecutionCount: 0,
   receiptUrl: null,
   pointerStart: null,
+  imageRevision: 0,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -56,16 +57,26 @@ const newMeasurementButton = $("#new-measurement-button");
 
 imageInput.addEventListener("change", async () => {
   const [file] = imageInput.files;
+  const imageRevision = state.imageRevision + 1;
+  state.imageRevision = imageRevision;
   clearImage();
   state.image = file ?? null;
   if (state.image === null) return updateAvailability();
+  const selectedImage = state.image;
+  const isCurrentSelection = () =>
+    state.imageRevision === imageRevision && state.image === selectedImage;
   setupStatus.textContent = "Lecture locale de l’image…";
   try {
-    state.dimensions = await readImageDimensions(state.image);
-    state.sourceIdentity = await sha256FileIdentity(state.image);
-    state.objectUrl = URL.createObjectURL(state.image);
+    const dimensions = await readImageDimensions(selectedImage);
+    if (!isCurrentSelection()) return;
+    const sourceIdentity = await sha256FileIdentity(selectedImage);
+    if (!isCurrentSelection()) return;
+    state.dimensions = dimensions;
+    state.sourceIdentity = sourceIdentity;
+    state.objectUrl = URL.createObjectURL(selectedImage);
     sourceImage.src = state.objectUrl;
     await sourceImage.decode();
+    if (!isCurrentSelection()) return;
     imagePlane.style.setProperty(
       "--image-aspect",
       String(state.dimensions.width / state.dimensions.height),
@@ -74,6 +85,7 @@ imageInput.addEventListener("change", async () => {
     reviewSection.hidden = false;
     render();
   } catch (error) {
+    if (!isCurrentSelection()) return;
     clearImage();
     setupStatus.textContent = error instanceof Error ? error.message : "Image illisible.";
   }
@@ -549,6 +561,9 @@ function setGuidesVisible(visible) {
 
 function clearImage() {
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
+  state.image = null;
+  state.dimensions = null;
+  state.sourceIdentity = null;
   state.objectUrl = null;
   state.phase = "empty";
   state.authored = [];

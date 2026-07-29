@@ -9,9 +9,10 @@ import {
   preparePersonalVisualHarmonyCandidateSetV1,
   type PersonalVisualHarmonyCandidateInputV1,
   type PersonalVisualHarmonyConfirmationV1,
+  type PersonalVisualHarmonyManualConfirmationV1,
   type PersonalVisualHarmonyDeclaredMeasurementRatioReportV1,
   type PersonalVisualHarmonyMeasurementRatioRequestV1,
-  type PersonalVisualHarmonyPreparedCandidateSet,
+  type PersonalVisualHarmonyConfirmableCandidateSet,
   type PersonalVisualHarmonyPreparedCandidateSetV1,
 } from "./personal-visual-harmony.js";
 import { serializeCanonicalJson } from "./serialization.js";
@@ -63,6 +64,7 @@ export interface PrivateWebLabManualDraftV1
   readonly contractId: typeof PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID;
   readonly draftKind: "manual_browser_no_provider";
   readonly perceptionReceiptIdentity: string;
+  readonly coreCompatibilityCandidateSetIdentity: string;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
 }
@@ -144,6 +146,7 @@ export interface PrivateWebLabManualReceiptV1
   readonly contractId: typeof PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID;
   readonly draftKind: "manual_browser_no_provider";
   readonly perceptionReceiptIdentity: string;
+  readonly coreCompatibilityCandidateSetIdentity: string;
   readonly sourceTruth: false;
 }
 
@@ -173,7 +176,7 @@ interface PrivateWebLabSessionV1 {
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
   readonly goal: GuidedGoal;
-  readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
+  readonly prepared: PersonalVisualHarmonyConfirmableCandidateSet;
   readonly draftKind: "deterministic_fixture_no_provider" | "manual_browser_no_provider";
   readonly perceptionReceiptIdentity?: string;
   readonly createdAtMs: number;
@@ -370,6 +373,8 @@ export class PrivateWebLabApplicationV1 {
         selectedCandidateIds: [],
       }),
       perceptionReceiptIdentity,
+      coreCompatibilityCandidateSetIdentity:
+        prepared.coreCompatibilityCandidateSetIdentity,
       candidateEvidenceOnly: true,
       sourceTruth: false,
     };
@@ -500,6 +505,14 @@ export class PrivateWebLabApplicationV1 {
       acceptedAt: new Date(now).toISOString(),
     });
     const canonicalCoreResult = confirmation.result.harmonicAnalysis;
+    let coreCompatibilityCandidateSetIdentity: string | undefined;
+    if (session.draftKind === "manual_browser_no_provider") {
+      if (!("coreCompatibilityCandidateSetIdentity" in reviewedPrepared)) {
+        throw new Error("Private Web Lab manual Core compatibility identity is missing.");
+      }
+      coreCompatibilityCandidateSetIdentity =
+        reviewedPrepared.coreCompatibilityCandidateSetIdentity;
+    }
     const canonicalGuideAnalysis = createPrivateWebLabGuideAnalysis(
       confirmation.imagePlaneGuideAnalysis,
       session.sourceImageContentIdentity,
@@ -515,6 +528,9 @@ export class PrivateWebLabApplicationV1 {
       contractId: PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID,
       sourceImageContentIdentity: session.sourceImageContentIdentity,
       acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
+      ...(coreCompatibilityCandidateSetIdentity === undefined
+        ? {}
+        : { coreCompatibilityCandidateSetIdentity }),
       selectedCandidateIds,
       ratioPackRefs: canonicalCoreResult.ratioPackRefs,
       canonicalCoreResult,
@@ -555,6 +571,8 @@ export class PrivateWebLabApplicationV1 {
           contractId: PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID,
           draftKind: "manual_browser_no_provider" as const,
           perceptionReceiptIdentity: session.perceptionReceiptIdentity as string,
+          coreCompatibilityCandidateSetIdentity:
+            coreCompatibilityCandidateSetIdentity as string,
           sourceTruth: false as const,
         }
       : {
@@ -1000,7 +1018,9 @@ function strongestGuideCandidateIds(
 }
 
 function createPrivateWebLabGuideAnalysis(
-  analysis: PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"],
+  analysis:
+    | PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"]
+    | PersonalVisualHarmonyManualConfirmationV1["imagePlaneGuideAnalysis"],
   sourceImageContentIdentity: string,
 ): PrivateWebLabGuideAnalysisV1 {
   const {

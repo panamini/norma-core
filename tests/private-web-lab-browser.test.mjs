@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -388,6 +389,168 @@ test(
       await connection?.close();
       await browser.close();
       await close(server);
+    }
+  },
+);
+
+test(
+  "rendered browser discards stale image metadata when a newer file wins",
+  {
+    skip: RUN_RENDERED_BROWSER_TEST
+      ? false
+      : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "norma-web-lab-race-"));
+    const latestImageBytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const latestImagePath = join(temporaryDirectory, "latest.png");
+    await writeFile(latestImagePath, latestImageBytes);
+    const expectedLatestIdentity =
+      `sha256:${createHash("sha256").update(latestImageBytes).digest("hex")}`;
+    const firstImagePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const server = createPrivateWebLabHttpServerV1();
+    const port = await listen(server);
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const digest = crypto.subtle.digest.bind(crypto.subtle);
+          let digestCalls = 0;
+          Object.defineProperty(crypto.subtle, "digest", {
+            configurable: true,
+            value: async (...args) => {
+              digestCalls += 1;
+              if (digestCalls === 1) {
+                await new Promise((resolve) => {
+                  window.__releaseFirstImageDigest = resolve;
+                });
+              }
+              return digest(...args);
+            },
+          });
+          const fetchNormally = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-draft") {
+              window.__manualDraftBody = JSON.parse(init.body);
+            }
+            return fetchNormally(input, init);
+          };
+        })()`,
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [firstImagePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#image-input').dispatchEvent(new Event('change', { bubbles: true }))",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "typeof window.__releaseFirstImageDigest === 'function'",
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [latestImagePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#image-input")
+            .dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "general-geometry";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#source-image').naturalWidth === 1",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "window.__releaseFirstImageDigest()",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `new Promise((resolve) => setTimeout(resolve, 50))`,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__manualDraftBody !== undefined",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            identity: window.__manualDraftBody.sourceImageContentIdentity,
+            width: window.__manualDraftBody.sourcePixelWidth,
+            height: window.__manualDraftBody.sourcePixelHeight,
+            displayedWidth: document.querySelector("#source-image").naturalWidth,
+          })`,
+        ),
+        {
+          identity: expectedLatestIdentity,
+          width: 1,
+          height: 1,
+          displayedWidth: 1,
+        },
+      );
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+      await rm(temporaryDirectory, { recursive: true, force: true });
     }
   },
 );

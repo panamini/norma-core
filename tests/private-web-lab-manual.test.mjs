@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyManualCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
   PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
@@ -96,7 +97,96 @@ test("manual authoring prepares truthful provider-neutral provenance with Core s
   assert.equal(draft.candidates.length, 3);
   assert.deepEqual(draft.selectedCandidateIds, []);
   assert.match(draft.perceptionReceiptIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(draft.coreCompatibilityCandidateSetIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.equal(coreCalls, 0);
+});
+
+test("manual contract keeps audit identity, truthful provenance, and explicit Core compatibility", () => {
+  const application = applicationWithCounter();
+  const draft = application.prepareManualDraft(manualDraftRequest());
+  const prepared = preparePersonalVisualHarmonyManualCandidateSetV1({
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    perceptionReceiptIdentity: draft.perceptionReceiptIdentity,
+    candidates: draft.candidates,
+  });
+  const legacyPrepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: draft.sourceFileId,
+    sourceImageMediaType: draft.sourceImageMediaType,
+    candidates: draft.candidates,
+  });
+  assert.equal(prepared.contractVersion, 1);
+  assert.equal(
+    prepared.coreCompatibilityCandidateSetIdentity,
+    legacyPrepared.candidateSetIdentity,
+  );
+  assert.throws(
+    () => confirmPersonalVisualHarmonyCandidateSetV1({
+      preparedCandidateSet: {
+        ...prepared,
+        coreCompatibilityCandidateSetIdentity: `sha256:${"f".repeat(64)}`,
+      },
+      expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+      selectedCandidateIds: ["manual-rectangle-1"],
+      sourcePixelWidth: 1200,
+      sourcePixelHeight: 800,
+      acceptedAt: new Date(fixedNow).toISOString(),
+    }),
+    /Core compatibility identity is invalid/u,
+  );
+
+  const confirmationInput = {
+    expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+    selectedCandidateIds: ["manual-rectangle-1"],
+    confirmedVisualGuideCandidateIds: ["manual-segment-1", "manual-segment-2"],
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    acceptedAt: new Date(fixedNow).toISOString(),
+  };
+  const confirmation = confirmPersonalVisualHarmonyCandidateSetV1({
+    ...confirmationInput,
+    preparedCandidateSet: prepared,
+  });
+  assert.equal(
+    confirmation.result.sourceImageDimensionsObservedBy,
+    "private_web_lab_browser",
+  );
+  assert.equal(
+    confirmation.result.confirmationMode,
+    "client_asserted_private_web_lab_interaction",
+  );
+  assert.equal(
+    confirmation.imagePlaneGuideAnalysis.sourceImageDimensionsObservedBy,
+    "private_web_lab_browser",
+  );
+  assert.equal(
+    confirmation.imagePlaneGuideAnalysis.confirmationMode,
+    "client_asserted_private_web_lab_interaction",
+  );
+
+  const otherPrepared = preparePersonalVisualHarmonyManualCandidateSetV1({
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    perceptionReceiptIdentity: `sha256:${"e".repeat(64)}`,
+    candidates: draft.candidates,
+  });
+  const otherConfirmation = confirmPersonalVisualHarmonyCandidateSetV1({
+    ...confirmationInput,
+    preparedCandidateSet: otherPrepared,
+    expectedCandidateSetIdentity: otherPrepared.candidateSetIdentity,
+  });
+  assert.notEqual(
+    confirmation.result.confirmedSelectionIdentity,
+    otherConfirmation.result.confirmedSelectionIdentity,
+  );
+  assert.deepEqual(
+    confirmation.result.harmonicAnalysis,
+    otherConfirmation.result.harmonicAnalysis,
+  );
 });
 
 test("manual review remains selectable, confirms once, and new measurement invalidates the session", () => {
@@ -110,6 +200,10 @@ test("manual review remains selectable, confirms once, and new measurement inval
   assert.equal(receipt.contractId, PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID);
   assert.equal(receipt.draftKind, "manual_browser_no_provider");
   assert.equal(receipt.perceptionReceiptIdentity, draft.perceptionReceiptIdentity);
+  assert.equal(
+    receipt.coreCompatibilityCandidateSetIdentity,
+    draft.coreCompatibilityCandidateSetIdentity,
+  );
   assert.equal(receipt.providerCalls, 0);
   assert.equal(receipt.coreRun, true);
   assert.equal(coreCalls, 1);
