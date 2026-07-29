@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  analyzePersonalVisualHarmonyImagePlaneRelationsV1,
   confirmPersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyManualCandidateSetV1,
@@ -187,6 +188,15 @@ test("manual contract keeps audit identity, truthful provenance, and explicit Co
     }),
     /source dimensions do not match the prepared review/u,
   );
+  assert.throws(
+    () => analyzePersonalVisualHarmonyImagePlaneRelationsV1({
+      preparedCandidateSet: prepared,
+      confirmedVisualGuideCandidateIds: ["manual-segment-1"],
+      sourcePixelWidth: 800,
+      sourcePixelHeight: 1200,
+    }),
+    /source dimensions do not match the prepared review/u,
+  );
 
   const otherPrepared = preparePersonalVisualHarmonyManualCandidateSetV1({
     sourceImageContentIdentity,
@@ -228,6 +238,21 @@ test("manual review remains selectable, confirms once, and new measurement inval
   );
   assert.equal(receipt.providerCalls, 0);
   assert.equal(receipt.coreRun, true);
+  assert.match(receipt.acceptedGeometryContentIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(receipt.auditAcceptedGeometryContentIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.notEqual(
+    receipt.acceptedGeometryContentIdentity,
+    receipt.auditAcceptedGeometryContentIdentity,
+  );
+  const exported = JSON.parse(receipt.exportJson);
+  assert.equal(
+    exported.acceptedGeometryContentIdentity,
+    receipt.acceptedGeometryContentIdentity,
+  );
+  assert.equal(
+    exported.auditAcceptedGeometryContentIdentity,
+    receipt.auditAcceptedGeometryContentIdentity,
+  );
   assert.equal(coreCalls, 1);
   assert.deepEqual(
     application.confirmManual(manualConfirmationRequest(draft)),
@@ -285,6 +310,18 @@ test("manual authoring and confirmation fail closed before Core", () => {
       pattern,
     );
   }
+  assert.throws(
+    () => application.prepareManualDraft(manualDraftRequest({
+      candidates: [manualCandidates()[1], manualCandidates()[2]],
+    })),
+    /at least one rectangle/u,
+  );
+  assert.throws(
+    () => application.prepareManualDraft(manualDraftRequest({
+      candidates: [manualCandidates()[0], manualCandidates()[1]],
+    })),
+    /at least two manual segments/u,
+  );
 
   const draft = application.prepareManualDraft(manualDraftRequest());
   assert.throws(

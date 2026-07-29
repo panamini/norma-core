@@ -147,6 +147,8 @@ export interface PrivateWebLabManualReceiptV1
   readonly draftKind: "manual_browser_no_provider";
   readonly perceptionReceiptIdentity: string;
   readonly coreCompatibilityCandidateSetIdentity: string;
+  readonly acceptedGeometryContentIdentity: string;
+  readonly auditAcceptedGeometryContentIdentity: string;
   readonly sourceTruth: false;
 }
 
@@ -313,6 +315,7 @@ export class PrivateWebLabApplicationV1 {
     }
     const goal = requireGoal(input.goalId);
     const candidates = canonicalManualCandidates(input.candidates);
+    requireGoalCompatibleManualCandidates(goal.id, candidates);
     const perceptionReceiptIdentity = contentIdentityFor({
       contractId: PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
       sourceImageContentIdentity: input.sourceImageContentIdentity,
@@ -506,12 +509,18 @@ export class PrivateWebLabApplicationV1 {
     });
     const canonicalCoreResult = confirmation.result.harmonicAnalysis;
     let coreCompatibilityCandidateSetIdentity: string | undefined;
+    let auditAcceptedGeometryContentIdentity: string | undefined;
     if (session.draftKind === "manual_browser_no_provider") {
       if (!("coreCompatibilityCandidateSetIdentity" in reviewedPrepared)) {
         throw new Error("Private Web Lab manual Core compatibility identity is missing.");
       }
+      if (!("auditAcceptedGeometryContentIdentity" in confirmation)) {
+        throw new Error("Private Web Lab manual audit geometry identity is missing.");
+      }
       coreCompatibilityCandidateSetIdentity =
         reviewedPrepared.coreCompatibilityCandidateSetIdentity;
+      auditAcceptedGeometryContentIdentity =
+        confirmation.auditAcceptedGeometryContentIdentity;
     }
     const canonicalGuideAnalysis = createPrivateWebLabGuideAnalysis(
       confirmation.imagePlaneGuideAnalysis,
@@ -530,7 +539,12 @@ export class PrivateWebLabApplicationV1 {
       acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
       ...(coreCompatibilityCandidateSetIdentity === undefined
         ? {}
-        : { coreCompatibilityCandidateSetIdentity }),
+        : {
+            coreCompatibilityCandidateSetIdentity,
+            acceptedGeometryContentIdentity: confirmation.acceptedGeometryContentIdentity,
+            auditAcceptedGeometryContentIdentity:
+              auditAcceptedGeometryContentIdentity as string,
+          }),
       selectedCandidateIds,
       ratioPackRefs: canonicalCoreResult.ratioPackRefs,
       canonicalCoreResult,
@@ -573,6 +587,9 @@ export class PrivateWebLabApplicationV1 {
           perceptionReceiptIdentity: session.perceptionReceiptIdentity as string,
           coreCompatibilityCandidateSetIdentity:
             coreCompatibilityCandidateSetIdentity as string,
+          acceptedGeometryContentIdentity: confirmation.acceptedGeometryContentIdentity,
+          auditAcceptedGeometryContentIdentity:
+            auditAcceptedGeometryContentIdentity as string,
           sourceTruth: false as const,
         }
       : {
@@ -1015,6 +1032,24 @@ function strongestGuideCandidateIds(
   return candidates
     .slice(0, PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT)
     .map(({ id }) => id);
+}
+
+function requireGoalCompatibleManualCandidates(
+  goalId: GuidedGoal["id"],
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+): void {
+  const rectangleCount = candidates.filter(
+    (candidate) => primitiveKind(candidate) === "rectangle",
+  ).length;
+  const segmentCount = candidates.filter(
+    (candidate) => primitiveKind(candidate) === "segment",
+  ).length;
+  if (rectangleCount === 0) {
+    throw new Error("Private Web Lab manual review requires at least one rectangle.");
+  }
+  if (goalId === "compare-two-lengths" && segmentCount < 2) {
+    throw new Error("Compare two lengths requires at least two manual segments.");
+  }
 }
 
 function createPrivateWebLabGuideAnalysis(

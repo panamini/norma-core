@@ -1165,6 +1165,11 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
   requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (isManualBrowserCandidateSet(prepared)
+    && (input.sourcePixelWidth !== prepared.sourcePixelWidth
+      || input.sourcePixelHeight !== prepared.sourcePixelHeight)) {
+    throw new Error("Manual candidate set source dimensions do not match the prepared review.");
+  }
   const confirmedVisualGuideCandidateIds = normalizeVisualGuideCandidateIds(
     prepared,
     input.confirmedVisualGuideCandidateIds,

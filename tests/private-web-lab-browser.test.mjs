@@ -556,6 +556,258 @@ test(
 );
 
 test(
+  "rendered browser gates authoring, locks preparation, discards stale drafts, and recovers expired review",
+  {
+    skip: RUN_RENDERED_BROWSER_TEST
+      ? false
+      : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    let coreExecutions = 0;
+    const application = new PrivateWebLabApplicationV1({
+      executeConfirmation(input) {
+        coreExecutions += 1;
+        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+    });
+    const server = createPrivateWebLabHttpServerV1({ application });
+    const port = await listen(server);
+    const fixturePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      const loadFixture = async () => {
+        await connection.send(
+          "DOM.setFileInputFiles",
+          { nodeId, files: [fixturePath] },
+          sessionId,
+        );
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            document.querySelector("#image-input")
+              .dispatchEvent(new Event("change", { bubbles: true }));
+            const goal = document.querySelector("#goal-input");
+            goal.value = "compare-two-lengths";
+            goal.dispatchEvent(new Event("change", { bubbles: true }));
+          })()`,
+        );
+        await waitForBrowserCondition(
+          connection,
+          sessionId,
+          "!document.querySelector('#review-section').hidden",
+        );
+      };
+      await loadFixture();
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#add-rectangle-button').click()",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            disabled: document.querySelector("#prepare-button").disabled,
+            status: document.querySelector("#setup-status").textContent,
+          })`,
+        ),
+        {
+          disabled: true,
+          status: "Tracez au moins un cadre et deux segments avant de préparer la revue.",
+        },
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          const fetchNormally = window.fetch.bind(window);
+          let delayed = false;
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-draft" && !delayed) {
+              delayed = true;
+              return new Promise((resolve) => {
+                window.__releaseManualDraft = () => resolve(fetchNormally(input, init));
+              });
+            }
+            return fetchNormally(input, init);
+          };
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "typeof window.__releaseManualDraft === 'function'",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            imageDisabled: document.querySelector("#image-input").disabled,
+            goalDisabled: document.querySelector("#goal-input").disabled,
+            prepareDisabled: document.querySelector("#prepare-button").disabled,
+            disabledGeometry:
+              document.querySelectorAll(".candidate input[type=number]:disabled").length,
+            candidateCount: document.querySelectorAll(".candidate").length,
+          })`,
+        ),
+        {
+          imageDisabled: true,
+          goalDisabled: true,
+          prepareDisabled: true,
+          disabledGeometry: 12,
+          candidateCount: 3,
+        },
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#add-rectangle-button').click()",
+      );
+      assert.equal(
+        await evaluate(connection, sessionId, "document.querySelectorAll('.candidate').length"),
+        3,
+      );
+
+      await loadFixture();
+      await evaluate(connection, sessionId, "window.__releaseManualDraft()");
+      await evaluate(
+        connection,
+        sessionId,
+        "new Promise((resolve) => setTimeout(resolve, 50))",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+            prepareHidden: document.querySelector("#prepare-button").hidden,
+          })`,
+        ),
+        { checkboxCount: 0, prepareHidden: false },
+      );
+
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelectorAll('.candidate input[type=checkbox]').length === 3",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const fetchNormally = window.fetch.bind(window);
+          let expired = false;
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-confirm" && !expired) {
+              expired = true;
+              return Promise.resolve(new Response(
+                JSON.stringify({ error: "Private Web Lab session is missing or expired." }),
+                { status: 404, headers: { "content-type": "application/json" } },
+              ));
+            }
+            return fetchNormally(input, init);
+          };
+          let checkbox;
+          while ((checkbox = document.querySelector(
+            ".candidate input[type=checkbox]:not(:checked)",
+          ))) checkbox.click();
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = "manual-segment-1";
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = "manual-segment-2";
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#confirmation-input").click();
+        })()`,
+      );
+      assert.equal(
+        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#setup-status').textContent.includes('expiré')",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+            imageDisabled: document.querySelector("#image-input").disabled,
+            goalDisabled: document.querySelector("#goal-input").disabled,
+            prepareHidden: document.querySelector("#prepare-button").hidden,
+            receiptHidden: document.querySelector("#receipt-section").hidden,
+          })`,
+        ),
+        {
+          checkboxCount: 0,
+          imageDisabled: false,
+          goalDisabled: false,
+          prepareHidden: false,
+          receiptHidden: true,
+        },
+      );
+      assert.equal(coreExecutions, 0);
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+    }
+  },
+);
+
+test(
   "rendered browser uploads a non-square image, aligns guides, gates one Core run, and exports",
   {
     skip: "Legacy deterministic-fixture browser path remains covered by contract tests only.",

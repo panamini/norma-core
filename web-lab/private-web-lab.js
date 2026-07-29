@@ -23,6 +23,8 @@ const state = {
   receiptUrl: null,
   pointerStart: null,
   imageRevision: 0,
+  preparationRevision: 0,
+  preparationInFlight: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -95,7 +97,11 @@ goalInput.addEventListener("change", updateAvailability);
 rectangleTool.addEventListener("click", () => setTool("rectangle"));
 segmentTool.addEventListener("click", () => setTool("segment"));
 $("#add-rectangle-button").addEventListener("click", () => {
-  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  if (
+    state.phase !== "authoring"
+    || state.preparationInFlight
+    || state.authored.length >= 12
+  ) return;
   state.authored.push({
     id: "",
     kind: "rectangle",
@@ -108,7 +114,11 @@ $("#add-rectangle-button").addEventListener("click", () => {
   render();
 });
 $("#add-segment-button").addEventListener("click", () => {
-  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  if (
+    state.phase !== "authoring"
+    || state.preparationInFlight
+    || state.authored.length >= 12
+  ) return;
   state.authored.push({
     id: "",
     kind: "segment",
@@ -122,7 +132,11 @@ $("#original-button").addEventListener("click", () => setGuidesVisible(false));
 $("#guides-button").addEventListener("click", () => setGuidesVisible(true));
 
 imagePlane.addEventListener("pointerdown", (event) => {
-  if (state.phase !== "authoring" || state.authored.length >= 12) return;
+  if (
+    state.phase !== "authoring"
+    || state.preparationInFlight
+    || state.authored.length >= 12
+  ) return;
   state.pointerStart = normalizedPointer(event);
   imagePlane.setPointerCapture(event.pointerId);
 });
@@ -150,8 +164,13 @@ prepareButton.addEventListener("click", async () => {
     || state.dimensions === null
     || state.sourceIdentity === null
     || goalInput.value === ""
+    || !canPrepareAuthoredReview()
   ) return;
-  setBusy(true);
+  const preparationRevision = state.preparationRevision + 1;
+  const imageRevision = state.imageRevision;
+  state.preparationRevision = preparationRevision;
+  state.preparationInFlight = true;
+  render();
   setupStatus.textContent = "Validation et liaison exacte de la revue…";
   try {
     const draft = await postJson("/api/manual-draft", {
@@ -164,6 +183,10 @@ prepareButton.addEventListener("click", async () => {
       goalId: goalInput.value,
       candidates: state.authored,
     });
+    if (
+      state.preparationRevision !== preparationRevision
+      || state.imageRevision !== imageRevision
+    ) return;
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set();
@@ -175,9 +198,13 @@ prepareButton.addEventListener("click", async () => {
       "Revue liée prête. Les octets de l’image ne quittent pas ce navigateur.";
     render();
   } catch (error) {
+    if (state.preparationRevision !== preparationRevision) return;
     setupStatus.textContent = error instanceof Error ? error.message : "Revue refusée.";
   } finally {
-    setBusy(false);
+    if (state.preparationRevision === preparationRevision) {
+      state.preparationInFlight = false;
+      render();
+    }
   }
 });
 
@@ -224,8 +251,16 @@ runButton.addEventListener("click", async () => {
     coreGate.textContent = "Core exécuté exactement une fois après confirmation explicite.";
     render();
   } catch (error) {
-    state.phase = "review";
-    coreGate.textContent = error instanceof Error ? error.message : "Confirmation refusée.";
+    const message = error instanceof Error ? error.message : "Confirmation refusée.";
+    if (/missing or expired/iu.test(message)) {
+      returnExpiredReviewToAuthoring();
+      setupStatus.textContent =
+        "La revue a expiré. Vérifiez les candidats puis préparez une nouvelle revue.";
+      coreGate.textContent = "Core arrêté — la revue expirée a été effacée.";
+    } else {
+      state.phase = "review";
+      coreGate.textContent = message;
+    }
     render();
   } finally {
     state.confirmationInFlight = false;
@@ -264,11 +299,13 @@ newMeasurementButton.addEventListener("click", async () => {
 
 function render() {
   const authoring = state.phase === "authoring";
-  const locked = state.phase === "confirming" || state.phase === "completed";
+  const locked = state.preparationInFlight
+    || state.phase === "confirming"
+    || state.phase === "completed";
   authoringToolbar.hidden = !authoring;
   prepareButton.hidden = !authoring;
   prepareButton.disabled =
-    !authoring || state.authored.length === 0 || goalInput.value === "";
+    !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
   phaseDescription.textContent = authoring
     ? "Dessinez vos propres cadres et segments. Aucun guide n’est inféré ou détecté."
     : "Liste liée au serveur: nombre, ordre, identités, métadonnées et types sont figés.";
@@ -349,7 +386,9 @@ function candidateCard(candidate, index, authoring, locked) {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Supprimer";
+    remove.disabled = locked;
     remove.addEventListener("click", () => {
+      if (state.preparationInFlight) return;
       state.authored.splice(index, 1);
       renumberAuthoredIds();
       render();
@@ -533,24 +572,42 @@ function clamp(value) {
   return Math.max(0, Math.min(1, value));
 }
 
-function setBusy(busy) {
-  const setupLocked = busy || (state.phase !== "empty" && state.phase !== "authoring");
-  imageInput.disabled = setupLocked;
-  goalInput.disabled = setupLocked;
-  prepareButton.disabled = busy || state.phase !== "authoring";
-}
-
 function updateAvailability() {
   if (state.phase === "empty") {
     setupStatus.textContent = "Chargez une image et choisissez un objectif.";
   } else if (state.phase === "authoring" && state.authored.length === 0) {
     setupStatus.textContent = "Tracez au moins un cadre ou segment manuel.";
+  } else if (state.phase === "authoring" && !canPrepareAuthoredReview()) {
+    setupStatus.textContent = goalInput.value === "compare-two-lengths"
+      ? "Tracez au moins un cadre et deux segments avant de préparer la revue."
+      : "Tracez au moins un cadre avant de préparer la revue.";
   }
   prepareButton.disabled =
-    state.phase !== "authoring" || state.authored.length === 0 || goalInput.value === "";
-  const setupLocked = state.phase !== "empty" && state.phase !== "authoring";
+    state.phase !== "authoring"
+    || state.preparationInFlight
+    || !canPrepareAuthoredReview();
+  const setupLocked = state.preparationInFlight
+    || (state.phase !== "empty" && state.phase !== "authoring");
   imageInput.disabled = setupLocked;
   goalInput.disabled = setupLocked;
+}
+
+function canPrepareAuthoredReview() {
+  if (goalInput.value === "") return false;
+  const rectangleCount = state.authored.filter(({ kind }) => kind === "rectangle").length;
+  const segmentCount = state.authored.filter(({ kind }) => kind === "segment").length;
+  return rectangleCount >= 1
+    && (goalInput.value !== "compare-two-lengths" || segmentCount >= 2);
+}
+
+function returnExpiredReviewToAuthoring() {
+  state.phase = "authoring";
+  state.draft = null;
+  state.candidates = [];
+  state.selectedCandidateIds = new Set();
+  state.measurementCandidateIds = [null, null];
+  confirmationInput.checked = false;
+  receiptSection.hidden = true;
 }
 
 function setGuidesVisible(visible) {
@@ -560,6 +617,8 @@ function setGuidesVisible(visible) {
 }
 
 function clearImage() {
+  state.preparationRevision += 1;
+  state.preparationInFlight = false;
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   state.image = null;
   state.dimensions = null;
