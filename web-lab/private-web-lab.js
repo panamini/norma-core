@@ -321,7 +321,13 @@ prepareButton.addEventListener("click", async () => {
 confirmationInput.addEventListener("change", updateCoreAvailability);
 
 runButton.addEventListener("click", async () => {
-  if (state.phase !== "review" || state.draft === null || !confirmationInput.checked) return;
+  if (
+    state.phase !== "review"
+    || state.draft === null
+    || !confirmationInput.checked
+    || state.sessionResetInFlight
+    || state.confirmationInFlight
+  ) return;
   state.confirmationInFlight = true;
   state.phase = "confirming";
   render();
@@ -371,6 +377,7 @@ runButton.addEventListener("click", async () => {
     render();
   } finally {
     state.confirmationInFlight = false;
+    render();
   }
 });
 
@@ -409,8 +416,17 @@ changeGoalButton.addEventListener("click", async () => {
     setupStatus.textContent =
       "Objectif modifiable; image et tracés manuels conservés. Core n’a pas été lancé.";
   } catch (error) {
-    setupStatus.textContent =
-      error instanceof Error ? error.message : "Réinitialisation de la revue refusée.";
+    const message = error instanceof Error
+      ? error.message
+      : "Réinitialisation de la revue refusée.";
+    if (isMissingPrivateWebLabSessionError(message)) {
+      returnLinkedReviewToAuthoring({ preserveAuthored: true });
+      setupStatus.textContent =
+        "Session déjà expirée; objectif modifiable, image et tracés manuels conservés.";
+      coreGate.textContent = "Core arrêté — la session absente a été effacée localement.";
+    } else {
+      setupStatus.textContent = message;
+    }
   } finally {
     state.sessionResetInFlight = false;
     render();
@@ -445,7 +461,9 @@ function render() {
   );
   renderOverlay(candidates, authoring);
   renderMeasurementSelection();
-  confirmationInput.disabled = state.phase !== "review";
+  confirmationInput.disabled = state.phase !== "review"
+    || state.sessionResetInFlight
+    || state.confirmationInFlight;
   if (authoring) {
     guideMode.textContent = `${String(candidates.length)} candidat(s) manuel(s), maximum 12.`;
     coreGate.textContent = "Core arrêté — préparez puis confirmez une revue liée.";
@@ -685,12 +703,17 @@ function renderMeasurementSelection() {
     );
     select.replaceChildren(placeholder, ...options);
     select.value = state.measurementCandidateIds[index] ?? "";
-    select.disabled = state.phase !== "review";
+    select.disabled = state.phase !== "review"
+      || state.sessionResetInFlight
+      || state.confirmationInFlight;
   });
 }
 
 function updateCoreAvailability() {
-  const canRun = state.phase === "review" && state.draft !== null
+  const canRun = state.phase === "review"
+    && state.draft !== null
+    && !state.sessionResetInFlight
+    && !state.confirmationInFlight
     && canRunPrivateWebLabCoreV1(
       confirmationInput.checked,
       state.selectedCandidateIds,
@@ -700,7 +723,9 @@ function updateCoreAvailability() {
     );
   runButton.disabled = !canRun;
   if (state.phase === "review") {
-    coreGate.textContent = !confirmationInput.checked
+    coreGate.textContent = state.sessionResetInFlight
+      ? "Core arrêté — abandon de la revue en cours."
+      : !confirmationInput.checked
       ? "Core arrêté — confirmation explicite requise."
       : canRun
         ? "Confirmation explicite prête — Core n’a pas encore été lancé."
@@ -965,6 +990,10 @@ function canPrepareAuthoredReview() {
 
 function returnExpiredReviewToAuthoring() {
   returnLinkedReviewToAuthoring({ preserveAuthored: true });
+}
+
+function isMissingPrivateWebLabSessionError(message) {
+  return /session is missing or (?:expired|belongs to another browser)/iu.test(message);
 }
 
 function returnLinkedReviewToAuthoring({ preserveAuthored }) {

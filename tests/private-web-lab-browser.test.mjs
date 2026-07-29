@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,6 +27,27 @@ import { createPrivateWebLabHttpServerV1 } from "../web-lab/private-web-lab-http
 
 const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
+
+test("launcher rebuilds before loading the ignored runtime tree", async () => {
+  const source = await readFile(
+    new URL("../web-lab/start-private-web-lab.mjs", import.meta.url),
+    "utf8",
+  );
+  const buildIndex = source.indexOf("await ensurePrivateWebLabBuild();");
+  const runtimeImportIndex = source.indexOf(
+    "await import(\"../dist/src/private-web-lab.js\")",
+  );
+  assert.ok(buildIndex >= 0);
+  assert.ok(runtimeImportIndex > buildIndex);
+  assert.match(
+    source,
+    /function ensurePrivateWebLabBuild\(\) \{[\s\S]*?spawnSync\(/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /access\(new URL\("\.\.\/dist\/src\/private-web-lab\.js"/u,
+  );
+});
 
 test("launcher starts once and reuses the same verified loopback Web Lab", {
   timeout: 10_000,
@@ -106,6 +127,51 @@ test("launcher refuses an unrelated service on the configured port", {
     assert.equal(occupied.providerCalls, 0);
   } finally {
     await close(unrelated);
+  }
+});
+
+test("launcher refuses a health redirect to a real Web Lab", {
+  timeout: 10_000,
+}, async () => {
+  const actualLab = createPrivateWebLabHttpServerV1();
+  const actualPort = await listen(actualLab);
+  const redirectingService = createServer((_request, response) => {
+    response.writeHead(302, {
+      location: `http://127.0.0.1:${String(actualPort)}/healthz`,
+    });
+    response.end();
+  });
+  const redirectPort = await listen(redirectingService);
+  try {
+    const launcher = spawn(
+      process.execPath,
+      [
+        new URL("../web-lab/start-private-web-lab.mjs", import.meta.url).pathname,
+        "--enable-private-web-lab",
+      ],
+      {
+        cwd: new URL("..", import.meta.url).pathname,
+        env: {
+          ...process.env,
+          NORMA_PRIVATE_WEB_LAB_PORT: String(redirectPort),
+        },
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    const exit = once(launcher, "exit");
+    const occupied = await waitForJsonLineEvent(
+      launcher,
+      "private_web_lab_port_in_use",
+    );
+    const [code] = await exit;
+    assert.equal(code, 69);
+    assert.equal(
+      occupied.url,
+      `http://127.0.0.1:${String(redirectPort)}`,
+    );
+  } finally {
+    await close(redirectingService);
+    await close(actualLab);
   }
 });
 
@@ -461,7 +527,17 @@ test(
           const fetchNormally = window.fetch.bind(window);
           window.__manualDrafts = [];
           window.__manualDraftRequests = [];
+          window.__delayNewMeasurement = false;
+          window.__newMeasurementStarted = false;
+          window.__releaseNewMeasurement = null;
           window.fetch = async (input, init) => {
+            if (input === "/api/new-measurement" && window.__delayNewMeasurement) {
+              window.__newMeasurementStarted = true;
+              await new Promise((resolve) => {
+                window.__releaseNewMeasurement = resolve;
+              });
+              window.__delayNewMeasurement = false;
+            }
             const response = await fetchNormally(input, init);
             if (input === "/api/manual-draft" && response.ok) {
               window.__manualDraftRequests.push(JSON.parse(init.body));
@@ -543,7 +619,43 @@ test(
       await evaluate(
         connection,
         sessionId,
-        "document.querySelector('#change-goal-button').click()",
+        `(() => {
+          document.querySelector(".candidate input[type=checkbox]").click();
+          document.querySelector("#confirmation-input").click();
+          if (document.querySelector("#run-button").disabled) {
+            throw new Error("Core should be ready before abandoning the review.");
+          }
+          window.__delayNewMeasurement = true;
+          document.querySelector("#change-goal-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__newMeasurementStarted === true",
+      );
+      const resetLocked = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const run = document.querySelector("#run-button");
+          const confirmation = document.querySelector("#confirmation-input");
+          run.click();
+          return {
+            runDisabled: run.disabled,
+            confirmationDisabled: confirmation.disabled,
+          };
+        })()`,
+      );
+      assert.deepEqual(resetLocked, {
+        runDisabled: true,
+        confirmationDisabled: true,
+      });
+      assert.equal(coreExecutions, 0);
+      await evaluate(
+        connection,
+        sessionId,
+        "window.__releaseNewMeasurement()",
       );
       await waitForBrowserCondition(
         connection,
@@ -602,6 +714,42 @@ test(
       await evaluate(
         connection,
         sessionId,
+        "document.querySelector('#prepare-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__manualDrafts.length === 2",
+      );
+      const missingSessionRecovery = await evaluate(
+        connection,
+        sessionId,
+        `(async () => {
+          const draft = window.__manualDrafts[1];
+          const request = window.__manualDraftRequests[1];
+          const response = await fetch("/api/new-measurement", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              browserSessionId: request.browserSessionId,
+              labSessionId: draft.labSessionId,
+            }),
+          });
+          document.querySelector("#change-goal-button").click();
+          return response.status;
+        })()`,
+      );
+      assert.equal(missingSessionRecovery, 200);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Dessinez')",
+      );
+      assert.equal(coreExecutions, 0);
+
+      await evaluate(
+        connection,
+        sessionId,
         `(() => {
           const goal = document.querySelector("#goal-input");
           goal.value = "compare-two-lengths";
@@ -614,10 +762,10 @@ test(
       await waitForBrowserCondition(
         connection,
         sessionId,
-        "window.__manualDrafts.length === 2",
+        "window.__manualDrafts.length === 3",
       );
       assert.notEqual(
-        await evaluate(connection, sessionId, "window.__manualDrafts[1].labSessionId"),
+        await evaluate(connection, sessionId, "window.__manualDrafts[2].labSessionId"),
         beforeReset.oldSessionId,
       );
       const confirmationReady = await evaluate(

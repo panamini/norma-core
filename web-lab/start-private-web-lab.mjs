@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const ENABLE_FLAG = "--enable-private-web-lab";
@@ -23,14 +22,8 @@ const {
 const port = parsePort(process.env.NORMA_PRIVATE_WEB_LAB_PORT ?? String(PRIVATE_WEB_LAB_DEFAULT_PORT));
 await startOrReusePrivateWebLab(port);
 
-async function ensurePrivateWebLabBuild() {
+function ensurePrivateWebLabBuild() {
   const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
-  try {
-    await access(new URL("../dist/src/private-web-lab.js", import.meta.url));
-    return;
-  } catch {
-    // A fresh checkout has no ignored dist tree; build it before loading the server.
-  }
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "build"], {
     cwd: repositoryRoot,
@@ -90,7 +83,10 @@ async function inspectLoopbackPort(portToInspect) {
   try {
     const response = await fetch(
       `http://127.0.0.1:${String(portToInspect)}/healthz`,
-      { signal: AbortSignal.timeout(750) },
+      {
+        redirect: "error",
+        signal: AbortSignal.timeout(750),
+      },
     );
     if (!response.ok) return { status: "occupied" };
     const body = await response.json();
