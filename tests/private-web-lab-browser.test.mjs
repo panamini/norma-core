@@ -537,7 +537,10 @@ test(
         await evaluate(
           connection,
           sessionId,
-          `document.querySelector(".candidate-handle-hit").getBoundingClientRect().width >= 24`,
+          `(() => {
+            const bounds = document.querySelector(".candidate-handle-hit").getBoundingClientRect();
+            return bounds.width >= 24 && bounds.height >= 24;
+          })()`,
         ),
         true,
       );
@@ -563,6 +566,38 @@ test(
           })()`,
         ),
         true,
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            document.querySelector("#add-segment-button").click();
+            const edited = document.querySelector(
+              '.candidate[data-candidate-id="manual-segment-2"]',
+            );
+            const endX = edited.querySelectorAll('input[type="number"]')[2];
+            endX.value = "0.42";
+            endX.dispatchEvent(new Event("change", { bubbles: true }));
+            document.querySelector(
+              '.candidate[data-candidate-id="manual-segment-2"]',
+            ).click();
+            document.querySelector(
+              '.candidate[data-candidate-id="manual-segment-1"] button',
+            ).click();
+            const active = document.querySelector(".candidate[data-active=true]");
+            return {
+              candidateCount: document.querySelectorAll(".candidate").length,
+              activeId: active?.dataset.candidateId,
+              activeEndX: active?.querySelectorAll('input[type="number"]')[2].value,
+            };
+          })()`,
+        ),
+        {
+          candidateCount: 3,
+          activeId: "manual-segment-1",
+          activeEndX: "0.42",
+        },
       );
       await evaluate(
         connection,
@@ -1449,6 +1484,8 @@ test(
             goalDisabled: document.querySelector("#goal-input").disabled,
             prepareHidden: document.querySelector("#prepare-button").hidden,
             receiptHidden: document.querySelector("#receipt-section").hidden,
+            rectangleToolPressed:
+              document.querySelector("#rectangle-tool").getAttribute("aria-pressed"),
           })`,
         ),
         {
@@ -1457,6 +1494,7 @@ test(
           goalDisabled: false,
           prepareHidden: false,
           receiptHidden: true,
+          rectangleToolPressed: "true",
         },
       );
       assert.equal(coreExecutions, 0);

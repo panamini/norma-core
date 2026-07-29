@@ -505,11 +505,15 @@ function candidateCard(candidate, index, authoring, locked) {
     remove.disabled = locked;
     remove.addEventListener("click", () => {
       if (state.preparationInFlight) return;
+      const activeCandidate = state.authored.find(
+        ({ id }) => id === state.activeCandidateId,
+      );
       state.authored.splice(index, 1);
       renumberAuthoredIds();
-      if (!state.authored.some(({ id }) => id === state.activeCandidateId)) {
-        state.activeCandidateId = null;
-      }
+      state.activeCandidateId = activeCandidate !== undefined
+        && state.authored.includes(activeCandidate)
+        ? activeCandidate.id
+        : null;
       render();
     });
     article.append(remove);
@@ -587,22 +591,26 @@ function decorateGuide(element, candidate) {
 function handleElements(candidate, authoring) {
   const namespace = "http://www.w3.org/2000/svg";
   return candidateHandlePoints(candidate, authoring).flatMap(({ name, point }) => {
-    const hitTarget = document.createElementNS(namespace, "circle");
+    const hitRadius = screenPixelsToViewBoxUnits(14);
+    const visibleRadius = screenPixelsToViewBoxUnits(6);
+    const hitTarget = document.createElementNS(namespace, "ellipse");
     hitTarget.classList.add("candidate-handle-hit");
     hitTarget.dataset.candidateId = candidate.id;
     hitTarget.dataset.handle = name;
     hitTarget.setAttribute("cx", String(point.x * 1000));
     hitTarget.setAttribute("cy", String(point.y * 1000));
-    hitTarget.setAttribute("r", String(screenPixelsToViewBoxUnits(14)));
+    hitTarget.setAttribute("rx", String(hitRadius.x));
+    hitTarget.setAttribute("ry", String(hitRadius.y));
     hitTarget.setAttribute("fill", "transparent");
     hitTarget.setAttribute("aria-hidden", "true");
-    const handle = document.createElementNS(namespace, "circle");
+    const handle = document.createElementNS(namespace, "ellipse");
     handle.classList.add("candidate-handle");
     handle.dataset.candidateId = candidate.id;
     handle.dataset.handle = name;
     handle.setAttribute("cx", String(point.x * 1000));
     handle.setAttribute("cy", String(point.y * 1000));
-    handle.setAttribute("r", String(screenPixelsToViewBoxUnits(6)));
+    handle.setAttribute("rx", String(visibleRadius.x));
+    handle.setAttribute("ry", String(visibleRadius.y));
     handle.setAttribute("fill", "#0a0d0c");
     handle.setAttribute("stroke", "#c7ff4a");
     handle.setAttribute("stroke-width", "3");
@@ -833,8 +841,11 @@ function updateGestureAvailability() {
 }
 
 function screenPixelsToViewBoxUnits(pixels) {
-  const renderedWidth = imagePlane.getBoundingClientRect().width;
-  return renderedWidth > 0 ? pixels * 1000 / renderedWidth : pixels;
+  const bounds = imagePlane.getBoundingClientRect();
+  return {
+    x: bounds.width > 0 ? pixels * 1000 / bounds.width : pixels,
+    y: bounds.height > 0 ? pixels * 1000 / bounds.height : pixels,
+  };
 }
 
 function normalizedPointer(event) {
@@ -935,6 +946,7 @@ function returnExpiredReviewToAuthoring() {
   state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
+  setTool("rectangle");
 }
 
 function setGuidesVisible(visible) {
