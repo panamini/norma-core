@@ -625,6 +625,22 @@ export const personalVisualHarmonyMeasuredReviewUxChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-review-journal.test.mjs",
 ].sort());
 
+export const declaredSpatialMeasurementsChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-spatial-measurements.ts",
+  "src/private-web-lab.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-spatial-measurements.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+  "tests/private-web-lab-manual.test.mjs",
+  "web-lab/index.html",
+  "web-lab/private-web-lab-browser-model.js",
+  "web-lab/private-web-lab.css",
+  "web-lab/private-web-lab.js",
+].sort());
+
 export const privateWebLabChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2102,6 +2118,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 
 const sharedExactApprovedChangedFileSets = [
   declaredImagePlaneMeasurementRatiosChangedFiles,
+  declaredSpatialMeasurementsChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,

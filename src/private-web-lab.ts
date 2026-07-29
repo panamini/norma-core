@@ -15,6 +15,11 @@ import {
   type PersonalVisualHarmonyConfirmableCandidateSet,
   type PersonalVisualHarmonyPreparedCandidateSetV1,
 } from "./personal-visual-harmony.js";
+import {
+  confirmDeclaredSpatialMeasurementPlanV1,
+  type DeclaredSpatialMeasurementConfirmationV1,
+  type DeclaredSpatialMeasurementPlanV1,
+} from "./personal-visual-harmony-spatial-measurements.js";
 import { serializeCanonicalJson } from "./serialization.js";
 import { PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1 } from "./mcp/personal-visual-harmony-app.js";
 
@@ -25,6 +30,8 @@ export const PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID =
   "norma.private-web-lab-manual-receipt@1" as const;
 export const PRIVATE_WEB_LAB_RECEIPT_CONTRACT_ID =
   "norma.private-web-lab-receipt@1" as const;
+export const PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID =
+  "norma.private-web-lab-declared-spatial-measurement-receipt@1" as const;
 export const PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID =
   "norma.private-web-lab-canonical-result@1" as const;
 export const PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT = 4;
@@ -111,6 +118,7 @@ export interface PrivateWebLabConfirmRequestV1 {
   readonly selectedCandidateIds: readonly string[];
   readonly reviewedCandidates: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly measurementCandidateIds: readonly [string, string] | null;
+  readonly declaredSpatialMeasurementPlan?: DeclaredSpatialMeasurementPlanV1;
 }
 
 export interface PrivateWebLabManualConfirmRequestV1 extends PrivateWebLabConfirmRequestV1 {
@@ -152,6 +160,29 @@ export interface PrivateWebLabManualReceiptV1
   readonly sourceTruth: false;
 }
 
+export interface PrivateWebLabDeclaredSpatialMeasurementReceiptV1 {
+  readonly contractId:
+    typeof PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID;
+  readonly stage: "completed";
+  readonly receiptIdentity: string;
+  readonly draftKind: "deterministic_fixture_no_provider" | "manual_browser_no_provider";
+  readonly providerCalls: 0;
+  readonly coreRun: true;
+  readonly explicitSelectionConfirmation: true;
+  readonly sourceImageContentIdentity: string;
+  readonly goalId: "compare-two-lengths";
+  readonly draftCandidateSetIdentity: string;
+  readonly acceptedCandidateSetIdentity: string;
+  readonly selectedCandidateIds: readonly string[];
+  readonly declaredSpatialMeasurementConfirmation: DeclaredSpatialMeasurementConfirmationV1;
+  readonly declaredSpatialMeasurementConfirmationIdentity: string;
+  readonly exportFileName: "norma-private-web-lab-result.json";
+  readonly exportJson: string;
+  readonly perceptionReceiptIdentity?: string;
+  readonly coreCompatibilityCandidateSetIdentity?: string;
+  readonly sourceTruth?: false;
+}
+
 export type PrivateWebLabGuideAnalysisV1 = Omit<
   PersonalVisualHarmonyConfirmationV1["imagePlaneGuideAnalysis"],
   "confirmationMode" | "contentIdentity" | "sourceImageDimensionsObservedBy"
@@ -185,16 +216,23 @@ interface PrivateWebLabSessionV1 {
   readonly expiresAtMs: number;
   completed?: {
     readonly confirmationRequestIdentity: string;
-    readonly receipt: PrivateWebLabReceiptV1 | PrivateWebLabManualReceiptV1;
+    readonly receipt:
+      | PrivateWebLabReceiptV1
+      | PrivateWebLabManualReceiptV1
+      | PrivateWebLabDeclaredSpatialMeasurementReceiptV1;
   };
 }
 
 type ConfirmationExecutor = typeof confirmPersonalVisualHarmonyCandidateSetV1;
+type DeclaredSpatialMeasurementConfirmationExecutor =
+  typeof confirmDeclaredSpatialMeasurementPlanV1;
 
 export interface PrivateWebLabApplicationOptionsV1 {
   readonly now?: () => number;
   readonly createSessionId?: () => string;
   readonly executeConfirmation?: ConfirmationExecutor;
+  readonly executeDeclaredSpatialMeasurementConfirmation?:
+    DeclaredSpatialMeasurementConfirmationExecutor;
   readonly sessionTtlMs?: number;
   readonly maxSessions?: number;
 }
@@ -204,6 +242,8 @@ export class PrivateWebLabApplicationV1 {
   private readonly now: () => number;
   private readonly createSessionId: () => string;
   private readonly executeConfirmation: ConfirmationExecutor;
+  private readonly executeDeclaredSpatialMeasurementConfirmation:
+    DeclaredSpatialMeasurementConfirmationExecutor;
   private readonly sessionTtlMs: number;
   private readonly maxSessions: number;
 
@@ -213,6 +253,9 @@ export class PrivateWebLabApplicationV1 {
       options.createSessionId ?? (() => `web-lab-session:${randomUUID()}`);
     this.executeConfirmation =
       options.executeConfirmation ?? confirmPersonalVisualHarmonyCandidateSetV1;
+    this.executeDeclaredSpatialMeasurementConfirmation =
+      options.executeDeclaredSpatialMeasurementConfirmation
+      ?? confirmDeclaredSpatialMeasurementPlanV1;
     this.sessionTtlMs = boundedPositiveInteger(
       options.sessionTtlMs ?? PRIVATE_WEB_LAB_SESSION_TTL_MS,
       "sessionTtlMs",
@@ -383,12 +426,16 @@ export class PrivateWebLabApplicationV1 {
     };
   }
 
-  confirm(value: unknown): PrivateWebLabReceiptV1 {
+  confirm(
+    value: unknown,
+  ): PrivateWebLabReceiptV1 | PrivateWebLabDeclaredSpatialMeasurementReceiptV1 {
     const input = parseConfirmRequest(value);
     return this.confirmPrepared(input, "deterministic_fixture_no_provider") as PrivateWebLabReceiptV1;
   }
 
-  confirmManual(value: unknown): PrivateWebLabManualReceiptV1 {
+  confirmManual(
+    value: unknown,
+  ): PrivateWebLabManualReceiptV1 | PrivateWebLabDeclaredSpatialMeasurementReceiptV1 {
     const input = parseManualConfirmRequest(value);
     return this.confirmPrepared(input, "manual_browser_no_provider") as PrivateWebLabManualReceiptV1;
   }
@@ -431,7 +478,10 @@ export class PrivateWebLabApplicationV1 {
   private confirmPrepared(
     input: PrivateWebLabConfirmRequestV1 | PrivateWebLabManualConfirmRequestV1,
     expectedDraftKind: PrivateWebLabSessionV1["draftKind"],
-  ): PrivateWebLabReceiptV1 | PrivateWebLabManualReceiptV1 {
+  ):
+    | PrivateWebLabReceiptV1
+    | PrivateWebLabManualReceiptV1
+    | PrivateWebLabDeclaredSpatialMeasurementReceiptV1 {
     const now = this.now();
     this.pruneExpired(now);
     const session = this.sessions.get(input.labSessionId);
@@ -485,11 +535,23 @@ export class PrivateWebLabApplicationV1 {
     if (selectedCoreCandidateIds.length === 0) {
       throw new Error("Private Web Lab confirmation requires one selected rectangle for Norma Core.");
     }
+    if (input.declaredSpatialMeasurementPlan !== undefined) {
+      if (session.goal.id !== "compare-two-lengths") {
+        throw new Error("This Private Web Lab goal does not accept a spatial measurement plan.");
+      }
+      if (input.measurementCandidateIds !== null) {
+        throw new Error("A spatial measurement plan cannot be combined with the legacy length selection.");
+      }
+      if (selectedCoreCandidateIds.length !== selectedCandidateIds.length) {
+        throw new Error("Declared spatial measurements accept selected rectangles only.");
+      }
+    }
     const measurementRatioRequest = createPrivateWebLabMeasurementRatioRequest(
       session.goal.id,
       reviewedPrepared.candidates,
       confirmedVisualGuideCandidateIds,
       input.measurementCandidateIds,
+      input.declaredSpatialMeasurementPlan !== undefined,
     );
 
     const confirmationRequestIdentity = contentIdentityFor({
@@ -500,6 +562,9 @@ export class PrivateWebLabApplicationV1 {
       acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
       selectedCandidateIds,
       measurementCandidateIds: input.measurementCandidateIds,
+      ...(input.declaredSpatialMeasurementPlan === undefined
+        ? {}
+        : { declaredSpatialMeasurementPlan: input.declaredSpatialMeasurementPlan }),
       sourcePixelWidth: input.sourcePixelWidth,
       sourcePixelHeight: input.sourcePixelHeight,
       ...(session.perceptionReceiptIdentity === undefined
@@ -511,6 +576,62 @@ export class PrivateWebLabApplicationV1 {
         throw new Error("This Private Web Lab session was already confirmed with different geometry.");
       }
       return session.completed.receipt;
+    }
+
+    if (input.declaredSpatialMeasurementPlan !== undefined) {
+      const declaredSpatialMeasurementConfirmation =
+        this.executeDeclaredSpatialMeasurementConfirmation({
+          plan: input.declaredSpatialMeasurementPlan,
+          sourceIdentity: session.sourceImageContentIdentity,
+          sourcePixelWidth: input.sourcePixelWidth,
+          sourcePixelHeight: input.sourcePixelHeight,
+          candidates: reviewedPrepared.candidates,
+          selectedRectangleCandidateIds: selectedCoreCandidateIds,
+        });
+      const canonicalExport = {
+        contractId: PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID,
+        sourceImageContentIdentity: session.sourceImageContentIdentity,
+        acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
+        selectedCandidateIds: selectedCoreCandidateIds,
+        declaredSpatialMeasurementConfirmation,
+      };
+      const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
+      const receiptPayload = {
+        contractId: PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
+        stage: "completed" as const,
+        draftKind: session.draftKind,
+        providerCalls: 0 as const,
+        coreRun: true as const,
+        explicitSelectionConfirmation: true as const,
+        sourceImageContentIdentity: session.sourceImageContentIdentity,
+        goalId: "compare-two-lengths" as const,
+        draftCandidateSetIdentity: session.prepared.candidateSetIdentity,
+        acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
+        selectedCandidateIds: selectedCoreCandidateIds,
+        declaredSpatialMeasurementConfirmation,
+        declaredSpatialMeasurementConfirmationIdentity:
+          declaredSpatialMeasurementConfirmation.confirmationIdentity,
+        exportFileName: "norma-private-web-lab-result.json" as const,
+        exportJson,
+        ...(session.perceptionReceiptIdentity === undefined
+          ? {}
+          : {
+              perceptionReceiptIdentity: session.perceptionReceiptIdentity,
+              ...("coreCompatibilityCandidateSetIdentity" in reviewedPrepared
+                ? {
+                    coreCompatibilityCandidateSetIdentity:
+                      reviewedPrepared.coreCompatibilityCandidateSetIdentity,
+                  }
+                : {}),
+              sourceTruth: false as const,
+            }),
+      };
+      const receipt = {
+        ...receiptPayload,
+        receiptIdentity: sha256Identity(serializeCanonicalJson(receiptPayload)),
+      };
+      session.completed = { confirmationRequestIdentity, receipt };
+      return receipt;
     }
 
     const confirmation = this.executeConfirmation({
@@ -694,6 +815,8 @@ function parseManualDraftRequest(value: unknown): PrivateWebLabManualDraftReques
 }
 
 function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
+  const hasDeclaredSpatialMeasurementPlan = isRecord(value)
+    && Object.hasOwn(value, "declaredSpatialMeasurementPlan");
   const input = requireExactRecord(value, [
     "browserSessionId",
     "candidateSetIdentity",
@@ -705,6 +828,7 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
     "sourceImageContentIdentity",
     "sourcePixelHeight",
     "sourcePixelWidth",
+    ...(hasDeclaredSpatialMeasurementPlan ? ["declaredSpatialMeasurementPlan"] : []),
   ]);
   if (input.explicitConfirmation !== true) {
     throw new Error("Norma Core requires explicit confirmation.");
@@ -742,10 +866,18 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
       input.reviewedCandidates as readonly PersonalVisualHarmonyCandidateInputV1[],
     measurementCandidateIds:
       input.measurementCandidateIds as readonly [string, string] | null,
+    ...(hasDeclaredSpatialMeasurementPlan
+      ? {
+          declaredSpatialMeasurementPlan:
+            input.declaredSpatialMeasurementPlan as DeclaredSpatialMeasurementPlanV1,
+        }
+      : {}),
   };
 }
 
 function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRequestV1 {
+  const hasDeclaredSpatialMeasurementPlan = isRecord(value)
+    && Object.hasOwn(value, "declaredSpatialMeasurementPlan");
   const input = requireExactRecord(value, [
     "browserSessionId",
     "candidateSetIdentity",
@@ -758,6 +890,7 @@ function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRe
     "sourceImageContentIdentity",
     "sourcePixelHeight",
     "sourcePixelWidth",
+    ...(hasDeclaredSpatialMeasurementPlan ? ["declaredSpatialMeasurementPlan"] : []),
   ]);
   const common = parseConfirmRequest({
     browserSessionId: input.browserSessionId,
@@ -770,6 +903,9 @@ function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRe
     sourceImageContentIdentity: input.sourceImageContentIdentity,
     sourcePixelHeight: input.sourcePixelHeight,
     sourcePixelWidth: input.sourcePixelWidth,
+    ...(hasDeclaredSpatialMeasurementPlan
+      ? { declaredSpatialMeasurementPlan: input.declaredSpatialMeasurementPlan }
+      : {}),
   });
   return {
     ...common,
@@ -1063,8 +1199,10 @@ function requireGoalCompatibleManualCandidates(
   if (rectangleCount === 0) {
     throw new Error("Private Web Lab manual review requires at least one rectangle.");
   }
-  if (goalId === "compare-two-lengths" && segmentCount < 2) {
-    throw new Error("Compare two lengths requires at least two manual segments.");
+  if (goalId === "compare-two-lengths" && segmentCount < 2 && rectangleCount < 2) {
+    throw new Error(
+      "Compare two lengths requires two rectangles or at least two manual segments.",
+    );
   }
 }
 
@@ -1098,7 +1236,9 @@ function createPrivateWebLabMeasurementRatioRequest(
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
   confirmedVisualGuideCandidateIds: readonly string[],
   measurementCandidateIds: readonly [string, string] | null,
+  declaredSpatialMeasurementPlan: boolean,
 ): PersonalVisualHarmonyMeasurementRatioRequestV1 | undefined {
+  if (declaredSpatialMeasurementPlan) return undefined;
   if (goalId !== "compare-two-lengths") {
     if (measurementCandidateIds !== null) {
       throw new Error("This Private Web Lab goal does not accept a length comparison.");

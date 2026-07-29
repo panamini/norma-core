@@ -281,6 +281,30 @@ aside {
   border-top: 1px solid var(--line);
 }
 
+#measurement-section {
+  align-items: end;
+}
+
+#measurement-section h3,
+#measurement-section > p,
+#measurement-plan-status {
+  flex-basis: 100%;
+  margin-bottom: 0;
+}
+
+#measurement-section label {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+#measurement-section select {
+  width: 100%;
+}
+
+#measurement-plan-status {
+  color: var(--muted);
+}
+
 .explicit-confirmation {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -332,11 +356,22 @@ aside {
 
 .measurement-ratio {
   max-width: 100%;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   font: 750 clamp(3.5rem, 10vw, 7rem)/0.86 Inter, ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.075em;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.measurement-secondary {
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.measurement-secondary strong {
+  color: #eef2ed;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .measurement-verdict {

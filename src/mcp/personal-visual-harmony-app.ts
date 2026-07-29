@@ -20,6 +20,17 @@ import {
   type PersonalVisualHarmonyPreparedCandidateSetV2,
 } from "../personal-visual-harmony.js";
 import {
+  DECLARED_SPATIAL_MEASUREMENT_CONFIRMATION_CONTRACT_ID,
+  DECLARED_SPATIAL_MEASUREMENT_COORDINATE_POLICY,
+  DECLARED_SPATIAL_MEASUREMENT_MATCH_TOLERANCE,
+  DECLARED_SPATIAL_MEASUREMENT_OPERATION_ID,
+  DECLARED_SPATIAL_MEASUREMENT_PLAN_CONTRACT_ID,
+  DECLARED_SPATIAL_MEASUREMENT_RATIO_PACK_REFS,
+  confirmDeclaredSpatialMeasurementPlanV1,
+  type DeclaredSpatialMeasurementConfirmationV1,
+  type DeclaredSpatialMeasurementPlanV1,
+} from "../personal-visual-harmony-spatial-measurements.js";
+import {
   InMemoryPersonalVisualHarmonyPerceptionJobService,
   personalVisualHarmonyPreparedSetHasPerceptionCapacity,
   type PersonalVisualHarmonyPerceptionJobV1,
@@ -46,6 +57,7 @@ import {
   PERSONAL_VISUAL_HARMONY_REVIEW_EVENT_KINDS,
   PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID,
 } from "../personal-visual-harmony-review-journal.js";
+import { serializeCanonicalJson } from "../serialization.js";
 
 export const PERSONAL_VISUAL_HARMONY_MCP_SERVER_NAME =
   "norma-core-personal-visual-harmony";
@@ -670,6 +682,73 @@ const PerceptionJobOutputSchema = z.object({
   errorCode: z.string().min(1).max(128).nullable(),
 }).strict();
 
+const DeclaredSpatialMeasurementOwnerSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("image-frame") }).strict(),
+  z.object({
+    kind: z.literal("rectangle"),
+    candidateId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u),
+  }).strict(),
+]);
+
+const DeclaredSpatialMeasurementAnchorSchema = z.object({
+  owner: DeclaredSpatialMeasurementOwnerSchema,
+  anchor: z.enum([
+    "center",
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "top-midpoint",
+    "right-midpoint",
+    "bottom-midpoint",
+    "left-midpoint",
+  ]),
+}).strict();
+
+const DeclaredSpatialMeasurementExpressionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("extent"),
+    owner: DeclaredSpatialMeasurementOwnerSchema,
+    extent: z.enum(["width", "height", "diagonal"]),
+  }).strict(),
+  z.object({
+    kind: z.literal("anchor-distance"),
+    metric: z.enum(["euclidean", "horizontal", "vertical"]),
+    from: DeclaredSpatialMeasurementAnchorSchema,
+    to: DeclaredSpatialMeasurementAnchorSchema,
+  }).strict(),
+  z.object({
+    kind: z.literal("anchor-to-frame-edge"),
+    anchor: DeclaredSpatialMeasurementAnchorSchema,
+    edge: z.enum(["left", "right", "top", "bottom"]),
+  }).strict(),
+]);
+
+const DeclaredSpatialMeasurementPlanSchema = z.object({
+  contractId: z.literal(DECLARED_SPATIAL_MEASUREMENT_PLAN_CONTRACT_ID),
+  contractVersion: z.literal(1),
+  operationId: z.literal(DECLARED_SPATIAL_MEASUREMENT_OPERATION_ID),
+  operationVersion: z.literal(1),
+  sourceIdentity: z.string().regex(SHA256_PATTERN),
+  sourcePixelWidth: z.number().int().min(1).max(100_000),
+  sourcePixelHeight: z.number().int().min(1).max(100_000),
+  coordinatePolicy: z.literal(DECLARED_SPATIAL_MEASUREMENT_COORDINATE_POLICY),
+  spatialCandidateSetIdentity: z.string().regex(SHA256_PATTERN),
+  selectedRectangleCandidateIds: z.array(
+    z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u),
+  ).min(1).max(PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES),
+  expressions: chatGptCompatibleTuple([
+    DeclaredSpatialMeasurementExpressionSchema,
+    DeclaredSpatialMeasurementExpressionSchema,
+  ]),
+  ratioPackRefs: chatGptCompatibleTuple([
+    z.literal(DECLARED_SPATIAL_MEASUREMENT_RATIO_PACK_REFS[0]),
+    z.literal(DECLARED_SPATIAL_MEASUREMENT_RATIO_PACK_REFS[1]),
+  ]),
+  matchTolerance: z.literal(DECLARED_SPATIAL_MEASUREMENT_MATCH_TOLERANCE),
+  planIdentity: z.string().regex(SHA256_PATTERN),
+}).strict();
+
 const ConfirmInputSchema = z.object({
   sessionId: z.string().min(1).max(160),
   candidateSetIdentity: z.string().regex(SHA256_PATTERN),
@@ -740,6 +819,7 @@ const ConfirmInputSchema = z.object({
     ]),
     matchTolerance: z.literal(PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE),
   }).strict().optional(),
+  declaredSpatialMeasurementPlan: DeclaredSpatialMeasurementPlanSchema.optional(),
   sourcePixelWidth: z.number().int().min(1).max(100_000),
   sourcePixelHeight: z.number().int().min(1).max(100_000),
   reviewedCandidates: z.array(CandidateSchema)
@@ -1284,7 +1364,45 @@ const ImagePlaneGuideAnalysisSchema = z.object({
   contentIdentity: z.string().regex(SHA256_PATTERN),
 }).strict();
 
-const ConfirmOutputSchema = z.object({
+const DeclaredSpatialMeasurementConfirmationOutputSchema = z.object({
+  contractId: z.literal(DECLARED_SPATIAL_MEASUREMENT_CONFIRMATION_CONTRACT_ID),
+  contractVersion: z.literal(1),
+  operationId: z.literal(DECLARED_SPATIAL_MEASUREMENT_OPERATION_ID),
+  operationVersion: z.literal(1),
+  status: z.literal("completed"),
+  sourceIdentity: z.string().regex(SHA256_PATTERN),
+  sourcePixelWidth: z.number().int().min(1).max(100_000),
+  sourcePixelHeight: z.number().int().min(1).max(100_000),
+  coordinatePolicy: z.literal(DECLARED_SPATIAL_MEASUREMENT_COORDINATE_POLICY),
+  spatialCandidateSetIdentity: z.string().regex(SHA256_PATTERN),
+  acceptedSpatialGeometryIdentity: z.string().regex(SHA256_PATTERN),
+  selectedRectangleCandidateIds: z.array(z.string()).min(1),
+  planIdentity: z.string().regex(SHA256_PATTERN),
+  resolvedMeasurements: z.array(z.record(z.string(), z.unknown())).length(2),
+  canonicalRatio: z.object({
+    normalization: z.literal("dominant_length_divided_by_pair_sum"),
+    dominantShare: z.number().min(0.5).max(1),
+    longToShortRatio: z.number().min(1),
+    longToShortRatioIsSecondary: z.literal(true),
+  }).strict(),
+  analysis: z.record(z.string(), z.unknown()),
+  ratioPackRefs: chatGptCompatibleTuple([
+    z.literal(DECLARED_SPATIAL_MEASUREMENT_RATIO_PACK_REFS[0]),
+    z.literal(DECLARED_SPATIAL_MEASUREMENT_RATIO_PACK_REFS[1]),
+  ]),
+  matchTolerance: z.literal(DECLARED_SPATIAL_MEASUREMENT_MATCH_TOLERANCE),
+  providerCalls: z.literal(0),
+  coreRun: z.literal(true),
+  coreExecutionCount: z.literal(1),
+  pairOnly: z.literal(true),
+  noUnrequestedComparisons: z.literal(true),
+  candidateEvidenceOnly: z.literal(true),
+  sourceTruth: z.literal(false),
+  noAcceptedDerivedAnchors: z.literal(true),
+  confirmationIdentity: z.string().regex(SHA256_PATTERN),
+}).strict();
+
+const LegacyConfirmOutputSchema = z.object({
   status: z.literal("completed"),
   candidateSetIdentity: z.string().regex(SHA256_PATTERN),
   headline: z.string(),
@@ -1309,6 +1427,92 @@ const ConfirmOutputSchema = z.object({
   noIntentInference: z.literal(true),
 }).strict();
 
+const DeclaredSpatialConfirmOutputSchema = z.object({
+  status: z.literal("completed"),
+  mode: z.literal("declared_spatial_measurements"),
+  coreRun: z.literal(true),
+  providerCalls: z.literal(0),
+  declaredSpatialMeasurementConfirmation:
+    DeclaredSpatialMeasurementConfirmationOutputSchema,
+}).strict();
+
+const LEGACY_CONFIRM_OUTPUT_REQUIRED_FIELDS = [
+  "status",
+  "candidateSetIdentity",
+  "headline",
+  "canonicalResultIdentity",
+  "mappedGeometryContentIdentity",
+  "selectedCandidateIds",
+  "coreAnalyzedCandidateIds",
+  "visualGuideCandidateIds",
+  "confirmedVisualGuideCandidateIds",
+  "imagePlaneGuideAnalysis",
+  "explicitSelectionConfirmation",
+  "confirmationMode",
+  "serverVerifiedHumanPresence",
+  "coreInputAuthority",
+  "coreRun",
+  "relationshipCount",
+  "ratioPackRefs",
+  "matches",
+  "presentation",
+  "noBeautyClaims",
+  "noIntentInference",
+] as const;
+const DECLARED_SPATIAL_CONFIRM_OUTPUT_REQUIRED_FIELDS = [
+  "status",
+  "mode",
+  "coreRun",
+  "providerCalls",
+  "declaredSpatialMeasurementConfirmation",
+] as const;
+
+const ConfirmOutputSchema = LegacyConfirmOutputSchema.partial().extend({
+  status: z.literal("completed"),
+  coreRun: z.literal(true),
+  mode: z.literal("declared_spatial_measurements").optional(),
+  providerCalls: z.literal(0).optional(),
+  declaredSpatialMeasurementConfirmation:
+    DeclaredSpatialMeasurementConfirmationOutputSchema.optional(),
+}).strict().superRefine((value, context) => {
+  const branch = value.mode === "declared_spatial_measurements"
+    ? DeclaredSpatialConfirmOutputSchema
+    : LegacyConfirmOutputSchema;
+  const parsed = branch.safeParse(value);
+  if (!parsed.success) {
+    context.addIssue({
+      code: "custom",
+      message: parsed.error.issues[0]?.message
+        ?? "Confirmation output does not match its strict contract branch.",
+    });
+  }
+}).meta({
+  oneOf: [
+    {
+      title: "Existing V1/V2 confirmation output",
+      required: [...LEGACY_CONFIRM_OUTPUT_REQUIRED_FIELDS],
+      not: {
+        anyOf: [
+          { required: ["mode"] },
+          { required: ["providerCalls"] },
+          { required: ["declaredSpatialMeasurementConfirmation"] },
+        ],
+      },
+    },
+    {
+      title: "Declared spatial measurement confirmation output",
+      required: [...DECLARED_SPATIAL_CONFIRM_OUTPUT_REQUIRED_FIELDS],
+      not: {
+        anyOf: [
+          { required: ["candidateSetIdentity"] },
+          { required: ["canonicalResultIdentity"] },
+          { required: ["imagePlaneGuideAnalysis"] },
+        ],
+      },
+    },
+  ],
+});
+
 interface PersonalVisualHarmonySessionV1 {
   readonly sessionId: string;
   readonly subjectId?: string;
@@ -1323,6 +1527,10 @@ interface PersonalVisualHarmonySessionV1 {
   confirmation?: {
     readonly confirmationKey: string;
     readonly value: PersonalVisualHarmonyConfirmationV1;
+  };
+  declaredSpatialMeasurementConfirmation?: {
+    readonly confirmationKey: string;
+    readonly value: DeclaredSpatialMeasurementConfirmationV1;
   };
 }
 
@@ -1507,6 +1715,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     session.perceptionBaseCandidateSetIdentity = input.expectedCandidateSetIdentity;
     session.prepared = structuredClone(input.preparedCandidateSet);
     delete session.confirmation;
+    delete session.declaredSpatialMeasurementConfirmation;
   }
 
   assertPerceptionRecoveryEvidence(input: {
@@ -1581,14 +1790,22 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly confirmedVisualGuideCandidateIds?: readonly string[];
     readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
     readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
+    readonly declaredSpatialMeasurementPlan?: DeclaredSpatialMeasurementPlanV1;
     readonly sourcePixelWidth: number;
     readonly sourcePixelHeight: number;
     readonly reviewedCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
-  }): {
-    readonly fileId: string;
-    readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
-    readonly confirmation: PersonalVisualHarmonyConfirmationV1;
-  } {
+  }):
+    | {
+        readonly fileId: string;
+        readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
+        readonly confirmation: PersonalVisualHarmonyConfirmationV1;
+      }
+    | {
+        readonly fileId: string;
+        readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
+        readonly declaredSpatialMeasurementConfirmation:
+          DeclaredSpatialMeasurementConfirmationV1;
+      } {
     const now = this.now();
     this.pruneExpired(now);
     const session = this.sessions.get(input.sessionId);
@@ -1620,12 +1837,77 @@ export class PersonalVisualHarmonySessionServiceV1 {
           : { triangleConstructionRequests: currentPrepared.triangleConstructionRequests }),
       });
       if (reviewedPrepared.candidateSetIdentity !== currentPrepared.candidateSetIdentity) {
-        if (session.confirmation !== undefined) {
+        if (
+          session.confirmation !== undefined
+          || session.declaredSpatialMeasurementConfirmation !== undefined
+        ) {
           throw new Error("This visual harmony session was already confirmed with different geometry.");
         }
         session.reviewedCandidateSetSourceIdentity = input.candidateSetIdentity;
         session.prepared = reviewedPrepared;
       }
+    }
+    if (input.declaredSpatialMeasurementPlan !== undefined) {
+      if (
+        (input.confirmedVisualGuideCandidateIds?.length ?? 0) !== 0
+        || (input.constructionLayers?.length ?? 0) !== 0
+        || input.measurementRatioRequest !== undefined
+      ) {
+        throw new Error(
+          "Declared spatial measurements cannot be combined with guide, construction, or legacy ratio analysis.",
+        );
+      }
+      if (session.confirmation !== undefined) {
+        throw new Error("This visual harmony session was already confirmed with a different operation.");
+      }
+      const effectiveCandidateSetIdentity = session.prepared.candidateSetIdentity;
+      const confirmationKey = stableConfirmationKey({
+        candidateSetIdentity: effectiveCandidateSetIdentity,
+        selectedCandidateIds: input.selectedCandidateIds,
+        declaredSpatialMeasurementPlan: input.declaredSpatialMeasurementPlan,
+        sourcePixelWidth: input.sourcePixelWidth,
+        sourcePixelHeight: input.sourcePixelHeight,
+      });
+      if (session.declaredSpatialMeasurementConfirmation !== undefined) {
+        if (
+          session.declaredSpatialMeasurementConfirmation.confirmationKey
+          !== confirmationKey
+        ) {
+          throw new Error(
+            "This visual harmony session was already confirmed with different spatial measurements.",
+          );
+        }
+        return {
+          fileId: session.fileId,
+          prepared: session.prepared,
+          declaredSpatialMeasurementConfirmation:
+            session.declaredSpatialMeasurementConfirmation.value,
+        };
+      }
+      const sourceIdentity = session.prepared.contractVersion === 2
+        ? session.prepared.sourceImageContentIdentity
+        : session.prepared.sourceImageReferenceIdentity;
+      const declaredSpatialMeasurementConfirmation =
+        confirmDeclaredSpatialMeasurementPlanV1({
+          plan: input.declaredSpatialMeasurementPlan,
+          sourceIdentity,
+          sourcePixelWidth: input.sourcePixelWidth,
+          sourcePixelHeight: input.sourcePixelHeight,
+          candidates: session.prepared.candidates,
+          selectedRectangleCandidateIds: input.selectedCandidateIds,
+        });
+      session.declaredSpatialMeasurementConfirmation = {
+        confirmationKey,
+        value: declaredSpatialMeasurementConfirmation,
+      };
+      return {
+        fileId: session.fileId,
+        prepared: session.prepared,
+        declaredSpatialMeasurementConfirmation,
+      };
+    }
+    if (session.declaredSpatialMeasurementConfirmation !== undefined) {
+      throw new Error("This visual harmony session already completed spatial measurements.");
     }
     const constructionLayers = input.constructionLayers ?? [];
     if (constructionLayers.length > PERSONAL_VISUAL_HARMONY_CONSTRUCTION_LAYERS.length
@@ -2305,6 +2587,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       confirmedVisualGuideCandidateIds,
       constructionLayers,
       measurementRatioRequest,
+      declaredSpatialMeasurementPlan,
       sourcePixelWidth,
       sourcePixelHeight,
       reviewedCandidates,
@@ -2321,6 +2604,12 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         ...(measurementRatioRequest === undefined
           ? {}
           : { measurementRatioRequest: measurementRatioRequest as PersonalVisualHarmonyMeasurementRatioRequestV1 }),
+        ...(declaredSpatialMeasurementPlan === undefined
+          ? {}
+          : {
+              declaredSpatialMeasurementPlan:
+                declaredSpatialMeasurementPlan as DeclaredSpatialMeasurementPlanV1,
+            }),
         sourcePixelWidth,
         sourcePixelHeight,
         ...(reviewedCandidates === undefined
@@ -2421,6 +2710,48 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         });
         sessionRecovered = true;
         effectiveSessionId = recovered.sessionId;
+      }
+      if ("declaredSpatialMeasurementConfirmation" in confirmed) {
+        const declared = confirmed.declaredSpatialMeasurementConfirmation;
+        const structuredContent = {
+          status: "completed" as const,
+          mode: "declared_spatial_measurements" as const,
+          coreRun: true as const,
+          providerCalls: 0 as const,
+          declaredSpatialMeasurementConfirmation: declared,
+        };
+        const matchSummary = declared.analysis.match === null
+          ? "aucun ratio déclaré n’est dans la tolérance explicite"
+          : `la paire est proche de ${declared.analysis.match.ratio.displayLabel}`;
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Mesures spatiales confirmées : part dominante ${String(declared.canonicalRatio.dominantShare * 100)} %, ${matchSummary}. Le rapport long/court ${String(declared.canonicalRatio.longToShortRatio)} est secondaire. Une seule paire déclarée a été évaluée.`,
+          }],
+          structuredContent,
+          _meta: {
+            normaPersonalVisualHarmony: {
+              stage: "completed",
+              fileId: confirmed.fileId,
+              ...(sourceImageDownloadUrl === undefined ? {} : { sourceImageDownloadUrl }),
+              sessionRecovered,
+              sessionId: effectiveSessionId,
+              declaredSpatialMeasurementConfirmation: declared,
+              observability: {
+                contractId: PERSONAL_VISUAL_HARMONY_OBSERVABILITY_CONTRACT_ID,
+                correlationId: observationCorrelationId(candidateSetIdentity),
+                attemptId: observationAttemptId,
+                handler: "confirm",
+                handlerEnteredAtMs,
+                handlerCompletedAtMs: now(),
+                handlerDurationMs: observationHandlerDurationMs(
+                  handlerStartedAtMonotonicMs,
+                  monotonicNow(),
+                ),
+              },
+            },
+          },
+        };
       }
       const structuredContent = publicConfirmResult(confirmed.confirmation, confirmed.prepared);
       const topExplanations = structuredContent.matches.slice(0, 3).map(({ explanation }) => explanation).join(" ");
@@ -3297,6 +3628,7 @@ function stableConfirmationKey(input: {
   readonly confirmedVisualGuideCandidateIds?: readonly string[];
   readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
   readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
+  readonly declaredSpatialMeasurementPlan?: DeclaredSpatialMeasurementPlanV1;
   readonly sourcePixelWidth: number;
   readonly sourcePixelHeight: number;
 }): string {
@@ -3324,6 +3656,9 @@ function stableConfirmationKey(input: {
       (input.constructionLayers ?? []).includes(layer)
     )),
     measurementRatioRequest,
+    declaredSpatialMeasurementPlan: input.declaredSpatialMeasurementPlan === undefined
+      ? null
+      : serializeCanonicalJson(input.declaredSpatialMeasurementPlan),
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
   });

@@ -1,8 +1,10 @@
 import {
   canRunPrivateWebLabCoreV1,
+  createPrivateWebLabDeclaredSpatialMeasurementPlanV1,
   createPrivateWebLabConfirmationPayloadV1,
+  presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1,
   presentPrivateWebLabMeasurementReportV1,
-  privateWebLabMeasurementLengthCandidatesV1,
+  privateWebLabSpatialExpressionOptionsV1,
   updatePrivateWebLabCandidateGeometryV1,
 } from "/private-web-lab-browser-model.js";
 
@@ -18,7 +20,10 @@ const state = {
   draft: null,
   candidates: [],
   selectedCandidateIds: new Set(),
-  measurementCandidateIds: [null, null],
+  measurementExpressions: [null, null],
+  declaredSpatialMeasurementPlan: null,
+  planRevision: 0,
+  planBuildInFlight: false,
   confirmationInFlight: false,
   coreExecutionCount: 0,
   receiptUrl: null,
@@ -52,6 +57,7 @@ const addSegmentButton = $("#add-segment-button");
 const measurementSection = $("#measurement-section");
 const measurementFirst = $("#measurement-first");
 const measurementSecond = $("#measurement-second");
+const measurementPlanStatus = $("#measurement-plan-status");
 const confirmationInput = $("#confirmation-input");
 const runButton = $("#run-button");
 const coreGate = $("#core-gate");
@@ -63,6 +69,7 @@ const packRefs = $("#pack-refs");
 const measurementSummary = $("#measurement-summary");
 const measurementSummaryUnavailable = $("#measurement-summary-unavailable");
 const measurementRatio = $("#measurement-ratio");
+const measurementLongShort = $("#measurement-long-short");
 const measurementVerdict = $("#measurement-verdict");
 const measurementFirstResult = $("#measurement-first-result");
 const measurementSecondResult = $("#measurement-second-result");
@@ -168,7 +175,7 @@ imagePlane.addEventListener("pointerdown", (event) => {
   if (handle !== null && handle !== undefined) {
     const candidate = editableCandidates().find(({ id }) => id === handle.dataset.candidateId);
     if (candidate === undefined) return;
-    if (state.phase === "review") invalidateConfirmation();
+    if (isReviewPhase()) invalidateConfirmation();
     state.activeCandidateId = candidate.id;
     state.interaction = {
       type: "geometry",
@@ -292,7 +299,10 @@ prepareButton.addEventListener("click", async () => {
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set();
-    state.measurementCandidateIds = [null, null];
+    state.measurementExpressions = [null, null];
+    state.declaredSpatialMeasurementPlan = null;
+    state.planRevision += 1;
+    state.planBuildInFlight = false;
     state.activeCandidateId = null;
     state.phase = "review";
     setTool("edit");
@@ -314,16 +324,23 @@ prepareButton.addEventListener("click", async () => {
 
 [measurementFirst, measurementSecond].forEach((select, index) => {
   select.addEventListener("change", () => {
-    state.measurementCandidateIds[index] = select.value || null;
+    state.measurementExpressions[index] = select.value === ""
+      ? null
+      : JSON.parse(select.value);
     invalidateConfirmation();
   });
 });
 confirmationInput.addEventListener("change", updateCoreAvailability);
 
 runButton.addEventListener("click", async () => {
+  const declaredSpatialMode = state.draft?.goal.id === "compare-two-lengths";
   if (
-    state.phase !== "review"
+    !isReviewPhase()
     || state.draft === null
+    || (declaredSpatialMode && (
+      state.phase !== "ready_to_confirm"
+      || state.declaredSpatialMeasurementPlan === null
+    ))
     || !confirmationInput.checked
     || state.sessionResetInFlight
     || state.confirmationInFlight
@@ -339,7 +356,8 @@ runButton.addEventListener("click", async () => {
       draft: state.draft,
       selectedCandidateIds: state.selectedCandidateIds,
       reviewedCandidates: state.candidates,
-      measurementCandidateIds: currentMeasurementCandidateIds(),
+      measurementCandidateIds: null,
+      declaredSpatialMeasurementPlan: state.declaredSpatialMeasurementPlan,
     });
     const receipt = await postJson("/api/manual-confirm", {
       ...payload,
@@ -349,9 +367,17 @@ runButton.addEventListener("click", async () => {
     state.phase = "completed";
     setTool("edit");
     receiptIdentity.textContent = receipt.receiptIdentity;
-    resultIdentity.textContent = receipt.canonicalResultIdentity;
-    packRefs.textContent = receipt.ratioPackRefs.join(", ");
-    renderMeasurementReceipt(receipt.declaredMeasurementRatioReport);
+    const spatialConfirmation = receipt.declaredSpatialMeasurementConfirmation;
+    resultIdentity.textContent = spatialConfirmation?.confirmationIdentity
+      ?? receipt.canonicalResultIdentity;
+    packRefs.textContent = (
+      spatialConfirmation?.ratioPackRefs
+      ?? receipt.ratioPackRefs
+    ).join(", ");
+    renderMeasurementReceipt(
+      receipt.declaredMeasurementRatioReport,
+      spatialConfirmation,
+    );
     if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
     state.receiptUrl = URL.createObjectURL(
       new Blob([receipt.exportJson], { type: "application/json" }),
@@ -371,7 +397,9 @@ runButton.addEventListener("click", async () => {
         "La revue a expiré. Vérifiez les candidats puis préparez une nouvelle revue.";
       coreGate.textContent = "Core arrêté — la revue expirée a été effacée.";
     } else {
-      state.phase = "review";
+      state.phase = state.declaredSpatialMeasurementPlan === null
+        ? "review"
+        : "ready_to_confirm";
       coreGate.textContent = message;
     }
     render();
@@ -405,7 +433,7 @@ newMeasurementButton.addEventListener("click", async () => {
 });
 
 changeGoalButton.addEventListener("click", async () => {
-  if (state.draft === null || state.phase !== "review" || state.sessionResetInFlight) return;
+  if (state.draft === null || !isReviewPhase() || state.sessionResetInFlight) return;
   state.sessionResetInFlight = true;
   render();
   try {
@@ -440,6 +468,7 @@ setTool("rectangle");
 
 function render() {
   const authoring = state.phase === "authoring";
+  reviewSection.dataset.phase = state.phase;
   const locked = state.preparationInFlight
     || state.sessionResetInFlight
     || state.phase === "confirming"
@@ -450,8 +479,8 @@ function render() {
   addRectangleButton.hidden = !authoring;
   addSegmentButton.hidden = !authoring;
   prepareButton.hidden = !authoring;
-  changeGoalButton.hidden = state.phase !== "review";
-  changeGoalButton.disabled = state.phase !== "review" || state.sessionResetInFlight;
+  changeGoalButton.hidden = !isReviewPhase();
+  changeGoalButton.disabled = !isReviewPhase() || state.sessionResetInFlight;
   prepareButton.disabled =
     !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
   phaseDescription.textContent = authoring
@@ -463,7 +492,9 @@ function render() {
   );
   renderOverlay(candidates, authoring);
   renderMeasurementSelection();
-  confirmationInput.disabled = state.phase !== "review"
+  const declaredSpatialMode = state.draft?.goal.id === "compare-two-lengths";
+  confirmationInput.disabled = !isReviewPhase()
+    || (declaredSpatialMode && state.phase !== "ready_to_confirm")
     || state.sessionResetInFlight
     || state.confirmationInFlight;
   if (authoring) {
@@ -689,31 +720,48 @@ function renderMeasurementSelection() {
   const enabled = state.draft?.goal.id === "compare-two-lengths" && state.phase !== "authoring";
   measurementSection.hidden = !enabled;
   const available = enabled
-    ? privateWebLabMeasurementLengthCandidatesV1(
+    ? privateWebLabSpatialExpressionOptionsV1(
       state.selectedCandidateIds,
       state.candidates,
+      state.draft.sourcePixelWidth,
+      state.draft.sourcePixelHeight,
     )
     : [];
-  const availableIds = new Set(available.map(({ id }) => id));
-  state.measurementCandidateIds = state.measurementCandidateIds.map(
-    (id) => id !== null && availableIds.has(id) ? id : null,
+  const availableValues = new Set(available.map(({ value }) => value));
+  state.measurementExpressions = state.measurementExpressions.map(
+    (expression) => expression !== null && availableValues.has(canonicalJson(expression))
+      ? expression
+      : null,
   );
   [measurementFirst, measurementSecond].forEach((select, index) => {
     const placeholder = new Option("Choisir une longueur…", "");
     const options = available.map(
-      ({ id, label }) => new Option(label, id),
+      ({ value, label }) => new Option(label, value),
     );
     select.replaceChildren(placeholder, ...options);
-    select.value = state.measurementCandidateIds[index] ?? "";
-    select.disabled = state.phase !== "review"
+    select.value = state.measurementExpressions[index] === null
+      ? ""
+      : canonicalJson(state.measurementExpressions[index]);
+    select.disabled = !isReviewPhase()
       || state.sessionResetInFlight
       || state.confirmationInFlight;
   });
+  if (enabled) {
+    measurementPlanStatus.textContent = state.planBuildInFlight
+      ? "Calcul de l’identité canonique du plan…"
+      : state.declaredSpatialMeasurementPlan !== null
+        ? `Plan prêt · ${state.declaredSpatialMeasurementPlan.planIdentity}`
+        : available.length === 0
+          ? "Sélectionnez exactement deux rectangles."
+          : "Déclarez deux longueurs distinctes.";
+  }
 }
 
 function updateCoreAvailability() {
-  const canRun = state.phase === "review"
+  const declaredSpatialMode = state.draft?.goal.id === "compare-two-lengths";
+  const canRun = isReviewPhase()
     && state.draft !== null
+    && (!declaredSpatialMode || state.phase === "ready_to_confirm")
     && !state.sessionResetInFlight
     && !state.confirmationInFlight
     && canRunPrivateWebLabCoreV1(
@@ -721,30 +769,70 @@ function updateCoreAvailability() {
       state.selectedCandidateIds,
       state.candidates,
       state.draft.goal.id,
-      currentMeasurementCandidateIds(),
+      null,
+      state.declaredSpatialMeasurementPlan,
     );
   runButton.disabled = !canRun;
-  if (state.phase === "review") {
+  if (isReviewPhase()) {
     coreGate.textContent = state.sessionResetInFlight
       ? "Core arrêté — abandon de la revue en cours."
-      : !confirmationInput.checked
+      : declaredSpatialMode && state.declaredSpatialMeasurementPlan === null
+        ? "Core arrêté — construisez un plan valide avec deux rectangles et deux longueurs."
+        : !confirmationInput.checked
       ? "Core arrêté — confirmation explicite requise."
       : canRun
         ? "Confirmation explicite prête — Core n’a pas encore été lancé."
-        : "Core arrêté — sélectionnez un cadre et deux segments distincts si requis.";
+        : "Core arrêté — la sélection ou le plan n’est plus valide.";
   }
 }
 
 function invalidateConfirmation() {
+  const shouldRebuildPlan = state.draft?.goal.id === "compare-two-lengths"
+    && state.measurementExpressions.every((expression) => expression !== null);
+  state.planRevision += 1;
+  state.declaredSpatialMeasurementPlan = null;
+  state.planBuildInFlight = false;
+  if (isReviewPhase()) state.phase = "review";
   confirmationInput.checked = false;
   receiptSection.hidden = true;
   updateCoreAvailability();
+  if (shouldRebuildPlan) queueMicrotask(refreshDeclaredSpatialMeasurementPlan);
 }
 
-function currentMeasurementCandidateIds() {
-  return state.draft?.goal.id === "compare-two-lengths"
-    ? [...state.measurementCandidateIds]
-    : null;
+async function refreshDeclaredSpatialMeasurementPlan() {
+  if (
+    state.draft?.goal.id !== "compare-two-lengths"
+    || state.measurementExpressions.some((expression) => expression === null)
+    || !isReviewPhase()
+  ) return;
+  const revision = state.planRevision + 1;
+  state.planRevision = revision;
+  state.planBuildInFlight = true;
+  render();
+  try {
+    const plan = await createPrivateWebLabDeclaredSpatialMeasurementPlanV1({
+      draft: state.draft,
+      selectedCandidateIds: state.selectedCandidateIds,
+      reviewedCandidates: state.candidates,
+      expressions: state.measurementExpressions,
+    });
+    if (state.planRevision !== revision || !isReviewPhase()) return;
+    state.declaredSpatialMeasurementPlan = plan;
+    state.phase = "ready_to_confirm";
+  } catch {
+    if (state.planRevision !== revision) return;
+    state.declaredSpatialMeasurementPlan = null;
+    state.phase = "review";
+  } finally {
+    if (state.planRevision === revision) {
+      state.planBuildInFlight = false;
+      render();
+    }
+  }
+}
+
+function isReviewPhase() {
+  return state.phase === "review" || state.phase === "ready_to_confirm";
 }
 
 function setTool(tool) {
@@ -968,7 +1056,7 @@ function updateAvailability() {
     setupStatus.textContent = "Tracez au moins un cadre ou segment manuel.";
   } else if (state.phase === "authoring" && !canPrepareAuthoredReview()) {
     setupStatus.textContent = goalInput.value === "compare-two-lengths"
-      ? "Tracez au moins un cadre et deux segments avant de préparer la revue."
+      ? "Tracez au moins deux cadres avant de préparer la revue."
       : "Tracez au moins un cadre avant de préparer la revue.";
   }
   prepareButton.disabled =
@@ -985,9 +1073,8 @@ function updateAvailability() {
 function canPrepareAuthoredReview() {
   if (goalInput.value === "") return false;
   const rectangleCount = state.authored.filter(({ kind }) => kind === "rectangle").length;
-  const segmentCount = state.authored.filter(({ kind }) => kind === "segment").length;
   return rectangleCount >= 1
-    && (goalInput.value !== "compare-two-lengths" || segmentCount >= 2);
+    && (goalInput.value !== "compare-two-lengths" || rectangleCount >= 2);
 }
 
 function returnExpiredReviewToAuthoring() {
@@ -1007,7 +1094,10 @@ function returnLinkedReviewToAuthoring({ preserveAuthored }) {
   if (!preserveAuthored) state.authored = [];
   state.candidates = [];
   state.selectedCandidateIds = new Set();
-  state.measurementCandidateIds = [null, null];
+  state.measurementExpressions = [null, null];
+  state.declaredSpatialMeasurementPlan = null;
+  state.planRevision += 1;
+  state.planBuildInFlight = false;
   state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
@@ -1055,7 +1145,10 @@ function clearImage() {
   state.draft = null;
   state.candidates = [];
   state.selectedCandidateIds = new Set();
-  state.measurementCandidateIds = [null, null];
+  state.measurementExpressions = [null, null];
+  state.declaredSpatialMeasurementPlan = null;
+  state.planRevision += 1;
+  state.planBuildInFlight = false;
   state.activeCandidateId = null;
   resetView();
   setTool("rectangle");
@@ -1063,36 +1156,57 @@ function clearImage() {
   receiptSection.hidden = true;
 }
 
-function renderMeasurementReceipt(report) {
-  if (report === undefined) {
+function renderMeasurementReceipt(report, spatialConfirmation) {
+  if (report === undefined && spatialConfirmation === undefined) {
     measurementSummary.hidden = true;
     measurementSummaryUnavailable.hidden = true;
     measurementReportRow.hidden = true;
     return;
   }
-  const presentation = presentPrivateWebLabMeasurementReportV1(
-    report,
-    currentMeasurementCandidateIds(),
-  );
+  const presentation = spatialConfirmation === undefined
+    ? presentPrivateWebLabMeasurementReportV1(report)
+    : presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1(spatialConfirmation);
   if (presentation === null) {
     measurementSummary.hidden = true;
     measurementSummaryUnavailable.hidden = false;
     measurementReportRow.hidden = true;
     return;
   }
-  const [first, second] = report.measurements;
-  measurementRatio.textContent = presentation.ratioText;
+  const spatial = spatialConfirmation !== undefined;
+  const [first, second] = spatial
+    ? spatialConfirmation.resolvedMeasurements
+    : report.measurements;
+  measurementRatio.textContent = spatial
+    ? presentation.dominantShareText
+    : `${(report.observedDominantShare * 100).toFixed(3).replace(".", ",")} %`;
+  measurementLongShort.textContent = spatial
+    ? presentation.longShortRatioText
+    : presentation.ratioText;
   measurementVerdict.textContent = presentation.verdictText;
   measurementVerdict.dataset.kind = presentation.verdictKind;
   measurementFirstResult.textContent = presentation.firstMeasurementText;
   measurementSecondResult.textContent = presentation.secondMeasurementText;
   measurementTolerance.textContent = presentation.toleranceText;
-  measurementReport.textContent =
-    `${first.candidateLabel}: ${String(first.lengthPixels)} px · `
-    + `${second.candidateLabel}: ${String(second.lengthPixels)} px`;
+  measurementReport.textContent = spatial
+    ? `${first.measurementIdentity}: ${String(first.lengthPixels)} px · `
+      + `${second.measurementIdentity}: ${String(second.lengthPixels)} px`
+    : `${first.candidateLabel}: ${String(first.lengthPixels)} px · `
+      + `${second.candidateLabel}: ${String(second.lengthPixels)} px`;
   measurementSummary.hidden = false;
   measurementSummaryUnavailable.hidden = true;
   measurementReportRow.hidden = false;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  return `{${Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`;
 }
 
 function readBrowserSessionId() {
