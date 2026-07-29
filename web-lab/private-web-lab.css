@@ -121,6 +121,11 @@ a:hover {
   border-color: var(--accent);
 }
 
+.authoring-toolbar {
+  position: relative;
+  z-index: 1;
+}
+
 .authoring-toolbar button[aria-pressed="true"] {
   border-color: var(--accent);
   color: var(--accent);

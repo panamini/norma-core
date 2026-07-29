@@ -144,11 +144,16 @@ $("#original-button").addEventListener("click", () => setGuidesVisible(false));
 $("#guides-button").addEventListener("click", () => setGuidesVisible(true));
 
 imagePlane.addEventListener("pointerdown", (event) => {
-  if (state.phase === "confirming" || state.phase === "completed") return;
+  if (state.preparationInFlight || state.phase === "confirming") return;
+  if (state.phase === "completed") {
+    if (state.tool === "pan" && state.view.zoom > 1) beginPan(event);
+    return;
+  }
   const handle = event.target.closest?.(".candidate-handle");
   if (handle !== null && handle !== undefined) {
     const candidate = editableCandidates().find(({ id }) => id === handle.dataset.candidateId);
     if (candidate === undefined) return;
+    if (state.phase === "review") invalidateConfirmation();
     state.activeCandidateId = candidate.id;
     state.interaction = {
       type: "geometry",
@@ -168,15 +173,7 @@ imagePlane.addEventListener("pointerdown", (event) => {
     return;
   }
   if (state.tool === "pan" && state.view.zoom > 1) {
-    state.interaction = {
-      type: "pan",
-      clientX: event.clientX,
-      clientY: event.clientY,
-      panX: state.view.panX,
-      panY: state.view.panY,
-    };
-    imagePlane.dataset.dragging = "true";
-    imagePlane.setPointerCapture(event.pointerId);
+    beginPan(event);
     return;
   }
   if (
@@ -196,6 +193,7 @@ imagePlane.addEventListener("pointermove", (event) => {
     );
     return;
   }
+  if (state.preparationInFlight) return;
   if (state.interaction?.type !== "geometry") return;
   updateGeometryFromHandle(
     state.interaction.candidateId,
@@ -672,6 +670,18 @@ function setTool(tool) {
   imagePlane.dataset.tool = tool;
 }
 
+function beginPan(event) {
+  state.interaction = {
+    type: "pan",
+    clientX: event.clientX,
+    clientY: event.clientY,
+    panX: state.view.panX,
+    panY: state.view.panY,
+  };
+  imagePlane.dataset.dragging = "true";
+  imagePlane.setPointerCapture(event.pointerId);
+}
+
 function editableCandidates() {
   return state.phase === "authoring" ? state.authored : state.candidates;
 }
@@ -739,11 +749,13 @@ function segmentFromHandle(candidate, handle, point, authoring) {
 
 function setZoom(zoom) {
   state.view.zoom = Math.max(1, Math.min(4, zoom));
-  if (state.view.zoom === 1) {
-    state.view.panX = 0;
-    state.view.panY = 0;
-  }
-  applyView();
+  const panX = state.view.zoom === 1 ? 0 : state.view.panX;
+  const panY = state.view.zoom === 1 ? 0 : state.view.panY;
+  setPan(panX, panY);
+  refreshOverlay();
+}
+
+function refreshOverlay() {
   renderOverlay(
     state.phase === "authoring" ? authoredDisplayCandidates() : state.candidates,
     state.phase === "authoring",
@@ -761,6 +773,7 @@ function setPan(panX, panY) {
 function resetView() {
   state.view = { zoom: 1, panX: 0, panY: 0 };
   applyView();
+  refreshOverlay();
 }
 
 function applyView() {

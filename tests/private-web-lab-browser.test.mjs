@@ -359,6 +359,58 @@ test(
         ),
         "1.5",
       );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          for (let index = 0; index < 5; index += 1) {
+            document.querySelector("#zoom-in-button").click();
+          }
+        })()`,
+      );
+      const zoomedToolbarState = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const reset = document.querySelector("#zoom-reset-button");
+          reset.scrollIntoView({ block: "center", inline: "center" });
+          const bounds = reset.getBoundingClientRect();
+          const x = bounds.x + bounds.width / 2;
+          const y = bounds.y + bounds.height / 2;
+          return {
+            zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
+            hitId: document.elementFromPoint(x, y)?.id,
+            handleRadius:
+              document.querySelector(".candidate-handle")?.getAttribute("r"),
+          };
+        })()`,
+      );
+      assert.deepEqual(zoomedToolbarState, {
+        zoom: "4",
+        hitId: "zoom-reset-button",
+        handleRadius: "2.25",
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#zoom-reset-button').click()",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
+            handleRadius: document.querySelector(".candidate-handle")?.getAttribute("r"),
+          })`,
+        ),
+        { zoom: "1", handleRadius: "9" },
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#zoom-in-button').click()",
+      );
       const planeCenter = await evaluate(
         connection,
         sessionId,
@@ -396,7 +448,155 @@ test(
       await evaluate(
         connection,
         sessionId,
-        "document.querySelector('#prepare-button').click()",
+        `(() => {
+          for (let index = 0; index < 5; index += 1) {
+            document.querySelector("#zoom-in-button").click();
+          }
+        })()`,
+      );
+      const zoomedPlaneCenter = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const plane = document.querySelector("#image-plane");
+          const bounds = plane.getBoundingClientRect();
+          return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: zoomedPlaneCenter.x,
+          y: zoomedPlaneCenter.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: zoomedPlaneCenter.x + 10_000,
+          y: zoomedPlaneCenter.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: zoomedPlaneCenter.x + 10_000,
+          y: zoomedPlaneCenter.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          for (let index = 0; index < 5; index += 1) {
+            document.querySelector("#zoom-out-button").click();
+          }
+        })()`,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const plane = document.querySelector("#image-plane");
+            const panX = Number.parseFloat(
+              plane.style.getPropertyValue("--view-pan-x"),
+            );
+            return Math.abs(panX) <= plane.offsetWidth * 0.25;
+          })()`,
+        ),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (...arguments_) => {
+            if (!String(arguments_[0]).includes("/api/manual-draft")) {
+              return originalFetch(...arguments_);
+            }
+            return new Promise((resolve, reject) => {
+              window.__releaseManualDraft = () => {
+                window.fetch = originalFetch;
+                originalFetch(...arguments_).then(resolve, reject);
+              };
+            });
+          };
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "typeof window.__releaseManualDraft === 'function'",
+      );
+      const pendingHandle = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          const bounds = handle.getBoundingClientRect();
+          return {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+            cx: handle.getAttribute("cx"),
+          };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: pendingHandle.x,
+          y: pendingHandle.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: pendingHandle.x - 25,
+          y: pendingHandle.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: pendingHandle.x - 25,
+          y: pendingHandle.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+        ),
+        pendingHandle.cx,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "window.__releaseManualDraft()",
       );
       await waitForBrowserCondition(
         connection,
@@ -466,6 +666,62 @@ test(
           panToolHidden: false,
         },
       );
+      const reviewHandle = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          const bounds = handle.getBoundingClientRect();
+          return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: reviewHandle.x,
+          y: reviewHandle.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            confirmed: document.querySelector("#confirmation-input").checked,
+            runDisabled: document.querySelector("#run-button").disabled,
+          })`,
+        ),
+        { confirmed: false, runDisabled: true },
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: reviewHandle.x - 10,
+          y: reviewHandle.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: reviewHandle.x - 10,
+          y: reviewHandle.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#confirmation-input').click()",
+      );
       await connection.send(
         "Input.dispatchMouseEvent",
         {
@@ -529,6 +785,62 @@ test(
       );
       assert.equal(completed.exportReady, true);
       assert.equal(completed.lockedCheckboxes, 3);
+      const completedPan = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#zoom-reset-button").click();
+          document.querySelector("#zoom-in-button").click();
+          document.querySelector("#pan-tool").click();
+          const plane = document.querySelector("#image-plane");
+          plane.scrollIntoView({ block: "center", inline: "center" });
+          const bounds = plane.getBoundingClientRect();
+          return {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+            before: plane.style.getPropertyValue("--view-pan-x"),
+          };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: completedPan.x,
+          y: completedPan.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: completedPan.x + 20,
+          y: completedPan.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: completedPan.x + 20,
+          y: completedPan.y,
+          button: "left",
+        },
+        sessionId,
+      );
+      assert.notEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector("#image-plane").style.getPropertyValue("--view-pan-x")`,
+        ),
+        completedPan.before,
+      );
       await evaluate(
         connection,
         sessionId,
