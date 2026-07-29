@@ -115,21 +115,56 @@
         </div>
       </section>
 
-      <section id="receipt-section" class="receipt" aria-labelledby="receipt-title" hidden>
-        <h2 id="receipt-title">3. Reçu déterministe</h2>
-        <dl>
-          <div><dt>Reçu</dt><dd id="receipt-identity"></dd></div>
-          <div><dt>Résultat Core</dt><dd id="result-identity"></dd></div>
-          <div><dt>Packs</dt><dd id="pack-refs"></dd></div>
-          <div id="measurement-report-row" hidden>
-            <dt>Comparaison déclarée</dt><dd id="measurement-report"></dd>
-          </div>
-          <div><dt>Appels fournisseur</dt><dd>0</dd></div>
-        </dl>
-        <a id="export-link" download="norma-private-web-lab-result.json">
-          Exporter le résultat canonique
-        </a>
-        <button id="new-measurement-button" type="button">Nouvelle mesure</button>
+      <section
+        id="receipt-section"
+        class="receipt"
+        aria-labelledby="receipt-title"
+        tabindex="-1"
+        hidden
+      >
+        <h2 id="receipt-title">3. Résultat confirmé</h2>
+        <div id="measurement-summary" class="measurement-summary" aria-live="polite" hidden>
+          <p class="measurement-kicker">Comparaison confirmée</p>
+          <p class="measurement-ratio-label">Rapport long / court</p>
+          <p id="measurement-ratio" class="measurement-ratio"></p>
+          <p id="measurement-verdict" class="measurement-verdict"></p>
+          <dl class="measurement-evidence">
+            <div>
+              <dt>Première longueur choisie</dt>
+              <dd id="measurement-first-result"></dd>
+            </div>
+            <div>
+              <dt>Deuxième longueur choisie</dt>
+              <dd id="measurement-second-result"></dd>
+            </div>
+          </dl>
+          <p class="measurement-context">
+            Tolérance <strong id="measurement-tolerance"></strong>
+            · comparaison limitée aux packs versionnés consultés dans les détails auditables.
+          </p>
+        </div>
+        <p id="measurement-summary-unavailable" class="measurement-summary-unavailable" hidden>
+          La comparaison est terminée, mais sa présentation lisible est indisponible.
+          Le reçu canonique reste exportable.
+        </p>
+        <details class="receipt-details">
+          <summary>Détails auditables</summary>
+          <dl>
+            <div><dt>Reçu</dt><dd id="receipt-identity"></dd></div>
+            <div><dt>Résultat Core</dt><dd id="result-identity"></dd></div>
+            <div><dt>Packs</dt><dd id="pack-refs"></dd></div>
+            <div id="measurement-report-row" hidden>
+              <dt>Mesures canoniques</dt><dd id="measurement-report"></dd>
+            </div>
+            <div><dt>Appels fournisseur</dt><dd>0</dd></div>
+          </dl>
+        </details>
+        <div class="receipt-actions">
+          <a id="export-link" download="norma-private-web-lab-result.json">
+            Exporter le résultat canonique
+          </a>
+          <button id="new-measurement-button" type="button">Nouvelle mesure</button>
+        </div>
       </section>
     </main>
     <script type="module" src="/private-web-lab.js"></script>

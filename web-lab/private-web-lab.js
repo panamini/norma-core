@@ -1,6 +1,7 @@
 import {
   canRunPrivateWebLabCoreV1,
   createPrivateWebLabConfirmationPayloadV1,
+  presentPrivateWebLabMeasurementReportV1,
   privateWebLabMeasurementLengthCandidatesV1,
   updatePrivateWebLabCandidateGeometryV1,
 } from "/private-web-lab-browser-model.js";
@@ -58,6 +59,13 @@ const guideMode = $("#guide-mode");
 const receiptIdentity = $("#receipt-identity");
 const resultIdentity = $("#result-identity");
 const packRefs = $("#pack-refs");
+const measurementSummary = $("#measurement-summary");
+const measurementSummaryUnavailable = $("#measurement-summary-unavailable");
+const measurementRatio = $("#measurement-ratio");
+const measurementVerdict = $("#measurement-verdict");
+const measurementFirstResult = $("#measurement-first-result");
+const measurementSecondResult = $("#measurement-second-result");
+const measurementTolerance = $("#measurement-tolerance");
 const measurementReportRow = $("#measurement-report-row");
 const measurementReport = $("#measurement-report");
 const exportLink = $("#export-link");
@@ -345,6 +353,8 @@ runButton.addEventListener("click", async () => {
     receiptSection.hidden = false;
     coreGate.textContent = "Core exécuté exactement une fois après confirmation explicite.";
     render();
+    receiptSection.focus({ preventScroll: true });
+    receiptSection.scrollIntoView({ block: "start", behavior: "auto" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Confirmation refusée.";
     if (/missing or expired/iu.test(message)) {
@@ -978,13 +988,33 @@ function clearImage() {
 
 function renderMeasurementReceipt(report) {
   if (report === undefined) {
+    measurementSummary.hidden = true;
+    measurementSummaryUnavailable.hidden = true;
+    measurementReportRow.hidden = true;
+    return;
+  }
+  const presentation = presentPrivateWebLabMeasurementReportV1(
+    report,
+    currentMeasurementCandidateIds(),
+  );
+  if (presentation === null) {
+    measurementSummary.hidden = true;
+    measurementSummaryUnavailable.hidden = false;
     measurementReportRow.hidden = true;
     return;
   }
   const [first, second] = report.measurements;
+  measurementRatio.textContent = presentation.ratioText;
+  measurementVerdict.textContent = presentation.verdictText;
+  measurementVerdict.dataset.kind = presentation.verdictKind;
+  measurementFirstResult.textContent = presentation.firstMeasurementText;
+  measurementSecondResult.textContent = presentation.secondMeasurementText;
+  measurementTolerance.textContent = presentation.toleranceText;
   measurementReport.textContent =
     `${first.candidateLabel}: ${String(first.lengthPixels)} px · `
     + `${second.candidateLabel}: ${String(second.lengthPixels)} px`;
+  measurementSummary.hidden = false;
+  measurementSummaryUnavailable.hidden = true;
   measurementReportRow.hidden = false;
 }
 

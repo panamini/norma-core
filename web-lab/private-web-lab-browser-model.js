@@ -58,6 +58,65 @@ export function privateWebLabMeasurementLengthCandidatesV1(
   });
 }
 
+export function presentPrivateWebLabMeasurementReportV1(report, selectedCandidateIds = null) {
+  if (
+    report === null
+    || typeof report !== "object"
+    || !Array.isArray(report.measurements)
+    || report.measurements.length !== 2
+    || !isFiniteDominantShare(report.observedDominantShare)
+    || !isFiniteUnitShare(report.matchTolerance)
+  ) {
+    return null;
+  }
+  const orderedMeasurements = measurementsInSelectedOrder(
+    report.measurements,
+    selectedCandidateIds,
+  );
+  if (orderedMeasurements === null) return null;
+  const [first, second] = orderedMeasurements;
+  if (!isPresentableMeasurement(first) || !isPresentableMeasurement(second)) return null;
+  const dominantShare = report.observedDominantShare;
+  const ratio = dominantShare / (1 - dominantShare);
+  const toleranceText = `±${formatDecimal(report.matchTolerance * 100, 1)} pt`;
+  const matchPresentation = presentMeasurementMatch(report.match);
+  if (matchPresentation === null) return null;
+  return {
+    ratioText: `${formatDecimal(ratio, 3)} : 1`,
+    firstMeasurementText:
+      `${first.candidateLabel} · ${formatMeasurementLength(first.lengthPixels)} px`,
+    secondMeasurementText:
+      `${second.candidateLabel} · ${formatMeasurementLength(second.lengthPixels)} px`,
+    toleranceText,
+    verdictKind: matchPresentation.kind,
+    verdictText: matchPresentation.kind === "match"
+      ? `${matchPresentation.qualityLabel} avec la proportion normalisée `
+        + `${matchPresentation.displayLabel}`
+        + ` · écart ${formatDecimal(matchPresentation.absoluteDelta * 100, 2)} pt.`
+      : `Aucune correspondance dans les packs actifs à ${toleranceText}.`,
+  };
+}
+
+function measurementsInSelectedOrder(measurements, selectedCandidateIds) {
+  if (selectedCandidateIds === null) return measurements;
+  if (
+    !Array.isArray(selectedCandidateIds)
+    || selectedCandidateIds.length !== 2
+    || !selectedCandidateIds.every((candidateId) => typeof candidateId === "string")
+    || new Set(selectedCandidateIds).size !== 2
+  ) {
+    return null;
+  }
+  const byCandidateId = new Map();
+  for (const measurement of measurements) {
+    const candidateId = measurement.reference?.candidateId;
+    if (typeof candidateId !== "string" || byCandidateId.has(candidateId)) return null;
+    byCandidateId.set(candidateId, measurement);
+  }
+  const ordered = selectedCandidateIds.map((candidateId) => byCandidateId.get(candidateId));
+  return ordered[0] !== undefined && ordered[1] !== undefined ? ordered : null;
+}
+
 export function isValidPrivateWebLabMeasurementPairV1(
   goalId,
   measurementCandidateIds,
@@ -175,6 +234,67 @@ function synchronizeCandidateBounds(candidate) {
 
 function isUnitCoordinate(value) {
   return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function isFiniteUnitShare(value) {
+  return Number.isFinite(value) && value >= 0 && value < 1;
+}
+
+function isFiniteDominantShare(value) {
+  return isFiniteUnitShare(value) && value >= 0.5;
+}
+
+function isPresentableMeasurement(measurement) {
+  return (
+    measurement !== null
+    && typeof measurement === "object"
+    && typeof measurement.candidateLabel === "string"
+    && measurement.candidateLabel.length > 0
+    && Number.isFinite(measurement.lengthPixels)
+    && measurement.lengthPixels > 0
+  );
+}
+
+function presentMeasurementMatch(match) {
+  if (match === null) return { kind: "no-match" };
+  if (
+    match === null
+    || typeof match !== "object"
+    || !["exact", "strong", "near"].includes(match.quality)
+    || !Number.isFinite(match.absoluteDelta)
+    || match.absoluteDelta < 0
+    || match.ratio === null
+    || typeof match.ratio !== "object"
+    || typeof match.ratio.displayLabel !== "string"
+    || match.ratio.displayLabel.length === 0
+  ) {
+    return null;
+  }
+  const qualityLabels = {
+    exact: match.absoluteDelta === 0
+      ? "Correspondance exacte"
+      : "Correspondance très forte",
+    strong: "Correspondance forte",
+    near: "Correspondance proche",
+  };
+  return {
+    kind: "match",
+    qualityLabel: qualityLabels[match.quality],
+    displayLabel: match.ratio.displayLabel,
+    absoluteDelta: match.absoluteDelta,
+  };
+}
+
+function formatDecimal(value, fractionDigits) {
+  return value.toFixed(fractionDigits).replace(".", ",");
+}
+
+function formatMeasurementLength(value) {
+  if (value >= 0.05) return formatDecimal(value, 1);
+  if (value >= 0.0001) {
+    return formatDecimal(value, 4).replace(/0+$/u, "").replace(/,$/u, "");
+  }
+  return value.toExponential(2).replace(".", ",");
 }
 
 function isPositiveUnitCoordinate(value) {
