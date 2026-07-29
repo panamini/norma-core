@@ -674,6 +674,7 @@ export const privateWebLabResultPresentationChangedFiles = Object.freeze([
 
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
+  "src/private-web-lab.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/private-web-lab-browser.test.mjs",

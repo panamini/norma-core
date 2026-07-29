@@ -1023,7 +1023,7 @@ test("private Web Lab session recovery launcher allowlist is exact and rejects s
   assert.equal(
     sharedExactApprovedChangedFiles([
       ...privateWebLabSessionRecoveryLauncherChangedFiles,
-      "src/private-web-lab.ts",
+      "src/personal-visual-harmony.ts",
     ]),
     null,
   );

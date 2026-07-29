@@ -387,6 +387,7 @@ newMeasurementButton.addEventListener("click", async () => {
   try {
     await postJson("/api/new-measurement", {
       browserSessionId: state.browserSessionId,
+      expectedSessionState: "completed",
       labSessionId: state.draft.labSessionId,
     });
   } catch (error) {
@@ -410,6 +411,7 @@ changeGoalButton.addEventListener("click", async () => {
   try {
     await postJson("/api/new-measurement", {
       browserSessionId: state.browserSessionId,
+      expectedSessionState: "review",
       labSessionId: state.draft.labSessionId,
     });
     returnLinkedReviewToAuthoring({ preserveAuthored: true });

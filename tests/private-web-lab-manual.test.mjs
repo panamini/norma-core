@@ -260,9 +260,24 @@ test("manual review remains selectable, confirms once, and new measurement inval
   );
   assert.equal(coreCalls, 1);
 
+  assert.throws(
+    () => application.startNewMeasurement({
+      browserSessionId,
+      expectedSessionState: "review",
+      labSessionId: draft.labSessionId,
+    }),
+    /already completed Core/u,
+  );
+  assert.deepEqual(
+    application.confirmManual(manualConfirmationRequest(draft)),
+    receipt,
+  );
+  assert.equal(coreCalls, 1);
+
   assert.deepEqual(
     application.startNewMeasurement({
       browserSessionId,
+      expectedSessionState: "completed",
       labSessionId: draft.labSessionId,
     }),
     { status: "authoring_local", coreRun: false, providerCalls: 0 },
@@ -287,6 +302,7 @@ test("review reset invalidates the linked session before Core", () => {
   assert.deepEqual(
     application.startNewMeasurement({
       browserSessionId,
+      expectedSessionState: "review",
       labSessionId: draft.labSessionId,
     }),
     { status: "authoring_local", coreRun: false, providerCalls: 0 },

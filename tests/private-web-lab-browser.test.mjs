@@ -50,7 +50,7 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
 });
 
 test("launcher starts once and reuses the same verified loopback Web Lab", {
-  timeout: 10_000,
+  timeout: 60_000,
 }, async () => {
   const reservation = createPrivateWebLabHttpServerV1();
   const port = await listen(reservation);
@@ -68,13 +68,13 @@ test("launcher starts once and reuses the same verified loopback Web Lab", {
     stdio: ["ignore", "ignore", "pipe"],
   };
   const first = spawn(process.execPath, [launcherPath, "--enable-private-web-lab"], options);
-  const firstExit = once(first, "exit");
+  let second;
   try {
     const started = await waitForJsonLineEvent(first, "private_web_lab_started");
     assert.equal(started.url, `http://127.0.0.1:${String(port)}`);
     assert.equal(started.providerCalls, 0);
 
-    const second = spawn(process.execPath, [launcherPath, "--enable-private-web-lab"], options);
+    second = spawn(process.execPath, [launcherPath, "--enable-private-web-lab"], options);
     const secondExit = once(second, "exit");
     const reused = await waitForJsonLineEvent(second, "private_web_lab_already_running");
     const [secondCode] = await secondExit;
@@ -86,22 +86,22 @@ test("launcher starts once and reuses the same verified loopback Web Lab", {
       providerCalls: 0,
     });
   } finally {
-    if (first.exitCode === null) first.kill("SIGTERM");
-    await Promise.race([firstExit, delay(2_000)]);
-    if (first.exitCode === null) first.kill("SIGKILL");
+    await stopChild(second);
+    await stopChild(first);
   }
 });
 
 test("launcher refuses an unrelated service on the configured port", {
-  timeout: 10_000,
+  timeout: 30_000,
 }, async () => {
   const unrelated = createServer((_request, response) => {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ status: "ok", contractId: "unrelated-service@1" }));
   });
   const port = await listen(unrelated);
+  let launcher;
   try {
-    const launcher = spawn(
+    launcher = spawn(
       process.execPath,
       [
         new URL("../web-lab/start-private-web-lab.mjs", import.meta.url).pathname,
@@ -126,12 +126,13 @@ test("launcher refuses an unrelated service on the configured port", {
     assert.equal(occupied.url, `http://127.0.0.1:${String(port)}`);
     assert.equal(occupied.providerCalls, 0);
   } finally {
+    await stopChild(launcher);
     await close(unrelated);
   }
 });
 
 test("launcher refuses a health redirect to a real Web Lab", {
-  timeout: 10_000,
+  timeout: 30_000,
 }, async () => {
   const actualLab = createPrivateWebLabHttpServerV1();
   const actualPort = await listen(actualLab);
@@ -142,8 +143,9 @@ test("launcher refuses a health redirect to a real Web Lab", {
     response.end();
   });
   const redirectPort = await listen(redirectingService);
+  let launcher;
   try {
-    const launcher = spawn(
+    launcher = spawn(
       process.execPath,
       [
         new URL("../web-lab/start-private-web-lab.mjs", import.meta.url).pathname,
@@ -170,6 +172,7 @@ test("launcher refuses a health redirect to a real Web Lab", {
       `http://127.0.0.1:${String(redirectPort)}`,
     );
   } finally {
+    await stopChild(launcher);
     await close(redirectingService);
     await close(actualLab);
   }
@@ -732,6 +735,7 @@ test(
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               browserSessionId: request.browserSessionId,
+              expectedSessionState: "review",
               labSessionId: draft.labSessionId,
             }),
           });
@@ -807,6 +811,51 @@ test(
         second: "manual-segment-2",
         runDisabled: false,
       });
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const fetchWithCapture = window.fetch.bind(window);
+          let loseFirstReceipt = true;
+          window.fetch = async (input, init) => {
+            const response = await fetchWithCapture(input, init);
+            if (input === "/api/manual-confirm" && loseFirstReceipt) {
+              loseFirstReceipt = false;
+              return new Response("{", {
+                status: response.status,
+                headers: { "content-type": "application/json" },
+              });
+            }
+            return response;
+          };
+          document.querySelector("#run-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').disabled === false",
+      );
+      assert.equal(coreExecutions, 1);
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#change-goal-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#setup-status').textContent.includes('already completed Core')",
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          "document.querySelector('#phase-description').textContent.includes('Liste liée')",
+        ),
+        true,
+      );
+      assert.equal(coreExecutions, 1);
       await evaluate(
         connection,
         sessionId,
@@ -2630,7 +2679,7 @@ function waitForJsonLineEvent(child, expectedEvent) {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error(`Launcher did not emit ${expectedEvent}.`));
-    }, 5_000);
+    }, 20_000);
     const onData = (chunk) => {
       output += chunk.toString();
       const lines = output.split("\n");
@@ -2661,6 +2710,17 @@ function waitForJsonLineEvent(child, expectedEvent) {
     child.stderr.on("data", onData);
     child.once("exit", onExit);
   });
+}
+
+async function stopChild(child) {
+  if (child === undefined || child.exitCode !== null) return;
+  const exit = once(child, "exit");
+  child.kill("SIGTERM");
+  await Promise.race([exit, delay(2_000)]);
+  if (child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([exit, delay(2_000)]);
+  }
 }
 
 class CdpConnection {

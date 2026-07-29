@@ -398,15 +398,31 @@ export class PrivateWebLabApplicationV1 {
     readonly coreRun: false;
     readonly providerCalls: 0;
   } {
-    const input = requireExactRecord(value, ["browserSessionId", "labSessionId"]);
+    const input = requireExactRecord(value, [
+      "browserSessionId",
+      "expectedSessionState",
+      "labSessionId",
+    ]);
     const browserSessionId = requireBrowserSessionId(input.browserSessionId);
     const labSessionId = requireOptionalLabSessionId(input.labSessionId);
+    const expectedSessionState = input.expectedSessionState;
+    if (expectedSessionState !== "review" && expectedSessionState !== "completed") {
+      throw new Error("Private Web Lab expected session state is invalid.");
+    }
     if (labSessionId === null) {
       throw new Error("Private Web Lab session identity is required.");
     }
     const session = this.sessions.get(labSessionId);
     if (session === undefined || session.browserSessionId !== browserSessionId) {
       throw new Error("Private Web Lab session is missing or belongs to another browser.");
+    }
+    if (expectedSessionState === "review" && session.completed !== undefined) {
+      throw new Error(
+        "Private Web Lab session already completed Core; recover its receipt before starting over.",
+      );
+    }
+    if (expectedSessionState === "completed" && session.completed === undefined) {
+      throw new Error("Private Web Lab session has not completed Core.");
     }
     this.sessions.delete(labSessionId);
     return { status: "authoring_local", coreRun: false, providerCalls: 0 };
