@@ -22,6 +22,9 @@ const state = {
   coreExecutionCount: 0,
   receiptUrl: null,
   pointerStart: null,
+  interaction: null,
+  activeCandidateId: null,
+  view: { zoom: 1, panX: 0, panY: 0 },
   imageRevision: 0,
   preparationRevision: 0,
   preparationInFlight: false,
@@ -41,6 +44,9 @@ const candidateList = $("#candidate-list");
 const authoringToolbar = $("#authoring-toolbar");
 const rectangleTool = $("#rectangle-tool");
 const segmentTool = $("#segment-tool");
+const panTool = $("#pan-tool");
+const addRectangleButton = $("#add-rectangle-button");
+const addSegmentButton = $("#add-segment-button");
 const measurementSection = $("#measurement-section");
 const measurementFirst = $("#measurement-first");
 const measurementSecond = $("#measurement-second");
@@ -56,6 +62,8 @@ const measurementReportRow = $("#measurement-report-row");
 const measurementReport = $("#measurement-report");
 const exportLink = $("#export-link");
 const newMeasurementButton = $("#new-measurement-button");
+const imagePlaneResizeObserver = new ResizeObserver(reconcileViewAfterResize);
+imagePlaneResizeObserver.observe(imagePlane);
 
 imageInput.addEventListener("change", async () => {
   const [file] = imageInput.files;
@@ -96,7 +104,13 @@ imageInput.addEventListener("change", async () => {
 goalInput.addEventListener("change", updateAvailability);
 rectangleTool.addEventListener("click", () => setTool("rectangle"));
 segmentTool.addEventListener("click", () => setTool("segment"));
-$("#add-rectangle-button").addEventListener("click", () => {
+panTool.addEventListener("click", () => {
+  setTool(state.tool === "pan" ? defaultEditingTool() : "pan");
+});
+$("#zoom-out-button").addEventListener("click", () => setZoom(state.view.zoom - 0.5));
+$("#zoom-reset-button").addEventListener("click", resetView);
+$("#zoom-in-button").addEventListener("click", () => setZoom(state.view.zoom + 0.5));
+addRectangleButton.addEventListener("click", () => {
   if (
     state.phase !== "authoring"
     || state.preparationInFlight
@@ -111,9 +125,10 @@ $("#add-rectangle-button").addEventListener("click", () => {
     height: 0.7,
   });
   renumberAuthoredIds();
+  state.activeCandidateId = state.authored.at(-1).id;
   render();
 });
-$("#add-segment-button").addEventListener("click", () => {
+addSegmentButton.addEventListener("click", () => {
   if (
     state.phase !== "authoring"
     || state.preparationInFlight
@@ -126,24 +141,90 @@ $("#add-segment-button").addEventListener("click", () => {
     end: { x: 0.9, y: 0.25 },
   });
   renumberAuthoredIds();
+  state.activeCandidateId = state.authored.at(-1).id;
   render();
 });
 $("#original-button").addEventListener("click", () => setGuidesVisible(false));
 $("#guides-button").addEventListener("click", () => setGuidesVisible(true));
 
 imagePlane.addEventListener("pointerdown", (event) => {
+  if (state.preparationInFlight || state.phase === "confirming") return;
+  if (state.tool === "pan") {
+    if (state.view.zoom > 1) beginPan(event);
+    return;
+  }
+  if (state.phase === "completed") return;
+  const handle = event.target.closest?.(".candidate-handle, .candidate-handle-hit");
+  if (handle !== null && handle !== undefined) {
+    const candidate = editableCandidates().find(({ id }) => id === handle.dataset.candidateId);
+    if (candidate === undefined) return;
+    if (state.phase === "review") invalidateConfirmation();
+    state.activeCandidateId = candidate.id;
+    state.interaction = {
+      type: "geometry",
+      candidateId: candidate.id,
+      handle: handle.dataset.handle,
+      original: structuredClone(candidate),
+      pointerId: event.pointerId,
+    };
+    imagePlane.dataset.dragging = "true";
+    imagePlane.setPointerCapture(event.pointerId);
+    render();
+    return;
+  }
+  const guide = event.target.closest?.(".candidate-guide");
+  if (guide !== null && guide !== undefined) {
+    state.activeCandidateId = guide.dataset.candidateId;
+    render();
+    return;
+  }
   if (
     state.phase !== "authoring"
     || state.preparationInFlight
     || state.authored.length >= 12
+    || state.tool === "pan"
   ) return;
-  state.pointerStart = normalizedPointer(event);
+  state.pointerStart = {
+    pointerId: event.pointerId,
+    point: normalizedPointer(event),
+  };
   imagePlane.setPointerCapture(event.pointerId);
 });
+imagePlane.addEventListener("pointermove", (event) => {
+  if (state.interaction !== null && state.interaction.pointerId !== event.pointerId) return;
+  if (state.interaction?.type === "pan") {
+    setPan(
+      state.interaction.panX + event.clientX - state.interaction.clientX,
+      state.interaction.panY + event.clientY - state.interaction.clientY,
+    );
+    return;
+  }
+  if (state.preparationInFlight) return;
+  if (state.interaction?.type !== "geometry") return;
+  updateGeometryFromHandle(
+    state.interaction.candidateId,
+    state.interaction.handle,
+    state.interaction.original,
+    normalizedPointer(event),
+  );
+});
 imagePlane.addEventListener("pointerup", (event) => {
-  if (state.pointerStart === null || state.phase !== "authoring") return;
+  if (state.interaction !== null) {
+    if (state.interaction.pointerId !== event.pointerId) return;
+    const changedGeometry = state.interaction.type === "geometry";
+    state.interaction = null;
+    imagePlane.dataset.dragging = "false";
+    if (changedGeometry) invalidateConfirmation();
+    render();
+    return;
+  }
+  if (
+    state.pointerStart === null
+    || state.pointerStart.pointerId !== event.pointerId
+    || state.phase !== "authoring"
+  ) return;
   const end = normalizedPointer(event);
-  const start = state.pointerStart;
+  const start = state.pointerStart.point;
   state.pointerStart = null;
   const candidate = state.tool === "rectangle"
     ? rectangleFromPoints(start, end)
@@ -154,6 +235,17 @@ imagePlane.addEventListener("pointerup", (event) => {
   }
   state.authored.push(candidate);
   renumberAuthoredIds();
+  state.activeCandidateId = state.authored.at(-1).id;
+  render();
+});
+imagePlane.addEventListener("pointercancel", (event) => {
+  if (state.interaction !== null && state.interaction.pointerId !== event.pointerId) return;
+  if (state.pointerStart !== null && state.pointerStart.pointerId !== event.pointerId) return;
+  const changedGeometry = state.interaction?.type === "geometry";
+  state.pointerStart = null;
+  state.interaction = null;
+  imagePlane.dataset.dragging = "false";
+  if (changedGeometry) invalidateConfirmation();
   render();
 });
 
@@ -191,7 +283,9 @@ prepareButton.addEventListener("click", async () => {
     state.candidates = structuredClone(draft.candidates);
     state.selectedCandidateIds = new Set();
     state.measurementCandidateIds = [null, null];
+    state.activeCandidateId = null;
     state.phase = "review";
+    setTool("edit");
     confirmationInput.checked = false;
     receiptSection.hidden = true;
     setupStatus.textContent =
@@ -237,6 +331,7 @@ runButton.addEventListener("click", async () => {
     });
     state.coreExecutionCount += 1;
     state.phase = "completed";
+    setTool("edit");
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
     packRefs.textContent = receipt.ratioPackRefs.join(", ");
@@ -287,22 +382,32 @@ newMeasurementButton.addEventListener("click", async () => {
   state.candidates = [];
   state.selectedCandidateIds = new Set();
   state.measurementCandidateIds = [null, null];
+  state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
   if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
   state.receiptUrl = null;
+  resetView();
+  setTool("rectangle");
   setupStatus.textContent =
     `Nouvelle mesure prête; image conservée. Exécutions Core: ${String(state.coreExecutionCount)}.`;
   newMeasurementButton.disabled = false;
   render();
 });
 
+resetView();
+setTool("rectangle");
+
 function render() {
   const authoring = state.phase === "authoring";
   const locked = state.preparationInFlight
     || state.phase === "confirming"
     || state.phase === "completed";
-  authoringToolbar.hidden = !authoring;
+  authoringToolbar.hidden = state.phase === "empty";
+  rectangleTool.hidden = !authoring;
+  segmentTool.hidden = !authoring;
+  addRectangleButton.hidden = !authoring;
+  addSegmentButton.hidden = !authoring;
   prepareButton.hidden = !authoring;
   prepareButton.disabled =
     !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
@@ -326,12 +431,22 @@ function render() {
   }
   updateAvailability();
   updateCoreAvailability();
+  updateGestureAvailability();
 }
 
 function candidateCard(candidate, index, authoring, locked) {
   const article = document.createElement("article");
   article.className = "candidate";
   article.dataset.candidateId = candidate.id;
+  article.dataset.active = String(candidate.id === state.activeCandidateId);
+  article.addEventListener("click", (event) => {
+    if (
+      event.target.closest("input, button")
+      || (!authoring && event.target.closest("label"))
+    ) return;
+    state.activeCandidateId = candidate.id;
+    render();
+  });
   const header = document.createElement("label");
   if (!authoring) {
     const checkbox = document.createElement("input");
@@ -341,6 +456,7 @@ function candidateCard(candidate, index, authoring, locked) {
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
       else state.selectedCandidateIds.delete(candidate.id);
+      if (checkbox.checked) state.activeCandidateId = candidate.id;
       invalidateConfirmation();
       render();
     });
@@ -389,8 +505,15 @@ function candidateCard(candidate, index, authoring, locked) {
     remove.disabled = locked;
     remove.addEventListener("click", () => {
       if (state.preparationInFlight) return;
+      const activeCandidate = state.authored.find(
+        ({ id }) => id === state.activeCandidateId,
+      );
       state.authored.splice(index, 1);
       renumberAuthoredIds();
+      state.activeCandidateId = activeCandidate !== undefined
+        && state.authored.includes(activeCandidate)
+        ? activeCandidate.id
+        : null;
       render();
     });
     article.append(remove);
@@ -420,7 +543,14 @@ function renderOverlay(candidates, authoring) {
   const visible = authoring
     ? candidates
     : candidates.filter(({ id }) => state.selectedCandidateIds.has(id));
-  guideOverlay.replaceChildren(...visible.map((candidate) => guideElement(candidate, authoring)));
+  guideOverlay.replaceChildren(
+    ...visible.flatMap((candidate) => [
+      guideElement(candidate, authoring),
+      ...(candidate.id === state.activeCandidateId
+        ? handleElements(candidate, authoring)
+        : []),
+    ]),
+  );
 }
 
 function guideElement(candidate, authoring) {
@@ -432,6 +562,7 @@ function guideElement(candidate, authoring) {
       element.setAttribute(field, String(candidate[field] * 1000));
     }
     styleGuide(element);
+    decorateGuide(element, candidate);
     return element;
   }
   const primitive = authoring ? candidate : candidate.primitive;
@@ -441,24 +572,83 @@ function guideElement(candidate, authoring) {
   element.setAttribute("x2", String(primitive.end.x * 1000));
   element.setAttribute("y2", String(primitive.end.y * 1000));
   styleGuide(element);
+  decorateGuide(element, candidate);
   return element;
 }
 
 function styleGuide(element) {
   element.setAttribute("fill", "none");
   element.setAttribute("stroke", "#c7ff4a");
-  element.setAttribute("stroke-width", "6");
+  element.setAttribute("stroke-width", "3");
   element.setAttribute("vector-effect", "non-scaling-stroke");
+}
+
+function decorateGuide(element, candidate) {
+  element.classList.add("candidate-guide");
+  element.dataset.candidateId = candidate.id;
+}
+
+function handleElements(candidate, authoring) {
+  const namespace = "http://www.w3.org/2000/svg";
+  return candidateHandlePoints(candidate, authoring).flatMap(({ name, point }) => {
+    const hitRadius = screenPixelsToViewBoxUnits(14);
+    const visibleRadius = screenPixelsToViewBoxUnits(6);
+    const hitTarget = document.createElementNS(namespace, "ellipse");
+    hitTarget.classList.add("candidate-handle-hit");
+    hitTarget.dataset.candidateId = candidate.id;
+    hitTarget.dataset.handle = name;
+    hitTarget.setAttribute("cx", String(point.x * 1000));
+    hitTarget.setAttribute("cy", String(point.y * 1000));
+    hitTarget.setAttribute("rx", String(hitRadius.x));
+    hitTarget.setAttribute("ry", String(hitRadius.y));
+    hitTarget.setAttribute("fill", "transparent");
+    hitTarget.setAttribute("aria-hidden", "true");
+    const handle = document.createElementNS(namespace, "ellipse");
+    handle.classList.add("candidate-handle");
+    handle.dataset.candidateId = candidate.id;
+    handle.dataset.handle = name;
+    handle.setAttribute("cx", String(point.x * 1000));
+    handle.setAttribute("cy", String(point.y * 1000));
+    handle.setAttribute("rx", String(visibleRadius.x));
+    handle.setAttribute("ry", String(visibleRadius.y));
+    handle.setAttribute("fill", "#0a0d0c");
+    handle.setAttribute("stroke", "#c7ff4a");
+    handle.setAttribute("stroke-width", "3");
+    handle.setAttribute("vector-effect", "non-scaling-stroke");
+    handle.setAttribute("aria-hidden", "true");
+    return [hitTarget, handle];
+  });
+}
+
+function candidateHandlePoints(candidate, authoring) {
+  const kind = authoring ? candidate.kind : candidate.primitive?.kind ?? "rectangle";
+  if (kind === "rectangle") {
+    return [
+      { name: "north-west", point: { x: candidate.x, y: candidate.y } },
+      { name: "north-east", point: { x: candidate.x + candidate.width, y: candidate.y } },
+      { name: "south-west", point: { x: candidate.x, y: candidate.y + candidate.height } },
+      {
+        name: "south-east",
+        point: { x: candidate.x + candidate.width, y: candidate.y + candidate.height },
+      },
+    ];
+  }
+  const primitive = authoring ? candidate : candidate.primitive;
+  return [
+    { name: "start", point: primitive.start },
+    { name: "end", point: primitive.end },
+  ];
 }
 
 function renderMeasurementSelection() {
   const enabled = state.draft?.goal.id === "compare-two-lengths" && state.phase !== "authoring";
   measurementSection.hidden = !enabled;
-  if (!enabled) return;
-  const available = privateWebLabMeasurementLengthCandidatesV1(
-    state.selectedCandidateIds,
-    state.candidates,
-  );
+  const available = enabled
+    ? privateWebLabMeasurementLengthCandidatesV1(
+      state.selectedCandidateIds,
+      state.candidates,
+    )
+    : [];
   const availableIds = new Set(available.map(({ id }) => id));
   state.measurementCandidateIds = state.measurementCandidateIds.map(
     (id) => id !== null && availableIds.has(id) ? id : null,
@@ -509,6 +699,153 @@ function setTool(tool) {
   state.tool = tool;
   rectangleTool.setAttribute("aria-pressed", String(tool === "rectangle"));
   segmentTool.setAttribute("aria-pressed", String(tool === "segment"));
+  panTool.setAttribute("aria-pressed", String(tool === "pan"));
+  imagePlane.dataset.tool = tool;
+  updateGestureAvailability();
+}
+
+function defaultEditingTool() {
+  return state.phase === "authoring" ? "rectangle" : "edit";
+}
+
+function beginPan(event) {
+  state.interaction = {
+    type: "pan",
+    clientX: event.clientX,
+    clientY: event.clientY,
+    panX: state.view.panX,
+    panY: state.view.panY,
+    pointerId: event.pointerId,
+  };
+  imagePlane.dataset.dragging = "true";
+  imagePlane.setPointerCapture(event.pointerId);
+}
+
+function editableCandidates() {
+  return state.phase === "authoring" ? state.authored : state.candidates;
+}
+
+function updateGeometryFromHandle(candidateId, handle, original, point) {
+  const candidates = editableCandidates();
+  const index = candidates.findIndex(({ id }) => id === candidateId);
+  if (index < 0) return;
+  const authoring = state.phase === "authoring";
+  const kind = authoring ? original.kind : original.primitive?.kind ?? "rectangle";
+  const updated = kind === "rectangle"
+    ? rectangleFromHandle(candidates[index], handle, original, point)
+    : segmentFromHandle(candidates[index], handle, point, authoring);
+  if (updated === null) return;
+  candidates[index] = updated;
+  render();
+}
+
+function rectangleFromHandle(candidate, handle, original, point) {
+  const east = original.x + original.width;
+  const south = original.y + original.height;
+  const west = handle.endsWith("west") ? point.x : original.x;
+  const north = handle.startsWith("north") ? point.y : original.y;
+  const nextEast = handle.endsWith("east") ? point.x : east;
+  const nextSouth = handle.startsWith("south") ? point.y : south;
+  if (Math.abs(nextEast - west) < 0.001 || Math.abs(nextSouth - north) < 0.001) return null;
+  return {
+    ...candidate,
+    x: Math.min(west, nextEast),
+    y: Math.min(north, nextSouth),
+    width: Math.abs(nextEast - west),
+    height: Math.abs(nextSouth - north),
+  };
+}
+
+function segmentFromHandle(candidate, handle, point, authoring) {
+  let updated = structuredClone(candidate);
+  if (authoring) {
+    setValueAt(updated, `${handle}.x`, point.x);
+    setValueAt(updated, `${handle}.y`, point.y);
+  } else {
+    const updateInOrder = (paths) => paths.reduce(
+      (current, axis) => updatePrivateWebLabCandidateGeometryV1(
+        current,
+        `primitive.${handle}.${axis}`,
+        String(point[axis]),
+      ),
+      structuredClone(candidate),
+    );
+    const xThenY = updateInOrder(["x", "y"]);
+    const yThenX = updateInOrder(["y", "x"]);
+    const distance = (current) =>
+      Math.abs(current.primitive[handle].x - point.x)
+      + Math.abs(current.primitive[handle].y - point.y);
+    updated = distance(xThenY) <= distance(yThenX) ? xThenY : yThenX;
+  }
+  const primitive = authoring ? updated : updated.primitive;
+  return Math.hypot(
+    primitive.end.x - primitive.start.x,
+    primitive.end.y - primitive.start.y,
+  ) < 0.001
+    ? null
+    : updated;
+}
+
+function setZoom(zoom) {
+  state.view.zoom = Math.max(1, Math.min(4, zoom));
+  const panX = state.view.zoom === 1 ? 0 : state.view.panX;
+  const panY = state.view.zoom === 1 ? 0 : state.view.panY;
+  setPan(panX, panY);
+  refreshOverlay();
+}
+
+function refreshOverlay() {
+  renderOverlay(
+    state.phase === "authoring" ? authoredDisplayCandidates() : state.candidates,
+    state.phase === "authoring",
+  );
+}
+
+function setPan(panX, panY) {
+  const maxX = imagePlane.offsetWidth * (state.view.zoom - 1) / 2;
+  const maxY = imagePlane.offsetHeight * (state.view.zoom - 1) / 2;
+  state.view.panX = Math.max(-maxX, Math.min(maxX, panX));
+  state.view.panY = Math.max(-maxY, Math.min(maxY, panY));
+  applyView();
+}
+
+function reconcileViewAfterResize() {
+  setPan(state.view.panX, state.view.panY);
+  refreshOverlay();
+}
+
+function resetView() {
+  state.view = { zoom: 1, panX: 0, panY: 0 };
+  applyView();
+  refreshOverlay();
+}
+
+function applyView() {
+  imagePlane.style.setProperty("--view-zoom", String(state.view.zoom));
+  imagePlane.style.setProperty("--view-pan-x", `${String(state.view.panX)}px`);
+  imagePlane.style.setProperty("--view-pan-y", `${String(state.view.panY)}px`);
+  $("#zoom-reset-button").textContent = `${String(Math.round(state.view.zoom * 100))} %`;
+  $("#zoom-out-button").disabled = state.view.zoom <= 1;
+  $("#zoom-in-button").disabled = state.view.zoom >= 4;
+  updateGestureAvailability();
+}
+
+function updateGestureAvailability() {
+  const drawing = state.phase === "authoring"
+    && (state.tool === "rectangle" || state.tool === "segment");
+  const panning = state.tool === "pan"
+    && state.view.zoom > 1
+    && !state.preparationInFlight
+    && state.phase !== "confirming";
+  imagePlane.dataset.gestureActive = String(drawing || panning);
+}
+
+function screenPixelsToViewBoxUnits(pixels) {
+  const bounds = imagePlane.getBoundingClientRect();
+  return {
+    x: bounds.width > 0 ? pixels * 1000 / bounds.width : pixels,
+    y: bounds.height > 0 ? pixels * 1000 / bounds.height : pixels,
+  };
 }
 
 function normalizedPointer(event) {
@@ -606,8 +943,10 @@ function returnExpiredReviewToAuthoring() {
   state.candidates = [];
   state.selectedCandidateIds = new Set();
   state.measurementCandidateIds = [null, null];
+  state.activeCandidateId = null;
   confirmationInput.checked = false;
   receiptSection.hidden = true;
+  setTool("rectangle");
 }
 
 function setGuidesVisible(visible) {
@@ -629,6 +968,10 @@ function clearImage() {
   state.draft = null;
   state.candidates = [];
   state.selectedCandidateIds = new Set();
+  state.measurementCandidateIds = [null, null];
+  state.activeCandidateId = null;
+  resetView();
+  setTool("rectangle");
   reviewSection.hidden = true;
   receiptSection.hidden = true;
 }

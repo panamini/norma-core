@@ -121,6 +121,16 @@ a:hover {
   border-color: var(--accent);
 }
 
+.authoring-toolbar {
+  position: relative;
+  z-index: 1;
+}
+
+.authoring-toolbar button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .review-heading {
   display: flex;
   justify-content: space-between;
@@ -158,6 +168,17 @@ a:hover {
   position: relative;
   width: min(100%, calc(72vh * var(--image-aspect, 1)));
   aspect-ratio: var(--image-aspect, 1);
+  touch-action: pan-y;
+  transform:
+    translate(var(--view-pan-x, 0), var(--view-pan-y, 0))
+    scale(var(--view-zoom, 1));
+  transform-origin: center;
+}
+
+.image-plane[data-gesture-active="true"],
+.image-plane svg .candidate-handle,
+.image-plane svg .candidate-handle-hit {
+  touch-action: none;
 }
 
 .image-plane img {
@@ -171,7 +192,27 @@ a:hover {
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.image-plane svg .candidate-guide {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.image-plane svg .candidate-handle,
+.image-plane svg .candidate-handle-hit {
+  pointer-events: all;
+  cursor: grab;
+}
+
+.image-plane[data-tool="pan"] {
+  cursor: grab;
+}
+
+.image-plane[data-dragging="true"],
+.image-plane[data-dragging="true"] .candidate-handle {
+  cursor: grabbing;
 }
 
 .image-plane svg[hidden] {
@@ -200,6 +241,10 @@ aside {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
+}
+
+.candidate[data-active="true"] {
+  border-color: var(--accent);
 }
 
 .candidate[hidden] {
