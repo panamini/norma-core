@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -214,11 +215,602 @@ test("browser flow validates complete primitive geometry and emits confirmation 
 });
 
 test(
-  "rendered browser uploads a non-square image, aligns guides, gates one Core run, and exports",
+  "rendered browser authors a rectangle and two segments, confirms once, exports, and starts over",
   {
     skip: RUN_RENDERED_BROWSER_TEST
       ? false
       : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    let coreExecutions = 0;
+    const application = new PrivateWebLabApplicationV1({
+      executeConfirmation(input) {
+        coreExecutions += 1;
+        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+    });
+    const server = createPrivateWebLabHttpServerV1({ application });
+    const port = await listen(server);
+    const fixturePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [fixturePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#image-input")
+            .dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "compare-two-lengths";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#review-section').hidden",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Liste liée')",
+      );
+      assert.equal(coreExecutions, 0);
+      const reviewState = await evaluate(
+        connection,
+        sessionId,
+        `({
+          candidateCount: document.querySelectorAll(".candidate").length,
+          checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+          disabledCheckboxCount:
+            document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+        })`,
+      );
+      assert.deepEqual(reviewState, {
+        candidateCount: 3,
+        checkboxCount: 3,
+        disabledCheckboxCount: 0,
+        receiptHidden: true,
+      });
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          let checkbox;
+          while ((checkbox = document.querySelector(".candidate input[type=checkbox]:not(:checked)"))) {
+            checkbox.click();
+          }
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = "manual-segment-1";
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = "manual-segment-2";
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#confirmation-input").click();
+        })()`,
+      );
+      assert.equal(coreExecutions, 0);
+      assert.equal(
+        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#receipt-section').hidden",
+      );
+      assert.equal(coreExecutions, 1);
+      const completed = await evaluate(
+        connection,
+        sessionId,
+        `({
+          exportReady: document.querySelector("#export-link").href.startsWith("blob:"),
+          lockedCheckboxes:
+            document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
+          source: document.querySelector("#source-image").src,
+        })`,
+      );
+      assert.equal(completed.exportReady, true);
+      assert.equal(completed.lockedCheckboxes, 3);
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#new-measurement-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#phase-description').textContent.includes('Dessinez')",
+      );
+      const restarted = await evaluate(
+        connection,
+        sessionId,
+        `({
+          receiptHidden: document.querySelector("#receipt-section").hidden,
+          addDisabled: document.querySelector("#add-rectangle-button").disabled,
+          imageRetained: document.querySelector("#source-image").src.length > 0,
+        })`,
+      );
+      assert.deepEqual(restarted, {
+        receiptHidden: true,
+        addDisabled: false,
+        imageRetained: true,
+      });
+      assert.equal(coreExecutions, 1);
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+    }
+  },
+);
+
+test(
+  "rendered browser discards stale image metadata when a newer file wins",
+  {
+    skip: RUN_RENDERED_BROWSER_TEST
+      ? false
+      : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "norma-web-lab-race-"));
+    const latestImageBytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const latestImagePath = join(temporaryDirectory, "latest.png");
+    await writeFile(latestImagePath, latestImageBytes);
+    const expectedLatestIdentity =
+      `sha256:${createHash("sha256").update(latestImageBytes).digest("hex")}`;
+    const firstImagePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const server = createPrivateWebLabHttpServerV1();
+    const port = await listen(server);
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const digest = crypto.subtle.digest.bind(crypto.subtle);
+          let digestCalls = 0;
+          Object.defineProperty(crypto.subtle, "digest", {
+            configurable: true,
+            value: async (...args) => {
+              digestCalls += 1;
+              if (digestCalls === 1) {
+                await new Promise((resolve) => {
+                  window.__releaseFirstImageDigest = resolve;
+                });
+              }
+              return digest(...args);
+            },
+          });
+          const fetchNormally = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-draft") {
+              window.__manualDraftBody = JSON.parse(init.body);
+            }
+            return fetchNormally(input, init);
+          };
+        })()`,
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [firstImagePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#image-input').dispatchEvent(new Event('change', { bubbles: true }))",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "typeof window.__releaseFirstImageDigest === 'function'",
+      );
+      await connection.send(
+        "DOM.setFileInputFiles",
+        { nodeId, files: [latestImagePath] },
+        sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#image-input")
+            .dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "general-geometry";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#source-image').naturalWidth === 1",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "window.__releaseFirstImageDigest()",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `new Promise((resolve) => setTimeout(resolve, 50))`,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "window.__manualDraftBody !== undefined",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            identity: window.__manualDraftBody.sourceImageContentIdentity,
+            width: window.__manualDraftBody.sourcePixelWidth,
+            height: window.__manualDraftBody.sourcePixelHeight,
+            displayedWidth: document.querySelector("#source-image").naturalWidth,
+          })`,
+        ),
+        {
+          identity: expectedLatestIdentity,
+          width: 1,
+          height: 1,
+          displayedWidth: 1,
+        },
+      );
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "rendered browser gates authoring, locks preparation, discards stale drafts, and recovers expired review",
+  {
+    skip: RUN_RENDERED_BROWSER_TEST
+      ? false
+      : "Set NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST=1 for the local Chrome acceptance run.",
+    timeout: 30_000,
+  },
+  async () => {
+    const chromePath = await findChromeExecutable();
+    let coreExecutions = 0;
+    const application = new PrivateWebLabApplicationV1({
+      executeConfirmation(input) {
+        coreExecutions += 1;
+        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+    });
+    const server = createPrivateWebLabHttpServerV1({ application });
+    const port = await listen(server);
+    const fixturePath = new URL(
+      "../examples/personal-visual-harmony/golden-split-poster.png",
+      import.meta.url,
+    ).pathname;
+    const browser = await launchChrome(chromePath);
+    let connection;
+    try {
+      connection = await CdpConnection.connect(browser.devtoolsUrl);
+      const { targetId } = await connection.send("Target.createTarget", {
+        url: `http://127.0.0.1:${String(port)}/`,
+      });
+      const { sessionId } = await connection.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      });
+      await connection.send("Runtime.enable", {}, sessionId);
+      await connection.send("DOM.enable", {}, sessionId);
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.readyState === 'complete'",
+      );
+      const { root } = await connection.send("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await connection.send(
+        "DOM.querySelector",
+        { nodeId: root.nodeId, selector: "#image-input" },
+        sessionId,
+      );
+      const loadFixture = async () => {
+        await connection.send(
+          "DOM.setFileInputFiles",
+          { nodeId, files: [fixturePath] },
+          sessionId,
+        );
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            document.querySelector("#image-input")
+              .dispatchEvent(new Event("change", { bubbles: true }));
+            const goal = document.querySelector("#goal-input");
+            goal.value = "compare-two-lengths";
+            goal.dispatchEvent(new Event("change", { bubbles: true }));
+          })()`,
+        );
+        await waitForBrowserCondition(
+          connection,
+          sessionId,
+          "!document.querySelector('#review-section').hidden",
+        );
+      };
+      await loadFixture();
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#add-rectangle-button').click()",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            disabled: document.querySelector("#prepare-button").disabled,
+            status: document.querySelector("#setup-status").textContent,
+          })`,
+        ),
+        {
+          disabled: true,
+          status: "Tracez au moins un cadre et deux segments avant de préparer la revue.",
+        },
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          const fetchNormally = window.fetch.bind(window);
+          let delayed = false;
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-draft" && !delayed) {
+              delayed = true;
+              return new Promise((resolve) => {
+                window.__releaseManualDraft = () => resolve(fetchNormally(input, init));
+              });
+            }
+            return fetchNormally(input, init);
+          };
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "typeof window.__releaseManualDraft === 'function'",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            imageDisabled: document.querySelector("#image-input").disabled,
+            goalDisabled: document.querySelector("#goal-input").disabled,
+            prepareDisabled: document.querySelector("#prepare-button").disabled,
+            disabledGeometry:
+              document.querySelectorAll(".candidate input[type=number]:disabled").length,
+            candidateCount: document.querySelectorAll(".candidate").length,
+          })`,
+        ),
+        {
+          imageDisabled: true,
+          goalDisabled: true,
+          prepareDisabled: true,
+          disabledGeometry: 12,
+          candidateCount: 3,
+        },
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#add-rectangle-button').click()",
+      );
+      assert.equal(
+        await evaluate(connection, sessionId, "document.querySelectorAll('.candidate').length"),
+        3,
+      );
+
+      await loadFixture();
+      await evaluate(connection, sessionId, "window.__releaseManualDraft()");
+      await evaluate(
+        connection,
+        sessionId,
+        "new Promise((resolve) => setTimeout(resolve, 50))",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+            prepareHidden: document.querySelector("#prepare-button").hidden,
+          })`,
+        ),
+        { checkboxCount: 0, prepareHidden: false },
+      );
+
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#add-rectangle-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-segment-button").click();
+          document.querySelector("#prepare-button").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelectorAll('.candidate input[type=checkbox]').length === 3",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const fetchNormally = window.fetch.bind(window);
+          let expired = false;
+          window.fetch = (input, init) => {
+            if (input === "/api/manual-confirm" && !expired) {
+              expired = true;
+              return Promise.resolve(new Response(
+                JSON.stringify({ error: "Private Web Lab session is missing or expired." }),
+                { status: 404, headers: { "content-type": "application/json" } },
+              ));
+            }
+            return fetchNormally(input, init);
+          };
+          let checkbox;
+          while ((checkbox = document.querySelector(
+            ".candidate input[type=checkbox]:not(:checked)",
+          ))) checkbox.click();
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = "manual-segment-1";
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = "manual-segment-2";
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          document.querySelector("#confirmation-input").click();
+        })()`,
+      );
+      assert.equal(
+        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#run-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#setup-status').textContent.includes('expiré')",
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
+            imageDisabled: document.querySelector("#image-input").disabled,
+            goalDisabled: document.querySelector("#goal-input").disabled,
+            prepareHidden: document.querySelector("#prepare-button").hidden,
+            receiptHidden: document.querySelector("#receipt-section").hidden,
+          })`,
+        ),
+        {
+          checkboxCount: 0,
+          imageDisabled: false,
+          goalDisabled: false,
+          prepareHidden: false,
+          receiptHidden: true,
+        },
+      );
+      assert.equal(coreExecutions, 0);
+    } finally {
+      await connection?.close();
+      await browser.close();
+      await close(server);
+    }
+  },
+);
+
+test(
+  "rendered browser uploads a non-square image, aligns guides, gates one Core run, and exports",
+  {
+    skip: "Legacy deterministic-fixture browser path remains covered by contract tests only.",
     timeout: 30_000,
   },
   async () => {

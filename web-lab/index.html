@@ -34,7 +34,7 @@
             <option value="compare-two-lengths">Comparer 2 longueurs</option>
           </select>
         </label>
-        <button id="prepare-button" type="button" disabled>Préparer le brouillon local</button>
+        <button id="prepare-button" type="button" disabled>Préparer la revue liée</button>
         <p id="setup-status" role="status">Chargez une image et choisissez un objectif.</p>
       </section>
 
@@ -42,9 +42,8 @@
         <div class="review-heading">
           <div>
             <h2 id="review-title">2. Revue explicite</h2>
-            <p>
-              Brouillon déterministe de démonstration · aucun modèle · aucun fournisseur.
-              Ajustez les candidats sur l’image avant confirmation.
+            <p id="phase-description">
+              Dessinez vos propres candidats. Aucun guide n’est inféré ou détecté.
             </p>
           </div>
           <div class="view-toggle" role="group" aria-label="Présentation">
@@ -55,6 +54,13 @@
 
         <div class="workspace">
           <div class="image-stage">
+            <div id="authoring-toolbar" class="authoring-toolbar" role="group" aria-label="Outil de dessin">
+              <button id="rectangle-tool" type="button" aria-pressed="true">Tracer un cadre</button>
+              <button id="segment-tool" type="button" aria-pressed="false">Tracer un segment</button>
+              <button id="add-rectangle-button" type="button">Ajouter un cadre numérique</button>
+              <button id="add-segment-button" type="button">Ajouter un segment numérique</button>
+              <span>Glissez sur l’image, ou utilisez les champs numériques.</span>
+            </div>
             <div id="image-plane" class="image-plane">
               <img id="source-image" alt="Image locale à mesurer">
               <svg
@@ -64,11 +70,11 @@
                 aria-label="Guides candidats"
               ></svg>
             </div>
-            <p id="guide-mode">4 guides prioritaires visibles</p>
+            <p id="guide-mode">Aucun candidat manuel.</p>
           </div>
           <aside>
-            <div id="candidate-list"></div>
-            <button id="reveal-button" type="button">Afficher tous les candidats</button>
+            <div id="candidate-list" aria-live="polite"></div>
+            <button id="reveal-button" type="button" hidden>Afficher tous les candidats</button>
           </aside>
         </div>
 
@@ -116,6 +122,7 @@
         <a id="export-link" download="norma-private-web-lab-result.json">
           Exporter le résultat canonique
         </a>
+        <button id="new-measurement-button" type="button">Nouvelle mesure</button>
       </section>
     </main>
     <script type="module" src="/private-web-lab.js"></script>

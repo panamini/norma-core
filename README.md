@@ -67,12 +67,16 @@ node web-lab/start-private-web-lab.mjs --enable-private-web-lab
 ```
 
 Open `http://127.0.0.1:4177`. The browser loads the image locally, computes its
-SHA-256 identity, and sends only that identity, media type, dimensions, selected
-goal, and reviewed structured geometry to the local server. The initial draft is
-an explicitly labeled deterministic fixture with no model or provider call.
-Norma Core remains stopped until the checkbox confirmation is submitted, then
-the lab returns one deterministic receipt and an exportable canonical JSON
-result.
+SHA-256 identity, and lets the user draw bounded rectangles and segments before
+any review session exists. Preparing the review sends only that identity, media
+type, dimensions, selected goal, and the exact canonical manual candidate list
+to the local server. No image bytes, model, provider, CV, or automatic detection
+is involved. The earlier deterministic fixture contract remains available only
+for explicit demonstrations and contract tests; it is not the normal Web Lab
+path. Norma Core remains stopped until the linked selection is explicitly
+confirmed, then the lab returns one deterministic receipt and an exportable
+canonical JSON result. “Nouvelle mesure” invalidates the completed server
+session while retaining the local image and goal.
 
 `NORMA_PRIVATE_WEB_LAB_PORT` may replace the default port. Sessions are
 in-memory, bounded, replaceable, and non-authoritative; no database or browser
