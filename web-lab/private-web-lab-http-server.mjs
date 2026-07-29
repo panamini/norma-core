@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 
@@ -13,7 +13,10 @@ export const PRIVATE_WEB_LAB_DEFAULT_PORT = 4177;
 export const PRIVATE_WEB_LAB_MAX_REQUEST_BYTES = 256 * 1_024;
 
 const RUNTIME_IDENTITY_FILES = Object.freeze([
-  ["core-runtime", new URL("../dist/src/private-web-lab.js", import.meta.url)],
+  ...collectRuntimeIdentityFiles(
+    new URL("../dist/src/", import.meta.url),
+    "core-runtime",
+  ),
   ["http-server", new URL("./private-web-lab-http-server.mjs", import.meta.url)],
   ["browser-runtime", new URL("./private-web-lab.js", import.meta.url)],
   ["browser-model", new URL("./private-web-lab-browser-model.js", import.meta.url)],
@@ -126,7 +129,7 @@ async function routeRequest(request, response, application, maxRequestBytes) {
 
 function createPrivateWebLabRuntimeIdentity() {
   const hash = createHash("sha256");
-  hash.update("norma.private-web-lab-runtime@1\0");
+  hash.update("norma.private-web-lab-runtime@2\0");
   for (const [label, file] of RUNTIME_IDENTITY_FILES) {
     hash.update(label);
     hash.update("\0");
@@ -134,6 +137,24 @@ function createPrivateWebLabRuntimeIdentity() {
     hash.update("\0");
   }
   return `sha256:${hash.digest("hex")}`;
+}
+
+function collectRuntimeIdentityFiles(directory, labelPrefix) {
+  const files = [];
+  const entries = readdirSync(directory, { withFileTypes: true })
+    .sort(({ name: left }, { name: right }) => left < right ? -1 : left > right ? 1 : 0);
+  for (const entry of entries) {
+    const label = `${labelPrefix}/${entry.name}`;
+    const file = new URL(entry.name, directory);
+    if (entry.isDirectory()) {
+      files.push(...collectRuntimeIdentityFiles(new URL(`${entry.name}/`, directory), label));
+    } else if (entry.isFile()) {
+      files.push([label, file]);
+    } else {
+      throw new Error(`Unsupported Private Web Lab runtime entry: ${label}`);
+    }
+  }
+  return files;
 }
 
 export function isTrustedLoopbackRequestV1(request) {

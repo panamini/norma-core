@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,7 +27,10 @@ import {
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
-import { createPrivateWebLabHttpServerV1 } from "../web-lab/private-web-lab-http-server.mjs";
+import {
+  createPrivateWebLabHttpServerV1,
+  PRIVATE_WEB_LAB_RUNTIME_IDENTITY,
+} from "../web-lab/private-web-lab-http-server.mjs";
 
 const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
@@ -50,6 +53,40 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
   assert.doesNotMatch(
     source,
     /access\(new URL\("\.\.\/dist\/src\/private-web-lab\.js"/u,
+  );
+});
+
+test("runtime identity covers the complete compiled Core tree", async () => {
+  const identityFiles = [
+    ...await collectExpectedRuntimeIdentityFiles(
+      new URL("../dist/src/", import.meta.url),
+      "core-runtime",
+    ),
+    ["http-server", new URL("../web-lab/private-web-lab-http-server.mjs", import.meta.url)],
+    ["browser-runtime", new URL("../web-lab/private-web-lab.js", import.meta.url)],
+    ["browser-model", new URL("../web-lab/private-web-lab-browser-model.js", import.meta.url)],
+    ["document", new URL("../web-lab/index.html", import.meta.url)],
+    ["styles", new URL("../web-lab/private-web-lab.css", import.meta.url)],
+  ];
+  const labels = new Set(identityFiles.map(([label]) => label));
+  for (const transitiveRuntime of [
+    "core-runtime/personal-visual-harmony.js",
+    "core-runtime/serialization.js",
+    "core-runtime/mcp/personal-visual-harmony-app.js",
+  ]) {
+    assert.equal(labels.has(transitiveRuntime), true, transitiveRuntime);
+  }
+  const hash = createHash("sha256");
+  hash.update("norma.private-web-lab-runtime@2\0");
+  for (const [label, file] of identityFiles) {
+    hash.update(label);
+    hash.update("\0");
+    hash.update(await readFile(file));
+    hash.update("\0");
+  }
+  assert.equal(
+    PRIVATE_WEB_LAB_RUNTIME_IDENTITY,
+    `sha256:${hash.digest("hex")}`,
   );
 });
 
@@ -2772,6 +2809,26 @@ async function stopChild(child) {
     child.kill("SIGKILL");
     await Promise.race([exit, delay(2_000)]);
   }
+}
+
+async function collectExpectedRuntimeIdentityFiles(directory, labelPrefix) {
+  const files = [];
+  const entries = (await readdir(directory, { withFileTypes: true }))
+    .sort(({ name: left }, { name: right }) => left < right ? -1 : left > right ? 1 : 0);
+  for (const entry of entries) {
+    const label = `${labelPrefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      files.push(...await collectExpectedRuntimeIdentityFiles(
+        new URL(`${entry.name}/`, directory),
+        label,
+      ));
+    } else if (entry.isFile()) {
+      files.push([label, new URL(entry.name, directory)]);
+    } else {
+      throw new Error(`Unsupported test runtime entry: ${label}`);
+    }
+  }
+  return files;
 }
 
 class CdpConnection {
