@@ -306,6 +306,30 @@ test(
         handleCount: 2,
         zoom: "1",
       });
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const plane = document.querySelector("#image-plane");
+            const pan = document.querySelector("#pan-tool");
+            const drawingTouchAction = getComputedStyle(plane).touchAction;
+            pan.click();
+            const idleTouchAction = getComputedStyle(plane).touchAction;
+            pan.click();
+            return {
+              drawingTouchAction,
+              idleTouchAction,
+              panPressed: pan.getAttribute("aria-pressed"),
+            };
+          })()`,
+        ),
+        {
+          drawingTouchAction: "none",
+          idleTouchAction: "pan-y",
+          panPressed: "false",
+        },
+      );
       const endHandle = await evaluate(
         connection,
         sessionId,
@@ -380,15 +404,15 @@ test(
           return {
             zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
             hitId: document.elementFromPoint(x, y)?.id,
-            handleRadius:
-              document.querySelector(".candidate-handle")?.getAttribute("r"),
+            handleScreenSized:
+              document.querySelector(".candidate-handle").getBoundingClientRect().width >= 11,
           };
         })()`,
       );
       assert.deepEqual(zoomedToolbarState, {
         zoom: "4",
         hitId: "zoom-reset-button",
-        handleRadius: "2.25",
+        handleScreenSized: true,
       });
       await evaluate(
         connection,
@@ -401,10 +425,11 @@ test(
           sessionId,
           `({
             zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
-            handleRadius: document.querySelector(".candidate-handle")?.getAttribute("r"),
+            handleScreenSized:
+              document.querySelector(".candidate-handle").getBoundingClientRect().width >= 11,
           })`,
         ),
-        { zoom: "1", handleRadius: "9" },
+        { zoom: "1", handleScreenSized: true },
       );
       await evaluate(
         connection,
@@ -493,6 +518,28 @@ test(
           button: "left",
         },
         sessionId,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#image-plane').style.width = '320px'",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        `(() => {
+          const plane = document.querySelector("#image-plane");
+          const panX = Number.parseFloat(plane.style.getPropertyValue("--view-pan-x"));
+          return Math.abs(panX) <= plane.offsetWidth * 1.5;
+        })()`,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector(".candidate-handle-hit").getBoundingClientRect().width >= 24`,
+        ),
+        true,
       );
       await evaluate(
         connection,
@@ -638,6 +685,26 @@ test(
           document.querySelector("#confirmation-input").click();
         })()`,
       );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            panPressed: document.querySelector("#pan-tool").getAttribute("aria-pressed"),
+            planeTouchAction: getComputedStyle(
+              document.querySelector("#image-plane"),
+            ).touchAction,
+            handleTouchAction: getComputedStyle(
+              document.querySelector(".candidate-handle"),
+            ).touchAction,
+          })`,
+        ),
+        {
+          panPressed: "false",
+          planeTouchAction: "pan-y",
+          handleTouchAction: "none",
+        },
+      );
       const reviewEditingState = await evaluate(
         connection,
         sessionId,
@@ -686,6 +753,38 @@ test(
         },
         sessionId,
       );
+      const handleBeforeForeignPointer = await evaluate(
+        connection,
+        sessionId,
+        `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const plane = document.querySelector("#image-plane");
+          plane.dispatchEvent(new PointerEvent("pointermove", {
+            bubbles: true,
+            pointerId: 999,
+            clientX: ${String(reviewHandle.x - 80)},
+            clientY: ${String(reviewHandle.y)},
+          }));
+          plane.dispatchEvent(new PointerEvent("pointerup", {
+            bubbles: true,
+            pointerId: 999,
+            clientX: ${String(reviewHandle.x - 80)},
+            clientY: ${String(reviewHandle.y)},
+          }));
+        })()`,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+        ),
+        handleBeforeForeignPointer,
+      );
       assert.deepEqual(
         await evaluate(
           connection,
@@ -721,6 +820,72 @@ test(
         connection,
         sessionId,
         "document.querySelector('#confirmation-input').click()",
+      );
+      const panFromHandle = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#pan-tool").click();
+          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          const bounds = handle.getBoundingClientRect();
+          const plane = document.querySelector("#image-plane");
+          return {
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+            candidateX: handle.getAttribute("cx"),
+            panX: plane.style.getPropertyValue("--view-pan-x"),
+          };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: panFromHandle.x,
+          y: panFromHandle.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: panFromHandle.x - 10,
+          y: panFromHandle.y - 10,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: panFromHandle.x - 10,
+          y: panFromHandle.y - 10,
+          button: "left",
+        },
+        sessionId,
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            candidateX:
+              document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx"),
+            panChanged:
+              document.querySelector("#image-plane").style.getPropertyValue("--view-pan-x")
+                !== ${JSON.stringify(panFromHandle.panX)},
+            confirmed: document.querySelector("#confirmation-input").checked,
+          })`,
+        ),
+        {
+          candidateX: panFromHandle.candidateX,
+          panChanged: true,
+          confirmed: true,
+        },
       );
       await connection.send(
         "Input.dispatchMouseEvent",

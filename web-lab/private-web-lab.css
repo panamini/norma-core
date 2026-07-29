@@ -168,11 +168,17 @@ a:hover {
   position: relative;
   width: min(100%, calc(72vh * var(--image-aspect, 1)));
   aspect-ratio: var(--image-aspect, 1);
-  touch-action: none;
+  touch-action: pan-y;
   transform:
     translate(var(--view-pan-x, 0), var(--view-pan-y, 0))
     scale(var(--view-zoom, 1));
   transform-origin: center;
+}
+
+.image-plane[data-gesture-active="true"],
+.image-plane svg .candidate-handle,
+.image-plane svg .candidate-handle-hit {
+  touch-action: none;
 }
 
 .image-plane img {
@@ -194,7 +200,8 @@ a:hover {
   cursor: pointer;
 }
 
-.image-plane svg .candidate-handle {
+.image-plane svg .candidate-handle,
+.image-plane svg .candidate-handle-hit {
   pointer-events: all;
   cursor: grab;
 }

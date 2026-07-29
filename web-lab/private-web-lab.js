@@ -62,6 +62,8 @@ const measurementReportRow = $("#measurement-report-row");
 const measurementReport = $("#measurement-report");
 const exportLink = $("#export-link");
 const newMeasurementButton = $("#new-measurement-button");
+const imagePlaneResizeObserver = new ResizeObserver(reconcileViewAfterResize);
+imagePlaneResizeObserver.observe(imagePlane);
 
 imageInput.addEventListener("change", async () => {
   const [file] = imageInput.files;
@@ -102,7 +104,9 @@ imageInput.addEventListener("change", async () => {
 goalInput.addEventListener("change", updateAvailability);
 rectangleTool.addEventListener("click", () => setTool("rectangle"));
 segmentTool.addEventListener("click", () => setTool("segment"));
-panTool.addEventListener("click", () => setTool("pan"));
+panTool.addEventListener("click", () => {
+  setTool(state.tool === "pan" ? defaultEditingTool() : "pan");
+});
 $("#zoom-out-button").addEventListener("click", () => setZoom(state.view.zoom - 0.5));
 $("#zoom-reset-button").addEventListener("click", resetView);
 $("#zoom-in-button").addEventListener("click", () => setZoom(state.view.zoom + 0.5));
@@ -145,11 +149,12 @@ $("#guides-button").addEventListener("click", () => setGuidesVisible(true));
 
 imagePlane.addEventListener("pointerdown", (event) => {
   if (state.preparationInFlight || state.phase === "confirming") return;
-  if (state.phase === "completed") {
-    if (state.tool === "pan" && state.view.zoom > 1) beginPan(event);
+  if (state.tool === "pan") {
+    if (state.view.zoom > 1) beginPan(event);
     return;
   }
-  const handle = event.target.closest?.(".candidate-handle");
+  if (state.phase === "completed") return;
+  const handle = event.target.closest?.(".candidate-handle, .candidate-handle-hit");
   if (handle !== null && handle !== undefined) {
     const candidate = editableCandidates().find(({ id }) => id === handle.dataset.candidateId);
     if (candidate === undefined) return;
@@ -160,6 +165,7 @@ imagePlane.addEventListener("pointerdown", (event) => {
       candidateId: candidate.id,
       handle: handle.dataset.handle,
       original: structuredClone(candidate),
+      pointerId: event.pointerId,
     };
     imagePlane.dataset.dragging = "true";
     imagePlane.setPointerCapture(event.pointerId);
@@ -172,20 +178,20 @@ imagePlane.addEventListener("pointerdown", (event) => {
     render();
     return;
   }
-  if (state.tool === "pan" && state.view.zoom > 1) {
-    beginPan(event);
-    return;
-  }
   if (
     state.phase !== "authoring"
     || state.preparationInFlight
     || state.authored.length >= 12
     || state.tool === "pan"
   ) return;
-  state.pointerStart = normalizedPointer(event);
+  state.pointerStart = {
+    pointerId: event.pointerId,
+    point: normalizedPointer(event),
+  };
   imagePlane.setPointerCapture(event.pointerId);
 });
 imagePlane.addEventListener("pointermove", (event) => {
+  if (state.interaction !== null && state.interaction.pointerId !== event.pointerId) return;
   if (state.interaction?.type === "pan") {
     setPan(
       state.interaction.panX + event.clientX - state.interaction.clientX,
@@ -204,6 +210,7 @@ imagePlane.addEventListener("pointermove", (event) => {
 });
 imagePlane.addEventListener("pointerup", (event) => {
   if (state.interaction !== null) {
+    if (state.interaction.pointerId !== event.pointerId) return;
     const changedGeometry = state.interaction.type === "geometry";
     state.interaction = null;
     imagePlane.dataset.dragging = "false";
@@ -211,9 +218,13 @@ imagePlane.addEventListener("pointerup", (event) => {
     render();
     return;
   }
-  if (state.pointerStart === null || state.phase !== "authoring") return;
+  if (
+    state.pointerStart === null
+    || state.pointerStart.pointerId !== event.pointerId
+    || state.phase !== "authoring"
+  ) return;
   const end = normalizedPointer(event);
-  const start = state.pointerStart;
+  const start = state.pointerStart.point;
   state.pointerStart = null;
   const candidate = state.tool === "rectangle"
     ? rectangleFromPoints(start, end)
@@ -227,7 +238,9 @@ imagePlane.addEventListener("pointerup", (event) => {
   state.activeCandidateId = state.authored.at(-1).id;
   render();
 });
-imagePlane.addEventListener("pointercancel", () => {
+imagePlane.addEventListener("pointercancel", (event) => {
+  if (state.interaction !== null && state.interaction.pointerId !== event.pointerId) return;
+  if (state.pointerStart !== null && state.pointerStart.pointerId !== event.pointerId) return;
   const changedGeometry = state.interaction?.type === "geometry";
   state.pointerStart = null;
   state.interaction = null;
@@ -272,6 +285,7 @@ prepareButton.addEventListener("click", async () => {
     state.measurementCandidateIds = [null, null];
     state.activeCandidateId = null;
     state.phase = "review";
+    setTool("edit");
     confirmationInput.checked = false;
     receiptSection.hidden = true;
     setupStatus.textContent =
@@ -317,6 +331,7 @@ runButton.addEventListener("click", async () => {
     });
     state.coreExecutionCount += 1;
     state.phase = "completed";
+    setTool("edit");
     receiptIdentity.textContent = receipt.receiptIdentity;
     resultIdentity.textContent = receipt.canonicalResultIdentity;
     packRefs.textContent = receipt.ratioPackRefs.join(", ");
@@ -416,6 +431,7 @@ function render() {
   }
   updateAvailability();
   updateCoreAvailability();
+  updateGestureAvailability();
 }
 
 function candidateCard(candidate, index, authoring, locked) {
@@ -570,20 +586,29 @@ function decorateGuide(element, candidate) {
 
 function handleElements(candidate, authoring) {
   const namespace = "http://www.w3.org/2000/svg";
-  return candidateHandlePoints(candidate, authoring).map(({ name, point }) => {
+  return candidateHandlePoints(candidate, authoring).flatMap(({ name, point }) => {
+    const hitTarget = document.createElementNS(namespace, "circle");
+    hitTarget.classList.add("candidate-handle-hit");
+    hitTarget.dataset.candidateId = candidate.id;
+    hitTarget.dataset.handle = name;
+    hitTarget.setAttribute("cx", String(point.x * 1000));
+    hitTarget.setAttribute("cy", String(point.y * 1000));
+    hitTarget.setAttribute("r", String(screenPixelsToViewBoxUnits(14)));
+    hitTarget.setAttribute("fill", "transparent");
+    hitTarget.setAttribute("aria-hidden", "true");
     const handle = document.createElementNS(namespace, "circle");
     handle.classList.add("candidate-handle");
     handle.dataset.candidateId = candidate.id;
     handle.dataset.handle = name;
     handle.setAttribute("cx", String(point.x * 1000));
     handle.setAttribute("cy", String(point.y * 1000));
-    handle.setAttribute("r", String(9 / state.view.zoom));
+    handle.setAttribute("r", String(screenPixelsToViewBoxUnits(6)));
     handle.setAttribute("fill", "#0a0d0c");
     handle.setAttribute("stroke", "#c7ff4a");
     handle.setAttribute("stroke-width", "3");
     handle.setAttribute("vector-effect", "non-scaling-stroke");
     handle.setAttribute("aria-hidden", "true");
-    return handle;
+    return [hitTarget, handle];
   });
 }
 
@@ -668,6 +693,11 @@ function setTool(tool) {
   segmentTool.setAttribute("aria-pressed", String(tool === "segment"));
   panTool.setAttribute("aria-pressed", String(tool === "pan"));
   imagePlane.dataset.tool = tool;
+  updateGestureAvailability();
+}
+
+function defaultEditingTool() {
+  return state.phase === "authoring" ? "rectangle" : "edit";
 }
 
 function beginPan(event) {
@@ -677,6 +707,7 @@ function beginPan(event) {
     clientY: event.clientY,
     panX: state.view.panX,
     panY: state.view.panY,
+    pointerId: event.pointerId,
   };
   imagePlane.dataset.dragging = "true";
   imagePlane.setPointerCapture(event.pointerId);
@@ -770,6 +801,11 @@ function setPan(panX, panY) {
   applyView();
 }
 
+function reconcileViewAfterResize() {
+  setPan(state.view.panX, state.view.panY);
+  refreshOverlay();
+}
+
 function resetView() {
   state.view = { zoom: 1, panX: 0, panY: 0 };
   applyView();
@@ -783,6 +819,22 @@ function applyView() {
   $("#zoom-reset-button").textContent = `${String(Math.round(state.view.zoom * 100))} %`;
   $("#zoom-out-button").disabled = state.view.zoom <= 1;
   $("#zoom-in-button").disabled = state.view.zoom >= 4;
+  updateGestureAvailability();
+}
+
+function updateGestureAvailability() {
+  const drawing = state.phase === "authoring"
+    && (state.tool === "rectangle" || state.tool === "segment");
+  const panning = state.tool === "pan"
+    && state.view.zoom > 1
+    && !state.preparationInFlight
+    && state.phase !== "confirming";
+  imagePlane.dataset.gestureActive = String(drawing || panning);
+}
+
+function screenPixelsToViewBoxUnits(pixels) {
+  const renderedWidth = imagePlane.getBoundingClientRect().width;
+  return renderedWidth > 0 ? pixels * 1000 / renderedWidth : pixels;
 }
 
 function normalizedPointer(event) {
