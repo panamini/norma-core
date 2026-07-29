@@ -17,6 +17,7 @@ import {
   createPrivateWebLabConfirmationPayloadV1,
   isPrivateWebLabCandidateGeometryValidV1,
   isValidPrivateWebLabMeasurementPairV1,
+  presentPrivateWebLabMeasurementReportV1,
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
@@ -24,6 +25,83 @@ import { createPrivateWebLabHttpServerV1 } from "../web-lab/private-web-lab-http
 
 const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
+
+test("measurement result presentation explains no-match and matched outcomes", () => {
+  const baseReport = {
+    measurements: [
+      { candidateLabel: "Segment manuel 2", lengthPixels: 389.607015581689 },
+      { candidateLabel: "Segment manuel 1", lengthPixels: 433.491692491967 },
+    ],
+    observedDominantShare: 0.526658210297,
+    matchTolerance: 0.025,
+    match: null,
+  };
+  assert.deepEqual(presentPrivateWebLabMeasurementReportV1(baseReport), {
+    ratioText: "1,113 : 1",
+    firstMeasurementText: "Segment manuel 2 · 389,6 px",
+    secondMeasurementText: "Segment manuel 1 · 433,5 px",
+    toleranceText: "±2,5 %",
+    verdictKind: "no-match",
+    verdictText: "Aucune correspondance dans les packs actifs à ±2,5 %.",
+  });
+  assert.deepEqual(presentPrivateWebLabMeasurementReportV1({
+    ...baseReport,
+    observedDominantShare: 2 / 3,
+    match: {
+      quality: "strong",
+      absoluteDelta: 0.00175,
+      ratio: { displayLabel: "2/3" },
+    },
+  }), {
+    ratioText: "2,000 : 1",
+    firstMeasurementText: "Segment manuel 2 · 389,6 px",
+    secondMeasurementText: "Segment manuel 1 · 433,5 px",
+    toleranceText: "±2,5 %",
+    verdictKind: "match",
+    verdictText:
+      "Correspondance forte avec la proportion normalisée 2/3 · écart 0,18 pt.",
+  });
+  const canonicalReport = {
+    ...baseReport,
+    measurements: [
+      {
+        candidateLabel: "Segment manuel 2",
+        lengthPixels: 389.607015581689,
+        reference: { candidateId: "manual-segment-1" },
+      },
+      {
+        candidateLabel: "Segment manuel 3",
+        lengthPixels: 433.491692491967,
+        reference: { candidateId: "manual-segment-2" },
+      },
+    ],
+  };
+  assert.deepEqual(
+    presentPrivateWebLabMeasurementReportV1(canonicalReport, [
+      "manual-segment-2",
+      "manual-segment-1",
+    ]),
+    {
+      ratioText: "1,113 : 1",
+      firstMeasurementText: "Segment manuel 3 · 433,5 px",
+      secondMeasurementText: "Segment manuel 2 · 389,6 px",
+      toleranceText: "±2,5 %",
+      verdictKind: "no-match",
+      verdictText: "Aucune correspondance dans les packs actifs à ±2,5 %.",
+    },
+  );
+  assert.equal(
+    presentPrivateWebLabMeasurementReportV1(canonicalReport, [
+      "manual-segment-2",
+      "unknown-segment",
+    ]),
+    null,
+  );
+  assert.equal(presentPrivateWebLabMeasurementReportV1({
+    ...baseReport,
+    observedDominantShare: Number.NaN,
+  }), null);
+});
 
 test("browser flow keeps Core stopped before explicit confirmation and exposes strongest guides first", () => {
   const candidates = Array.from({ length: 6 }, (_, index) => ({
@@ -713,9 +791,9 @@ test(
           }
           const first = document.querySelector("#measurement-first");
           const second = document.querySelector("#measurement-second");
-          first.value = "manual-segment-1";
+          first.value = "manual-segment-2";
           first.dispatchEvent(new Event("change", { bubbles: true }));
-          second.value = "manual-segment-2";
+          second.value = "manual-segment-1";
           second.dispatchEvent(new Event("change", { bubbles: true }));
           document.querySelector("#confirmation-input").click();
         })()`,
@@ -1827,13 +1905,24 @@ test(
             resultIdentity: document.querySelector("#result-identity").textContent,
             packRefs: document.querySelector("#pack-refs").textContent,
             providerCalls:
-              document.querySelector("#receipt-section dl div:last-child dd").textContent,
+              document.querySelector(".receipt-details dl div:last-child dd").textContent,
             download: link.download,
             exportContractId: exported.contractId,
             measurementReportIdentity:
               exported.declaredMeasurementRatioReport?.contentIdentity ?? "",
             measurementReportVisible:
               !document.querySelector("#measurement-report-row").hidden,
+            receiptTitle: document.querySelector("#receipt-title").textContent,
+            measurementRatio: document.querySelector("#measurement-ratio").textContent,
+            measurementVerdict: document.querySelector("#measurement-verdict").textContent,
+            measurementTolerance:
+              document.querySelector("#measurement-tolerance").textContent,
+            firstMeasurementResult:
+              document.querySelector("#measurement-first-result").textContent,
+            secondMeasurementResult:
+              document.querySelector("#measurement-second-result").textContent,
+            receiptDetailsOpen: document.querySelector(".receipt-details").open,
+            focusedSection: document.activeElement?.id ?? "",
             candidateInputsDisabled: [
               ...document.querySelectorAll("#candidate-list input")
             ].every((input) => input.disabled),
@@ -1854,6 +1943,14 @@ test(
       assert.equal(receipt.exportContractId, "norma.private-web-lab-canonical-result@1");
       assert.match(receipt.measurementReportIdentity, /^sha256:[0-9a-f]{64}$/u);
       assert.equal(receipt.measurementReportVisible, true);
+      assert.equal(receipt.receiptTitle, "3. Résultat confirmé");
+      assert.match(receipt.measurementRatio, /^\d+,\d{3} : 1$/u);
+      assert.match(receipt.measurementVerdict, /Correspondance|Aucune correspondance/u);
+      assert.equal(receipt.measurementTolerance, "±2,5 %");
+      assert.match(receipt.firstMeasurementResult, /^Segment manuel 3 · \d+,\d px$/u);
+      assert.match(receipt.secondMeasurementResult, /^Segment manuel 2 · \d+,\d px$/u);
+      assert.equal(receipt.receiptDetailsOpen, false);
+      assert.equal(receipt.focusedSection, "receipt-section");
       assert.equal(receipt.candidateInputsDisabled, true);
       assert.equal(receipt.confirmationDisabled, true);
       assert.equal(receipt.imageDisabled, false);

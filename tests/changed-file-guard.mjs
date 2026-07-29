@@ -662,6 +662,16 @@ export const privateWebLabManualPrecisionChangedFiles = Object.freeze([
   "web-lab/private-web-lab.js",
 ].sort());
 
+export const privateWebLabResultPresentationChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+  "web-lab/index.html",
+  "web-lab/private-web-lab-browser-model.js",
+  "web-lab/private-web-lab.css",
+  "web-lab/private-web-lab.js",
+].sort());
+
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -2096,6 +2106,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabChangedFiles,
   privateWebLabManualAuthoringChangedFiles,
   privateWebLabManualPrecisionChangedFiles,
+  privateWebLabResultPresentationChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
