@@ -165,6 +165,28 @@ test("manual contract keeps audit identity, truthful provenance, and explicit Co
     confirmation.imagePlaneGuideAnalysis.confirmationMode,
     "client_asserted_private_web_lab_interaction",
   );
+  assert.notEqual(
+    confirmation.auditAcceptedGeometryContentIdentity,
+    confirmation.acceptedGeometryContentIdentity,
+  );
+  const legacyConfirmation = confirmPersonalVisualHarmonyCandidateSetV1({
+    ...confirmationInput,
+    preparedCandidateSet: legacyPrepared,
+    expectedCandidateSetIdentity: legacyPrepared.candidateSetIdentity,
+  });
+  assert.equal(
+    confirmation.acceptedGeometryContentIdentity,
+    legacyConfirmation.acceptedGeometryContentIdentity,
+  );
+  assert.throws(
+    () => confirmPersonalVisualHarmonyCandidateSetV1({
+      ...confirmationInput,
+      preparedCandidateSet: prepared,
+      sourcePixelWidth: 800,
+      sourcePixelHeight: 1200,
+    }),
+    /source dimensions do not match the prepared review/u,
+  );
 
   const otherPrepared = preparePersonalVisualHarmonyManualCandidateSetV1({
     sourceImageContentIdentity,

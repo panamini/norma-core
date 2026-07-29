@@ -189,6 +189,8 @@ export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
   readonly sourceImageReferenceIdentity: string;
   readonly sourceImageContentIdentity: string;
   readonly sourceImageMediaType: string | null;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
   readonly imageBytesObservedByNorma: false;
   readonly sourceImageIdentityBasis: "browser_sha256_and_dimensions_not_image_bytes";
   readonly visualInterpretationSource: "manual";
@@ -466,6 +468,8 @@ export interface PersonalVisualHarmonyManualConfirmationV1
   > {
   readonly result: PersonalVisualHarmonyManualResultV1;
   readonly imagePlaneGuideAnalysis: PersonalVisualHarmonyManualImagePlaneRelationsV1;
+  /** The manual-review geometry identity retained separately from the Core-mapped geometry. */
+  readonly auditAcceptedGeometryContentIdentity: string;
 }
 
 export type PersonalVisualHarmonyConfirmationInputV1<
@@ -662,6 +666,8 @@ export function preparePersonalVisualHarmonyManualCandidateSetV1(input: {
     sourceImageReferenceIdentity,
     sourceImageContentIdentity: input.sourceImageContentIdentity,
     sourceImageMediaType,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
     imageBytesObservedByNorma: false as const,
     sourceImageIdentityBasis: "browser_sha256_and_dimensions_not_image_bytes" as const,
     visualInterpretationSource: "manual" as const,
@@ -783,6 +789,11 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(
   );
   requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (isManualBrowserCandidateSet(prepared)
+    && (input.sourcePixelWidth !== prepared.sourcePixelWidth
+      || input.sourcePixelHeight !== prepared.sourcePixelHeight)) {
+    throw new Error("Manual candidate set source dimensions do not match the prepared review.");
+  }
   if (!UTC_TIMESTAMP_PATTERN.test(input.acceptedAt)) {
     throw new Error("acceptedAt must be an explicit UTC RFC3339 timestamp.");
   }
@@ -932,8 +943,11 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(
       result,
       imagePlaneGuideAnalysis,
     }),
-    acceptedGeometryContentIdentity: acceptedGeometry.contentIdentity,
+    acceptedGeometryContentIdentity: coreAcceptedGeometry.contentIdentity,
     mappingResultContentIdentity: mapping.resultContentIdentity,
+    ...(isManualBrowserCandidateSet(prepared)
+      ? { auditAcceptedGeometryContentIdentity: acceptedGeometry.contentIdentity }
+      : {}),
   } as PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1;
 }
 
@@ -2531,6 +2545,10 @@ function validatePreparedCandidateSet(
     && prepared.sourceTruth === false
     && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
     && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity)
+    && Number.isSafeInteger(prepared.sourcePixelWidth)
+    && prepared.sourcePixelWidth > 0
+    && Number.isSafeInteger(prepared.sourcePixelHeight)
+    && prepared.sourcePixelHeight > 0
     && SHA256_PATTERN.test(prepared.coreCompatibilityCandidateSetIdentity);
   if ((!v1IsValid && !v2IsValid && !manualV1IsValid)
     || prepared.status !== "confirmation_required"
@@ -2596,6 +2614,8 @@ function prepareCandidateIdentityProjection(
     ...(isManualBrowserCandidateSet(prepared)
       ? {
           sourceTruth: prepared.sourceTruth,
+          sourcePixelWidth: prepared.sourcePixelWidth,
+          sourcePixelHeight: prepared.sourcePixelHeight,
           coreCompatibilityCandidateSetIdentity:
             prepared.coreCompatibilityCandidateSetIdentity,
         }
