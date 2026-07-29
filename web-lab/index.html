@@ -57,9 +57,16 @@
             <div id="authoring-toolbar" class="authoring-toolbar" role="group" aria-label="Outil de dessin">
               <button id="rectangle-tool" type="button" aria-pressed="true">Tracer un cadre</button>
               <button id="segment-tool" type="button" aria-pressed="false">Tracer un segment</button>
+              <button id="pan-tool" type="button" aria-pressed="false">Déplacer la vue</button>
               <button id="add-rectangle-button" type="button">Ajouter un cadre numérique</button>
               <button id="add-segment-button" type="button">Ajouter un segment numérique</button>
-              <span>Glissez sur l’image, ou utilisez les champs numériques.</span>
+              <button id="zoom-out-button" type="button" aria-label="Réduire le zoom">−</button>
+              <button id="zoom-reset-button" type="button" aria-label="Réinitialiser le zoom">100 %</button>
+              <button id="zoom-in-button" type="button" aria-label="Agrandir le zoom">+</button>
+              <span>
+                Glissez pour tracer. Sélectionnez un guide puis déplacez ses poignées,
+                ou utilisez les champs numériques.
+              </span>
             </div>
             <div id="image-plane" class="image-plane">
               <img id="source-image" alt="Image locale à mesurer">

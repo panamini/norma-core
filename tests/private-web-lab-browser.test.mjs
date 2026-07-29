@@ -289,8 +289,114 @@ test(
           document.querySelector("#add-rectangle-button").click();
           document.querySelector("#add-segment-button").click();
           document.querySelector("#add-segment-button").click();
-          document.querySelector("#prepare-button").click();
         })()`,
+      );
+      const precisionState = await evaluate(
+        connection,
+        sessionId,
+        `({
+          activeCandidateId:
+            document.querySelector(".candidate[data-active=true]")?.dataset.candidateId,
+          handleCount: document.querySelectorAll(".candidate-handle").length,
+          zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
+        })`,
+      );
+      assert.deepEqual(precisionState, {
+        activeCandidateId: "manual-segment-2",
+        handleCount: 2,
+        zoom: "1",
+      });
+      const endHandle = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          handle.scrollIntoView({ block: "center", inline: "center" });
+          const bounds = handle.getBoundingClientRect();
+          const x = bounds.x + bounds.width / 2;
+          const y = bounds.y + bounds.height / 2;
+          return {
+            x,
+            y,
+            hitClass: document.elementFromPoint(x, y)?.getAttribute("class"),
+          };
+        })()`,
+      );
+      assert.equal(endHandle.hitClass, "candidate-handle");
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mousePressed", x: endHandle.x, y: endHandle.y, button: "left", clickCount: 1 },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseMoved", x: endHandle.x - 30, y: endHandle.y + 20, button: "left" },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseReleased", x: endHandle.x - 30, y: endHandle.y + 20, button: "left" },
+        sessionId,
+      );
+      assert.notEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+        ),
+        "900",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#zoom-in-button').click()",
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector("#image-plane").style.getPropertyValue("--view-zoom")`,
+        ),
+        "1.5",
+      );
+      const planeCenter = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector("#pan-tool").click();
+          const plane = document.querySelector("#image-plane");
+          plane.scrollIntoView({ block: "center", inline: "center" });
+          const bounds = plane.getBoundingClientRect();
+          return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        })()`,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mousePressed", x: planeCenter.x, y: planeCenter.y, button: "left", clickCount: 1 },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseMoved", x: planeCenter.x + 20, y: planeCenter.y + 10, button: "left" },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseReleased", x: planeCenter.x + 20, y: planeCenter.y + 10, button: "left" },
+        sessionId,
+      );
+      assert.notEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector("#image-plane").style.getPropertyValue("--view-pan-x")`,
+        ),
+        "0px",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#prepare-button').click()",
       );
       await waitForBrowserCondition(
         connection,
@@ -332,7 +438,70 @@ test(
           document.querySelector("#confirmation-input").click();
         })()`,
       );
+      const reviewEditingState = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const plane = document.querySelector("#image-plane");
+          plane.scrollIntoView({ block: "center", inline: "center" });
+          const bounds = plane.getBoundingClientRect();
+          return {
+            toolbarHidden: document.querySelector("#authoring-toolbar").hidden,
+            rectangleToolHidden: document.querySelector("#rectangle-tool").hidden,
+            panToolHidden: document.querySelector("#pan-tool").hidden,
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+          };
+        })()`,
+      );
+      assert.deepEqual(
+        {
+          toolbarHidden: reviewEditingState.toolbarHidden,
+          rectangleToolHidden: reviewEditingState.rectangleToolHidden,
+          panToolHidden: reviewEditingState.panToolHidden,
+        },
+        {
+          toolbarHidden: false,
+          rectangleToolHidden: true,
+          panToolHidden: false,
+        },
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mousePressed",
+          x: reviewEditingState.x,
+          y: reviewEditingState.y,
+          button: "left",
+          clickCount: 1,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseMoved",
+          x: reviewEditingState.x - 10,
+          y: reviewEditingState.y - 10,
+          button: "left",
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseReleased",
+          x: reviewEditingState.x - 10,
+          y: reviewEditingState.y - 10,
+          button: "left",
+        },
+        sessionId,
+      );
       assert.equal(coreExecutions, 0);
+      assert.equal(
+        await evaluate(connection, sessionId, "document.querySelector('#confirmation-input').checked"),
+        true,
+      );
       assert.equal(
         await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
         true,
@@ -377,12 +546,27 @@ test(
           receiptHidden: document.querySelector("#receipt-section").hidden,
           addDisabled: document.querySelector("#add-rectangle-button").disabled,
           imageRetained: document.querySelector("#source-image").src.length > 0,
+          measurementHidden: document.querySelector("#measurement-section").hidden,
+          firstLengthOptionCount: document.querySelector("#measurement-first").options.length,
+          secondLengthOptionCount: document.querySelector("#measurement-second").options.length,
+          firstLength: document.querySelector("#measurement-first").value,
+          secondLength: document.querySelector("#measurement-second").value,
+          zoom: document.querySelector("#image-plane").style.getPropertyValue("--view-zoom"),
+          rectangleToolPressed:
+            document.querySelector("#rectangle-tool").getAttribute("aria-pressed"),
         })`,
       );
       assert.deepEqual(restarted, {
         receiptHidden: true,
         addDisabled: false,
         imageRetained: true,
+        measurementHidden: true,
+        firstLengthOptionCount: 1,
+        secondLengthOptionCount: 1,
+        firstLength: "",
+        secondLength: "",
+        zoom: "1",
+        rectangleToolPressed: "true",
       });
       assert.equal(coreExecutions, 1);
     } finally {
