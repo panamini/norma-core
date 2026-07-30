@@ -9,6 +9,10 @@ import {
   confirmPersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
+  confirmDeclaredSpatialMeasurementPlanV1,
+  createDeclaredSpatialMeasurementPlanV1,
+} from "../dist/src/personal-visual-harmony-spatial-measurements.js";
+import {
   createPersonalVisualHarmonyMcpServerV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -17,6 +21,7 @@ import {
 import {
   deterministicPrivateWebLabCandidatesV1,
   PRIVATE_WEB_LAB_CONTRACT_ID,
+  PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
   PRIVATE_WEB_LAB_RECEIPT_CONTRACT_ID,
   PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT,
   PrivateWebLabApplicationV1,
@@ -99,7 +104,7 @@ test("copied browser session identifiers keep independent lab sessions", () => {
   );
 });
 
-test("compare-two-lengths requires an explicit confirmed pair and exports its declared report", () => {
+test("compare-two-lengths requires a canonical spatial plan and exports its confirmation", () => {
   let coreCalls = 0;
   const application = applicationWithCounter(() => {
     coreCalls += 1;
@@ -109,6 +114,25 @@ test("compare-two-lengths requires an explicit confirmed pair and exports its de
     goalId: "compare-two-lengths",
   });
   const request = confirmationRequest(draft);
+  const selectedRectangleCandidateIds = draft.candidates
+    .filter(({ primitive }) => (primitive?.kind ?? "rectangle") === "rectangle")
+    .map(({ id }) => id);
+  const measurementPlan = createDeclaredSpatialMeasurementPlanV1({
+    sourceIdentity: draft.sourceImageContentIdentity,
+    sourcePixelWidth: draft.sourcePixelWidth,
+    sourcePixelHeight: draft.sourcePixelHeight,
+    candidates: draft.candidates,
+    selectedRectangleCandidateIds,
+    expressions: [
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "width" },
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "height" },
+    ],
+  });
+  const spatialRequest = {
+    ...request,
+    selectedCandidateIds: selectedRectangleCandidateIds,
+    declaredSpatialMeasurementPlan: measurementPlan,
+  };
 
   assert.throws(
     () => application.confirm(request),
@@ -116,30 +140,31 @@ test("compare-two-lengths requires an explicit confirmed pair and exports its de
   );
   assert.throws(
     () => application.confirm({
-      ...request,
-      measurementCandidateIds: ["fixture-horizontal-guide", "fixture-frame"],
+      ...spatialRequest,
+      measurementCandidateIds: selectedRectangleCandidateIds,
     }),
-    /segment or axis/u,
+    /cannot be combined with the legacy length selection/u,
   );
   assert.equal(coreCalls, 0);
 
-  const receipt = application.confirm({
-    ...request,
-    measurementCandidateIds: ["fixture-horizontal-guide", "fixture-diagonal"],
-  });
+  const receipt = application.confirm(spatialRequest);
   assert.equal(coreCalls, 1);
-  assert.equal(receipt.declaredMeasurementRatioReport.status, "completed");
   assert.equal(
-    receipt.declaredMeasurementRatioReportIdentity,
-    receipt.declaredMeasurementRatioReport.contentIdentity,
+    receipt.contractId,
+    PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
+  );
+  assert.equal(receipt.declaredSpatialMeasurementConfirmation.status, "completed");
+  assert.equal(
+    receipt.declaredSpatialMeasurementConfirmationIdentity,
+    receipt.declaredSpatialMeasurementConfirmation.confirmationIdentity,
   );
   assert.equal(
-    receipt.declaredMeasurementRatioReport.sourceImageReferenceIdentity,
+    receipt.declaredSpatialMeasurementConfirmation.sourceIdentity,
     sourceImageContentIdentity,
   );
   assert.deepEqual(
-    JSON.parse(receipt.exportJson).declaredMeasurementRatioReport,
-    receipt.declaredMeasurementRatioReport,
+    JSON.parse(receipt.exportJson).declaredSpatialMeasurementConfirmation,
+    receipt.declaredSpatialMeasurementConfirmation,
   );
 });
 
@@ -464,6 +489,10 @@ function applicationWithCounter(onCoreCall) {
     executeConfirmation(input) {
       onCoreCall();
       return confirmPersonalVisualHarmonyCandidateSetV1(input);
+    },
+    executeDeclaredSpatialMeasurementConfirmation(input) {
+      onCoreCall();
+      return confirmDeclaredSpatialMeasurementPlanV1(input);
     },
   });
 }

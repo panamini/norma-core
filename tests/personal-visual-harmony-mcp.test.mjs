@@ -976,7 +976,7 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   );
 });
 
-test("widget guided analysis entry is display-only and does not activate measurement or Core", () => {
+test("widget guided analysis entry exposes the declared spatial mode without activating Core", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
   assert.match(html, /id="guidedGoals"/u);
@@ -992,7 +992,7 @@ test("widget guided analysis entry is display-only and does not activate measure
   assert.equal(PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.length, 6);
   assert.deepEqual(
     PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "compare-two-lengths")?.visibleKinds,
-    ["quadrilateral", "segment"],
+    ["rectangle"],
   );
   assert.deepEqual(
     PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1.find(({ id }) => id === "triangles-constructions")?.visibleKinds,
@@ -1010,6 +1010,7 @@ test("widget guided analysis entry is display-only and does not activate measure
   const pressed = new Map();
   const familyPressed = new Map();
   let familyVisibilitySyncs = 0;
+  let measurementControlUpdates = 0;
   let persisted = 0;
   let appToolCalls = 0;
   const guidedGoals = {
@@ -1073,6 +1074,7 @@ test("widget guided analysis entry is display-only and does not activate measure
       updateGuidedAnalysisGoalButtons,
       updateFamilyFilterButtons,
       syncFamilyVisibility() { familyVisibilitySyncs += 1; },
+      updateMeasurementRatioControls() { measurementControlUpdates += 1; },
       guidedGoalStatus,
       persistGuidedAnalysisGoal() { persisted += 1; },
       callAppTool() { appToolCalls += 1; },
@@ -1082,22 +1084,70 @@ test("widget guided analysis entry is display-only and does not activate measure
   applyGuidedAnalysisGoal("compare-two-lengths");
 
   assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
-  assert.deepEqual([...state.visibleKinds], ["quadrilateral", "segment"]);
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
   assert.deepEqual([...state.constructionLayers], []);
   assert.deepEqual([...state.visibleConstructionLayers], []);
   assert.equal(state.measurementRatioEnabled, false);
   assert.deepEqual(state.measurementRatioRefs, []);
   assert.equal(familyVisibilitySyncs, 1);
+  assert.equal(measurementControlUpdates, 1);
   assert.equal(persisted, 1);
   assert.equal(appToolCalls, 0);
   assert.equal(pressed.get("compare-two-lengths"), "true");
   assert.equal(pressed.get("general-geometry"), "false");
-  assert.equal(familyPressed.get("rectangle"), "false");
-  assert.equal(familyPressed.get("quadrilateral"), "true");
-  assert.equal(familyPressed.get("segment"), "true");
+  assert.equal(familyPressed.get("rectangle"), "true");
+  assert.equal(familyPressed.get("quadrilateral"), "false");
+  assert.equal(familyPressed.get("segment"), "false");
   assert.equal(familyPressed.get("axis"), "false");
   assert.equal(familyPressed.get("ellipse"), "false");
-  assert.match(guidedGoalStatus.textContent, /rapport reste opt-in et séparé du Core/u);
+  assert.match(guidedGoalStatus.textContent, /exactement deux rectangles/u);
+});
+
+test("widget confirmation sends the ready declared spatial plan through the app-only MCP tool", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /function createWidgetDeclaredSpatialMeasurementPlan/u);
+  assert.match(html, /function findDeclaredSpatialConfirmation/u);
+  assert.match(html, /renderDeclaredSpatialResult/u);
+  assert.match(html, /spatialPlanSnapshot=spatial\?state\.declaredSpatialMeasurementPlan/u);
+
+  const calls = [];
+  const callConfirmation = widgetScriptFunction(
+    "callConfirmation",
+    "function finishConfirmingPayload",
+    {
+      state: { downloadUrl: null },
+      pixelRecovery: () => ({ contractVersion: 2 }),
+      CONFIRM_TOOL: "norma.personalVisualHarmony.confirmV1",
+      callAppTool(name, args) {
+        calls.push({ name, args });
+        return { ok: true };
+      },
+    },
+  );
+  const plan = {
+    contractId: "norma.declared-spatial-measurement-plan@1",
+    planIdentity: `sha256:${"a".repeat(64)}`,
+  };
+  const response = await callConfirmation(
+    {
+      sessionId: "session-widget-spatial",
+      prepared: { candidateSetIdentity: `sha256:${"b".repeat(64)}` },
+    },
+    ["rectangle-a", "rectangle-b"],
+    [],
+    [],
+    { width: 1200, height: 800 },
+    undefined,
+    plan,
+  );
+
+  assert.deepEqual(response, { ok: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "norma.personalVisualHarmony.confirmV1");
+  assert.deepEqual(calls[0].args.declaredSpatialMeasurementPlan, plan);
+  assert.equal("measurementRatioRequest" in calls[0].args, false);
+  assert.deepEqual(calls[0].args.confirmedVisualGuideCandidateIds, []);
+  assert.deepEqual(calls[0].args.constructionLayers, []);
 });
 
 test("widget defaults to four preparation-ordered guides without changing selection", () => {
@@ -5462,7 +5512,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /sourceImageMediaType:payload\.sourceImageMediaType\?\?null/u);
     assert.match(resource.contents[0].text, /function findCompletedResult\(value,depth=0\)/u);
     assert.match(resource.contents[0].text, /value\.status==="completed"&&value\.coreRun===true&&isStoredIdentity\(value\.canonicalResultIdentity\)/u);
-    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\{stage:"completed",fileId:payloadSnapshot\.fileId,result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}/u);
+    assert.match(resource.contents[0].text, /completedPayload=hiddenPayload\|\|\(declared\?\{stage:"completed",fileId:payloadSnapshot\.fileId,declaredSpatialMeasurementConfirmation:declared\}/u);
+    assert.match(resource.contents[0].text, /:\{stage:"completed",fileId:payloadSnapshot\.fileId,result:structured,imagePlaneGuideAnalysis:structured\.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured\.declaredMeasurementRatioReport,overlaySvg:""\}\)/u);
     assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
@@ -5570,7 +5621,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.confirming\|\|state\.pixelRefinementRunning\|\|!state\.payload/u);
     assert.match(resource.contents[0].text, /function setReviewLocked\(locked\)/u);
     assert.match(resource.contents[0].text, /prepareReviewedPayload\(payloadSnapshot,candidateSnapshot\)/u);
-    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot\)/u);
+    assert.match(resource.contents[0].text, /callConfirmation\(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot,spatialPlanSnapshot\)/u);
     assert.match(resource.contents[0].text, /function finishConfirmingPayload\(expectedPayloadIdentity\)/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
@@ -5909,6 +5960,8 @@ test("completed payload for a new file hydrates and renders over existing widget
     revalidateCompleted() { throw new Error("completed payload must not revalidate cached confirmation state"); },
     restoreGuidedAnalysisGoal() { guidedGoalRestores += 1; },
     renderGuidedAnalysisGoals() { guidedGoalRenders += 1; },
+    findDeclaredSpatialConfirmation: () => null,
+    renderDeclaredSpatialResult() { throw new Error("legacy completed payload must not render a declared spatial result"); },
     renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
   });
   const completedPayload = {
@@ -5946,6 +5999,8 @@ test("completed payload renders even when its temporary image URL cannot be refr
     revalidateCompleted() { throw new Error("completed payload must not revalidate confirmation state"); },
     restoreGuidedAnalysisGoal() {},
     renderGuidedAnalysisGoals() {},
+    findDeclaredSpatialConfirmation: () => null,
+    renderDeclaredSpatialResult() { throw new Error("legacy completed payload must not render a declared spatial result"); },
     renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
   });
   const completedPayload = {

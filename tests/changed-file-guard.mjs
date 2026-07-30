@@ -635,6 +635,7 @@ export const declaredSpatialMeasurementsChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-spatial-measurements.test.mjs",
   "tests/private-web-lab-browser.test.mjs",
   "tests/private-web-lab-manual.test.mjs",
+  "tests/private-web-lab.test.mjs",
   "web-lab/index.html",
   "web-lab/private-web-lab-browser-model.js",
   "web-lab/private-web-lab.css",
