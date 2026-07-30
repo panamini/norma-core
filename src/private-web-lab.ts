@@ -57,9 +57,9 @@ const LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 const LOCAL_CV_MAX_PROPOSALS = 8;
 const LOCAL_CV_MIN_RECTANGLE_SIDE_COVERAGE = 0.42;
 const LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE = 0.62;
-const LOCAL_CV_MIN_SEGMENT_SUPPORT_COVERAGE = 0.55;
 const LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE = 0.000_001;
 const LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES = 0.01;
+const LOCAL_CV_HOUGH_POINT_DISTANCE_PIXELS = 1.6;
 
 type GuidedGoal = typeof PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1[number];
 
@@ -1244,10 +1244,11 @@ function parseLocalCvProvenanceManifest(
       "Private Web Lab local CV provenance proposals must have unique identities and ranks.",
     );
   }
-  if (proposals.some(({ evidence, originalGeometry }) => (
+  if (proposals.some(({ evidence, originalGeometry, rankScore }) => (
     !localCvEvidenceValuesMatchGeometry(
       evidence,
       originalGeometry,
+      rankScore,
       rasterWidth,
       rasterHeight,
     )
@@ -1255,6 +1256,15 @@ function parseLocalCvProvenanceManifest(
     throw new Error(
       "Private Web Lab local CV provenance evidence values contradict geometry.",
     );
+  }
+  const proposalsByRank = [...proposals].sort((first, second) => first.rank - second.rank);
+  if (proposalsByRank.some((proposal, index) => (
+    index > 0
+    && proposal.rankScore
+      > (proposalsByRank[index - 1]?.rankScore ?? 0)
+        + LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE
+  ))) {
+    throw new Error("Private Web Lab local CV provenance rank order is invalid.");
   }
   return {
     contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
@@ -1302,6 +1312,7 @@ function localCvWorkingRasterDimensions(
 function localCvEvidenceValuesMatchGeometry(
   evidence: PrivateWebLabLocalCvEvidenceV1,
   geometry: PrivateWebLabLocalCvGeometryV1,
+  rankScore: number,
   rasterWidth: number,
   rasterHeight: number,
 ): boolean {
@@ -1317,15 +1328,24 @@ function localCvEvidenceValuesMatchGeometry(
       evidence.sideCoverages.reduce((sum, coverage) => sum + coverage, 0)
       / evidence.sideCoverages.length
     ).toFixed(6));
-    return Math.abs(evidence.meanCoverage - expectedMeanCoverage)
-      <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+    if (
+      Math.abs(evidence.meanCoverage - expectedMeanCoverage)
+      > LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE
+    ) {
+      return false;
+    }
+    const sizeFraction = (
+      geometry.width * (rasterWidth - 1)
+      * geometry.height * (rasterHeight - 1)
+    ) / (rasterWidth * rasterHeight);
+    const expectedRankScore = Number(Math.min(
+      1,
+      (evidence.meanCoverage * 0.82) + (sizeFraction * 0.18),
+    ).toFixed(6));
+    return Math.abs(rankScore - expectedRankScore)
+      <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE * 2;
   }
-  if (
-    geometry.kind !== "segment"
-    || evidence.supportCoverage < LOCAL_CV_MIN_SEGMENT_SUPPORT_COVERAGE
-  ) {
-    return false;
-  }
+  if (geometry.kind !== "segment") return false;
   const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
   const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
   const expectedOrientation = Number((
@@ -1333,7 +1353,19 @@ function localCvEvidenceValuesMatchGeometry(
   ).toFixed(6));
   const directDifference = Math.abs(evidence.orientationDegrees - expectedOrientation);
   const circularDifference = Math.min(directDifference, 180 - directDifference);
-  return circularDifference <= LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES;
+  if (circularDifference > LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES) return false;
+  const diagonal = Math.hypot(rasterWidth, rasterHeight);
+  const expectedRankScore = Number(Math.min(
+    1,
+    (evidence.supportCoverage * 0.68)
+      + ((Math.hypot(deltaX, deltaY) / diagonal) * 0.32),
+  ).toFixed(6));
+  const houghProjectionTolerance = (
+    (2 * Math.SQRT2 * LOCAL_CV_HOUGH_POINT_DISTANCE_PIXELS)
+    / diagonal
+  ) * 0.32;
+  return Math.abs(rankScore - expectedRankScore)
+    <= houghProjectionTolerance + (LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE * 2);
 }
 
 function parseLocalCvEvidence(value: unknown): PrivateWebLabLocalCvEvidenceV1 {

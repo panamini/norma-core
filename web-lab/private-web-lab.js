@@ -11,8 +11,11 @@ import {
   updatePrivateWebLabCandidateGeometryV1,
 } from "/private-web-lab-browser-model.js";
 import {
+  PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS,
   requestPrivateWebLabLocalCvWorkerV1,
 } from "/private-web-lab-local-cv.js";
+
+const LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png"]);
 
 const state = {
   browserSessionId: readBrowserSessionId(),
@@ -314,6 +317,20 @@ async function runLocalCvDetection() {
     || state.localCvInFlight
     || state.preparationInFlight
   ) return;
+  if (
+    state.dimensions.width * state.dimensions.height
+    > PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS
+  ) {
+    localCvStatus.textContent =
+      "Détection locale arrêtée avant décodage : image source supérieure à 40 mégapixels.";
+    return;
+  }
+  if (!LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES.has(state.image.type)) {
+    localCvStatus.textContent =
+      "Détection locale arrêtée : utilisez une source PNG ou JPEG statique; "
+      + "GIF et WebP peuvent être animés et restent disponibles pour le tracé manuel.";
+    return;
+  }
   const localCvRevision = state.localCvRevision + 1;
   const imageRevision = state.imageRevision;
   const selectedImage = state.image;
@@ -1744,18 +1761,26 @@ function candidateProvenance(candidate, authoring) {
 }
 
 function markAuthoredCandidateEdited(candidate) {
+  const provenance = candidateProvenance(candidate, true);
   candidate.provenance = {
-    ...candidateProvenance(candidate, true),
-    userEdited: true,
+    ...provenance,
+    userEdited: provenance.source === "browser-local-cv"
+      ? canonicalJson(provenance.originalGeometry)
+        !== canonicalJson(candidateGeometry(candidate, true))
+      : true,
   };
 }
 
 function markReviewedCandidateEdited(candidateId) {
   const provenance = state.reviewProvenanceById.get(candidateId);
-  if (provenance === undefined) return;
+  const candidate = state.candidates.find(({ id }) => id === candidateId);
+  if (provenance === undefined || candidate === undefined) return;
   state.reviewProvenanceById.set(candidateId, {
     ...provenance,
-    userEdited: true,
+    userEdited: provenance.source === "browser-local-cv"
+      ? canonicalJson(provenance.originalGeometry)
+        !== canonicalJson(candidateGeometry(candidate, false))
+      : true,
   });
 }
 

@@ -61,6 +61,17 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
   assert.equal(runtime.includes("Ces temps ne mesurent pas la précision"), true);
   assert.equal(runtime.includes("[receipt.exportJson]"), true);
   assert.equal(runtime.includes("[receipt.compositeExportJson ?? receipt.exportJson]"), false);
+  const localCvRuntime = runtime.slice(runtime.indexOf("async function runLocalCvDetection()"));
+  assert.ok(
+    localCvRuntime.indexOf("PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS")
+      < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
+  );
+  assert.ok(
+    localCvRuntime.indexOf("LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES")
+      < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
+  );
+  assert.equal(worker.includes("const MAX_SOURCE_PIXELS"), false);
+  assert.equal(worker.includes("PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS"), true);
   assert.equal(server.includes('["local-cv", new URL("./private-web-lab-local-cv.js"'), true);
   assert.equal(
     server.includes('["local-cv-worker", new URL("./private-web-lab-local-cv-worker.js"'),
@@ -285,7 +296,7 @@ test(
       );
       assert.equal(regenerated.proposalIdentity, initial.proposalIdentity);
 
-      await evaluate(
+      const editedMarker = await evaluate(
         connection,
         sessionId,
         `(() => {
@@ -294,8 +305,25 @@ test(
               + '[data-candidate-id="${regenerated.rectangleId}"]'
           );
           const x = card.querySelector('input[data-geometry-path="x"]');
-          x.value = String(Math.max(0, Number(x.value) - 0.001));
+          const originalX = x.value;
+          x.value = String(Math.max(0, Number(originalX) - 0.001));
           x.dispatchEvent(new Event("change", { bubbles: true }));
+          const changed = document.querySelector(
+            '#candidate-list .candidate[data-candidate-source="browser-local-cv"]'
+              + '[data-candidate-id="${regenerated.rectangleId}"]'
+          );
+          const changedText = changed.querySelector(".candidate-provenance").textContent;
+          const restoredX = changed.querySelector('input[data-geometry-path="x"]');
+          restoredX.value = originalX;
+          restoredX.dispatchEvent(new Event("change", { bubbles: true }));
+          const restored = document.querySelector(
+            '#candidate-list .candidate[data-candidate-source="browser-local-cv"]'
+              + '[data-candidate-id="${regenerated.rectangleId}"]'
+          );
+          const restoredText = restored.querySelector(".candidate-provenance").textContent;
+          const finalX = restored.querySelector('input[data-geometry-path="x"]');
+          finalX.value = String(Math.max(0, Number(originalX) - 0.001));
+          finalX.dispatchEvent(new Event("change", { bubbles: true }));
           const refreshed = document.querySelector(
             '#candidate-list .candidate[data-candidate-source="browser-local-cv"]'
               + '[data-candidate-id="${regenerated.rectangleId}"]'
@@ -303,8 +331,11 @@ test(
           const include = refreshed.querySelector('input[type="checkbox"]');
           include.checked = true;
           include.dispatchEvent(new Event("change", { bubbles: true }));
+          return { changedText, restoredText };
         })()`,
       );
+      assert.match(editedMarker.changedText, /géométrie modifiée/u);
+      assert.doesNotMatch(editedMarker.restoredText, /géométrie modifiée/u);
       await waitForBrowserCondition(
         connection,
         sessionId,

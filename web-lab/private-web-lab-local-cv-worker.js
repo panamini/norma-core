@@ -1,12 +1,12 @@
 import {
   PRIVATE_WEB_LAB_LOCAL_CV_ALGORITHM_VERSION,
   PRIVATE_WEB_LAB_LOCAL_CV_CONTRACT_ID,
+  PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS,
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS,
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE,
   detectPrivateWebLabLocalCvCandidatesV1,
 } from "./private-web-lab-local-cv.js";
 
-const MAX_SOURCE_PIXELS = 40_000_000;
 const SOURCE_IDENTITY_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 
 self.addEventListener("message", async (event) => {
@@ -18,7 +18,10 @@ self.addEventListener("message", async (event) => {
   const startedAt = performance.now();
   const { imageBitmap } = request;
   try {
-    if (request.sourceWidth * request.sourceHeight > MAX_SOURCE_PIXELS) {
+    if (
+      request.sourceWidth * request.sourceHeight
+      > PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS
+    ) {
       postAbstention(request.requestId, "source-image-too-large");
       return;
     }

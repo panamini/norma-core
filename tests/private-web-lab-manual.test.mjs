@@ -390,6 +390,10 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
       reviewedGeometry: structuredClone(horizontalSegmentGeometry),
       userEdited: false,
     }),
+    localCvManifestWithProposal(manifest, {
+      ...manifest.proposals[0],
+      rankScore: 0.1,
+    }),
   ];
   const validSegmentManifest = localCvManifestWithProposal(manifest, {
     ...contradictoryManifests[1].proposals[0],
@@ -397,6 +401,14 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
       ...contradictoryManifests[1].proposals[0].evidence,
       orientationDegrees: 0,
     },
+    rankScore: localCvRankScoreForTest(
+      horizontalSegmentGeometry,
+      {
+        ...contradictoryManifests[1].proposals[0].evidence,
+        orientationDegrees: 0,
+      },
+      manifest.raster,
+    ),
   });
 
   for (const localCvProvenanceManifest of contradictoryManifests) {
@@ -410,6 +422,25 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
   assert.doesNotThrow(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       localCvProvenanceManifest: validSegmentManifest,
+    })),
+  );
+  const sparseHoughEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.2,
+    orientationDegrees: 0,
+  };
+  const sparseHoughRankScore = localCvRankScoreForTest(
+    horizontalSegmentGeometry,
+    sparseHoughEvidence,
+    manifest.raster,
+  );
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        ...validSegmentManifest.proposals[0],
+        evidence: sparseHoughEvidence,
+        rankScore: sparseHoughRankScore,
+      }),
     })),
   );
 });
@@ -1015,13 +1046,35 @@ function localCvManifest() {
       candidateOrder: 0,
       originalProposalIdentity,
       rank: 1,
-      rankScore: 0.91,
+      rankScore: localCvRankScoreForTest(originalGeometry, evidence, raster),
       evidence,
       originalGeometry,
       reviewedGeometry: structuredClone(originalGeometry),
       userEdited: false,
     }],
   };
+}
+
+function localCvRankScoreForTest(geometry, evidence, raster) {
+  if (geometry.kind === "rectangle") {
+    const sizeFraction = (
+      geometry.width * (raster.width - 1)
+      * geometry.height * (raster.height - 1)
+    ) / (raster.width * raster.height);
+    return Number(Math.min(
+      1,
+      (evidence.meanCoverage * 0.82) + (sizeFraction * 0.18),
+    ).toFixed(6));
+  }
+  const length = Math.hypot(
+    (geometry.end.x - geometry.start.x) * (raster.width - 1),
+    (geometry.end.y - geometry.start.y) * (raster.height - 1),
+  );
+  return Number(Math.min(
+    1,
+    (evidence.supportCoverage * 0.68)
+      + ((length / Math.hypot(raster.width, raster.height)) * 0.32),
+  ).toFixed(6));
 }
 
 function localCvManifestWithProposal(manifest, proposal) {
