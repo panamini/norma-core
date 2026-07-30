@@ -389,9 +389,13 @@ measurementApplyButtons.forEach((button, index) => {
       invalidateConfirmation();
       render();
     } catch (error) {
-      measurementBuilderStatuses[index].textContent = error instanceof Error
+      const message = error instanceof Error
         ? error.message
         : "Cette mesure avancée est invalide.";
+      state.measurementExpressions[index] = null;
+      invalidateConfirmation();
+      render();
+      measurementBuilderStatuses[index].textContent = message;
     }
   });
 });

@@ -2236,6 +2236,68 @@ test(
         sessionId,
         "document.querySelector('#confirmation-input').click()",
       );
+      const assertAdvancedBuilderFailsClosed = async (ownerValue) => {
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const owner = document.querySelector("#measurement-first-owner");
+            owner.append(new Option("Propriétaire DOM invalide", ${JSON.stringify(ownerValue)}));
+            owner.value = ${JSON.stringify(ownerValue)};
+            document.querySelector("#measurement-first-apply").click();
+          })()`,
+        );
+        assert.deepEqual(
+          await evaluate(
+            connection,
+            sessionId,
+            `({
+              builderError:
+                document.querySelector("#measurement-first-builder-status").textContent.length > 0,
+              confirmed: document.querySelector("#confirmation-input").checked,
+              firstMeasurementCleared:
+                document.querySelector("#measurement-first").value === "",
+              phase: document.querySelector("#review-section").dataset.phase,
+              runDisabled: document.querySelector("#run-button").disabled,
+            })`,
+          ),
+          {
+            builderError: true,
+            confirmed: false,
+            firstMeasurementCleared: true,
+            phase: "review",
+            runDisabled: true,
+          },
+        );
+        assert.equal(coreExecutions, 0);
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const first = document.querySelector("#measurement-first");
+            const second = document.querySelector("#measurement-second");
+            first.value = ${JSON.stringify(validMeasurementValues.first)};
+            first.dispatchEvent(new Event("change", { bubbles: true }));
+            second.value = ${JSON.stringify(validMeasurementValues.second)};
+            second.dispatchEvent(new Event("change", { bubbles: true }));
+          })()`,
+        );
+        await waitForBrowserCondition(
+          connection,
+          sessionId,
+          "document.querySelector('#review-section').dataset.phase === 'ready_to_confirm'",
+        );
+        await evaluate(
+          connection,
+          sessionId,
+          "document.querySelector('#confirmation-input').click()",
+        );
+      };
+      await assertAdvancedBuilderFailsClosed("{");
+      await assertAdvancedBuilderFailsClosed(JSON.stringify({
+        kind: "rectangle",
+        candidateId: "forged-rectangle",
+      }));
       assert.deepEqual(
         await evaluate(
           connection,
