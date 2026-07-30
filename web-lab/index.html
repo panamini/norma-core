@@ -31,7 +31,7 @@
             <option value="frames-proportions">Cadres / proportions</option>
             <option value="ellipses-lines">Ellipses / lignes</option>
             <option value="triangles-constructions">Triangles / constructions</option>
-            <option value="compare-two-lengths">Comparer 2 longueurs</option>
+            <option value="compare-two-lengths">Comparer des mesures entre 2 cadres</option>
           </select>
         </label>
         <button id="prepare-button" type="button" disabled>Préparer la revue liée</button>
@@ -83,6 +83,9 @@
             <p id="guide-mode">Aucun candidat manuel.</p>
           </div>
           <aside>
+            <p id="measurement-candidate-status" class="measurement-candidate-status" role="status" hidden>
+              Cadres sélectionnés : 0/2.
+            </p>
             <div id="candidate-list" aria-live="polite"></div>
             <button id="reveal-button" type="button" hidden>Afficher tous les candidats</button>
           </aside>
@@ -91,21 +94,64 @@
         <div id="measurement-section" class="confirmation" hidden>
           <h3>Comparaison déclarée de deux longueurs</h3>
           <p>
-            Sélectionnez exactement deux rectangles acceptés, puis déclarez deux longueurs
-            dans le plan pixel. Norma n’évalue que cette paire après confirmation.
+            Sélectionnez exactement deux cadres rectangulaires acceptés. Les segments restent
+            éditables, mais ne peuvent ni être sélectionnés ni remplacer les deux cadres requis.
+            Norma n’évalue que les deux mesures déclarées après confirmation.
           </p>
-          <label>
-            Longueur A
-            <select id="measurement-first">
-              <option value="">Choisir une longueur…</option>
-            </select>
-          </label>
-          <label>
-            Longueur B
-            <select id="measurement-second">
-              <option value="">Choisir une longueur…</option>
-            </select>
-          </label>
+          <div class="measurement-picker-grid">
+            <section class="measurement-picker" aria-labelledby="measurement-first-title">
+              <h4 id="measurement-first-title">Mesure A</h4>
+              <label>
+                Mesures courantes
+                <select id="measurement-first">
+                  <option value="">Choisir une mesure…</option>
+                </select>
+              </label>
+              <p id="measurement-first-summary" class="measurement-picker-summary">
+                Aucune mesure choisie.
+              </p>
+              <details class="measurement-advanced">
+                <summary>Mode avancé</summary>
+                <label>
+                  Famille V1
+                  <select id="measurement-first-family">
+                    <option value="extent">Dimension d’un cadre</option>
+                    <option value="anchor-distance">Distance entre deux repères</option>
+                    <option value="anchor-to-frame-edge">Repère vers un bord de l’image</option>
+                  </select>
+                </label>
+                <div id="measurement-first-fields" class="measurement-advanced-fields"></div>
+                <button id="measurement-first-apply" type="button">Utiliser cette mesure</button>
+                <p id="measurement-first-builder-status" class="measurement-builder-status" role="status"></p>
+              </details>
+            </section>
+            <section class="measurement-picker" aria-labelledby="measurement-second-title">
+              <h4 id="measurement-second-title">Mesure B</h4>
+              <label>
+                Mesures courantes
+                <select id="measurement-second">
+                  <option value="">Choisir une mesure…</option>
+                </select>
+              </label>
+              <p id="measurement-second-summary" class="measurement-picker-summary">
+                Aucune mesure choisie.
+              </p>
+              <details class="measurement-advanced">
+                <summary>Mode avancé</summary>
+                <label>
+                  Famille V1
+                  <select id="measurement-second-family">
+                    <option value="extent">Dimension d’un cadre</option>
+                    <option value="anchor-distance">Distance entre deux repères</option>
+                    <option value="anchor-to-frame-edge">Repère vers un bord de l’image</option>
+                  </select>
+                </label>
+                <div id="measurement-second-fields" class="measurement-advanced-fields"></div>
+                <button id="measurement-second-apply" type="button">Utiliser cette mesure</button>
+                <p id="measurement-second-builder-status" class="measurement-builder-status" role="status"></p>
+              </details>
+            </section>
+          </div>
           <p id="measurement-plan-status" role="status">
             Sélectionnez exactement deux rectangles.
           </p>

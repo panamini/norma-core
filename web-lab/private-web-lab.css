@@ -261,6 +261,14 @@ aside {
   font-size: 0.8rem;
 }
 
+.candidate .candidate-summary {
+  line-height: 1.45;
+}
+
+.candidate .candidate-selection-note {
+  color: #d4dccf;
+}
+
 .candidate-controls {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -269,6 +277,23 @@ aside {
 
 .candidate-controls input {
   min-width: 0;
+}
+
+.candidate-precision {
+  margin-top: 10px;
+}
+
+.candidate-precision summary,
+.measurement-advanced summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.candidate-precision[open] summary,
+.measurement-advanced[open] summary {
+  margin-bottom: 12px;
 }
 
 .confirmation {
@@ -285,6 +310,15 @@ aside {
   align-items: end;
 }
 
+.measurement-candidate-status {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 #measurement-section h3,
 #measurement-section > p,
 #measurement-plan-status {
@@ -292,13 +326,58 @@ aside {
   margin-bottom: 0;
 }
 
-#measurement-section label {
-  flex: 1 1 320px;
+.measurement-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex-basis: 100%;
+  gap: 14px;
+}
+
+#measurement-section .measurement-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: #0d110f;
+}
+
+.measurement-picker h4 {
+  margin: 0 0 12px;
+  color: #fff;
+}
+
+.measurement-picker label {
   min-width: 0;
 }
 
 #measurement-section select {
   width: 100%;
+}
+
+.measurement-picker-summary {
+  min-height: 2.8em;
+  margin: 12px 0;
+  color: #d4dccf;
+  line-height: 1.4;
+}
+
+.measurement-advanced {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.measurement-advanced-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.measurement-builder-status {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 #measurement-plan-status {
@@ -479,7 +558,9 @@ aside {
 
 @media (max-width: 800px) {
   .setup,
-  .workspace {
+  .workspace,
+  .measurement-picker-grid,
+  .measurement-advanced-fields {
     grid-template-columns: 1fr;
   }
 

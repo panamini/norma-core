@@ -24,6 +24,7 @@ import {
 import {
   boundedPrivateWebLabCoordinateV1,
   canRunPrivateWebLabCoreV1,
+  createPrivateWebLabAdvancedSpatialExpressionV1,
   createPrivateWebLabDeclaredSpatialMeasurementPlanV1,
   createPrivateWebLabConfirmationPayloadV1,
   isPrivateWebLabCandidateGeometryValidV1,
@@ -31,7 +32,8 @@ import {
   isValidPrivateWebLabMeasurementPairV1,
   presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1,
   presentPrivateWebLabMeasurementReportV1,
-  privateWebLabSpatialExpressionOptionsV1,
+  privateWebLabSpatialCandidateSelectionV1,
+  privateWebLabSpatialPickerV1,
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
@@ -64,7 +66,7 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
   );
 });
 
-test("rendered measurement review defers option rebuilding during drag and labels canonical receipt order", async () => {
+test("measurement review keeps a guided accessible picker and labels canonical receipt order", async () => {
   const [runtime, document] = await Promise.all([
     readFile(new URL("../web-lab/private-web-lab.js", import.meta.url), "utf8"),
     readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
@@ -74,6 +76,13 @@ test("rendered measurement review defers option rebuilding during drag and label
     runtime,
     /candidates\[index\] = updated;\s+render\(\{ refreshMeasurementSelection: false \}\);/u,
   );
+  assert.doesNotMatch(runtime, /privateWebLabSpatialExpressionOptionsV1/u);
+  assert.match(document, /Comparer des mesures entre 2 cadres/u);
+  assert.match(document, /Les segments restent\s+éditables, mais ne peuvent ni être sélectionnés/u);
+  assert.equal((document.match(/<option\b/gu) ?? []).length < 30, true);
+  assert.equal((document.match(/<summary>Mode avancé<\/summary>/gu) ?? []).length, 2);
+  assert.match(runtime, /precisionSummary\.textContent = "Ajuster précisément"/u);
+  assert.match(runtime, /input\.step = "any"/u);
   assert.match(document, /Mesure canonique 1/u);
   assert.match(document, /Mesure canonique 2/u);
   assert.match(document, /L’ordre canonique du reçu est indépendant de l’ordre A\/B/u);
@@ -625,43 +634,84 @@ test("browser model builds the canonical two-rectangle spatial plan and presents
     },
   ];
   const selectedCandidateIds = new Set(["rectangle-b", "rectangle-a"]);
-  const options = privateWebLabSpatialExpressionOptionsV1(
+  const picker = privateWebLabSpatialPickerV1(
     selectedCandidateIds,
     rectangles,
     1200,
     800,
   );
-  const expressions = options.map(({ value }) => JSON.parse(value));
-  assert.ok(options.length > 100);
-  assert.ok(expressions.some((expression) => (
-    expression.kind === "extent"
-    && expression.owner.kind === "image-frame"
-    && expression.extent === "width"
-  )));
+  assert.notEqual(picker, null);
+  assert.equal(picker.common.length, 10);
   assert.deepEqual(
-    new Set(expressions
-      .filter(({ kind }) => kind === "anchor-distance")
-      .map(({ metric }) => metric)),
-    new Set(["euclidean", "horizontal", "vertical"]),
+    picker.common.map(({ expression }) => expression.kind),
+    [
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "extent",
+      "anchor-distance",
+    ],
   );
+  assert.equal(picker.owners.length, 3);
+  assert.equal(picker.anchors.length, 9);
+  assert.equal(picker.metrics.length, 3);
+  assert.equal(picker.frameEdges.length, 4);
+  const advancedExpressions = [
+    createPrivateWebLabAdvancedSpatialExpressionV1(
+      {
+        family: "extent",
+        owner: { kind: "image-frame" },
+        extent: "width",
+      },
+      selectedCandidateIds,
+      rectangles,
+      1200,
+      800,
+    ),
+    createPrivateWebLabAdvancedSpatialExpressionV1(
+      {
+        family: "anchor-distance",
+        metric: "euclidean",
+        fromOwner: { kind: "rectangle", candidateId: "rectangle-a" },
+        fromAnchor: "top-left",
+        toOwner: { kind: "rectangle", candidateId: "rectangle-b" },
+        toAnchor: "bottom-right",
+      },
+      selectedCandidateIds,
+      rectangles,
+      1200,
+      800,
+    ),
+    createPrivateWebLabAdvancedSpatialExpressionV1(
+      {
+        family: "anchor-to-frame-edge",
+        owner: { kind: "rectangle", candidateId: "rectangle-b" },
+        anchor: "center",
+        edge: "right",
+      },
+      selectedCandidateIds,
+      rectangles,
+      1200,
+      800,
+    ),
+  ];
   assert.deepEqual(
-    new Set(expressions
-      .filter(({ kind }) => kind === "anchor-to-frame-edge")
-      .map(({ edge }) => edge)),
-    new Set(["left", "right", "top", "bottom"]),
+    advancedExpressions.map(({ expression }) => expression.kind),
+    ["extent", "anchor-distance", "anchor-to-frame-edge"],
   );
   const chosenExpressions = [
-    expressions.find((expression) => (
+    picker.common.find(({ expression }) => (
       expression.kind === "extent"
       && expression.owner.kind === "rectangle"
       && expression.owner.candidateId === "rectangle-b"
       && expression.extent === "height"
-    )),
-    expressions.find((expression) => (
-      expression.kind === "extent"
-      && expression.owner.kind === "image-frame"
-      && expression.extent === "width"
-    )),
+    )).expression,
+    advancedExpressions[0].expression,
   ];
   const draft = {
     labSessionId: "web-lab-session:22222222-2222-4222-8222-222222222222",
@@ -677,14 +727,19 @@ test("browser model builds the canonical two-rectangle spatial plan and presents
     reviewedCandidates: rectangles,
     expressions: chosenExpressions,
   });
-  assert.deepEqual(plan, createDeclaredSpatialMeasurementPlanV1({
+  const corePlan = createDeclaredSpatialMeasurementPlanV1({
     sourceIdentity: draft.sourceImageContentIdentity,
     sourcePixelWidth: 1200,
     sourcePixelHeight: 800,
     candidates: rectangles,
     selectedRectangleCandidateIds: [...selectedCandidateIds],
     expressions: chosenExpressions,
-  }));
+  });
+  assert.deepEqual(plan, corePlan);
+  assert.equal(
+    canonicalJsonForBrowserTest(plan),
+    canonicalJsonForBrowserTest(corePlan),
+  );
   assert.deepEqual(plan.selectedRectangleCandidateIds, ["rectangle-a", "rectangle-b"]);
   assert.ok(
     canonicalJsonForBrowserTest(plan.expressions[0])
@@ -775,6 +830,211 @@ test("browser model builds the canonical two-rectangle spatial plan and presents
       verdictText: "Aucune correspondance dans les packs actifs à ±2,5 pt.",
     },
   );
+});
+
+test("spatial review selection requires two rectangles and blocks segments plus a third frame", () => {
+  const candidates = [
+    {
+      id: "rectangle-a",
+      x: 0.1,
+      y: 0.1,
+      width: 0.2,
+      height: 0.3,
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "rectangle-b",
+      x: 0.4,
+      y: 0.2,
+      width: 0.2,
+      height: 0.4,
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "rectangle-c",
+      x: 0.7,
+      y: 0.1,
+      width: 0.2,
+      height: 0.2,
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "segment-a",
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1, y: 0.1 },
+        end: { x: 0.9, y: 0.1 },
+      },
+    },
+    {
+      id: "segment-b",
+      primitive: {
+        kind: "segment",
+        start: { x: 0.1, y: 0.2 },
+        end: { x: 0.9, y: 0.2 },
+      },
+    },
+  ];
+  const empty = privateWebLabSpatialCandidateSelectionV1(new Set(), candidates);
+  assert.equal(empty.selectedRectangleCount, 0);
+  assert.equal(empty.complete, false);
+  assert.equal(empty.candidates.some(({ selected }) => selected), false);
+
+  const segments = privateWebLabSpatialCandidateSelectionV1(
+    new Set(["segment-a", "segment-b"]),
+    candidates,
+  );
+  assert.equal(segments.selectedRectangleCount, 0);
+  assert.equal(segments.complete, false);
+  assert.equal(
+    segments.candidates
+      .filter(({ candidateId }) => candidateId.startsWith("segment-"))
+      .every(({ selectable, reason }) => (
+        selectable === false && reason === "segments-do-not-replace-rectangles"
+      )),
+    true,
+  );
+  assert.equal(
+    privateWebLabSpatialPickerV1(
+      new Set(["segment-a", "segment-b"]),
+      candidates,
+      1200,
+      800,
+    ),
+    null,
+  );
+
+  const rectangles = privateWebLabSpatialCandidateSelectionV1(
+    new Set(["rectangle-a", "rectangle-b"]),
+    candidates,
+  );
+  assert.equal(rectangles.selectedRectangleCount, 2);
+  assert.equal(rectangles.complete, true);
+  assert.deepEqual(
+    rectangles.candidates.find(({ candidateId }) => candidateId === "rectangle-c"),
+    {
+      candidateId: "rectangle-c",
+      selected: false,
+      selectable: false,
+      reason: "two-rectangles-already-selected",
+    },
+  );
+  const afterDeselection = privateWebLabSpatialCandidateSelectionV1(
+    new Set(["rectangle-a"]),
+    candidates,
+  );
+  assert.equal(
+    afterDeselection.candidates.find(
+      ({ candidateId }) => candidateId === "rectangle-c",
+    ).selectable,
+    true,
+  );
+});
+
+test("forged segment and third-rectangle selections fail closed before Core", async () => {
+  let coreExecutions = 0;
+  const application = new PrivateWebLabApplicationV1({
+    now: () => Date.parse("2026-07-30T10:00:00.000Z"),
+    createSessionId: () => "web-lab-session:99999999-9999-4999-8999-999999999999",
+    executeDeclaredSpatialMeasurementConfirmation(input) {
+      const result = confirmDeclaredSpatialMeasurementPlanV1(input);
+      coreExecutions += 1;
+      return result;
+    },
+  });
+  const sourceIdentity = `sha256:${"c".repeat(64)}`;
+  const browserSessionId = "browser:spatial-picker-negative";
+  const draft = application.prepareManualDraft({
+    browserSessionId,
+    previousLabSessionId: null,
+    sourceImageContentIdentity: sourceIdentity,
+    sourceImageMediaType: "image/png",
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    goalId: "compare-two-lengths",
+    candidates: [
+      {
+        id: "manual-rectangle-1",
+        kind: "rectangle",
+        x: 0.1,
+        y: 0.1,
+        width: 0.2,
+        height: 0.3,
+      },
+      {
+        id: "manual-rectangle-2",
+        kind: "rectangle",
+        x: 0.4,
+        y: 0.2,
+        width: 0.2,
+        height: 0.4,
+      },
+      {
+        id: "manual-rectangle-3",
+        kind: "rectangle",
+        x: 0.7,
+        y: 0.1,
+        width: 0.2,
+        height: 0.2,
+      },
+      {
+        id: "manual-segment-1",
+        kind: "segment",
+        start: { x: 0.1, y: 0.8 },
+        end: { x: 0.9, y: 0.8 },
+      },
+    ],
+  });
+  const selectedCandidateIds = new Set(["manual-rectangle-1", "manual-rectangle-2"]);
+  const picker = privateWebLabSpatialPickerV1(
+    selectedCandidateIds,
+    draft.candidates,
+    1200,
+    800,
+  );
+  const plan = await createPrivateWebLabDeclaredSpatialMeasurementPlanV1({
+    draft,
+    selectedCandidateIds,
+    reviewedCandidates: draft.candidates,
+    expressions: [
+      picker.common[0].expression,
+      picker.common[1].expression,
+    ],
+  });
+  const request = {
+    explicitConfirmation: true,
+    browserSessionId,
+    labSessionId: draft.labSessionId,
+    sourceImageContentIdentity: sourceIdentity,
+    candidateSetIdentity: draft.candidateSetIdentity,
+    perceptionReceiptIdentity: draft.perceptionReceiptIdentity,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    reviewedCandidates: draft.candidates,
+    measurementCandidateIds: null,
+    declaredSpatialMeasurementPlan: plan,
+  };
+  for (const forgedIds of [
+    ["manual-rectangle-1", "manual-segment-1"],
+    ["manual-rectangle-1", "manual-rectangle-2", "manual-rectangle-3"],
+  ]) {
+    assert.equal(
+      canRunPrivateWebLabCoreV1(
+        true,
+        new Set(forgedIds),
+        draft.candidates,
+        "compare-two-lengths",
+        null,
+        plan,
+      ),
+      false,
+    );
+    assert.throws(() => application.confirmManual({
+      ...request,
+      selectedCandidateIds: forgedIds,
+    }));
+  }
+  assert.equal(coreExecutions, 0);
 });
 
 test(
@@ -875,6 +1135,26 @@ test(
         connection,
         sessionId,
         "!document.querySelector('#review-section').hidden",
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            document.querySelector("#add-segment-button").click();
+            document.querySelector("#add-segment-button").click();
+            return document.querySelector("#prepare-button").disabled;
+          })()`,
+        ),
+        true,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          let remove;
+          while ((remove = document.querySelector(".candidate button"))) remove.click();
+        })()`,
       );
       await evaluate(
         connection,
@@ -1680,34 +1960,135 @@ test(
         `({
           candidateCount: document.querySelectorAll(".candidate").length,
           checkboxCount: document.querySelectorAll(".candidate input[type=checkbox]").length,
-          disabledCheckboxCount:
-            document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
-          receiptHidden: document.querySelector("#receipt-section").hidden,
+           disabledCheckboxCount:
+             document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
+           candidateStatus:
+             document.querySelector("#measurement-candidate-status").textContent,
+           receiptHidden: document.querySelector("#receipt-section").hidden,
         })`,
       );
       assert.deepEqual(reviewState, {
         candidateCount: 3,
         checkboxCount: 3,
-        disabledCheckboxCount: 0,
+        disabledCheckboxCount: 1,
+        candidateStatus:
+          "Cadres sélectionnés : 0/2. Choisissez deux cadres rectangulaires; les segments ne sont pas sélectionnables.",
         receiptHidden: true,
       });
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const precisionSummary = document.querySelector(".candidate-precision summary");
+            precisionSummary.focus();
+            return {
+              allMeasurementSelectsLabelled: [
+                ...document.querySelectorAll("#measurement-section select")
+              ].every((select) => select.closest("label") !== null),
+              numericFieldsNestedUnderPrecision: [
+                ...document.querySelectorAll(".candidate input[type=number]")
+              ].every((input) => input.closest("details.candidate-precision") !== null),
+              numericStepsPreservePrecision: [
+                ...document.querySelectorAll(".candidate input[type=number]")
+              ].every((input) => input.step === "any"),
+              focusedTag: document.activeElement?.tagName,
+              precisionSummaryTabIndex: precisionSummary.tabIndex,
+              precisionOpen: precisionSummary.parentElement.open,
+            };
+          })()`,
+        ),
+        {
+          allMeasurementSelectsLabelled: true,
+          numericFieldsNestedUnderPrecision: true,
+          numericStepsPreservePrecision: true,
+          focusedTag: "SUMMARY",
+          precisionSummaryTabIndex: 0,
+          precisionOpen: false,
+        },
+      );
+      await connection.send(
+        "Input.dispatchKeyEvent",
+        {
+          type: "rawKeyDown",
+          key: "Tab",
+          code: "Tab",
+          windowsVirtualKeyCode: 9,
+          nativeVirtualKeyCode: 9,
+        },
+        sessionId,
+      );
+      await connection.send(
+        "Input.dispatchKeyEvent",
+        {
+          type: "keyUp",
+          key: "Tab",
+          code: "Tab",
+          windowsVirtualKeyCode: 9,
+          nativeVirtualKeyCode: 9,
+        },
+        sessionId,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.activeElement !== document.querySelector(".candidate-precision summary")
+            && document.activeElement.matches("input, summary, button, select, a")`,
+        ),
+        true,
+      );
       await evaluate(
         connection,
         sessionId,
         `(() => {
-          let checkbox;
-          while ((checkbox = document.querySelector(
+          document.querySelector(
             '.candidate[data-candidate-id^="manual-rectangle-"] input[type=checkbox]:not(:checked)'
-          ))) {
-            checkbox.click();
-          }
+          ).click();
         })()`,
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          "document.querySelector('#measurement-candidate-status').textContent",
+        ),
+        "Cadres sélectionnés : 1/2. Choisissez deux cadres rectangulaires; les segments ne sont pas sélectionnables.",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `document.querySelector(
+          '.candidate[data-candidate-id^="manual-rectangle-"] input[type=checkbox]:not(:checked)'
+        ).click()`,
       );
       await waitForBrowserCondition(
         connection,
         sessionId,
         `document.querySelectorAll(".candidate input[type=checkbox]:checked").length === 2
           && document.querySelector("#measurement-first").options.length > 1`,
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            firstCommonOptions: document.querySelector("#measurement-first").options.length,
+            secondCommonOptions: document.querySelector("#measurement-second").options.length,
+            totalPickerOptions:
+              document.querySelectorAll("#measurement-section option").length,
+            advancedFamilyCount:
+              document.querySelector("#measurement-first-family").options.length,
+            counter: document.querySelector("#measurement-candidate-status").textContent,
+          })`,
+        ),
+        {
+          firstCommonOptions: 11,
+          secondCommonOptions: 11,
+          totalPickerOptions: 40,
+          advancedFamilyCount: 3,
+          counter: "Cadres sélectionnés : 2/2. Désélectionnez un cadre avant d’en choisir un autre.",
+        },
       );
       await evaluate(
         connection,

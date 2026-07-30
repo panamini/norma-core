@@ -74,7 +74,44 @@ export function canRunPrivateWebLabCoreV1(
   );
 }
 
-export function privateWebLabSpatialExpressionOptionsV1(
+export function privateWebLabSpatialCandidateSelectionV1(
+  selectedCandidateIds,
+  reviewedCandidates,
+) {
+  if (!(selectedCandidateIds instanceof Set) || !Array.isArray(reviewedCandidates)) {
+    return {
+      selectedRectangleCount: 0,
+      complete: false,
+      candidates: [],
+    };
+  }
+  const selectedRectangles = reviewedCandidates.filter((candidate) => (
+    selectedCandidateIds.has(candidate.id)
+    && (candidate.primitive?.kind ?? "rectangle") === "rectangle"
+    && isPrivateWebLabCandidateGeometryValidV1(candidate)
+  ));
+  const selectedRectangleCount = selectedRectangles.length;
+  return {
+    selectedRectangleCount,
+    complete: selectedCandidateIds.size === 2 && selectedRectangleCount === 2,
+    candidates: reviewedCandidates.map((candidate) => {
+      const selected = selectedCandidateIds.has(candidate.id);
+      const rectangle = (candidate.primitive?.kind ?? "rectangle") === "rectangle";
+      return {
+        candidateId: candidate.id,
+        selected,
+        selectable: rectangle && (selected || selectedRectangleCount < 2),
+        reason: rectangle
+          ? selected || selectedRectangleCount < 2
+            ? null
+            : "two-rectangles-already-selected"
+          : "segments-do-not-replace-rectangles",
+      };
+    }),
+  };
+}
+
+export function privateWebLabSpatialPickerV1(
   selectedCandidateIds,
   reviewedCandidates,
   sourcePixelWidth,
@@ -86,25 +123,25 @@ export function privateWebLabSpatialExpressionOptionsV1(
     sourcePixelWidth,
     sourcePixelHeight,
   );
-  if (rectangles === null) return [];
+  if (rectangles === null) return null;
   const frameOwner = { kind: "image-frame" };
   const owners = [
-    {
-      owner: frameOwner,
-      label: "Cadre image",
-      bounds: { x: 0, y: 0, width: sourcePixelWidth, height: sourcePixelHeight },
-    },
     ...rectangles.map(({ candidate, bounds }) => ({
       owner: { kind: "rectangle", candidateId: candidate.id },
       label: candidate.label,
       bounds,
     })),
+    {
+      owner: frameOwner,
+      label: "Cadre image",
+      bounds: { x: 0, y: 0, width: sourcePixelWidth, height: sourcePixelHeight },
+    },
   ];
-  const options = [];
+  const common = [];
   for (const { owner, label, bounds } of owners) {
     for (const extent of ["width", "height", "diagonal"]) {
       addPositiveSpatialOption(
-        options,
+        common,
         {
           kind: "extent",
           owner,
@@ -115,61 +152,146 @@ export function privateWebLabSpatialExpressionOptionsV1(
       );
     }
   }
-  const anchorReferences = owners.flatMap(({ owner, label, bounds }) => (
-    SPATIAL_ANCHORS.map((anchor) => ({
-      reference: { owner, anchor },
-      label: `${label} · ${spatialAnchorLabel(anchor)}`,
-      point: spatialAnchorPoint(bounds, anchor),
-    }))
-  ));
-  for (let firstIndex = 0; firstIndex < anchorReferences.length; firstIndex += 1) {
-    for (
-      let secondIndex = firstIndex + 1;
-      secondIndex < anchorReferences.length;
-      secondIndex += 1
-    ) {
-      const from = anchorReferences[firstIndex];
-      const to = anchorReferences[secondIndex];
-      for (const metric of SPATIAL_DISTANCE_METRICS) {
-        addPositiveSpatialOption(
-          options,
-          {
-            kind: "anchor-distance",
-            metric,
-            from: from.reference,
-            to: to.reference,
-          },
-          `${spatialMetricLabel(metric)} · ${from.label} → ${to.label}`,
-          spatialAnchorDistance(from.point, to.point, metric),
-        );
-      }
-    }
+  addSpatialOption(
+    common,
+    {
+      kind: "anchor-distance",
+      metric: "euclidean",
+      from: { owner: owners[0].owner, anchor: "center" },
+      to: { owner: owners[1].owner, anchor: "center" },
+    },
+    `Distance centre-centre · ${owners[0].label} → ${owners[1].label}`,
+    spatialAnchorDistance(
+      spatialAnchorPoint(owners[0].bounds, "center"),
+      spatialAnchorPoint(owners[1].bounds, "center"),
+      "euclidean",
+    ),
+  );
+  return {
+    common,
+    owners: owners.map(({ owner, label }) => ({
+      label,
+      owner: structuredClone(owner),
+      value: canonicalJson(owner),
+    })),
+    anchors: SPATIAL_ANCHORS.map((anchor) => ({
+      label: spatialAnchorLabel(anchor),
+      value: anchor,
+    })),
+    metrics: SPATIAL_DISTANCE_METRICS.map((metric) => ({
+      label: spatialMetricLabel(metric),
+      value: metric,
+    })),
+    frameEdges: SPATIAL_FRAME_EDGES.map((edge) => ({
+      label: spatialFrameEdgeLabel(edge),
+      value: edge,
+    })),
+  };
+}
+
+export function createPrivateWebLabAdvancedSpatialExpressionV1(
+  builder,
+  selectedCandidateIds,
+  reviewedCandidates,
+  sourcePixelWidth,
+  sourcePixelHeight,
+) {
+  const picker = privateWebLabSpatialPickerV1(
+    selectedCandidateIds,
+    reviewedCandidates,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
+  if (picker === null || builder === null || typeof builder !== "object") {
+    throw new Error("The advanced spatial measurement builder is incomplete.");
   }
-  for (const anchor of anchorReferences.filter(
-    ({ reference }) => reference.owner.kind === "rectangle",
-  )) {
-    for (const edge of SPATIAL_FRAME_EDGES) {
-      addPositiveSpatialOption(
-        options,
-        {
-          kind: "anchor-to-frame-edge",
-          anchor: anchor.reference,
-          edge,
-        },
-        `${anchor.label} → bord ${spatialFrameEdgeLabel(edge)}`,
-        spatialAnchorToFrameEdgeDistance(
-          anchor.point,
-          edge,
-          sourcePixelWidth,
-          sourcePixelHeight,
-        ),
-      );
+  let expression;
+  if (builder.family === "extent") {
+    expression = {
+      kind: "extent",
+      owner: builder.owner,
+      extent: builder.extent,
+    };
+  } else if (builder.family === "anchor-distance") {
+    expression = {
+      kind: "anchor-distance",
+      metric: builder.metric,
+      from: { owner: builder.fromOwner, anchor: builder.fromAnchor },
+      to: { owner: builder.toOwner, anchor: builder.toAnchor },
+    };
+  } else if (builder.family === "anchor-to-frame-edge") {
+    if (builder.owner?.kind !== "rectangle") {
+      throw new Error("The frame-edge anchor must belong to a selected rectangle.");
     }
+    expression = {
+      kind: "anchor-to-frame-edge",
+      anchor: { owner: builder.owner, anchor: builder.anchor },
+      edge: builder.edge,
+    };
+  } else {
+    throw new Error("The advanced spatial measurement family is invalid.");
   }
-  return options.sort((left, right) => (
-    left.label.localeCompare(right.label, "fr")
-    || left.value.localeCompare(right.value)
-  ));
+  return privateWebLabSpatialExpressionOptionV1(
+    expression,
+    selectedCandidateIds,
+    reviewedCandidates,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
+}
+
+export function privateWebLabSpatialExpressionOptionV1(
+  expression,
+  selectedCandidateIds,
+  reviewedCandidates,
+  sourcePixelWidth,
+  sourcePixelHeight,
+) {
+  const picker = privateWebLabSpatialPickerV1(
+    selectedCandidateIds,
+    reviewedCandidates,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
+  if (picker === null) {
+    throw new Error("The spatial measurement picker is unavailable.");
+  }
+  const selectedIds = new Set(
+    picker.owners
+      .filter(({ owner }) => owner.kind === "rectangle")
+      .map(({ owner }) => owner.candidateId),
+  );
+  const canonicalExpression = canonicalSpatialExpression(expression, selectedIds);
+  const boundsByOwner = new Map([
+    [
+      canonicalJson({ kind: "image-frame" }),
+      { x: 0, y: 0, width: sourcePixelWidth, height: sourcePixelHeight },
+    ],
+    ...selectedRectangles(
+      selectedCandidateIds,
+      reviewedCandidates,
+      sourcePixelWidth,
+      sourcePixelHeight,
+    ).map(({ candidate, bounds }) => [
+      canonicalJson({ kind: "rectangle", candidateId: candidate.id }),
+      bounds,
+    ]),
+  ]);
+  const lengthPixels = spatialExpressionLength(
+    canonicalExpression,
+    boundsByOwner,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
+  if (!Number.isFinite(lengthPixels) || lengthPixels <= 0) {
+    throw new Error("The advanced spatial measurement must have a positive length.");
+  }
+  return {
+    value: canonicalJson(canonicalExpression),
+    label: `${spatialExpressionSummary(canonicalExpression)} · `
+      + `${formatMeasurementLength(lengthPixels)} px`,
+    expression: canonicalExpression,
+  };
 }
 
 export async function createPrivateWebLabDeclaredSpatialMeasurementPlanV1({
@@ -577,14 +699,21 @@ function spatialRectangleCandidateProjection(reviewedCandidates) {
 
 function addPositiveSpatialOption(options, expression, label, lengthPixels) {
   if (!Number.isFinite(lengthPixels) || lengthPixels <= 0) return;
+  addSpatialOption(options, expression, label, lengthPixels);
+}
+
+function addSpatialOption(options, expression, label, lengthPixels) {
   const canonicalExpression = canonicalSpatialExpression(
     expression,
     new Set(spatialExpressionRectangleIds(expression)),
   );
+  const available = Number.isFinite(lengthPixels) && lengthPixels > 0;
   options.push({
     value: canonicalJson(canonicalExpression),
-    label: `${label} · ${formatMeasurementLength(lengthPixels)} px`,
+    label: `${label} · ${formatMeasurementLength(lengthPixels)} px`
+      + (available ? "" : " · indisponible"),
     expression: canonicalExpression,
+    available,
   });
 }
 
@@ -624,6 +753,37 @@ function spatialAnchorToFrameEdgeDistance(point, edge, sourcePixelWidth, sourceP
   if (edge === "right") return sourcePixelWidth - point.x;
   if (edge === "top") return point.y;
   return sourcePixelHeight - point.y;
+}
+
+function spatialExpressionLength(
+  expression,
+  boundsByOwner,
+  sourcePixelWidth,
+  sourcePixelHeight,
+) {
+  const boundsFor = (owner) => boundsByOwner.get(canonicalJson(owner));
+  if (expression.kind === "extent") {
+    const bounds = boundsFor(expression.owner);
+    return bounds === undefined ? Number.NaN : spatialExtentLength(bounds, expression.extent);
+  }
+  if (expression.kind === "anchor-distance") {
+    const fromBounds = boundsFor(expression.from.owner);
+    const toBounds = boundsFor(expression.to.owner);
+    if (fromBounds === undefined || toBounds === undefined) return Number.NaN;
+    return spatialAnchorDistance(
+      spatialAnchorPoint(fromBounds, expression.from.anchor),
+      spatialAnchorPoint(toBounds, expression.to.anchor),
+      expression.metric,
+    );
+  }
+  const anchorBounds = boundsFor(expression.anchor.owner);
+  if (anchorBounds === undefined) return Number.NaN;
+  return spatialAnchorToFrameEdgeDistance(
+    spatialAnchorPoint(anchorBounds, expression.anchor.anchor),
+    expression.edge,
+    sourcePixelWidth,
+    sourcePixelHeight,
+  );
 }
 
 function spatialExtentLabel(extent) {

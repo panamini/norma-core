@@ -61,6 +61,7 @@ import {
   privateWebLabManualPrecisionChangedFiles,
   privateWebLabResultPresentationChangedFiles,
   privateWebLabSessionRecoveryLauncherChangedFiles,
+  privateWebLabSpatialPickerUxChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
@@ -930,6 +931,42 @@ test("declared spatial measurements allowlist is exact and rejects scope drift",
     ]),
     null,
   );
+});
+
+test("private Web Lab spatial picker UX preserves its exact seven-file boundary", () => {
+  assert.equal(
+    privateWebLabSpatialPickerUxChangedFiles,
+    privateWebLabResultPresentationChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(privateWebLabSpatialPickerUxChangedFiles),
+    privateWebLabSpatialPickerUxChangedFiles,
+  );
+  for (const missingFile of privateWebLabSpatialPickerUxChangedFiles) {
+    const accepted = sharedExactApprovedChangedFiles(
+      privateWebLabSpatialPickerUxChangedFiles.filter((file) => file !== missingFile),
+    );
+    if (missingFile === "web-lab/private-web-lab-browser-model.js") {
+      assert.deepEqual(accepted, privateWebLabManualPrecisionChangedFiles);
+    } else {
+      assert.equal(accepted, null, missingFile);
+    }
+  }
+  for (const forbidden of [
+    "src/private-web-lab.ts",
+    "src/personal-visual-harmony-spatial-measurements.ts",
+    "web-lab/private-web-lab-http-server.mjs",
+    "README.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...privateWebLabSpatialPickerUxChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
 });
 
 test("private Web Lab allowlist is exact and rejects scope drift", () => {

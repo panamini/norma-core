@@ -1,10 +1,13 @@
 import {
   canRunPrivateWebLabCoreV1,
+  createPrivateWebLabAdvancedSpatialExpressionV1,
   createPrivateWebLabDeclaredSpatialMeasurementPlanV1,
   createPrivateWebLabConfirmationPayloadV1,
   presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1,
   presentPrivateWebLabMeasurementReportV1,
-  privateWebLabSpatialExpressionOptionsV1,
+  privateWebLabSpatialCandidateSelectionV1,
+  privateWebLabSpatialExpressionOptionV1,
+  privateWebLabSpatialPickerV1,
   updatePrivateWebLabCandidateGeometryV1,
 } from "/private-web-lab-browser-model.js";
 
@@ -54,9 +57,31 @@ const segmentTool = $("#segment-tool");
 const panTool = $("#pan-tool");
 const addRectangleButton = $("#add-rectangle-button");
 const addSegmentButton = $("#add-segment-button");
+const measurementCandidateStatus = $("#measurement-candidate-status");
 const measurementSection = $("#measurement-section");
 const measurementFirst = $("#measurement-first");
 const measurementSecond = $("#measurement-second");
+const measurementSelects = [measurementFirst, measurementSecond];
+const measurementSummaries = [
+  $("#measurement-first-summary"),
+  $("#measurement-second-summary"),
+];
+const measurementFamilies = [
+  $("#measurement-first-family"),
+  $("#measurement-second-family"),
+];
+const measurementAdvancedFields = [
+  $("#measurement-first-fields"),
+  $("#measurement-second-fields"),
+];
+const measurementApplyButtons = [
+  $("#measurement-first-apply"),
+  $("#measurement-second-apply"),
+];
+const measurementBuilderStatuses = [
+  $("#measurement-first-builder-status"),
+  $("#measurement-second-builder-status"),
+];
 const measurementPlanStatus = $("#measurement-plan-status");
 const confirmationInput = $("#confirmation-input");
 const runButton = $("#run-button");
@@ -322,12 +347,40 @@ prepareButton.addEventListener("click", async () => {
   }
 });
 
-[measurementFirst, measurementSecond].forEach((select, index) => {
+measurementSelects.forEach((select, index) => {
   select.addEventListener("change", () => {
     state.measurementExpressions[index] = select.value === ""
       ? null
       : JSON.parse(select.value);
     invalidateConfirmation();
+    render();
+  });
+});
+measurementFamilies.forEach((select, index) => {
+  select.addEventListener("change", () => {
+    measurementBuilderStatuses[index].textContent = "";
+    renderAdvancedMeasurementFields(index, currentSpatialPicker());
+  });
+});
+measurementApplyButtons.forEach((button, index) => {
+  button.addEventListener("click", () => {
+    try {
+      const option = createPrivateWebLabAdvancedSpatialExpressionV1(
+        readAdvancedMeasurementBuilder(index),
+        state.selectedCandidateIds,
+        state.candidates,
+        state.draft?.sourcePixelWidth,
+        state.draft?.sourcePixelHeight,
+      );
+      state.measurementExpressions[index] = option.expression;
+      measurementBuilderStatuses[index].textContent = "";
+      invalidateConfirmation();
+      render();
+    } catch (error) {
+      measurementBuilderStatuses[index].textContent = error instanceof Error
+        ? error.message
+        : "Cette mesure avancée est invalide.";
+    }
   });
 });
 confirmationInput.addEventListener("change", updateCoreAvailability);
@@ -487,6 +540,7 @@ function render({ refreshMeasurementSelection = true } = {}) {
     ? "Dessinez vos propres cadres et segments. Aucun guide n’est inféré ou détecté."
     : "Liste liée au serveur: nombre, ordre, identités, métadonnées et types sont figés.";
   const candidates = authoring ? authoredDisplayCandidates() : state.candidates;
+  renderMeasurementCandidateStatus(authoring);
   candidateList.replaceChildren(
     ...candidates.map((candidate, index) => candidateCard(candidate, index, authoring, locked)),
   );
@@ -526,9 +580,15 @@ function candidateCard(candidate, index, authoring, locked) {
   const header = document.createElement("label");
   if (!authoring) {
     const checkbox = document.createElement("input");
+    const declaredSpatialMode = isDeclaredSpatialReviewMode();
+    const selection = currentSpatialCandidateSelection();
+    const candidateSelection = selection.candidates.find(
+      ({ candidateId }) => candidateId === candidate.id,
+    );
     checkbox.type = "checkbox";
     checkbox.checked = state.selectedCandidateIds.has(candidate.id);
-    checkbox.disabled = locked;
+    checkbox.disabled = locked
+      || (declaredSpatialMode && candidateSelection?.selectable !== true);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) state.selectedCandidateIds.add(candidate.id);
       else state.selectedCandidateIds.delete(candidate.id);
@@ -544,6 +604,29 @@ function candidateCard(candidate, index, authoring, locked) {
     : `${String(index + 1)}. ${candidate.label}`;
   header.append(title);
   article.append(header);
+  const summary = document.createElement("p");
+  summary.className = "candidate-summary";
+  summary.textContent = candidateGeometrySummary(candidate, authoring);
+  article.append(summary);
+  if (!authoring && isDeclaredSpatialReviewMode()) {
+    const candidateSelection = currentSpatialCandidateSelection().candidates.find(
+      ({ candidateId }) => candidateId === candidate.id,
+    );
+    const note = document.createElement("p");
+    note.className = "candidate-selection-note";
+    note.id = `candidate-selection-note-${String(index)}`;
+    if (candidateSelection?.reason === "segments-do-not-replace-rectangles") {
+      note.textContent =
+        "Non sélectionnable pour cet objectif : un segment ne remplace pas un cadre.";
+    } else if (candidateSelection?.reason === "two-rectangles-already-selected") {
+      note.textContent =
+        "Deux cadres sont déjà sélectionnés. Désélectionnez-en un pour choisir celui-ci.";
+    }
+    if (note.textContent !== "") {
+      header.querySelector("input")?.setAttribute("aria-describedby", note.id);
+      article.append(note);
+    }
+  }
   const controls = document.createElement("div");
   controls.className = "candidate-controls";
   const fields = geometryFields(candidate, authoring);
@@ -554,7 +637,7 @@ function candidateCard(candidate, index, authoring, locked) {
     input.type = "number";
     input.min = "0";
     input.max = "1";
-    input.step = "0.001";
+    input.step = "any";
     input.value = String(valueAt(candidate, field.path));
     input.disabled = locked;
     input.addEventListener("change", () => {
@@ -573,7 +656,12 @@ function candidateCard(candidate, index, authoring, locked) {
     label.append(input);
     controls.append(label);
   }
-  article.append(controls);
+  const precision = document.createElement("details");
+  precision.className = "candidate-precision";
+  const precisionSummary = document.createElement("summary");
+  precisionSummary.textContent = "Ajuster précisément";
+  precision.append(precisionSummary, controls);
+  article.append(precision);
   if (authoring) {
     const remove = document.createElement("button");
     remove.type = "button";
@@ -595,6 +683,41 @@ function candidateCard(candidate, index, authoring, locked) {
     article.append(remove);
   }
   return article;
+}
+
+function isDeclaredSpatialReviewMode() {
+  return state.draft?.goal.id === "compare-two-lengths"
+    && state.phase !== "authoring"
+    && state.phase !== "empty";
+}
+
+function currentSpatialCandidateSelection() {
+  return privateWebLabSpatialCandidateSelectionV1(
+    state.selectedCandidateIds,
+    state.candidates,
+  );
+}
+
+function renderMeasurementCandidateStatus(authoring) {
+  const visible = !authoring && state.draft?.goal.id === "compare-two-lengths";
+  measurementCandidateStatus.hidden = !visible;
+  if (!visible) return;
+  const count = currentSpatialCandidateSelection().selectedRectangleCount;
+  measurementCandidateStatus.textContent = `Cadres sélectionnés : ${String(count)}/2. `
+    + (count < 2
+      ? "Choisissez deux cadres rectangulaires; les segments ne sont pas sélectionnables."
+      : "Désélectionnez un cadre avant d’en choisir un autre.");
+}
+
+function candidateGeometrySummary(candidate, authoring) {
+  const kind = authoring ? candidate.kind : candidate.primitive?.kind ?? "rectangle";
+  if (kind === "rectangle") {
+    return `Cadre rectangulaire · x ${String(candidate.x)} · y ${String(candidate.y)} · `
+      + `largeur ${String(candidate.width)} · hauteur ${String(candidate.height)}`;
+  }
+  const primitive = authoring ? candidate : candidate.primitive;
+  return `Segment · (${String(primitive.start.x)}, ${String(primitive.start.y)}) → `
+    + `(${String(primitive.end.x)}, ${String(primitive.end.y)})`;
 }
 
 function geometryFields(candidate, authoring) {
@@ -719,42 +842,160 @@ function candidateHandlePoints(candidate, authoring) {
 function renderMeasurementSelection() {
   const enabled = state.draft?.goal.id === "compare-two-lengths" && state.phase !== "authoring";
   measurementSection.hidden = !enabled;
-  const available = enabled
-    ? privateWebLabSpatialExpressionOptionsV1(
-      state.selectedCandidateIds,
-      state.candidates,
-      state.draft.sourcePixelWidth,
-      state.draft.sourcePixelHeight,
-    )
-    : [];
-  const availableValues = new Set(available.map(({ value }) => value));
+  const picker = enabled ? currentSpatialPicker() : null;
+  const selectedOptions = state.measurementExpressions.map((expression) => {
+    if (expression === null || picker === null) return null;
+    try {
+      return privateWebLabSpatialExpressionOptionV1(
+        expression,
+        state.selectedCandidateIds,
+        state.candidates,
+        state.draft.sourcePixelWidth,
+        state.draft.sourcePixelHeight,
+      );
+    } catch {
+      return null;
+    }
+  });
   state.measurementExpressions = state.measurementExpressions.map(
-    (expression) => expression !== null && availableValues.has(canonicalJson(expression))
-      ? expression
-      : null,
+    (expression, index) => selectedOptions[index] === null ? null : expression,
   );
-  [measurementFirst, measurementSecond].forEach((select, index) => {
-    const placeholder = new Option("Choisir une longueur…", "");
-    const options = available.map(
-      ({ value, label }) => new Option(label, value),
-    );
+  measurementSelects.forEach((select, index) => {
+    const placeholder = new Option("Choisir une mesure…", "");
+    const options = (picker?.common ?? []).map(({ value, label, available }) => {
+      const option = new Option(label, value);
+      option.disabled = available === false;
+      return option;
+    });
+    const selectedOption = selectedOptions[index];
+    if (
+      selectedOption !== null
+      && !(picker?.common ?? []).some(({ value }) => value === selectedOption.value)
+    ) {
+      options.push(new Option(`Avancé · ${selectedOption.label}`, selectedOption.value));
+    }
     select.replaceChildren(placeholder, ...options);
-    select.value = state.measurementExpressions[index] === null
+    select.value = selectedOption === null
       ? ""
-      : canonicalJson(state.measurementExpressions[index]);
-    select.disabled = !isReviewPhase()
+      : selectedOption.value;
+    select.disabled = picker === null
+      || !isReviewPhase()
       || state.sessionResetInFlight
       || state.confirmationInFlight;
+    measurementSummaries[index].textContent = selectedOption === null
+      ? "Aucune mesure choisie."
+      : selectedOption.label;
+    renderAdvancedMeasurementFields(index, picker);
   });
   if (enabled) {
     measurementPlanStatus.textContent = state.planBuildInFlight
       ? "Calcul de l’identité canonique du plan…"
       : state.declaredSpatialMeasurementPlan !== null
         ? `Plan prêt · ${state.declaredSpatialMeasurementPlan.planIdentity}`
-        : available.length === 0
-          ? "Sélectionnez exactement deux rectangles."
+        : picker === null
+          ? `Sélectionnez exactement deux cadres rectangulaires (${String(
+            currentSpatialCandidateSelection().selectedRectangleCount
+          )}/2).`
           : "Déclarez deux longueurs distinctes.";
   }
+}
+
+function currentSpatialPicker() {
+  if (state.draft?.goal.id !== "compare-two-lengths") return null;
+  return privateWebLabSpatialPickerV1(
+    state.selectedCandidateIds,
+    state.candidates,
+    state.draft.sourcePixelWidth,
+    state.draft.sourcePixelHeight,
+  );
+}
+
+function renderAdvancedMeasurementFields(index, picker) {
+  const fields = measurementAdvancedFields[index];
+  const family = measurementFamilies[index].value;
+  const locked = picker === null
+    || !isReviewPhase()
+    || state.sessionResetInFlight
+    || state.confirmationInFlight;
+  measurementFamilies[index].disabled = locked;
+  measurementApplyButtons[index].disabled = locked;
+  fields.replaceChildren();
+  if (picker === null) {
+    measurementBuilderStatuses[index].textContent =
+      "Sélectionnez d’abord exactement deux cadres.";
+    return;
+  }
+  if (measurementBuilderStatuses[index].textContent.includes("Sélectionnez d’abord")) {
+    measurementBuilderStatuses[index].textContent = "";
+  }
+  if (family === "extent") {
+    appendAdvancedMeasurementSelect(fields, index, "owner", "Cadre", picker.owners, locked);
+    appendAdvancedMeasurementSelect(fields, index, "extent", "Dimension", [
+      { value: "width", label: "Largeur" },
+      { value: "height", label: "Hauteur" },
+      { value: "diagonal", label: "Diagonale" },
+    ], locked);
+    return;
+  }
+  if (family === "anchor-distance") {
+    appendAdvancedMeasurementSelect(fields, index, "metric", "Distance", picker.metrics, locked);
+    appendAdvancedMeasurementSelect(fields, index, "from-owner", "Cadre de départ", picker.owners, locked);
+    appendAdvancedMeasurementSelect(fields, index, "from-anchor", "Repère de départ", picker.anchors, locked);
+    appendAdvancedMeasurementSelect(fields, index, "to-owner", "Cadre d’arrivée", picker.owners, locked);
+    appendAdvancedMeasurementSelect(fields, index, "to-anchor", "Repère d’arrivée", picker.anchors, locked);
+    return;
+  }
+  appendAdvancedMeasurementSelect(
+    fields,
+    index,
+    "owner",
+    "Cadre du repère",
+    picker.owners.filter(({ owner }) => owner.kind === "rectangle"),
+    locked,
+  );
+  appendAdvancedMeasurementSelect(fields, index, "anchor", "Repère", picker.anchors, locked);
+  appendAdvancedMeasurementSelect(fields, index, "edge", "Bord de l’image", picker.frameEdges, locked);
+}
+
+function appendAdvancedMeasurementSelect(container, index, field, labelText, options, disabled) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const select = document.createElement("select");
+  const side = index === 0 ? "first" : "second";
+  select.id = `measurement-${side}-${field}`;
+  select.dataset.builderField = field;
+  select.disabled = disabled;
+  select.replaceChildren(...options.map(({ value, label: optionLabel }) => (
+    new Option(optionLabel, typeof value === "string" ? value : canonicalJson(value))
+  )));
+  label.append(select);
+  container.append(label);
+}
+
+function readAdvancedMeasurementBuilder(index) {
+  const family = measurementFamilies[index].value;
+  const value = (field) => measurementAdvancedFields[index]
+    .querySelector(`[data-builder-field="${field}"]`)?.value;
+  const owner = (field) => JSON.parse(value(field));
+  if (family === "extent") {
+    return { family, owner: owner("owner"), extent: value("extent") };
+  }
+  if (family === "anchor-distance") {
+    return {
+      family,
+      metric: value("metric"),
+      fromOwner: owner("from-owner"),
+      fromAnchor: value("from-anchor"),
+      toOwner: owner("to-owner"),
+      toAnchor: value("to-anchor"),
+    };
+  }
+  return {
+    family,
+    owner: owner("owner"),
+    anchor: value("anchor"),
+    edge: value("edge"),
+  };
 }
 
 function updateCoreAvailability() {
