@@ -1598,6 +1598,15 @@ test(
           panPressed: "false",
         },
       );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          document.querySelector(
+            ".candidate[data-active=true] details.candidate-precision",
+          ).open = true;
+        })()`,
+      );
       const endHandle = await evaluate(
         connection,
         sessionId,
@@ -1637,6 +1646,16 @@ test(
           `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
         ),
         "900",
+      );
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `document.querySelector(
+            ".candidate[data-active=true] details.candidate-precision",
+          ).open`,
+        ),
+        true,
       );
       await evaluate(
         connection,

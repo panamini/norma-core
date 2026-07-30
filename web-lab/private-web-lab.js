@@ -1204,6 +1204,10 @@ function updateGeometryFromHandle(candidateId, handle, original, point) {
     ? rectangleFromHandle(candidates[index], handle, original, point)
     : segmentFromHandle(candidates[index], handle, point, authoring);
   if (updated === null) return;
+  if (authoring) {
+    const viewKey = authoredCandidateViewKeys.get(candidates[index]);
+    if (viewKey !== undefined) authoredCandidateViewKeys.set(updated, viewKey);
+  }
   candidates[index] = updated;
   render({ refreshMeasurementSelection: false });
 }
