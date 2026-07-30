@@ -1617,6 +1617,13 @@ function localCvAuthoredCandidate(candidate, result) {
       executionIdentity: result.executionIdentity,
       rasterContentIdentity: result.rasterContentIdentity,
       runProposalIdentities: result.candidates.map(({ proposalIdentity }) => proposalIdentity),
+      runProposals: result.candidates.map((proposal) => ({
+        proposalIdentity: proposal.proposalIdentity,
+        rank: proposal.rank,
+        rankScore: proposal.rankScore,
+        evidence: structuredClone(proposal.evidence),
+        geometry: localCvProposalGeometry(proposal),
+      })),
       proposalIdentity: candidate.proposalIdentity,
       rank: candidate.rank,
       rankScore: candidate.rankScore,
@@ -1693,6 +1700,7 @@ function createLocalCvProvenanceManifest(candidates, authoring) {
     run: {
       contentIdentity: first.executionIdentity,
       proposalIdentities: structuredClone(first.runProposalIdentities),
+      proposals: structuredClone(first.runProposals),
     },
     candidateOrderIds: candidates.map(({ id }) => id),
     proposals,

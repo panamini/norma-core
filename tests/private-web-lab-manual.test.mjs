@@ -287,50 +287,16 @@ test("local-CV draft provenance rejects evidence that contradicts geometry kind"
     supportCoverage: 0.91,
     orientationDegrees: 0,
   };
-  const originalProposalIdentity = contentIdentityForTest({
-    contractId: manifest.detector.contractId,
-    algorithmVersion: manifest.detector.algorithmVersion,
-    sourceImageContentIdentity,
-    kind: "rectangle",
-    geometry: {
-      x: manifest.proposals[0].originalGeometry.x,
-      y: manifest.proposals[0].originalGeometry.y,
-      width: manifest.proposals[0].originalGeometry.width,
-      height: manifest.proposals[0].originalGeometry.height,
-    },
+  const forgedManifest = localCvManifestWithProposal(manifest, {
+    ...manifest.proposals[0],
     evidence,
   });
-  const proposalIdentities = [originalProposalIdentity];
-  const forgedManifest = {
-    ...manifest,
-    run: {
-      proposalIdentities,
-      contentIdentity: contentIdentityForTest({
-        contractId: manifest.detector.contractId,
-        algorithmVersion: manifest.detector.algorithmVersion,
-        sourceImageContentIdentity,
-        workingImage: {
-          width: manifest.raster.width,
-          height: manifest.raster.height,
-        },
-        rasterContentIdentity: manifest.raster.contentIdentity,
-        status: "detected",
-        abstentionReason: null,
-        candidateProposalIdentities: proposalIdentities,
-      }),
-    },
-    proposals: [{
-      ...manifest.proposals[0],
-      evidence,
-      originalProposalIdentity,
-    }],
-  };
 
   assert.throws(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       localCvProvenanceManifest: forgedManifest,
     })),
-    /local CV provenance evidence does not match geometry/u,
+    /local CV provenance run proposal is impossible/u,
   );
 });
 
@@ -416,7 +382,7 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
       () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
         localCvProvenanceManifest,
       })),
-      /local CV provenance evidence values contradict geometry/u,
+      /local CV provenance run proposal is impossible/u,
     );
   }
   assert.doesNotThrow(
@@ -442,6 +408,114 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
         rankScore: sparseHoughRankScore,
       }),
     })),
+  );
+});
+
+test("local-CV run provenance binds every proposal, detector tie order, and rectangle grid", () => {
+  const manifest = localCvManifest();
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: {
+        ...manifest,
+        run: {
+          ...manifest.run,
+          proposalIdentities: [
+            ...manifest.run.proposalIdentities,
+            `sha256:${"e".repeat(64)}`,
+          ],
+        },
+      },
+    })),
+    /local CV provenance run proposal evidence is incomplete/u,
+  );
+
+  const segmentGeometry = {
+    kind: "segment",
+    start: { x: 0.1, y: 0.25 },
+    end: { x: 0.9, y: 0.25 },
+  };
+  const lengthFraction = (
+    Math.hypot(
+      (segmentGeometry.end.x - segmentGeometry.start.x) * (manifest.raster.width - 1),
+      (segmentGeometry.end.y - segmentGeometry.start.y) * (manifest.raster.height - 1),
+    )
+    / Math.hypot(manifest.raster.width, manifest.raster.height)
+  );
+  const tiedRankScore = manifest.run.proposals[0].rankScore;
+  const segmentEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: Number((
+      (tiedRankScore - (lengthFraction * 0.32)) / 0.68
+    ).toFixed(6)),
+    orientationDegrees: 0,
+  };
+  const segmentIdentity = contentIdentityForTest({
+    contractId: manifest.detector.contractId,
+    algorithmVersion: manifest.detector.algorithmVersion,
+    sourceImageContentIdentity,
+    kind: "segment",
+    geometry: { start: segmentGeometry.start, end: segmentGeometry.end },
+    evidence: segmentEvidence,
+  });
+  const reversedTieProposals = [
+    {
+      proposalIdentity: segmentIdentity,
+      rank: 1,
+      rankScore: tiedRankScore,
+      evidence: segmentEvidence,
+      geometry: segmentGeometry,
+    },
+    {
+      ...manifest.run.proposals[0],
+      rank: 2,
+    },
+  ];
+  const reversedTieIdentities = reversedTieProposals.map(({ proposalIdentity }) => (
+    proposalIdentity
+  ));
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: {
+        ...manifest,
+        run: {
+          proposals: reversedTieProposals,
+          proposalIdentities: reversedTieIdentities,
+          contentIdentity: contentIdentityForTest({
+            contractId: manifest.detector.contractId,
+            algorithmVersion: manifest.detector.algorithmVersion,
+            sourceImageContentIdentity,
+            workingImage: {
+              width: manifest.raster.width,
+              height: manifest.raster.height,
+            },
+            rasterContentIdentity: manifest.raster.contentIdentity,
+            status: "detected",
+            abstentionReason: null,
+            candidateProposalIdentities: reversedTieIdentities,
+          }),
+        },
+      },
+    })),
+    /local CV provenance run ranking is invalid/u,
+  );
+
+  const offGridGeometry = {
+    ...manifest.proposals[0].originalGeometry,
+    x: 0.1,
+  };
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        ...manifest.proposals[0],
+        originalGeometry: offGridGeometry,
+        rankScore: localCvRankScoreForTest(
+          offGridGeometry,
+          manifest.proposals[0].evidence,
+          manifest.raster,
+        ),
+      }),
+    })),
+    /local CV provenance run proposal is impossible/u,
   );
 });
 
@@ -994,10 +1068,10 @@ function localCvManifest() {
   };
   const originalGeometry = {
     kind: "rectangle",
-    x: 0.1,
-    y: 0.1,
-    width: 0.6,
-    height: 0.7,
+    x: Number((64 / 639).toFixed(6)),
+    y: Number((43 / 426).toFixed(6)),
+    width: Number((383 / 639).toFixed(6)),
+    height: Number((298 / 426).toFixed(6)),
   };
   const evidence = {
     kind: "axis-aligned-edge-coverage",
@@ -1018,6 +1092,7 @@ function localCvManifest() {
     evidence,
   });
   const proposalIdentities = [originalProposalIdentity];
+  const rankScore = localCvRankScoreForTest(originalGeometry, evidence, raster);
   const run = {
     contentIdentity: contentIdentityForTest({
       contractId: detectorContractId,
@@ -1030,6 +1105,20 @@ function localCvManifest() {
       candidateProposalIdentities: proposalIdentities,
     }),
     proposalIdentities,
+    proposals: [{
+      proposalIdentity: originalProposalIdentity,
+      rank: 1,
+      rankScore,
+      evidence: structuredClone(evidence),
+      geometry: structuredClone(originalGeometry),
+    }],
+  };
+  const reviewedGeometry = {
+    kind: "rectangle",
+    x: 0.1,
+    y: 0.1,
+    width: 0.6,
+    height: 0.7,
   };
   return {
     contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
@@ -1046,11 +1135,11 @@ function localCvManifest() {
       candidateOrder: 0,
       originalProposalIdentity,
       rank: 1,
-      rankScore: localCvRankScoreForTest(originalGeometry, evidence, raster),
+      rankScore,
       evidence,
       originalGeometry,
-      reviewedGeometry: structuredClone(originalGeometry),
-      userEdited: false,
+      reviewedGeometry,
+      userEdited: true,
     }],
   };
 }
@@ -1088,6 +1177,7 @@ function localCvManifestWithProposal(manifest, proposal) {
     evidence: proposal.evidence,
   });
   const proposalIdentities = [originalProposalIdentity];
+  const rankScore = proposal.rankScore;
   return {
     ...manifest,
     run: {
@@ -1105,8 +1195,15 @@ function localCvManifestWithProposal(manifest, proposal) {
         abstentionReason: null,
         candidateProposalIdentities: proposalIdentities,
       }),
+      proposals: [{
+        proposalIdentity: originalProposalIdentity,
+        rank: proposal.rank,
+        rankScore,
+        evidence: structuredClone(proposal.evidence),
+        geometry: structuredClone(proposal.originalGeometry),
+      }],
     },
-    proposals: [{ ...proposal, originalProposalIdentity }],
+    proposals: [{ ...proposal, originalProposalIdentity, rankScore }],
   };
 }
 

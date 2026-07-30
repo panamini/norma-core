@@ -397,6 +397,16 @@ test(
         payload.localCvProvenanceManifest.run.contentIdentity,
         /^sha256:[0-9a-f]{64}$/u,
       );
+      assert.equal(
+        payload.localCvProvenanceManifest.run.proposals.length,
+        payload.localCvProvenanceManifest.run.proposalIdentities.length,
+      );
+      assert.deepEqual(
+        payload.localCvProvenanceManifest.run.proposals.map(({ proposalIdentity }) => (
+          proposalIdentity
+        )),
+        payload.localCvProvenanceManifest.run.proposalIdentities,
+      );
       assert.equal(JSON.stringify(payload).includes("data:image"), false);
       assert.equal(JSON.stringify(payload).includes("base64"), false);
 

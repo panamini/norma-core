@@ -128,6 +128,13 @@ export interface PrivateWebLabLocalCvProvenanceManifestV1 {
   readonly run: {
     readonly contentIdentity: string;
     readonly proposalIdentities: readonly string[];
+    readonly proposals: readonly {
+      readonly proposalIdentity: string;
+      readonly rank: number;
+      readonly rankScore: number;
+      readonly evidence: PrivateWebLabLocalCvEvidenceV1;
+      readonly geometry: PrivateWebLabLocalCvGeometryV1;
+    }[];
   };
   readonly candidateOrderIds: readonly string[];
   readonly proposals: readonly {
@@ -1118,6 +1125,10 @@ function parseLocalCvProvenanceManifest(
   ) {
     throw new Error("Private Web Lab local CV provenance detector is invalid.");
   }
+  const sourceImageContentIdentity = requireLocalCvIdentity(
+    input.sourceImageContentIdentity,
+    "source image",
+  );
   const sourcePixelWidth = requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
   const sourcePixelHeight = requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
   if (sourcePixelWidth * sourcePixelHeight > LOCAL_CV_MAX_SOURCE_PIXELS) {
@@ -1139,7 +1150,11 @@ function parseLocalCvProvenanceManifest(
       "Private Web Lab local CV provenance raster dimensions do not match the source.",
     );
   }
-  const run = requireExactRecord(input.run, ["contentIdentity", "proposalIdentities"]);
+  const run = requireExactRecord(input.run, [
+    "contentIdentity",
+    "proposalIdentities",
+    "proposals",
+  ]);
   if (
     !Array.isArray(run.proposalIdentities)
     || run.proposalIdentities.length < 1
@@ -1152,6 +1167,82 @@ function parseLocalCvProvenanceManifest(
   ));
   if (new Set(proposalIdentities).size !== proposalIdentities.length) {
     throw new Error("Private Web Lab local CV provenance run proposals must be unique.");
+  }
+  if (
+    !Array.isArray(run.proposals)
+    || run.proposals.length !== proposalIdentities.length
+  ) {
+    throw new Error("Private Web Lab local CV provenance run proposal evidence is incomplete.");
+  }
+  const runProposals = run.proposals.map((value, index) => {
+    const proposal = requireExactRecord(value, [
+      "evidence",
+      "geometry",
+      "proposalIdentity",
+      "rank",
+      "rankScore",
+    ]);
+    if (
+      !Number.isSafeInteger(proposal.rank)
+      || proposal.rank !== index + 1
+    ) {
+      throw new Error("Private Web Lab local CV provenance run rank is invalid.");
+    }
+    const proposalIdentity = requireLocalCvIdentity(
+      proposal.proposalIdentity,
+      "run proposal",
+    );
+    if (proposalIdentity !== proposalIdentities[index]) {
+      throw new Error("Private Web Lab local CV provenance run proposal order is invalid.");
+    }
+    const rankScore = requireNormalizedNumber(
+      proposal.rankScore,
+      "local CV run rank score",
+    );
+    const evidence = parseLocalCvEvidence(proposal.evidence);
+    const geometry = parseLocalCvGeometry(proposal.geometry);
+    if (
+      (
+        geometry.kind === "rectangle"
+        ? evidence.kind !== "axis-aligned-edge-coverage"
+        : evidence.kind !== "straight-edge-support"
+      )
+      || !localCvOriginalGeometryMatchesDetectorGrid(geometry, rasterWidth, rasterHeight)
+      || !localCvEvidenceValuesMatchGeometry(
+        evidence,
+        geometry,
+        rankScore,
+        rasterWidth,
+        rasterHeight,
+      )
+    ) {
+      throw new Error("Private Web Lab local CV provenance run proposal is impossible.");
+    }
+    const expectedProposalIdentity = contentIdentityFor({
+      contractId: detector.contractId,
+      algorithmVersion: detector.algorithmVersion,
+      sourceImageContentIdentity,
+      kind: geometry.kind,
+      geometry: localCvIdentityGeometry(geometry),
+      evidence,
+    });
+    if (proposalIdentity !== expectedProposalIdentity) {
+      throw new Error("Private Web Lab local CV provenance run proposal identity is invalid.");
+    }
+    return {
+      proposalIdentity,
+      rank: proposal.rank as number,
+      rankScore,
+      evidence,
+      geometry,
+    };
+  });
+  const sortedRunProposals = [...runProposals].sort(compareLocalCvRankedProposals);
+  if (
+    serializeCanonicalJson(sortedRunProposals.map(({ proposalIdentity }) => proposalIdentity))
+    !== serializeCanonicalJson(proposalIdentities)
+  ) {
+    throw new Error("Private Web Lab local CV provenance run ranking is invalid.");
   }
   const candidateOrderIdsInput = input.candidateOrderIds;
   if (
@@ -1269,10 +1360,7 @@ function parseLocalCvProvenanceManifest(
   return {
     contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
     browserSessionId: requireBrowserSessionId(input.browserSessionId),
-    sourceImageContentIdentity: requireLocalCvIdentity(
-      input.sourceImageContentIdentity,
-      "source image",
-    ),
+    sourceImageContentIdentity,
     sourcePixelWidth,
     sourcePixelHeight,
     detector: {
@@ -1287,6 +1375,7 @@ function parseLocalCvProvenanceManifest(
     run: {
       contentIdentity: requireLocalCvIdentity(run.contentIdentity, "run"),
       proposalIdentities,
+      proposals: runProposals,
     },
     candidateOrderIds: candidateOrderIdsInput as readonly string[],
     proposals,
@@ -1307,6 +1396,48 @@ function localCvWorkingRasterDimensions(
     width: Math.max(3, Math.round(sourcePixelWidth * scale)),
     height: Math.max(3, Math.round(sourcePixelHeight * scale)),
   };
+}
+
+function localCvOriginalGeometryMatchesDetectorGrid(
+  geometry: PrivateWebLabLocalCvGeometryV1,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  if (geometry.kind !== "rectangle") return true;
+  return (
+    localCvNormalizedValueMatchesPixelGrid(geometry.x, rasterWidth - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.width, rasterWidth - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.y, rasterHeight - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.height, rasterHeight - 1)
+  );
+}
+
+function localCvNormalizedValueMatchesPixelGrid(value: number, maximum: number): boolean {
+  const pixelCoordinate = Math.round(value * maximum);
+  const normalizedCoordinate = Number((pixelCoordinate / maximum).toFixed(6));
+  return Math.abs(value - normalizedCoordinate) <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+}
+
+function compareLocalCvRankedProposals(
+  first: PrivateWebLabLocalCvProvenanceManifestV1["run"]["proposals"][number],
+  second: PrivateWebLabLocalCvProvenanceManifestV1["run"]["proposals"][number],
+): number {
+  return second.rankScore - first.rankScore
+    || (
+      first.geometry.kind === second.geometry.kind
+        ? 0
+        : first.geometry.kind === "rectangle" ? -1 : 1
+    )
+    || compareLocalCvCodeUnits(
+      JSON.stringify(localCvIdentityGeometry(first.geometry)),
+      JSON.stringify(localCvIdentityGeometry(second.geometry)),
+    );
+}
+
+function compareLocalCvCodeUnits(first: string, second: string): number {
+  if (first < second) return -1;
+  if (first > second) return 1;
+  return 0;
 }
 
 function localCvEvidenceValuesMatchGeometry(
@@ -1474,12 +1605,20 @@ function requireLocalCvManifestBinding(
   }
   for (const proposal of manifest.proposals) {
     const candidate = candidates[proposal.candidateOrder];
+    const runProposal = manifest.run.proposals[proposal.rank - 1];
     if (
       candidate === undefined
+      || runProposal === undefined
       || candidate.id !== proposal.candidateId
       || manifest.candidateOrderIds[proposal.candidateOrder] !== proposal.candidateId
       || proposal.rank
         !== manifest.run.proposalIdentities.indexOf(proposal.originalProposalIdentity) + 1
+      || runProposal.proposalIdentity !== proposal.originalProposalIdentity
+      || runProposal.rankScore !== proposal.rankScore
+      || serializeCanonicalJson(runProposal.evidence)
+        !== serializeCanonicalJson(proposal.evidence)
+      || serializeCanonicalJson(runProposal.geometry)
+        !== serializeCanonicalJson(proposal.originalGeometry)
     ) {
       throw new Error("Private Web Lab local CV provenance proposal order is stale.");
     }
