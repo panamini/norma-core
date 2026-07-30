@@ -405,11 +405,11 @@ function selectedRectangleProjection(input: {
   if (
     !Array.isArray(input.candidates)
     || !Array.isArray(input.selectedRectangleCandidateIds)
-    || input.selectedRectangleCandidateIds.length === 0
+    || input.selectedRectangleCandidateIds.length !== 2
     || new Set(input.selectedRectangleCandidateIds).size
       !== input.selectedRectangleCandidateIds.length
   ) {
-    throw new Error("Declared spatial measurement requires unique selected rectangles.");
+    throw new Error("Declared spatial measurement requires exactly two unique selected rectangles.");
   }
   const candidates = new Map(input.candidates.map((candidate) => [candidate.id, candidate]));
   return [...input.selectedRectangleCandidateIds].sort(compareStrings).map((candidateId) => {

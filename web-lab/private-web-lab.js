@@ -466,7 +466,7 @@ changeGoalButton.addEventListener("click", async () => {
 resetView();
 setTool("rectangle");
 
-function render() {
+function render({ refreshMeasurementSelection = true } = {}) {
   const authoring = state.phase === "authoring";
   reviewSection.dataset.phase = state.phase;
   const locked = state.preparationInFlight
@@ -491,7 +491,7 @@ function render() {
     ...candidates.map((candidate, index) => candidateCard(candidate, index, authoring, locked)),
   );
   renderOverlay(candidates, authoring);
-  renderMeasurementSelection();
+  if (refreshMeasurementSelection) renderMeasurementSelection();
   const declaredSpatialMode = state.draft?.goal.id === "compare-two-lengths";
   confirmationInput.disabled = !isReviewPhase()
     || (declaredSpatialMode && state.phase !== "ready_to_confirm")
@@ -808,7 +808,7 @@ async function refreshDeclaredSpatialMeasurementPlan() {
   const revision = state.planRevision + 1;
   state.planRevision = revision;
   state.planBuildInFlight = true;
-  render();
+  render({ refreshMeasurementSelection: false });
   try {
     const plan = await createPrivateWebLabDeclaredSpatialMeasurementPlanV1({
       draft: state.draft,
@@ -876,7 +876,7 @@ function updateGeometryFromHandle(candidateId, handle, original, point) {
     : segmentFromHandle(candidates[index], handle, point, authoring);
   if (updated === null) return;
   candidates[index] = updated;
-  render();
+  render({ refreshMeasurementSelection: false });
 }
 
 function rectangleFromHandle(candidate, handle, original, point) {

@@ -184,6 +184,20 @@ test("closed grammar resolves rectangle extents, anchor distances, gaps, and fra
 });
 
 test("plan and confirmation fail closed before the analyzer on every binding class", () => {
+  assert.throws(
+    () => createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity,
+      sourcePixelWidth: width,
+      sourcePixelHeight: height,
+      candidates: candidates(),
+      selectedRectangleCandidateIds: ["rectangle-a"],
+      expressions: [
+        { kind: "extent", owner: frame, extent: "width" },
+        { kind: "extent", owner: rectangle("rectangle-a"), extent: "height" },
+      ],
+    }),
+    /exactly two unique selected rectangles/u,
+  );
   const validPlan = plan([
     { kind: "extent", owner: frame, extent: "width" },
     { kind: "extent", owner: rectangle("rectangle-a"), extent: "height" },
@@ -263,7 +277,7 @@ test("plan and confirmation fail closed before the analyzer on every binding cla
         height: 0,
         primitive: { kind: "segment" },
       }],
-      selectedRectangleCandidateIds: ["line"],
+      selectedRectangleCandidateIds: ["rectangle-a", "line"],
       expressions: [
         { kind: "extent", owner: frame, extent: "width" },
         { kind: "extent", owner: frame, extent: "height" },

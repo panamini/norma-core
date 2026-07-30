@@ -1109,6 +1109,9 @@ test("widget confirmation sends the ready declared spatial plan through the app-
   assert.match(html, /function findDeclaredSpatialConfirmation/u);
   assert.match(html, /renderDeclaredSpatialResult/u);
   assert.match(html, /spatialPlanSnapshot=spatial\?state\.declaredSpatialMeasurementPlan/u);
+  assert.match(html, /completedDeclaredSpatialMeasurement:\{operation:CONFIRM_TOOL,candidateSetIdentity/u);
+  assert.match(html, /declaredSpatialMeasurementPlan:JSON\.parse\(JSON\.stringify\(plan\)\)/u);
+  assert.match(html, /function sendDeclaredSpatialCompletionFollowUp/u);
 
   const calls = [];
   const callConfirmation = widgetScriptFunction(
@@ -2589,6 +2592,8 @@ test("completed widget cache round-trips related candidates, guided scope, and r
       isStoredMatch,
       isStoredPresentation: () => true,
       CONFIRM_TOOL: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      DECLARED_SPATIAL_PLAN_CONTRACT_ID: "norma.declared-spatial-measurement-plan@1",
+      DECLARED_SPATIAL_OPERATION_ID: "norma.confirmDeclaredSpatialMeasurementsV1",
       completedPreparedFor,
     },
   );
@@ -2600,6 +2605,80 @@ test("completed widget cache round-trips related candidates, guided scope, and r
   };
   const acceptPersisted = completedWidgetStateFor(() => persisted);
   assert.deepEqual(acceptPersisted(payload)?.matches[0].relatedCandidateIds, ["minor"]);
+
+  const declaredPersisted = structuredClone(persisted);
+  delete declaredPersisted.completedVisualHarmony;
+  const declaredPlan = {
+    contractId: "norma.declared-spatial-measurement-plan@1",
+    operationId: "norma.confirmDeclaredSpatialMeasurementsV1",
+    sourceIdentity: identity("1"),
+    spatialCandidateSetIdentity: identity("2"),
+    planIdentity: identity("3"),
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    selectedRectangleCandidateIds: ["major", "minor"],
+    expressions: [
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "width" },
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "height" },
+    ],
+  };
+  const declaredConfirmation = {
+    contractId: "norma.declared-spatial-measurement-confirmation@1",
+    status: "completed",
+    coreRun: true,
+    providerCalls: 0,
+    coreExecutionCount: 1,
+    pairOnly: true,
+    noUnrequestedComparisons: true,
+    candidateEvidenceOnly: true,
+    sourceTruth: false,
+    sourceIdentity: declaredPlan.sourceIdentity,
+    spatialCandidateSetIdentity: declaredPlan.spatialCandidateSetIdentity,
+    planIdentity: declaredPlan.planIdentity,
+    confirmationIdentity: identity("4"),
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    selectedRectangleCandidateIds: ["major", "minor"],
+    resolvedMeasurements: [
+      {
+        measurementIdentity: identity("5"),
+        expressionIdentity: identity("6"),
+        expression: declaredPlan.expressions[0],
+        lengthPixels: 1200,
+        provenance: "explicit_accepted_geometry_image_plane_pixels",
+      },
+      {
+        measurementIdentity: identity("7"),
+        expressionIdentity: identity("8"),
+        expression: declaredPlan.expressions[1],
+        lengthPixels: 800,
+        provenance: "explicit_accepted_geometry_image_plane_pixels",
+      },
+    ],
+    canonicalRatio: { dominantShare: 0.6, longToShortRatio: 1.5 },
+  };
+  declaredPersisted.completedDeclaredSpatialMeasurement = {
+    operation: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+    candidateSetIdentity,
+    reviewedCandidateGeometry: structuredClone(declaredPersisted.reviewedCandidateGeometry),
+    selectedCandidateIds: ["major", "minor"],
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    planIdentity: declaredPlan.planIdentity,
+    confirmationIdentity: declaredConfirmation.confirmationIdentity,
+    declaredSpatialMeasurementPlan: declaredPlan,
+    declaredSpatialMeasurementConfirmation: declaredConfirmation,
+  };
+  const acceptedDeclared = completedWidgetStateFor(() => declaredPersisted)(payload);
+  assert.equal(acceptedDeclared?.declaredSpatialMeasurementPlan.planIdentity, identity("3"));
+  assert.equal(
+    acceptedDeclared?.declaredSpatialMeasurementConfirmation.confirmationIdentity,
+    identity("4"),
+  );
+  const corruptedDeclared = structuredClone(declaredPersisted);
+  corruptedDeclared.completedDeclaredSpatialMeasurement
+    .declaredSpatialMeasurementConfirmation.canonicalRatio.dominantShare = 2;
+  assert.equal(completedWidgetStateFor(() => corruptedDeclared)(payload), null);
 
   const manualIdentity = identity("9");
   const manualGeometry = {
@@ -3922,6 +4001,77 @@ test("successful cached revalidation records the fresh Core-visible correlation"
   ]);
 });
 
+test("cached spatial completion revalidates with its persisted plan and renders the fresh confirmation", async () => {
+  const spatialIdentity = (character) => `sha256:${character.repeat(64)}`;
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-spatial-cache",
+    prepared: { candidateSetIdentity: spatialIdentity("1") },
+  };
+  const plan = {
+    planIdentity: spatialIdentity("2"),
+    selectedRectangleCandidateIds: ["major", "minor"],
+  };
+  const cachedConfirmation = {
+    contractId: "norma.declared-spatial-measurement-confirmation@1",
+    confirmationIdentity: spatialIdentity("3"),
+  };
+  const freshConfirmation = {
+    ...cachedConfirmation,
+    confirmationIdentity: spatialIdentity("4"),
+  };
+  const completed = {
+    selectedCandidateIds: ["major", "minor"],
+    sourcePixelWidth: 1_200,
+    sourcePixelHeight: 800,
+    declaredSpatialMeasurementPlan: plan,
+    declaredSpatialMeasurementConfirmation: cachedConfirmation,
+  };
+  const state = widgetHydrationState({ activePayloadIdentity: "identity:spatial" });
+  const calls = [];
+  const rendered = [];
+  const revalidateCompleted = widgetScriptFunction(
+    "revalidateCompleted",
+    "function recordObservationMilestone",
+    {
+      state,
+      reviewedCandidateSnapshot: () => [{ id: "major" }, { id: "minor" }],
+      geometryChanged: () => false,
+      statusNode: { textContent: "" },
+      setReviewLocked() {},
+      prepareReviewedPayload() { throw new Error("unchanged geometry must not re-prepare"); },
+      callConfirmation: async (...args) => {
+        calls.push(args);
+        return { structuredContent: { declaredSpatialMeasurementConfirmation: freshConfirmation } };
+      },
+      findPayload: () => null,
+      findDeclaredSpatialConfirmation: (response) => (
+        response?.structuredContent?.declaredSpatialMeasurementConfirmation ?? null
+      ),
+      renderDeclaredSpatialResult: (...args) => {
+        rendered.push(args);
+        state.completed = true;
+      },
+      renderResult() { throw new Error("spatial revalidation must not render the legacy result"); },
+      recordObservationMilestone() {},
+      recordObservationMilestoneAfterPaint() {},
+      renderCachedResult() { throw new Error("successful spatial revalidation must not render cache"); },
+      confirmButton: { style: {} },
+      finishConfirmingPayload() {},
+    },
+  );
+
+  await revalidateCompleted(payload, completed, "identity:spatial");
+
+  assert.deepEqual(calls[0][2], []);
+  assert.deepEqual(calls[0][3], []);
+  assert.equal(calls[0][5], undefined);
+  assert.equal(calls[0][6], plan);
+  assert.equal(state.declaredSpatialMeasurementPlan, plan);
+  assert.equal(rendered[0][2], freshConfirmation);
+  assert.deepEqual(rendered[0][3], { persist: true, revalidated: true });
+});
+
 test("cached revalidation installs a re-prepared correlation before Core becomes visible", async () => {
   const payload = {
     stage: "confirmation_required",
@@ -4848,7 +4998,6 @@ test("widget observability writes only bounded scalar milestone attributes", () 
   assert.match(widgetHtml, /recordObservationMilestone\(payload,"result-received"\)/u);
   assert.match(widgetHtml, /recordObservationMilestone\(state\.payload,"widget-interactive"\)/u);
   assert.match(widgetHtml, /recordObservationMilestone\(analysisPayload,"confirmation-clicked",confirmationClickedAtMs\)/u);
-  assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(freshPayload,"core-visible"\)/u);
   assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(payload,"core-visible"\)/u);
   assert.match(widgetHtml, /recordObservationMilestoneAfterPaint\(completedPayload,"core-visible",/u);
   assert.match(widgetHtml, /recordObservationMilestone\(payload,"follow-up-dispatched"\)/u);

@@ -64,6 +64,22 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
   );
 });
 
+test("rendered measurement review defers option rebuilding during drag and labels canonical receipt order", async () => {
+  const [runtime, document] = await Promise.all([
+    readFile(new URL("../web-lab/private-web-lab.js", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtime, /function render\(\{ refreshMeasurementSelection = true \} = \{\}\)/u);
+  assert.match(
+    runtime,
+    /candidates\[index\] = updated;\s+render\(\{ refreshMeasurementSelection: false \}\);/u,
+  );
+  assert.match(document, /Mesure canonique 1/u);
+  assert.match(document, /Mesure canonique 2/u);
+  assert.match(document, /L’ordre canonique du reçu est indépendant de l’ordre A\/B/u);
+  assert.doesNotMatch(document, /Longueur [AB] déclarée/u);
+});
+
 test("runtime identity covers the complete compiled Core tree", async () => {
   const identityFiles = [
     ...await collectExpectedRuntimeIdentityFiles(
