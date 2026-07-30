@@ -1980,6 +1980,65 @@ test(
           connection,
           sessionId,
           `(() => {
+            const selector =
+              '.candidate[data-candidate-id="manual-rectangle-1"]';
+            const firstDetails = document.querySelector(
+              \`\${selector} details.candidate-precision\`,
+            );
+            firstDetails.open = true;
+            const firstInput = firstDetails.querySelector(
+              'input[data-geometry-path="x"]',
+            );
+            firstInput.focus();
+            firstInput.value = "0.123456";
+            firstInput.dispatchEvent(new Event("change", { bubbles: true }));
+            const afterFirstDetails = document.querySelector(
+              \`\${selector} details.candidate-precision\`,
+            );
+            const afterFirstInput = afterFirstDetails.querySelector(
+              'input[data-geometry-path="x"]',
+            );
+            const afterFirst = {
+              open: afterFirstDetails.open,
+              focused: document.activeElement === afterFirstInput,
+              value: afterFirstInput.value,
+            };
+            afterFirstInput.value = "0.234567";
+            afterFirstInput.dispatchEvent(new Event("change", { bubbles: true }));
+            const afterSecondDetails = document.querySelector(
+              \`\${selector} details.candidate-precision\`,
+            );
+            const afterSecondInput = afterSecondDetails.querySelector(
+              'input[data-geometry-path="x"]',
+            );
+            return {
+              afterFirst,
+              afterSecond: {
+                open: afterSecondDetails.open,
+                focused: document.activeElement === afterSecondInput,
+                value: afterSecondInput.value,
+              },
+            };
+          })()`,
+        ),
+        {
+          afterFirst: {
+            open: true,
+            focused: true,
+            value: "0.123456",
+          },
+          afterSecond: {
+            open: true,
+            focused: true,
+            value: "0.234567",
+          },
+        },
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
             const precisionSummary = document.querySelector(".candidate-precision summary");
             precisionSummary.focus();
             return {
@@ -2004,7 +2063,7 @@ test(
           numericStepsPreservePrecision: true,
           focusedTag: "SUMMARY",
           precisionSummaryTabIndex: 0,
-          precisionOpen: false,
+          precisionOpen: true,
         },
       );
       await connection.send(
@@ -2112,6 +2171,58 @@ test(
               && expression.owner.candidateId === "manual-rectangle-2"
               && expression.extent === "height";
           }).value;
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#review-section').dataset.phase === 'ready_to_confirm'",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#confirmation-input').click()",
+      );
+      const validMeasurementValues = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          const values = { first: first.value, second: second.value };
+          first.append(new Option("Valeur DOM invalide", "{"));
+          first.value = "{";
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          return values;
+        })()`,
+      );
+      assert.deepEqual(
+        await evaluate(
+          connection,
+          sessionId,
+          `({
+            confirmed: document.querySelector("#confirmation-input").checked,
+            phase: document.querySelector("#review-section").dataset.phase,
+            runDisabled: document.querySelector("#run-button").disabled,
+          })`,
+        ),
+        {
+          confirmed: false,
+          phase: "review",
+          runDisabled: true,
+        },
+      );
+      assert.equal(coreExecutions, 0);
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const first = document.querySelector("#measurement-first");
+          const second = document.querySelector("#measurement-second");
+          first.value = ${JSON.stringify(validMeasurementValues.first)};
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          second.value = ${JSON.stringify(validMeasurementValues.second)};
           second.dispatchEvent(new Event("change", { bubbles: true }));
         })()`,
       );

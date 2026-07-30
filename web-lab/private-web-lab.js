@@ -349,9 +349,21 @@ prepareButton.addEventListener("click", async () => {
 
 measurementSelects.forEach((select, index) => {
   select.addEventListener("change", () => {
-    state.measurementExpressions[index] = select.value === ""
-      ? null
-      : JSON.parse(select.value);
+    let expression = null;
+    try {
+      if (select.value !== "") {
+        expression = privateWebLabSpatialExpressionOptionV1(
+          JSON.parse(select.value),
+          state.selectedCandidateIds,
+          state.candidates,
+          state.draft?.sourcePixelWidth,
+          state.draft?.sourcePixelHeight,
+        ).expression;
+      }
+    } catch {
+      expression = null;
+    }
+    state.measurementExpressions[index] = expression;
     invalidateConfirmation();
     render();
   });
@@ -520,6 +532,7 @@ resetView();
 setTool("rectangle");
 
 function render({ refreshMeasurementSelection = true } = {}) {
+  const candidatePrecisionView = captureCandidatePrecisionView();
   const authoring = state.phase === "authoring";
   reviewSection.dataset.phase = state.phase;
   const locked = state.preparationInFlight
@@ -544,6 +557,7 @@ function render({ refreshMeasurementSelection = true } = {}) {
   candidateList.replaceChildren(
     ...candidates.map((candidate, index) => candidateCard(candidate, index, authoring, locked)),
   );
+  restoreCandidatePrecisionView(candidatePrecisionView);
   renderOverlay(candidates, authoring);
   if (refreshMeasurementSelection) renderMeasurementSelection();
   const declaredSpatialMode = state.draft?.goal.id === "compare-two-lengths";
@@ -562,6 +576,41 @@ function render({ refreshMeasurementSelection = true } = {}) {
   updateAvailability();
   updateCoreAvailability();
   updateGestureAvailability();
+}
+
+function captureCandidatePrecisionView() {
+  const openCandidateIds = new Set();
+  for (const article of candidateList.querySelectorAll(".candidate")) {
+    if (article.querySelector("details.candidate-precision")?.open) {
+      openCandidateIds.add(article.dataset.candidateId);
+    }
+  }
+  const focusedElement = document.activeElement;
+  const focusedCandidate = focusedElement?.closest?.(".candidate");
+  return {
+    openCandidateIds,
+    focusedCandidateId: focusedCandidate?.dataset.candidateId ?? null,
+    focusedGeometryPath: focusedElement?.dataset.geometryPath ?? null,
+  };
+}
+
+function restoreCandidatePrecisionView({
+  openCandidateIds,
+  focusedCandidateId,
+  focusedGeometryPath,
+}) {
+  let focusedInput = null;
+  for (const article of candidateList.querySelectorAll(".candidate")) {
+    const precision = article.querySelector("details.candidate-precision");
+    if (precision !== null) {
+      precision.open = openCandidateIds.has(article.dataset.candidateId);
+    }
+    if (article.dataset.candidateId !== focusedCandidateId) continue;
+    focusedInput = [...article.querySelectorAll("input[data-geometry-path]")].find(
+      ({ dataset }) => dataset.geometryPath === focusedGeometryPath,
+    ) ?? null;
+  }
+  focusedInput?.focus();
 }
 
 function candidateCard(candidate, index, authoring, locked) {
@@ -639,6 +688,7 @@ function candidateCard(candidate, index, authoring, locked) {
     input.max = "1";
     input.step = "any";
     input.value = String(valueAt(candidate, field.path));
+    input.dataset.geometryPath = field.path;
     input.disabled = locked;
     input.addEventListener("change", () => {
       if (authoring) {
