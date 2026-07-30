@@ -51,9 +51,15 @@ const MANUAL_CANDIDATE_ID_PATTERN = /^manual-(?:rectangle|segment)-[1-9][0-9]?$/
 const IMAGE_MEDIA_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
 const LOCAL_CV_DETECTOR_CONTRACT_ID = "norma.private-web-lab.local-cv-candidates@1";
 const LOCAL_CV_ALGORITHM_VERSION = "sobel-axis-runs-hough-v1";
+const LOCAL_CV_MAX_SOURCE_PIXELS = 40_000_000;
 const LOCAL_CV_MAX_WORKING_SIDE = 640;
 const LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 const LOCAL_CV_MAX_PROPOSALS = 8;
+const LOCAL_CV_MIN_RECTANGLE_SIDE_COVERAGE = 0.42;
+const LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE = 0.62;
+const LOCAL_CV_MIN_SEGMENT_SUPPORT_COVERAGE = 0.55;
+const LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE = 0.000_001;
+const LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES = 0.01;
 
 type GuidedGoal = typeof PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1[number];
 
@@ -1112,6 +1118,11 @@ function parseLocalCvProvenanceManifest(
   ) {
     throw new Error("Private Web Lab local CV provenance detector is invalid.");
   }
+  const sourcePixelWidth = requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  const sourcePixelHeight = requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  if (sourcePixelWidth * sourcePixelHeight > LOCAL_CV_MAX_SOURCE_PIXELS) {
+    throw new Error("Private Web Lab local CV provenance source exceeds the bounded proof.");
+  }
   const raster = requireExactRecord(input.raster, ["contentIdentity", "height", "width"]);
   const rasterWidth = requireLocalCvPositiveInteger(raster.width, "raster width");
   const rasterHeight = requireLocalCvPositiveInteger(raster.height, "raster height");
@@ -1121,6 +1132,12 @@ function parseLocalCvProvenanceManifest(
     || rasterWidth * rasterHeight > LOCAL_CV_MAX_WORKING_PIXELS
   ) {
     throw new Error("Private Web Lab local CV provenance raster exceeds the bounded proof.");
+  }
+  const expectedRaster = localCvWorkingRasterDimensions(sourcePixelWidth, sourcePixelHeight);
+  if (rasterWidth !== expectedRaster.width || rasterHeight !== expectedRaster.height) {
+    throw new Error(
+      "Private Web Lab local CV provenance raster dimensions do not match the source.",
+    );
   }
   const run = requireExactRecord(input.run, ["contentIdentity", "proposalIdentities"]);
   if (
@@ -1227,6 +1244,18 @@ function parseLocalCvProvenanceManifest(
       "Private Web Lab local CV provenance proposals must have unique identities and ranks.",
     );
   }
+  if (proposals.some(({ evidence, originalGeometry }) => (
+    !localCvEvidenceValuesMatchGeometry(
+      evidence,
+      originalGeometry,
+      rasterWidth,
+      rasterHeight,
+    )
+  ))) {
+    throw new Error(
+      "Private Web Lab local CV provenance evidence values contradict geometry.",
+    );
+  }
   return {
     contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
     browserSessionId: requireBrowserSessionId(input.browserSessionId),
@@ -1234,8 +1263,8 @@ function parseLocalCvProvenanceManifest(
       input.sourceImageContentIdentity,
       "source image",
     ),
-    sourcePixelWidth: requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth"),
-    sourcePixelHeight: requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight"),
+    sourcePixelWidth,
+    sourcePixelHeight,
     detector: {
       contractId: LOCAL_CV_DETECTOR_CONTRACT_ID,
       algorithmVersion: LOCAL_CV_ALGORITHM_VERSION,
@@ -1252,6 +1281,59 @@ function parseLocalCvProvenanceManifest(
     candidateOrderIds: candidateOrderIdsInput as readonly string[],
     proposals,
   };
+}
+
+function localCvWorkingRasterDimensions(
+  sourcePixelWidth: number,
+  sourcePixelHeight: number,
+): { readonly width: number; readonly height: number } {
+  const scale = Math.min(
+    1,
+    LOCAL_CV_MAX_WORKING_SIDE / sourcePixelWidth,
+    LOCAL_CV_MAX_WORKING_SIDE / sourcePixelHeight,
+    Math.sqrt(LOCAL_CV_MAX_WORKING_PIXELS / (sourcePixelWidth * sourcePixelHeight)),
+  );
+  return {
+    width: Math.max(3, Math.round(sourcePixelWidth * scale)),
+    height: Math.max(3, Math.round(sourcePixelHeight * scale)),
+  };
+}
+
+function localCvEvidenceValuesMatchGeometry(
+  evidence: PrivateWebLabLocalCvEvidenceV1,
+  geometry: PrivateWebLabLocalCvGeometryV1,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  if (evidence.kind === "axis-aligned-edge-coverage") {
+    if (
+      geometry.kind !== "rectangle"
+      || Math.min(...evidence.sideCoverages) < LOCAL_CV_MIN_RECTANGLE_SIDE_COVERAGE
+      || evidence.meanCoverage < LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE
+    ) {
+      return false;
+    }
+    const expectedMeanCoverage = Number((
+      evidence.sideCoverages.reduce((sum, coverage) => sum + coverage, 0)
+      / evidence.sideCoverages.length
+    ).toFixed(6));
+    return Math.abs(evidence.meanCoverage - expectedMeanCoverage)
+      <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+  }
+  if (
+    geometry.kind !== "segment"
+    || evidence.supportCoverage < LOCAL_CV_MIN_SEGMENT_SUPPORT_COVERAGE
+  ) {
+    return false;
+  }
+  const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
+  const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
+  const expectedOrientation = Number((
+    (Math.atan2(deltaY, deltaX) * 180 / Math.PI + 180) % 180
+  ).toFixed(6));
+  const directDifference = Math.abs(evidence.orientationDegrees - expectedOrientation);
+  const circularDifference = Math.min(directDifference, 180 - directDifference);
+  return circularDifference <= LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES;
 }
 
 function parseLocalCvEvidence(value: unknown): PrivateWebLabLocalCvEvidenceV1 {

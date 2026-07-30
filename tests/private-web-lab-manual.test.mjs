@@ -334,6 +334,86 @@ test("local-CV draft provenance rejects evidence that contradicts geometry kind"
   );
 });
 
+test("local-CV draft provenance binds the exact worker raster to bounded source dimensions", () => {
+  const manifest = localCvManifest();
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: {
+        ...manifest,
+        raster: { ...manifest.raster, width: 320, height: 213 },
+      },
+    })),
+    /local CV provenance raster dimensions do not match the source/u,
+  );
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: 10_000,
+      sourcePixelHeight: 5_000,
+      localCvProvenanceManifest: {
+        ...manifest,
+        sourcePixelWidth: 10_000,
+        sourcePixelHeight: 5_000,
+      },
+    })),
+    /local CV provenance source exceeds the bounded proof/u,
+  );
+});
+
+test("local-CV draft provenance rejects contradictory evidence values", () => {
+  const manifest = localCvManifest();
+  const rectangleEvidence = {
+    ...manifest.proposals[0].evidence,
+    meanCoverage: 0.1,
+  };
+  const horizontalSegmentGeometry = {
+    kind: "segment",
+    start: { x: 0.1, y: 0.25 },
+    end: { x: 0.9, y: 0.25 },
+  };
+  const contradictoryManifests = [
+    localCvManifestWithProposal(manifest, {
+      ...manifest.proposals[0],
+      evidence: rectangleEvidence,
+    }),
+    localCvManifestWithProposal(manifest, {
+      candidateId: "manual-segment-1",
+      candidateOrder: 1,
+      originalProposalIdentity: manifest.proposals[0].originalProposalIdentity,
+      rank: 1,
+      rankScore: 0.91,
+      evidence: {
+        kind: "straight-edge-support",
+        supportCoverage: 0.91,
+        orientationDegrees: 90,
+      },
+      originalGeometry: horizontalSegmentGeometry,
+      reviewedGeometry: structuredClone(horizontalSegmentGeometry),
+      userEdited: false,
+    }),
+  ];
+  const validSegmentManifest = localCvManifestWithProposal(manifest, {
+    ...contradictoryManifests[1].proposals[0],
+    evidence: {
+      ...contradictoryManifests[1].proposals[0].evidence,
+      orientationDegrees: 0,
+    },
+  });
+
+  for (const localCvProvenanceManifest of contradictoryManifests) {
+    assert.throws(
+      () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+        localCvProvenanceManifest,
+      })),
+      /local CV provenance evidence values contradict geometry/u,
+    );
+  }
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: validSegmentManifest,
+    })),
+  );
+});
+
 test("local-CV draft provenance rejects forged source, order, run, and extra fields", () => {
   const manifest = localCvManifest();
   for (const localCvProvenanceManifest of [
@@ -878,8 +958,8 @@ function localCvManifest() {
   const algorithmVersion = "sobel-axis-runs-hough-v1";
   const raster = {
     contentIdentity: `sha256:${"b".repeat(64)}`,
-    width: 320,
-    height: 213,
+    width: 640,
+    height: 427,
   };
   const originalGeometry = {
     kind: "rectangle",
@@ -941,6 +1021,39 @@ function localCvManifest() {
       reviewedGeometry: structuredClone(originalGeometry),
       userEdited: false,
     }],
+  };
+}
+
+function localCvManifestWithProposal(manifest, proposal) {
+  const { kind, ...geometry } = proposal.originalGeometry;
+  const originalProposalIdentity = contentIdentityForTest({
+    contractId: manifest.detector.contractId,
+    algorithmVersion: manifest.detector.algorithmVersion,
+    sourceImageContentIdentity,
+    kind,
+    geometry,
+    evidence: proposal.evidence,
+  });
+  const proposalIdentities = [originalProposalIdentity];
+  return {
+    ...manifest,
+    run: {
+      proposalIdentities,
+      contentIdentity: contentIdentityForTest({
+        contractId: manifest.detector.contractId,
+        algorithmVersion: manifest.detector.algorithmVersion,
+        sourceImageContentIdentity,
+        workingImage: {
+          width: manifest.raster.width,
+          height: manifest.raster.height,
+        },
+        rasterContentIdentity: manifest.raster.contentIdentity,
+        status: "detected",
+        abstentionReason: null,
+        candidateProposalIdentities: proposalIdentities,
+      }),
+    },
+    proposals: [{ ...proposal, originalProposalIdentity }],
   };
 }
 
