@@ -666,18 +666,24 @@ function rectangleIou(first, second) {
 function compareRankedCandidates(first, second) {
   return second.rankScore - first.rankScore
     || (first.kind === second.kind ? 0 : first.kind === "rectangle" ? -1 : 1)
-    || canonicalGeometry(first).localeCompare(canonicalGeometry(second));
+    || compareCodeUnits(canonicalGeometry(first), canonicalGeometry(second));
 }
 
 function compareSegments(first, second) {
   return second.rankScore - first.rankScore
     || second.length - first.length
-    || segmentKey(first).localeCompare(segmentKey(second));
+    || compareCodeUnits(segmentKey(first), segmentKey(second));
 }
 
 function compareRectangles(first, second) {
   return second.rankScore - first.rankScore
-    || rectangleKey(first).localeCompare(rectangleKey(second));
+    || compareCodeUnits(rectangleKey(first), rectangleKey(second));
+}
+
+function compareCodeUnits(first, second) {
+  if (first < second) return -1;
+  if (first > second) return 1;
+  return 0;
 }
 
 function compareHoughPeaks(first, second) {

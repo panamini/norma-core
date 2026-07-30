@@ -253,6 +253,87 @@ test("local-CV provenance tampering and stale bindings fail before Core", () => 
   assert.equal(coreCalls, 0);
 });
 
+test("local-CV draft provenance rejects duplicate proposal identities and ranks", () => {
+  const manifest = localCvManifest();
+  const duplicateProposal = {
+    ...structuredClone(manifest.proposals[0]),
+    candidateId: "manual-segment-1",
+    candidateOrder: 1,
+  };
+
+  for (const proposals of [
+    [...manifest.proposals, duplicateProposal],
+    [
+      ...manifest.proposals,
+      {
+        ...duplicateProposal,
+        originalProposalIdentity: `sha256:${"e".repeat(64)}`,
+      },
+    ],
+  ]) {
+    assert.throws(
+      () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+        localCvProvenanceManifest: { ...manifest, proposals },
+      })),
+      /local CV provenance proposals must have unique identities and ranks/u,
+    );
+  }
+});
+
+test("local-CV draft provenance rejects evidence that contradicts geometry kind", () => {
+  const manifest = localCvManifest();
+  const evidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.91,
+    orientationDegrees: 0,
+  };
+  const originalProposalIdentity = contentIdentityForTest({
+    contractId: manifest.detector.contractId,
+    algorithmVersion: manifest.detector.algorithmVersion,
+    sourceImageContentIdentity,
+    kind: "rectangle",
+    geometry: {
+      x: manifest.proposals[0].originalGeometry.x,
+      y: manifest.proposals[0].originalGeometry.y,
+      width: manifest.proposals[0].originalGeometry.width,
+      height: manifest.proposals[0].originalGeometry.height,
+    },
+    evidence,
+  });
+  const proposalIdentities = [originalProposalIdentity];
+  const forgedManifest = {
+    ...manifest,
+    run: {
+      proposalIdentities,
+      contentIdentity: contentIdentityForTest({
+        contractId: manifest.detector.contractId,
+        algorithmVersion: manifest.detector.algorithmVersion,
+        sourceImageContentIdentity,
+        workingImage: {
+          width: manifest.raster.width,
+          height: manifest.raster.height,
+        },
+        rasterContentIdentity: manifest.raster.contentIdentity,
+        status: "detected",
+        abstentionReason: null,
+        candidateProposalIdentities: proposalIdentities,
+      }),
+    },
+    proposals: [{
+      ...manifest.proposals[0],
+      evidence,
+      originalProposalIdentity,
+    }],
+  };
+
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: forgedManifest,
+    })),
+    /local CV provenance evidence does not match geometry/u,
+  );
+});
+
 test("local-CV draft provenance rejects forged source, order, run, and extra fields", () => {
   const manifest = localCvManifest();
   for (const localCvProvenanceManifest of [

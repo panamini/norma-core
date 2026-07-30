@@ -592,7 +592,7 @@ runButton.addEventListener("click", async () => {
     if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
     state.receiptUrl = URL.createObjectURL(
       new Blob(
-        [receipt.compositeExportJson ?? receipt.exportJson],
+        [receipt.exportJson],
         { type: "application/json" },
       ),
     );

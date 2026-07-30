@@ -59,6 +59,8 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
     true,
   );
   assert.equal(runtime.includes("Ces temps ne mesurent pas la précision"), true);
+  assert.equal(runtime.includes("[receipt.exportJson]"), true);
+  assert.equal(runtime.includes("[receipt.compositeExportJson ?? receipt.exportJson]"), false);
   assert.equal(server.includes('["local-cv", new URL("./private-web-lab-local-cv.js"'), true);
   assert.equal(
     server.includes('["local-cv-worker", new URL("./private-web-lab-local-cv-worker.js"'),
@@ -113,9 +115,10 @@ test(
       response.end(body);
     });
     const port = await listen(server);
-    const browser = await launchChrome(await findChromeExecutable());
+    let browser;
     let connection;
     try {
+      browser = await launchChrome(await findChromeExecutable());
       connection = await CdpConnection.connect(browser.devtoolsUrl);
       const { targetId } = await connection.send("Target.createTarget", {
         url: `http://127.0.0.1:${String(port)}/`,
@@ -479,7 +482,7 @@ test(
       assert.deepEqual(connection.runtimeExceptions, []);
     } finally {
       connection?.close();
-      await browser.close();
+      await browser?.close();
       await close(server);
     }
   },

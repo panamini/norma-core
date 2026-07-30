@@ -50,6 +50,22 @@ test("local CV deterministically ranks bounded rectangle and straight-segment pr
   assert.notEqual(diagonal, undefined);
 });
 
+test("local CV ranking is independent of host locale collation", () => {
+  const fixture = createSyntheticRaster(128, 96);
+  drawRectangle(fixture, 18, 14, 76, 58, 2);
+  drawSegment(fixture, 98, 12, 121, 43, 2);
+  const expected = detectPrivateWebLabLocalCvCandidatesV1(fixture);
+  const originalLocaleCompare = String.prototype.localeCompare;
+  String.prototype.localeCompare = () => {
+    throw new Error("locale-dependent comparison invoked");
+  };
+  try {
+    assert.deepEqual(detectPrivateWebLabLocalCvCandidatesV1(fixture), expected);
+  } finally {
+    String.prototype.localeCompare = originalLocaleCompare;
+  }
+});
+
 test("local CV abstains fail-closed when edge evidence is absent", () => {
   const result = detectPrivateWebLabLocalCvCandidatesV1(createSyntheticRaster(80, 60));
 

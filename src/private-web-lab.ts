@@ -1182,6 +1182,19 @@ function parseLocalCvProvenanceManifest(
     }
     const candidateOrder = proposal.candidateOrder as number;
     const rank = proposal.rank as number;
+    const evidence = parseLocalCvEvidence(proposal.evidence);
+    const originalGeometry = parseLocalCvGeometry(proposal.originalGeometry);
+    const reviewedGeometry = parseLocalCvGeometry(proposal.reviewedGeometry);
+    if (
+      originalGeometry.kind !== reviewedGeometry.kind
+      || (
+        originalGeometry.kind === "rectangle"
+        ? evidence.kind !== "axis-aligned-edge-coverage"
+        : evidence.kind !== "straight-edge-support"
+      )
+    ) {
+      throw new Error("Private Web Lab local CV provenance evidence does not match geometry.");
+    }
     return {
       candidateId: proposal.candidateId,
       candidateOrder,
@@ -1191,9 +1204,9 @@ function parseLocalCvProvenanceManifest(
       ),
       rank,
       rankScore: requireNormalizedNumber(proposal.rankScore, "local CV rank score"),
-      evidence: parseLocalCvEvidence(proposal.evidence),
-      originalGeometry: parseLocalCvGeometry(proposal.originalGeometry),
-      reviewedGeometry: parseLocalCvGeometry(proposal.reviewedGeometry),
+      evidence,
+      originalGeometry,
+      reviewedGeometry,
       userEdited: proposal.userEdited,
     };
   });
@@ -1204,6 +1217,15 @@ function parseLocalCvProvenanceManifest(
     ))
   ) {
     throw new Error("Private Web Lab local CV provenance proposals must preserve order.");
+  }
+  if (
+    new Set(proposals.map(({ originalProposalIdentity }) => originalProposalIdentity)).size
+      !== proposals.length
+    || new Set(proposals.map(({ rank }) => rank)).size !== proposals.length
+  ) {
+    throw new Error(
+      "Private Web Lab local CV provenance proposals must have unique identities and ranks.",
+    );
   }
   return {
     contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
