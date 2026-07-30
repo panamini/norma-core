@@ -1844,7 +1844,9 @@ test(
             const edited = document.querySelector(
               '.candidate[data-candidate-id="manual-segment-2"]',
             );
+            edited.querySelector("details.candidate-precision").open = true;
             const endX = edited.querySelectorAll('input[type="number"]')[2];
+            endX.focus();
             endX.value = "0.42";
             endX.dispatchEvent(new Event("change", { bubbles: true }));
             document.querySelector(
@@ -1858,6 +1860,10 @@ test(
               candidateCount: document.querySelectorAll(".candidate").length,
               activeId: active?.dataset.candidateId,
               activeEndX: active?.querySelectorAll('input[type="number"]')[2].value,
+              activePrecisionOpen:
+                active?.querySelector("details.candidate-precision").open,
+              activePrecisionFocused:
+                document.activeElement === active?.querySelectorAll('input[type="number"]')[2],
             };
           })()`,
         ),
@@ -1865,6 +1871,8 @@ test(
           candidateCount: 3,
           activeId: "manual-segment-1",
           activeEndX: "0.42",
+          activePrecisionOpen: true,
+          activePrecisionFocused: true,
         },
       );
       await evaluate(
@@ -2159,6 +2167,46 @@ test(
           advancedFamilyCount: 3,
           counter: "Cadres sélectionnés : 2/2. Désélectionnez un cadre avant d’en choisir un autre.",
         },
+      );
+      const advancedBuilderRerenderState = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const family = document.querySelector("#measurement-first-family");
+          family.value = "anchor-distance";
+          family.dispatchEvent(new Event("change", { bubbles: true }));
+          const fields = [
+            ...document.querySelectorAll(
+              "#measurement-first-fields select[data-builder-field]",
+            ),
+          ];
+          for (const field of fields) {
+            field.value = field.options[field.options.length - 1].value;
+          }
+          const values = () => Object.fromEntries([
+            ...document.querySelectorAll(
+              "#measurement-first-fields select[data-builder-field]",
+            ),
+          ].map((field) => [field.dataset.builderField, field.value]));
+          const before = values();
+          const second = document.querySelector("#measurement-second");
+          second.value = second.options[1].value;
+          second.dispatchEvent(new Event("change", { bubbles: true }));
+          return { before, after: values() };
+        })()`,
+      );
+      assert.deepEqual(
+        advancedBuilderRerenderState.after,
+        advancedBuilderRerenderState.before,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const family = document.querySelector("#measurement-first-family");
+          family.value = "extent";
+          family.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
       );
       await evaluate(
         connection,

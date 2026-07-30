@@ -105,6 +105,8 @@ const exportLink = $("#export-link");
 const newMeasurementButton = $("#new-measurement-button");
 const changeGoalButton = $("#change-goal-button");
 const imagePlaneResizeObserver = new ResizeObserver(reconcileViewAfterResize);
+const authoredCandidateViewKeys = new WeakMap();
+let nextAuthoredCandidateViewKey = 0;
 imagePlaneResizeObserver.observe(imagePlane);
 
 imageInput.addEventListener("change", async () => {
@@ -583,33 +585,33 @@ function render({ refreshMeasurementSelection = true } = {}) {
 }
 
 function captureCandidatePrecisionView() {
-  const openCandidateIds = new Set();
+  const openCandidateViewKeys = new Set();
   for (const article of candidateList.querySelectorAll(".candidate")) {
     if (article.querySelector("details.candidate-precision")?.open) {
-      openCandidateIds.add(article.dataset.candidateId);
+      openCandidateViewKeys.add(article.dataset.candidateViewKey);
     }
   }
   const focusedElement = document.activeElement;
   const focusedCandidate = focusedElement?.closest?.(".candidate");
   return {
-    openCandidateIds,
-    focusedCandidateId: focusedCandidate?.dataset.candidateId ?? null,
+    openCandidateViewKeys,
+    focusedCandidateViewKey: focusedCandidate?.dataset.candidateViewKey ?? null,
     focusedGeometryPath: focusedElement?.dataset.geometryPath ?? null,
   };
 }
 
 function restoreCandidatePrecisionView({
-  openCandidateIds,
-  focusedCandidateId,
+  openCandidateViewKeys,
+  focusedCandidateViewKey,
   focusedGeometryPath,
 }) {
   let focusedInput = null;
   for (const article of candidateList.querySelectorAll(".candidate")) {
     const precision = article.querySelector("details.candidate-precision");
     if (precision !== null) {
-      precision.open = openCandidateIds.has(article.dataset.candidateId);
+      precision.open = openCandidateViewKeys.has(article.dataset.candidateViewKey);
     }
-    if (article.dataset.candidateId !== focusedCandidateId) continue;
+    if (article.dataset.candidateViewKey !== focusedCandidateViewKey) continue;
     focusedInput = [...article.querySelectorAll("input[data-geometry-path]")].find(
       ({ dataset }) => dataset.geometryPath === focusedGeometryPath,
     ) ?? null;
@@ -621,6 +623,7 @@ function candidateCard(candidate, index, authoring, locked) {
   const article = document.createElement("article");
   article.className = "candidate";
   article.dataset.candidateId = candidate.id;
+  article.dataset.candidateViewKey = candidateViewKey(candidate, authoring);
   article.dataset.active = String(candidate.id === state.activeCandidateId);
   article.addEventListener("click", (event) => {
     if (
@@ -738,6 +741,17 @@ function candidateCard(candidate, index, authoring, locked) {
     article.append(remove);
   }
   return article;
+}
+
+function candidateViewKey(candidate, authoring) {
+  if (!authoring) return candidate.id;
+  let key = authoredCandidateViewKeys.get(candidate);
+  if (key === undefined) {
+    nextAuthoredCandidateViewKey += 1;
+    key = `authored-${String(nextAuthoredCandidateViewKey)}`;
+    authoredCandidateViewKeys.set(candidate, key);
+  }
+  return key;
 }
 
 function isDeclaredSpatialReviewMode() {
@@ -968,6 +982,12 @@ function currentSpatialPicker() {
 function renderAdvancedMeasurementFields(index, picker) {
   const fields = measurementAdvancedFields[index];
   const family = measurementFamilies[index].value;
+  const previousValues = fields.dataset.builderFamily === family
+    ? new Map(
+      [...fields.querySelectorAll("select[data-builder-field]")]
+        .map(({ dataset, value }) => [dataset.builderField, value]),
+    )
+    : new Map();
   const locked = picker === null
     || !isReviewPhase()
     || state.sessionResetInFlight
@@ -975,6 +995,7 @@ function renderAdvancedMeasurementFields(index, picker) {
   measurementFamilies[index].disabled = locked;
   measurementApplyButtons[index].disabled = locked;
   fields.replaceChildren();
+  fields.dataset.builderFamily = family;
   if (picker === null) {
     measurementBuilderStatuses[index].textContent =
       "Sélectionnez d’abord exactement deux cadres.";
@@ -990,6 +1011,7 @@ function renderAdvancedMeasurementFields(index, picker) {
       { value: "height", label: "Hauteur" },
       { value: "diagonal", label: "Diagonale" },
     ], locked);
+    restoreAdvancedMeasurementValues(fields, previousValues);
     return;
   }
   if (family === "anchor-distance") {
@@ -998,6 +1020,7 @@ function renderAdvancedMeasurementFields(index, picker) {
     appendAdvancedMeasurementSelect(fields, index, "from-anchor", "Repère de départ", picker.anchors, locked);
     appendAdvancedMeasurementSelect(fields, index, "to-owner", "Cadre d’arrivée", picker.owners, locked);
     appendAdvancedMeasurementSelect(fields, index, "to-anchor", "Repère d’arrivée", picker.anchors, locked);
+    restoreAdvancedMeasurementValues(fields, previousValues);
     return;
   }
   appendAdvancedMeasurementSelect(
@@ -1010,6 +1033,7 @@ function renderAdvancedMeasurementFields(index, picker) {
   );
   appendAdvancedMeasurementSelect(fields, index, "anchor", "Repère", picker.anchors, locked);
   appendAdvancedMeasurementSelect(fields, index, "edge", "Bord de l’image", picker.frameEdges, locked);
+  restoreAdvancedMeasurementValues(fields, previousValues);
 }
 
 function appendAdvancedMeasurementSelect(container, index, field, labelText, options, disabled) {
@@ -1025,6 +1049,15 @@ function appendAdvancedMeasurementSelect(container, index, field, labelText, opt
   )));
   label.append(select);
   container.append(label);
+}
+
+function restoreAdvancedMeasurementValues(container, previousValues) {
+  for (const select of container.querySelectorAll("select[data-builder-field]")) {
+    const previousValue = previousValues.get(select.dataset.builderField);
+    if ([...select.options].some(({ value }) => value === previousValue)) {
+      select.value = previousValue;
+    }
+  }
 }
 
 function readAdvancedMeasurementBuilder(index) {
