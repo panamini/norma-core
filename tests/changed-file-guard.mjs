@@ -689,6 +689,10 @@ export const privateWebLabResultPresentationChangedFiles = Object.freeze([
   "web-lab/private-web-lab.js",
 ].sort());
 
+// The spatial picker UX intentionally preserves the same exact seven-file browser boundary.
+export const privateWebLabSpatialPickerUxChangedFiles =
+  privateWebLabResultPresentationChangedFiles;
+
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2120,6 +2124,7 @@ export const integrationUnlockContractsChangedFiles = Object.freeze([
 const sharedExactApprovedChangedFileSets = [
   declaredImagePlaneMeasurementRatiosChangedFiles,
   declaredSpatialMeasurementsChangedFiles,
+  privateWebLabSpatialPickerUxChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,
