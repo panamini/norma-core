@@ -34,6 +34,12 @@ export const PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID =
   "norma.private-web-lab-declared-spatial-measurement-receipt@1" as const;
 export const PRIVATE_WEB_LAB_CANONICAL_EXPORT_CONTRACT_ID =
   "norma.private-web-lab-canonical-result@1" as const;
+export const PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID =
+  "norma.private-web-lab-local-cv-provenance@1" as const;
+export const PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_RECEIPT_CONTRACT_ID =
+  "norma.private-web-lab-local-cv-provenance-receipt@1" as const;
+export const PRIVATE_WEB_LAB_LOCAL_CV_COMPOSITE_EXPORT_CONTRACT_ID =
+  "norma.private-web-lab-local-cv-composite-result@1" as const;
 export const PRIVATE_WEB_LAB_STRONGEST_GUIDE_COUNT = 4;
 
 const PRIVATE_WEB_LAB_SESSION_TTL_MS = 30 * 60 * 1_000;
@@ -43,6 +49,11 @@ const BROWSER_SESSION_ID_PATTERN = /^[A-Za-z0-9:_-]{8,160}$/u;
 const LAB_SESSION_ID_PATTERN = /^web-lab-session:[0-9a-f-]{36}$/u;
 const MANUAL_CANDIDATE_ID_PATTERN = /^manual-(?:rectangle|segment)-[1-9][0-9]?$/u;
 const IMAGE_MEDIA_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+const LOCAL_CV_DETECTOR_CONTRACT_ID = "norma.private-web-lab.local-cv-candidates@1";
+const LOCAL_CV_ALGORITHM_VERSION = "sobel-axis-runs-hough-v1";
+const LOCAL_CV_MAX_WORKING_SIDE = 640;
+const LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
+const LOCAL_CV_MAX_PROPOSALS = 8;
 
 type GuidedGoal = typeof PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1[number];
 
@@ -64,6 +75,82 @@ export type PrivateWebLabManualCandidateInputV1 =
 
 export interface PrivateWebLabManualDraftRequestV1 extends PrivateWebLabDraftRequestV1 {
   readonly candidates: readonly PrivateWebLabManualCandidateInputV1[];
+  readonly localCvProvenanceManifest?: PrivateWebLabLocalCvProvenanceManifestV1;
+}
+
+type PrivateWebLabLocalCvGeometryV1 =
+  | {
+      readonly kind: "rectangle";
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    }
+  | {
+      readonly kind: "segment";
+      readonly start: { readonly x: number; readonly y: number };
+      readonly end: { readonly x: number; readonly y: number };
+    };
+
+type PrivateWebLabLocalCvEvidenceV1 =
+  | {
+      readonly kind: "axis-aligned-edge-coverage";
+      readonly sideCoverages: readonly [number, number, number, number];
+      readonly meanCoverage: number;
+    }
+  | {
+      readonly kind: "straight-edge-support";
+      readonly supportCoverage: number;
+      readonly orientationDegrees: number;
+    };
+
+export interface PrivateWebLabLocalCvProvenanceManifestV1 {
+  readonly contractId: typeof PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID;
+  readonly browserSessionId: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly detector: {
+    readonly contractId: typeof LOCAL_CV_DETECTOR_CONTRACT_ID;
+    readonly algorithmVersion: typeof LOCAL_CV_ALGORITHM_VERSION;
+  };
+  readonly raster: {
+    readonly contentIdentity: string;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly run: {
+    readonly contentIdentity: string;
+    readonly proposalIdentities: readonly string[];
+  };
+  readonly candidateOrderIds: readonly string[];
+  readonly proposals: readonly {
+    readonly candidateId: string;
+    readonly candidateOrder: number;
+    readonly originalProposalIdentity: string;
+    readonly rank: number;
+    readonly rankScore: number;
+    readonly evidence: PrivateWebLabLocalCvEvidenceV1;
+    readonly originalGeometry: PrivateWebLabLocalCvGeometryV1;
+    readonly reviewedGeometry: PrivateWebLabLocalCvGeometryV1;
+    readonly userEdited: boolean;
+  }[];
+}
+
+export interface PrivateWebLabBoundLocalCvProvenanceManifestV1
+  extends PrivateWebLabLocalCvProvenanceManifestV1 {
+  readonly labSessionId: string;
+  readonly draftCandidateSetIdentity: string;
+  readonly acceptedCandidateSetIdentity: string;
+}
+
+export interface PrivateWebLabLocalCvProvenanceReceiptV1 {
+  readonly contractId: typeof PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_RECEIPT_CONTRACT_ID;
+  readonly manifest: PrivateWebLabBoundLocalCvProvenanceManifestV1;
+  readonly manifestIdentity: string;
+  readonly serverReceiptIdentity: string;
+  readonly acceptedCandidateSetIdentity: string;
+  readonly contentIdentity: string;
 }
 
 export interface PrivateWebLabManualDraftV1
@@ -74,6 +161,7 @@ export interface PrivateWebLabManualDraftV1
   readonly coreCompatibilityCandidateSetIdentity: string;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
+  readonly localCvProvenanceDraftIdentity?: string;
 }
 
 export interface PrivateWebLabDraftRequestV1 {
@@ -123,6 +211,8 @@ export interface PrivateWebLabConfirmRequestV1 {
 
 export interface PrivateWebLabManualConfirmRequestV1 extends PrivateWebLabConfirmRequestV1 {
   readonly perceptionReceiptIdentity: string;
+  readonly localCvProvenanceDraftIdentity?: string;
+  readonly localCvProvenanceManifest?: PrivateWebLabLocalCvProvenanceManifestV1;
 }
 
 export interface PrivateWebLabReceiptV1 {
@@ -147,6 +237,10 @@ export interface PrivateWebLabReceiptV1 {
   readonly declaredMeasurementRatioReportIdentity?: string;
   readonly exportFileName: "norma-private-web-lab-result.json";
   readonly exportJson: string;
+  readonly localCvProvenanceManifestIdentity?: string;
+  readonly localCvProvenanceReceipt?: PrivateWebLabLocalCvProvenanceReceiptV1;
+  readonly compositeExportIdentity?: string;
+  readonly compositeExportJson?: string;
 }
 
 export interface PrivateWebLabManualReceiptV1
@@ -181,6 +275,10 @@ export interface PrivateWebLabDeclaredSpatialMeasurementReceiptV1 {
   readonly perceptionReceiptIdentity?: string;
   readonly coreCompatibilityCandidateSetIdentity?: string;
   readonly sourceTruth?: false;
+  readonly localCvProvenanceManifestIdentity?: string;
+  readonly localCvProvenanceReceipt?: PrivateWebLabLocalCvProvenanceReceiptV1;
+  readonly compositeExportIdentity?: string;
+  readonly compositeExportJson?: string;
 }
 
 export type PrivateWebLabGuideAnalysisV1 = Omit<
@@ -212,6 +310,10 @@ interface PrivateWebLabSessionV1 {
   readonly prepared: PersonalVisualHarmonyConfirmableCandidateSet;
   readonly draftKind: "deterministic_fixture_no_provider" | "manual_browser_no_provider";
   readonly perceptionReceiptIdentity?: string;
+  readonly localCvProvenance?: {
+    readonly draftManifest: PrivateWebLabLocalCvProvenanceManifestV1;
+    readonly draftIdentity: string;
+  };
   readonly createdAtMs: number;
   readonly expiresAtMs: number;
   completed?: {
@@ -359,6 +461,9 @@ export class PrivateWebLabApplicationV1 {
     const goal = requireGoal(input.goalId);
     const candidates = canonicalManualCandidates(input.candidates);
     requireGoalCompatibleManualCandidates(goal.id, candidates);
+    if (input.localCvProvenanceManifest !== undefined) {
+      requireLocalCvManifestBinding(input.localCvProvenanceManifest, input, candidates);
+    }
     const perceptionReceiptIdentity = contentIdentityFor({
       contractId: PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
       sourceImageContentIdentity: input.sourceImageContentIdentity,
@@ -379,6 +484,16 @@ export class PrivateWebLabApplicationV1 {
     if (!LAB_SESSION_ID_PATTERN.test(labSessionId) || this.sessions.has(labSessionId)) {
       throw new Error("Could not create a unique bounded Private Web Lab session.");
     }
+    const localCvProvenance = input.localCvProvenanceManifest === undefined
+      ? undefined
+      : {
+          draftManifest: input.localCvProvenanceManifest,
+          draftIdentity: contentIdentityFor({
+            manifest: input.localCvProvenanceManifest,
+            labSessionId,
+            draftCandidateSetIdentity: prepared.candidateSetIdentity,
+          }),
+        };
     const session: PrivateWebLabSessionV1 = {
       browserSessionId: input.browserSessionId,
       labSessionId,
@@ -391,6 +506,7 @@ export class PrivateWebLabApplicationV1 {
       prepared,
       draftKind: "manual_browser_no_provider",
       perceptionReceiptIdentity,
+      ...(localCvProvenance === undefined ? {} : { localCvProvenance }),
       createdAtMs: now,
       expiresAtMs: now + this.sessionTtlMs,
     };
@@ -423,6 +539,9 @@ export class PrivateWebLabApplicationV1 {
         prepared.coreCompatibilityCandidateSetIdentity,
       candidateEvidenceOnly: true,
       sourceTruth: false,
+      ...(localCvProvenance === undefined
+        ? {}
+        : { localCvProvenanceDraftIdentity: localCvProvenance.draftIdentity }),
     };
   }
 
@@ -521,6 +640,12 @@ export class PrivateWebLabApplicationV1 {
           expectedSourceImageReferenceIdentity: session.prepared.sourceImageReferenceIdentity,
           candidates: reviewedCandidates,
         });
+    const localCvProvenance = requireConfirmedLocalCvProvenance(
+      session,
+      input,
+      reviewedCandidates,
+      reviewedPrepared.candidateSetIdentity,
+    );
     const selectedCandidateIds = requireSelectedCandidateIds(
       reviewedPrepared.candidates,
       input.selectedCandidateIds,
@@ -570,6 +695,9 @@ export class PrivateWebLabApplicationV1 {
       ...(session.perceptionReceiptIdentity === undefined
         ? {}
         : { perceptionReceiptIdentity: session.perceptionReceiptIdentity }),
+      ...(localCvProvenance === undefined
+        ? {}
+        : { localCvProvenanceManifestIdentity: localCvProvenance.manifestIdentity }),
     });
     if (session.completed !== undefined) {
       if (session.completed.confirmationRequestIdentity !== confirmationRequestIdentity) {
@@ -594,6 +722,9 @@ export class PrivateWebLabApplicationV1 {
         acceptedCandidateSetIdentity: reviewedPrepared.candidateSetIdentity,
         selectedCandidateIds: selectedCoreCandidateIds,
         declaredSpatialMeasurementConfirmation,
+        ...(localCvProvenance === undefined
+          ? {}
+          : { localCvProvenanceManifestIdentity: localCvProvenance.manifestIdentity }),
       };
       const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
       const receiptPayload = {
@@ -613,6 +744,9 @@ export class PrivateWebLabApplicationV1 {
           declaredSpatialMeasurementConfirmation.confirmationIdentity,
         exportFileName: "norma-private-web-lab-result.json" as const,
         exportJson,
+        ...(localCvProvenance === undefined
+          ? {}
+          : { localCvProvenanceManifestIdentity: localCvProvenance.manifestIdentity }),
         ...(session.perceptionReceiptIdentity === undefined
           ? {}
           : {
@@ -626,10 +760,11 @@ export class PrivateWebLabApplicationV1 {
               sourceTruth: false as const,
             }),
       };
-      const receipt = {
-        ...receiptPayload,
-        receiptIdentity: sha256Identity(serializeCanonicalJson(receiptPayload)),
-      };
+      const receipt = createReceiptWithOptionalLocalCvProvenance(
+        receiptPayload,
+        canonicalExport,
+        localCvProvenance,
+      ) as unknown as PrivateWebLabDeclaredSpatialMeasurementReceiptV1;
       session.completed = { confirmationRequestIdentity, receipt };
       return receipt;
     }
@@ -689,6 +824,9 @@ export class PrivateWebLabApplicationV1 {
       ...(declaredMeasurementRatioReport === undefined
         ? {}
         : { declaredMeasurementRatioReport }),
+      ...(localCvProvenance === undefined
+        ? {}
+        : { localCvProvenanceManifestIdentity: localCvProvenance.manifestIdentity }),
     };
     const exportJson = `${serializeCanonicalJson(canonicalExport)}\n`;
     const commonReceiptPayload = {
@@ -715,6 +853,9 @@ export class PrivateWebLabApplicationV1 {
           }),
       exportFileName: "norma-private-web-lab-result.json",
       exportJson,
+      ...(localCvProvenance === undefined
+        ? {}
+        : { localCvProvenanceManifestIdentity: localCvProvenance.manifestIdentity }),
     };
     const receiptPayload = session.draftKind === "manual_browser_no_provider"
       ? {
@@ -734,10 +875,11 @@ export class PrivateWebLabApplicationV1 {
           contractId: PRIVATE_WEB_LAB_RECEIPT_CONTRACT_ID,
           draftKind: "deterministic_fixture_no_provider" as const,
         };
-    const receipt = {
-      ...receiptPayload,
-      receiptIdentity: sha256Identity(serializeCanonicalJson(receiptPayload)),
-    } as PrivateWebLabReceiptV1 | PrivateWebLabManualReceiptV1;
+    const receipt = createReceiptWithOptionalLocalCvProvenance(
+      receiptPayload,
+      canonicalExport,
+      localCvProvenance,
+    ) as unknown as PrivateWebLabReceiptV1 | PrivateWebLabManualReceiptV1;
     session.completed = { confirmationRequestIdentity, receipt };
     return receipt;
   }
@@ -786,6 +928,8 @@ function parseDraftRequest(value: unknown): PrivateWebLabDraftRequestV1 {
 }
 
 function parseManualDraftRequest(value: unknown): PrivateWebLabManualDraftRequestV1 {
+  const hasLocalCvProvenanceManifest = isRecord(value)
+    && Object.hasOwn(value, "localCvProvenanceManifest");
   const input = requireExactRecord(value, [
     "browserSessionId",
     "candidates",
@@ -795,6 +939,7 @@ function parseManualDraftRequest(value: unknown): PrivateWebLabManualDraftReques
     "sourceImageMediaType",
     "sourcePixelHeight",
     "sourcePixelWidth",
+    ...(hasLocalCvProvenanceManifest ? ["localCvProvenanceManifest"] : []),
   ]);
   if (!Array.isArray(input.candidates)) {
     throw new Error("Private Web Lab manual candidates must be an array.");
@@ -811,6 +956,13 @@ function parseManualDraftRequest(value: unknown): PrivateWebLabManualDraftReques
   return {
     ...common,
     candidates: input.candidates as readonly PrivateWebLabManualCandidateInputV1[],
+    ...(hasLocalCvProvenanceManifest
+      ? {
+          localCvProvenanceManifest: parseLocalCvProvenanceManifest(
+            input.localCvProvenanceManifest,
+          ),
+        }
+      : {}),
   };
 }
 
@@ -878,6 +1030,10 @@ function parseConfirmRequest(value: unknown): PrivateWebLabConfirmRequestV1 {
 function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRequestV1 {
   const hasDeclaredSpatialMeasurementPlan = isRecord(value)
     && Object.hasOwn(value, "declaredSpatialMeasurementPlan");
+  const hasLocalCvProvenanceDraftIdentity = isRecord(value)
+    && Object.hasOwn(value, "localCvProvenanceDraftIdentity");
+  const hasLocalCvProvenanceManifest = isRecord(value)
+    && Object.hasOwn(value, "localCvProvenanceManifest");
   const input = requireExactRecord(value, [
     "browserSessionId",
     "candidateSetIdentity",
@@ -891,6 +1047,8 @@ function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRe
     "sourcePixelHeight",
     "sourcePixelWidth",
     ...(hasDeclaredSpatialMeasurementPlan ? ["declaredSpatialMeasurementPlan"] : []),
+    ...(hasLocalCvProvenanceDraftIdentity ? ["localCvProvenanceDraftIdentity"] : []),
+    ...(hasLocalCvProvenanceManifest ? ["localCvProvenanceManifest"] : []),
   ]);
   const common = parseConfirmRequest({
     browserSessionId: input.browserSessionId,
@@ -912,7 +1070,442 @@ function parseManualConfirmRequest(value: unknown): PrivateWebLabManualConfirmRe
     perceptionReceiptIdentity: requireSourceContentIdentity(
       input.perceptionReceiptIdentity,
     ),
+    ...(hasLocalCvProvenanceDraftIdentity
+      ? {
+          localCvProvenanceDraftIdentity: requireSourceContentIdentity(
+            input.localCvProvenanceDraftIdentity,
+          ),
+        }
+      : {}),
+    ...(hasLocalCvProvenanceManifest
+      ? {
+          localCvProvenanceManifest: parseLocalCvProvenanceManifest(
+            input.localCvProvenanceManifest,
+          ),
+        }
+      : {}),
   };
+}
+
+function parseLocalCvProvenanceManifest(
+  value: unknown,
+): PrivateWebLabLocalCvProvenanceManifestV1 {
+  const input = requireExactRecord(value, [
+    "browserSessionId",
+    "candidateOrderIds",
+    "contractId",
+    "detector",
+    "proposals",
+    "raster",
+    "run",
+    "sourceImageContentIdentity",
+    "sourcePixelHeight",
+    "sourcePixelWidth",
+  ]);
+  if (input.contractId !== PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID) {
+    throw new Error("Private Web Lab local CV provenance contract is invalid.");
+  }
+  const detector = requireExactRecord(input.detector, ["algorithmVersion", "contractId"]);
+  if (
+    detector.contractId !== LOCAL_CV_DETECTOR_CONTRACT_ID
+    || detector.algorithmVersion !== LOCAL_CV_ALGORITHM_VERSION
+  ) {
+    throw new Error("Private Web Lab local CV provenance detector is invalid.");
+  }
+  const raster = requireExactRecord(input.raster, ["contentIdentity", "height", "width"]);
+  const rasterWidth = requireLocalCvPositiveInteger(raster.width, "raster width");
+  const rasterHeight = requireLocalCvPositiveInteger(raster.height, "raster height");
+  if (
+    rasterWidth > LOCAL_CV_MAX_WORKING_SIDE
+    || rasterHeight > LOCAL_CV_MAX_WORKING_SIDE
+    || rasterWidth * rasterHeight > LOCAL_CV_MAX_WORKING_PIXELS
+  ) {
+    throw new Error("Private Web Lab local CV provenance raster exceeds the bounded proof.");
+  }
+  const run = requireExactRecord(input.run, ["contentIdentity", "proposalIdentities"]);
+  if (
+    !Array.isArray(run.proposalIdentities)
+    || run.proposalIdentities.length < 1
+    || run.proposalIdentities.length > LOCAL_CV_MAX_PROPOSALS
+  ) {
+    throw new Error("Private Web Lab local CV provenance run proposal list is invalid.");
+  }
+  const proposalIdentities = run.proposalIdentities.map((identity) => (
+    requireLocalCvIdentity(identity, "run proposal")
+  ));
+  if (new Set(proposalIdentities).size !== proposalIdentities.length) {
+    throw new Error("Private Web Lab local CV provenance run proposals must be unique.");
+  }
+  const candidateOrderIdsInput = input.candidateOrderIds;
+  if (
+    !Array.isArray(candidateOrderIdsInput)
+    || candidateOrderIdsInput.length < 1
+    || candidateOrderIdsInput.length > 12
+    || candidateOrderIdsInput.some((id) => (
+      typeof id !== "string" || !MANUAL_CANDIDATE_ID_PATTERN.test(id)
+    ))
+    || new Set(candidateOrderIdsInput).size !== candidateOrderIdsInput.length
+  ) {
+    throw new Error("Private Web Lab local CV provenance candidate order is invalid.");
+  }
+  if (
+    !Array.isArray(input.proposals)
+    || input.proposals.length < 1
+    || input.proposals.length > LOCAL_CV_MAX_PROPOSALS
+  ) {
+    throw new Error("Private Web Lab local CV provenance proposals are invalid.");
+  }
+  const proposals = input.proposals.map((value) => {
+    const proposal = requireExactRecord(value, [
+      "candidateId",
+      "candidateOrder",
+      "evidence",
+      "originalGeometry",
+      "originalProposalIdentity",
+      "rank",
+      "rankScore",
+      "reviewedGeometry",
+      "userEdited",
+    ]);
+    if (
+      typeof proposal.candidateId !== "string"
+      || !MANUAL_CANDIDATE_ID_PATTERN.test(proposal.candidateId)
+      || !Number.isSafeInteger(proposal.candidateOrder)
+      || (proposal.candidateOrder as number) < 0
+      || (proposal.candidateOrder as number) >= candidateOrderIdsInput.length
+      || !Number.isSafeInteger(proposal.rank)
+      || (proposal.rank as number) < 1
+      || (proposal.rank as number) > LOCAL_CV_MAX_PROPOSALS
+      || typeof proposal.userEdited !== "boolean"
+    ) {
+      throw new Error("Private Web Lab local CV provenance proposal binding is invalid.");
+    }
+    const candidateOrder = proposal.candidateOrder as number;
+    const rank = proposal.rank as number;
+    return {
+      candidateId: proposal.candidateId,
+      candidateOrder,
+      originalProposalIdentity: requireLocalCvIdentity(
+        proposal.originalProposalIdentity,
+        "original proposal",
+      ),
+      rank,
+      rankScore: requireNormalizedNumber(proposal.rankScore, "local CV rank score"),
+      evidence: parseLocalCvEvidence(proposal.evidence),
+      originalGeometry: parseLocalCvGeometry(proposal.originalGeometry),
+      reviewedGeometry: parseLocalCvGeometry(proposal.reviewedGeometry),
+      userEdited: proposal.userEdited,
+    };
+  });
+  if (
+    new Set(proposals.map(({ candidateId }) => candidateId)).size !== proposals.length
+    || proposals.some((proposal, index) => (
+      index > 0 && proposal.candidateOrder <= (proposals[index - 1]?.candidateOrder ?? -1)
+    ))
+  ) {
+    throw new Error("Private Web Lab local CV provenance proposals must preserve order.");
+  }
+  return {
+    contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
+    browserSessionId: requireBrowserSessionId(input.browserSessionId),
+    sourceImageContentIdentity: requireLocalCvIdentity(
+      input.sourceImageContentIdentity,
+      "source image",
+    ),
+    sourcePixelWidth: requirePixelDimension(input.sourcePixelWidth, "sourcePixelWidth"),
+    sourcePixelHeight: requirePixelDimension(input.sourcePixelHeight, "sourcePixelHeight"),
+    detector: {
+      contractId: LOCAL_CV_DETECTOR_CONTRACT_ID,
+      algorithmVersion: LOCAL_CV_ALGORITHM_VERSION,
+    },
+    raster: {
+      contentIdentity: requireLocalCvIdentity(raster.contentIdentity, "raster"),
+      width: rasterWidth,
+      height: rasterHeight,
+    },
+    run: {
+      contentIdentity: requireLocalCvIdentity(run.contentIdentity, "run"),
+      proposalIdentities,
+    },
+    candidateOrderIds: candidateOrderIdsInput as readonly string[],
+    proposals,
+  };
+}
+
+function parseLocalCvEvidence(value: unknown): PrivateWebLabLocalCvEvidenceV1 {
+  if (isRecord(value) && value.kind === "axis-aligned-edge-coverage") {
+    const evidence = requireExactRecord(value, ["kind", "meanCoverage", "sideCoverages"]);
+    if (!Array.isArray(evidence.sideCoverages) || evidence.sideCoverages.length !== 4) {
+      throw new Error("Private Web Lab local CV provenance rectangle evidence is invalid.");
+    }
+    return {
+      kind: "axis-aligned-edge-coverage",
+      sideCoverages: evidence.sideCoverages.map((coverage) => (
+        requireNormalizedNumber(coverage, "local CV side coverage")
+      )) as [number, number, number, number],
+      meanCoverage: requireNormalizedNumber(
+        evidence.meanCoverage,
+        "local CV mean coverage",
+      ),
+    };
+  }
+  const evidence = requireExactRecord(value, [
+    "kind",
+    "orientationDegrees",
+    "supportCoverage",
+  ]);
+  if (
+    evidence.kind !== "straight-edge-support"
+    || typeof evidence.orientationDegrees !== "number"
+    || !Number.isFinite(evidence.orientationDegrees)
+    || evidence.orientationDegrees < 0
+    || evidence.orientationDegrees >= 180
+  ) {
+    throw new Error("Private Web Lab local CV provenance segment evidence is invalid.");
+  }
+  return {
+    kind: "straight-edge-support",
+    supportCoverage: requireNormalizedNumber(
+      evidence.supportCoverage,
+      "local CV support coverage",
+    ),
+    orientationDegrees: evidence.orientationDegrees,
+  };
+}
+
+function parseLocalCvGeometry(value: unknown): PrivateWebLabLocalCvGeometryV1 {
+  if (isRecord(value) && value.kind === "rectangle") {
+    const geometry = requireExactRecord(value, ["height", "kind", "width", "x", "y"]);
+    const x = requireNormalizedNumber(geometry.x, "local CV rectangle x");
+    const y = requireNormalizedNumber(geometry.y, "local CV rectangle y");
+    const width = requireNormalizedNumber(geometry.width, "local CV rectangle width");
+    const height = requireNormalizedNumber(geometry.height, "local CV rectangle height");
+    if (width <= 0 || height <= 0 || x + width > 1 || y + height > 1) {
+      throw new Error("Private Web Lab local CV provenance rectangle is invalid.");
+    }
+    return { kind: "rectangle", x, y, width, height };
+  }
+  const geometry = requireExactRecord(value, ["end", "kind", "start"]);
+  if (geometry.kind !== "segment") {
+    throw new Error("Private Web Lab local CV provenance geometry kind is invalid.");
+  }
+  const start = requireManualPoint(geometry.start, "local CV segment start");
+  const end = requireManualPoint(geometry.end, "local CV segment end");
+  if (start.x === end.x && start.y === end.y) {
+    throw new Error("Private Web Lab local CV provenance segment is degenerate.");
+  }
+  return { kind: "segment", start, end };
+}
+
+function requireLocalCvManifestBinding(
+  manifest: PrivateWebLabLocalCvProvenanceManifestV1,
+  binding: Pick<
+    PrivateWebLabDraftRequestV1,
+    | "browserSessionId"
+    | "sourceImageContentIdentity"
+    | "sourcePixelHeight"
+    | "sourcePixelWidth"
+  >,
+  candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+): void {
+  if (
+    manifest.browserSessionId !== binding.browserSessionId
+    || manifest.sourceImageContentIdentity !== binding.sourceImageContentIdentity
+    || manifest.sourcePixelWidth !== binding.sourcePixelWidth
+    || manifest.sourcePixelHeight !== binding.sourcePixelHeight
+  ) {
+    throw new Error("Private Web Lab local CV provenance source or browser binding is stale.");
+  }
+  const candidateOrderIds = candidates.map(({ id }) => id);
+  if (
+    serializeCanonicalJson(manifest.candidateOrderIds)
+    !== serializeCanonicalJson(candidateOrderIds)
+  ) {
+    throw new Error("Private Web Lab local CV provenance candidate order is stale.");
+  }
+  const expectedRunIdentity = contentIdentityFor({
+    contractId: manifest.detector.contractId,
+    algorithmVersion: manifest.detector.algorithmVersion,
+    sourceImageContentIdentity: manifest.sourceImageContentIdentity,
+    workingImage: { width: manifest.raster.width, height: manifest.raster.height },
+    rasterContentIdentity: manifest.raster.contentIdentity,
+    status: "detected",
+    abstentionReason: null,
+    candidateProposalIdentities: manifest.run.proposalIdentities,
+  });
+  if (manifest.run.contentIdentity !== expectedRunIdentity) {
+    throw new Error("Private Web Lab local CV provenance run identity is invalid.");
+  }
+  for (const proposal of manifest.proposals) {
+    const candidate = candidates[proposal.candidateOrder];
+    if (
+      candidate === undefined
+      || candidate.id !== proposal.candidateId
+      || manifest.candidateOrderIds[proposal.candidateOrder] !== proposal.candidateId
+      || proposal.rank
+        !== manifest.run.proposalIdentities.indexOf(proposal.originalProposalIdentity) + 1
+    ) {
+      throw new Error("Private Web Lab local CV provenance proposal order is stale.");
+    }
+    const expectedProposalIdentity = contentIdentityFor({
+      contractId: manifest.detector.contractId,
+      algorithmVersion: manifest.detector.algorithmVersion,
+      sourceImageContentIdentity: manifest.sourceImageContentIdentity,
+      kind: proposal.originalGeometry.kind,
+      geometry: localCvIdentityGeometry(proposal.originalGeometry),
+      evidence: proposal.evidence,
+    });
+    if (proposal.originalProposalIdentity !== expectedProposalIdentity) {
+      throw new Error("Private Web Lab local CV provenance original proposal is invalid.");
+    }
+    const reviewedGeometry = localCvCandidateGeometry(candidate);
+    if (
+      proposal.originalGeometry.kind !== reviewedGeometry.kind
+      || serializeCanonicalJson(proposal.reviewedGeometry)
+        !== serializeCanonicalJson(reviewedGeometry)
+      || proposal.userEdited !== (
+        serializeCanonicalJson(proposal.originalGeometry)
+        !== serializeCanonicalJson(proposal.reviewedGeometry)
+      )
+    ) {
+      throw new Error("Private Web Lab local CV provenance reviewed geometry is stale.");
+    }
+  }
+}
+
+function requireConfirmedLocalCvProvenance(
+  session: PrivateWebLabSessionV1,
+  input: PrivateWebLabConfirmRequestV1 | PrivateWebLabManualConfirmRequestV1,
+  reviewedCandidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  acceptedCandidateSetIdentity: string,
+): {
+  readonly manifest: PrivateWebLabBoundLocalCvProvenanceManifestV1;
+  readonly manifestIdentity: string;
+} | undefined {
+  const inputDraftIdentity = "localCvProvenanceDraftIdentity" in input
+    ? input.localCvProvenanceDraftIdentity
+    : undefined;
+  const inputManifest = "localCvProvenanceManifest" in input
+    ? input.localCvProvenanceManifest
+    : undefined;
+  if (session.localCvProvenance === undefined) {
+    if (inputDraftIdentity !== undefined || inputManifest !== undefined) {
+      throw new Error("Private Web Lab local CV provenance is not bound to this session.");
+    }
+    return undefined;
+  }
+  if (
+    inputDraftIdentity !== session.localCvProvenance.draftIdentity
+    || inputManifest === undefined
+  ) {
+    throw new Error("Private Web Lab local CV provenance draft binding is stale.");
+  }
+  requireLocalCvManifestBinding(inputManifest, input, reviewedCandidates);
+  if (
+    serializeCanonicalJson(localCvImmutableManifest(inputManifest))
+    !== serializeCanonicalJson(
+      localCvImmutableManifest(session.localCvProvenance.draftManifest),
+    )
+  ) {
+    throw new Error("Private Web Lab local CV provenance detector binding is stale.");
+  }
+  const manifest = {
+    ...inputManifest,
+    labSessionId: session.labSessionId,
+    draftCandidateSetIdentity: session.prepared.candidateSetIdentity,
+    acceptedCandidateSetIdentity,
+  };
+  return { manifest, manifestIdentity: contentIdentityFor(manifest) };
+}
+
+function localCvImmutableManifest(manifest: PrivateWebLabLocalCvProvenanceManifestV1): unknown {
+  return {
+    ...manifest,
+    proposals: manifest.proposals.map(({ reviewedGeometry: _reviewed, userEdited: _edited, ...rest }) => (
+      rest
+    )),
+  };
+}
+
+function localCvCandidateGeometry(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+): PrivateWebLabLocalCvGeometryV1 {
+  if (candidate.primitive?.kind !== "segment") {
+    return {
+      kind: "rectangle",
+      x: candidate.x,
+      y: candidate.y,
+      width: candidate.width,
+      height: candidate.height,
+    };
+  }
+  return {
+    kind: "segment",
+    start: structuredClone(candidate.primitive.start),
+    end: structuredClone(candidate.primitive.end),
+  };
+}
+
+function localCvIdentityGeometry(geometry: PrivateWebLabLocalCvGeometryV1): unknown {
+  return geometry.kind === "rectangle"
+    ? { x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height }
+    : { start: geometry.start, end: geometry.end };
+}
+
+function createReceiptWithOptionalLocalCvProvenance(
+  receiptPayload: Readonly<Record<string, unknown>>,
+  canonicalExport: Readonly<Record<string, unknown>>,
+  provenance: {
+    readonly manifest: PrivateWebLabBoundLocalCvProvenanceManifestV1;
+    readonly manifestIdentity: string;
+  } | undefined,
+): Readonly<Record<string, unknown>> {
+  const receiptIdentity = sha256Identity(serializeCanonicalJson(receiptPayload));
+  if (provenance === undefined) return { ...receiptPayload, receiptIdentity };
+  const provenanceReceiptPayload = {
+    contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_RECEIPT_CONTRACT_ID,
+    manifest: provenance.manifest,
+    manifestIdentity: provenance.manifestIdentity,
+    serverReceiptIdentity: receiptIdentity,
+    acceptedCandidateSetIdentity: provenance.manifest.acceptedCandidateSetIdentity,
+  };
+  const localCvProvenanceReceipt = {
+    ...provenanceReceiptPayload,
+    contentIdentity: contentIdentityFor(provenanceReceiptPayload),
+  };
+  const compositePayload = {
+    contractId: PRIVATE_WEB_LAB_LOCAL_CV_COMPOSITE_EXPORT_CONTRACT_ID,
+    serverReceiptIdentity: receiptIdentity,
+    acceptedCandidateSetIdentity: provenance.manifest.acceptedCandidateSetIdentity,
+    canonicalResult: canonicalExport,
+    localCvProvenanceReceipt,
+  };
+  const compositeExportIdentity = contentIdentityFor(compositePayload);
+  const compositeExportJson = `${serializeCanonicalJson({
+    ...compositePayload,
+    contentIdentity: compositeExportIdentity,
+  })}\n`;
+  return {
+    ...receiptPayload,
+    receiptIdentity,
+    localCvProvenanceReceipt,
+    compositeExportIdentity,
+    compositeExportJson,
+  };
+}
+
+function requireLocalCvIdentity(value: unknown, field: string): string {
+  if (typeof value !== "string" || !SOURCE_CONTENT_IDENTITY_PATTERN.test(value)) {
+    throw new Error(`Private Web Lab local CV provenance ${field} identity is invalid.`);
+  }
+  return value;
+}
+
+function requireLocalCvPositiveInteger(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 1) {
+    throw new Error(`Private Web Lab local CV provenance ${field} is invalid.`);
+  }
+  return value as number;
 }
 
 function requireSessionBinding(

@@ -72,10 +72,17 @@ test("measurement review keeps a guided accessible picker and labels canonical r
     readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
   ]);
   assert.match(runtime, /function render\(\{ refreshMeasurementSelection = true \} = \{\}\)/u);
-  assert.match(
-    runtime,
-    /candidates\[index\] = updated;\s+render\(\{ refreshMeasurementSelection: false \}\);/u,
-  );
+  const updateGeometryStart = runtime.indexOf("function updateGeometryFromHandle(");
+  const updateGeometryEnd = runtime.indexOf("\nfunction rectangleFromHandle(", updateGeometryStart);
+  assert.equal(updateGeometryStart >= 0, true);
+  assert.equal(updateGeometryEnd > updateGeometryStart, true);
+  const updateGeometryHandler = runtime.slice(updateGeometryStart, updateGeometryEnd);
+  const assignmentIndex = updateGeometryHandler.indexOf("candidates[index] = updated;");
+  const userEditedIndex = updateGeometryHandler.indexOf("else markReviewedCandidateEdited(candidateId);");
+  const renderIndex = updateGeometryHandler.indexOf("render({ refreshMeasurementSelection: false });");
+  assert.equal(assignmentIndex >= 0, true);
+  assert.equal(userEditedIndex > assignmentIndex, true);
+  assert.equal(renderIndex > userEditedIndex, true);
   assert.doesNotMatch(runtime, /privateWebLabSpatialExpressionOptionsV1/u);
   assert.match(document, /Comparer des mesures entre 2 cadres/u);
   assert.match(document, /Les segments restent\s+éditables, mais ne peuvent ni être sélectionnés/u);
@@ -89,6 +96,36 @@ test("measurement review keeps a guided accessible picker and labels canonical r
   assert.doesNotMatch(document, /Longueur [AB] déclarée/u);
 });
 
+test("local CV proposals stay browser-local, unselected, provenance-distinct, and server-projected", async () => {
+  const [runtime, detector, worker, document, packageMetadata] = await Promise.all([
+    readFile(new URL("../web-lab/private-web-lab.js", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/private-web-lab-local-cv.js", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/private-web-lab-local-cv-worker.js", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(document, /id="local-cv-button"/u);
+  assert.match(document, /aucune proposition acceptée automatiquement/u);
+  assert.equal(runtime.includes('new Worker("/private-web-lab-local-cv-worker.js"'), true);
+  assert.equal(runtime.includes("included: false"), true);
+  assert.equal(runtime.includes('source: "browser-local-cv"'), true);
+  assert.equal(
+    runtime.includes("candidates: includedCandidates.map(manualDraftCandidateInput)"),
+    true,
+  );
+  assert.match(runtime, /Ces temps ne mesurent pas la précision/u);
+  assert.equal(detector.includes("confidence"), false);
+  assert.equal(detector.includes("fetch("), false);
+  assert.equal(detector.includes("XMLHttpRequest"), false);
+  assert.equal(detector.includes("WebSocket"), false);
+  assert.equal(worker.includes("fetch("), false);
+  assert.equal(worker.includes("XMLHttpRequest"), false);
+  assert.equal(worker.includes("WebSocket"), false);
+  assert.equal(worker.includes("/api/"), false);
+  assert.doesNotMatch(packageMetadata, /opencv/iu);
+});
+
 test("runtime identity covers the complete compiled Core tree", async () => {
   const identityFiles = [
     ...await collectExpectedRuntimeIdentityFiles(
@@ -98,6 +135,8 @@ test("runtime identity covers the complete compiled Core tree", async () => {
     ["http-server", new URL("../web-lab/private-web-lab-http-server.mjs", import.meta.url)],
     ["browser-runtime", new URL("../web-lab/private-web-lab.js", import.meta.url)],
     ["browser-model", new URL("../web-lab/private-web-lab-browser-model.js", import.meta.url)],
+    ["local-cv", new URL("../web-lab/private-web-lab-local-cv.js", import.meta.url)],
+    ["local-cv-worker", new URL("../web-lab/private-web-lab-local-cv-worker.js", import.meta.url)],
     ["document", new URL("../web-lab/index.html", import.meta.url)],
     ["styles", new URL("../web-lab/private-web-lab.css", import.meta.url)],
   ];

@@ -10,6 +10,9 @@ import {
   privateWebLabSpatialPickerV1,
   updatePrivateWebLabCandidateGeometryV1,
 } from "/private-web-lab-browser-model.js";
+import {
+  requestPrivateWebLabLocalCvWorkerV1,
+} from "/private-web-lab-local-cv.js";
 
 const state = {
   browserSessionId: readBrowserSessionId(),
@@ -20,6 +23,10 @@ const state = {
   phase: "empty",
   tool: "rectangle",
   authored: [],
+  reviewProvenanceById: new Map(),
+  localCvWorker: null,
+  localCvRevision: 0,
+  localCvInFlight: false,
   draft: null,
   candidates: [],
   selectedCandidateIds: new Set(),
@@ -43,6 +50,8 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const imageInput = $("#image-input");
 const goalInput = $("#goal-input");
+const localCvButton = $("#local-cv-button");
+const localCvStatus = $("#local-cv-status");
 const prepareButton = $("#prepare-button");
 const setupStatus = $("#setup-status");
 const reviewSection = $("#review-section");
@@ -137,6 +146,8 @@ imageInput.addEventListener("change", async () => {
     );
     state.phase = "authoring";
     reviewSection.hidden = false;
+    localCvStatus.textContent =
+      "Image prête. La détection locale reste facultative et ne sélectionne rien.";
     render();
   } catch (error) {
     if (!isCurrentSelection()) return;
@@ -146,6 +157,7 @@ imageInput.addEventListener("change", async () => {
 });
 
 goalInput.addEventListener("change", updateAvailability);
+localCvButton.addEventListener("click", runLocalCvDetection);
 rectangleTool.addEventListener("click", () => setTool("rectangle"));
 segmentTool.addEventListener("click", () => setTool("segment"));
 panTool.addEventListener("click", () => {
@@ -160,14 +172,14 @@ addRectangleButton.addEventListener("click", () => {
     || state.preparationInFlight
     || state.authored.length >= 12
   ) return;
-  state.authored.push({
+  state.authored.push(manualAuthoredCandidate({
     id: "",
     kind: "rectangle",
     x: 0.1,
     y: 0.1,
     width: 0.6,
     height: 0.7,
-  });
+  }));
   renumberAuthoredIds();
   state.activeCandidateId = state.authored.at(-1).id;
   render();
@@ -178,12 +190,12 @@ addSegmentButton.addEventListener("click", () => {
     || state.preparationInFlight
     || state.authored.length >= 12
   ) return;
-  state.authored.push({
+  state.authored.push(manualAuthoredCandidate({
     id: "",
     kind: "segment",
     start: { x: 0.1, y: 0.25 },
     end: { x: 0.9, y: 0.25 },
-  });
+  }));
   renumberAuthoredIds();
   state.activeCandidateId = state.authored.at(-1).id;
   render();
@@ -293,6 +305,109 @@ imagePlane.addEventListener("pointercancel", (event) => {
   render();
 });
 
+async function runLocalCvDetection() {
+  if (
+    state.phase !== "authoring"
+    || state.image === null
+    || state.dimensions === null
+    || state.sourceIdentity === null
+    || state.localCvInFlight
+    || state.preparationInFlight
+  ) return;
+  const localCvRevision = state.localCvRevision + 1;
+  const imageRevision = state.imageRevision;
+  const selectedImage = state.image;
+  state.localCvRevision = localCvRevision;
+  terminateLocalCvWorker();
+  state.authored = state.authored.filter(({ source }) => source !== "local-cv");
+  renumberAuthoredIds();
+  state.activeCandidateId = null;
+  state.localCvInFlight = true;
+  const startedAt = performance.now();
+  localCvStatus.textContent =
+    "Détection locale en cours dans un worker borné; aucune proposition n’est encore incluse.";
+  render();
+  let imageBitmap = null;
+  let imageBitmapTransferred = false;
+  try {
+    imageBitmap = await createImageBitmap(selectedImage);
+    if (
+      state.localCvRevision !== localCvRevision
+      || state.imageRevision !== imageRevision
+      || state.image !== selectedImage
+    ) {
+      imageBitmap.close();
+      return;
+    }
+    const worker = new Worker("/private-web-lab-local-cv-worker.js", { type: "module" });
+    state.localCvWorker = worker;
+    const requestId = `local-cv:${crypto.randomUUID()}`;
+    const result = await requestPrivateWebLabLocalCvWorkerV1({
+      worker,
+      request: {
+        requestId,
+        sourceImageContentIdentity: state.sourceIdentity,
+        sourceWidth: state.dimensions.width,
+        sourceHeight: state.dimensions.height,
+        imageBitmap,
+      },
+      transfer: [imageBitmap],
+      isCurrent: () => (
+        state.localCvRevision === localCvRevision
+        && state.imageRevision === imageRevision
+        && state.image === selectedImage
+      ),
+      onPosted: () => {
+        imageBitmapTransferred = true;
+      },
+    });
+    if (
+      state.localCvRevision !== localCvRevision
+      || state.imageRevision !== imageRevision
+      || state.image !== selectedImage
+    ) return;
+    const manualCandidates = state.authored.filter(({ source }) => source !== "local-cv");
+    const capacity = Math.max(0, 12 - manualCandidates.length);
+    const localCandidates = result.status === "detected"
+      ? result.candidates.slice(0, capacity).map((candidate) => (
+        localCvAuthoredCandidate(candidate, result)
+      ))
+      : [];
+    state.authored = [...manualCandidates, ...localCandidates];
+    renumberAuthoredIds();
+    state.activeCandidateId = null;
+    if (result.status !== "detected") {
+      localCvStatus.textContent =
+        `Abstention locale (${localCvAbstentionLabel(result.abstentionReason)}). `
+        + "Aucune proposition partielle n’a été ajoutée.";
+    } else if (localCandidates.length === 0) {
+      localCvStatus.textContent =
+        "Détection terminée, mais la limite de 12 candidats est déjà occupée. "
+        + "Aucune proposition n’a été ajoutée.";
+    } else {
+      const totalMilliseconds = Number((performance.now() - startedAt).toFixed(2));
+      localCvStatus.textContent =
+        `${String(localCandidates.length)} proposition(s) locale(s), toutes décochées · `
+        + `${String(result.metrics.workingWidth)}×${String(result.metrics.workingHeight)} · `
+        + `${String(result.metrics.detectionMilliseconds)} ms calcul, `
+        + `${String(totalMilliseconds)} ms total observé sur cet appareil. `
+        + "Ces temps ne mesurent pas la précision.";
+    }
+  } catch (error) {
+    if (state.localCvRevision !== localCvRevision) return;
+    localCvStatus.textContent = error instanceof Error
+      ? `${error.message} Abstention fail-closed; aucune proposition ajoutée.`
+      : "Détection locale indisponible; aucune proposition ajoutée.";
+  } finally {
+    if (!imageBitmapTransferred) imageBitmap?.close();
+    if (state.localCvRevision === localCvRevision) {
+      terminateLocalCvWorker();
+      state.localCvInFlight = false;
+      render();
+    }
+  }
+}
+
 prepareButton.addEventListener("click", async () => {
   if (
     state.phase !== "authoring"
@@ -306,6 +421,17 @@ prepareButton.addEventListener("click", async () => {
   const imageRevision = state.imageRevision;
   state.preparationRevision = preparationRevision;
   state.preparationInFlight = true;
+  const includedCandidates = state.authored.filter(isIncludedAuthoredCandidate);
+  const reviewProvenanceById = new Map(
+    includedCandidates.map((candidate) => [
+      candidate.id,
+      structuredClone(candidate.provenance),
+    ]),
+  );
+  const localCvProvenanceManifest = createLocalCvProvenanceManifest(
+    includedCandidates,
+    true,
+  );
   render();
   setupStatus.textContent = "Validation et liaison exacte de la revue…";
   try {
@@ -317,7 +443,10 @@ prepareButton.addEventListener("click", async () => {
       sourcePixelWidth: state.dimensions.width,
       sourcePixelHeight: state.dimensions.height,
       goalId: goalInput.value,
-      candidates: state.authored,
+      candidates: includedCandidates.map(manualDraftCandidateInput),
+      ...(localCvProvenanceManifest === null
+        ? {}
+        : { localCvProvenanceManifest }),
     });
     if (
       state.preparationRevision !== preparationRevision
@@ -325,6 +454,7 @@ prepareButton.addEventListener("click", async () => {
     ) return;
     state.draft = draft;
     state.candidates = structuredClone(draft.candidates);
+    state.reviewProvenanceById = reviewProvenanceById;
     state.selectedCandidateIds = new Set();
     state.measurementExpressions = [null, null];
     state.declaredSpatialMeasurementPlan = null;
@@ -430,9 +560,19 @@ runButton.addEventListener("click", async () => {
       measurementCandidateIds: null,
       declaredSpatialMeasurementPlan: state.declaredSpatialMeasurementPlan,
     });
+    const localCvProvenanceManifest = createLocalCvProvenanceManifest(
+      state.candidates,
+      false,
+    );
     const receipt = await postJson("/api/manual-confirm", {
       ...payload,
       perceptionReceiptIdentity: state.draft.perceptionReceiptIdentity,
+      ...(localCvProvenanceManifest === null
+        ? {}
+        : {
+            localCvProvenanceDraftIdentity: state.draft.localCvProvenanceDraftIdentity,
+            localCvProvenanceManifest,
+          }),
     });
     state.coreExecutionCount += 1;
     state.phase = "completed";
@@ -451,7 +591,10 @@ runButton.addEventListener("click", async () => {
     );
     if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
     state.receiptUrl = URL.createObjectURL(
-      new Blob([receipt.exportJson], { type: "application/json" }),
+      new Blob(
+        [receipt.compositeExportJson ?? receipt.exportJson],
+        { type: "application/json" },
+      ),
     );
     exportLink.href = state.receiptUrl;
     exportLink.download = receipt.exportFileName;
@@ -551,12 +694,21 @@ function render({ refreshMeasurementSelection = true } = {}) {
   addRectangleButton.hidden = !authoring;
   addSegmentButton.hidden = !authoring;
   prepareButton.hidden = !authoring;
+  localCvButton.hidden = !authoring;
+  localCvButton.disabled = !authoring
+    || state.image === null
+    || state.localCvInFlight
+    || state.preparationInFlight;
   changeGoalButton.hidden = !isReviewPhase();
   changeGoalButton.disabled = !isReviewPhase() || state.sessionResetInFlight;
   prepareButton.disabled =
-    !authoring || state.preparationInFlight || !canPrepareAuthoredReview();
+    !authoring
+    || state.localCvInFlight
+    || state.preparationInFlight
+    || !canPrepareAuthoredReview();
   phaseDescription.textContent = authoring
-    ? "Dessinez vos propres cadres et segments. Aucun guide n’est inféré ou détecté."
+    ? "Dessinez manuellement ou révisez les propositions CV locales; "
+      + "aucune proposition locale n’est incluse automatiquement."
     : "Liste liée au serveur: nombre, ordre, identités, métadonnées et types sont figés.";
   const candidates = authoring ? authoredDisplayCandidates() : state.candidates;
   renderMeasurementCandidateStatus(authoring);
@@ -572,7 +724,11 @@ function render({ refreshMeasurementSelection = true } = {}) {
     || state.sessionResetInFlight
     || state.confirmationInFlight;
   if (authoring) {
-    guideMode.textContent = `${String(candidates.length)} candidat(s) manuel(s), maximum 12.`;
+    const localCount = candidates.filter(({ source }) => source === "local-cv").length;
+    const includedCount = candidates.filter(isIncludedAuthoredCandidate).length;
+    guideMode.textContent =
+      `${String(candidates.length)} candidat(s), dont ${String(localCount)} proposition(s) locale(s) · `
+      + `${String(includedCount)} inclus · maximum 12.`;
     coreGate.textContent = "Core arrêté — préparez puis confirmez une revue liée.";
   } else if (state.phase === "completed") {
     guideMode.textContent = `${String(candidates.length)} candidat(s) verrouillé(s).`;
@@ -625,6 +781,12 @@ function candidateCard(candidate, index, authoring, locked) {
   article.dataset.candidateId = candidate.id;
   article.dataset.candidateViewKey = candidateViewKey(candidate, authoring);
   article.dataset.active = String(candidate.id === state.activeCandidateId);
+  const provenance = candidateProvenance(candidate, authoring);
+  article.dataset.candidateSource = provenance.source;
+  article.dataset.included = String(authoring ? isIncludedAuthoredCandidate(candidate) : false);
+  if (provenance.proposalIdentity !== undefined) {
+    article.dataset.proposalIdentity = provenance.proposalIdentity;
+  }
   article.addEventListener("click", (event) => {
     if (
       event.target.closest("input, button")
@@ -635,7 +797,19 @@ function candidateCard(candidate, index, authoring, locked) {
     render();
   });
   const header = document.createElement("label");
-  if (!authoring) {
+  if (authoring && candidate.source === "local-cv") {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = isIncludedAuthoredCandidate(candidate);
+    checkbox.disabled = locked;
+    checkbox.setAttribute("aria-label", `Inclure la proposition locale ${String(index + 1)}`);
+    checkbox.addEventListener("change", () => {
+      candidate.included = checkbox.checked;
+      state.activeCandidateId = checkbox.checked ? candidate.id : state.activeCandidateId;
+      render();
+    });
+    header.append(checkbox);
+  } else if (!authoring) {
     const checkbox = document.createElement("input");
     const declaredSpatialMode = isDeclaredSpatialReviewMode();
     const selection = currentSpatialCandidateSelection();
@@ -657,7 +831,15 @@ function candidateCard(candidate, index, authoring, locked) {
   }
   const title = document.createElement("strong");
   title.textContent = authoring
-    ? `${String(index + 1)}. ${candidate.kind === "rectangle" ? "Cadre manuel" : "Segment manuel"}`
+    ? `${String(index + 1)}. ${
+      candidate.source === "local-cv"
+        ? candidate.kind === "rectangle"
+          ? "Cadre proposé localement"
+          : "Segment proposé localement"
+        : candidate.kind === "rectangle"
+          ? "Cadre manuel"
+          : "Segment manuel"
+    }`
     : `${String(index + 1)}. ${candidate.label}`;
   header.append(title);
   article.append(header);
@@ -665,6 +847,22 @@ function candidateCard(candidate, index, authoring, locked) {
   summary.className = "candidate-summary";
   summary.textContent = candidateGeometrySummary(candidate, authoring);
   article.append(summary);
+  const provenanceNote = document.createElement("p");
+  provenanceNote.className = "candidate-provenance";
+  if (provenance.source === "browser-local-cv") {
+    provenanceNote.textContent =
+      `CV local déterministe · rang ${String(provenance.rank)} · `
+      + `score de classement ${String(provenance.rankScore)}`
+      + (provenance.userEdited ? " · géométrie modifiée par l’utilisateur" : "")
+      + (authoring && !isIncludedAuthoredCandidate(candidate)
+        ? " · proposition non incluse"
+        : " · provenance conservée dans cette revue");
+  } else {
+    provenanceNote.textContent =
+      "Tracé manuel dans ce navigateur"
+      + (provenance.userEdited ? " · géométrie modifiée par l’utilisateur" : "");
+  }
+  article.append(provenanceNote);
   if (!authoring && isDeclaredSpatialReviewMode()) {
     const candidateSelection = currentSpatialCandidateSelection().candidates.find(
       ({ candidateId }) => candidateId === candidate.id,
@@ -701,12 +899,14 @@ function candidateCard(candidate, index, authoring, locked) {
     input.addEventListener("change", () => {
       if (authoring) {
         setValueAt(state.authored[index], field.path, boundedNumber(input.value));
+        markAuthoredCandidateEdited(state.authored[index]);
       } else {
         state.candidates[index] = updatePrivateWebLabCandidateGeometryV1(
           state.candidates[index],
           field.path,
           input.value,
         );
+        markReviewedCandidateEdited(state.candidates[index].id);
         invalidateConfirmation();
       }
       render();
@@ -829,8 +1029,8 @@ function guideElement(candidate, authoring) {
     for (const field of ["x", "y", "width", "height"]) {
       element.setAttribute(field, String(candidate[field] * 1000));
     }
-    styleGuide(element);
-    decorateGuide(element, candidate);
+    styleGuide(element, candidate, authoring);
+    decorateGuide(element, candidate, authoring);
     return element;
   }
   const primitive = authoring ? candidate : candidate.primitive;
@@ -839,21 +1039,28 @@ function guideElement(candidate, authoring) {
   element.setAttribute("y1", String(primitive.start.y * 1000));
   element.setAttribute("x2", String(primitive.end.x * 1000));
   element.setAttribute("y2", String(primitive.end.y * 1000));
-  styleGuide(element);
-  decorateGuide(element, candidate);
+  styleGuide(element, candidate, authoring);
+  decorateGuide(element, candidate, authoring);
   return element;
 }
 
-function styleGuide(element) {
+function styleGuide(element, candidate, authoring) {
+  const source = candidateProvenance(candidate, authoring).source;
+  const localCv = source === "browser-local-cv";
   element.setAttribute("fill", "none");
-  element.setAttribute("stroke", "#c7ff4a");
+  element.setAttribute("stroke", localCv ? "#78b8ff" : "#c7ff4a");
   element.setAttribute("stroke-width", "3");
   element.setAttribute("vector-effect", "non-scaling-stroke");
+  if (localCv && authoring && !isIncludedAuthoredCandidate(candidate)) {
+    element.setAttribute("stroke-dasharray", "10 8");
+    element.setAttribute("opacity", "0.72");
+  }
 }
 
-function decorateGuide(element, candidate) {
+function decorateGuide(element, candidate, authoring) {
   element.classList.add("candidate-guide");
   element.dataset.candidateId = candidate.id;
+  element.dataset.candidateSource = candidateProvenance(candidate, authoring).source;
 }
 
 function handleElements(candidate, authoring) {
@@ -1209,6 +1416,8 @@ function updateGeometryFromHandle(candidateId, handle, original, point) {
     if (viewKey !== undefined) authoredCandidateViewKeys.set(updated, viewKey);
   }
   candidates[index] = updated;
+  if (authoring) markAuthoredCandidateEdited(candidates[index]);
+  else markReviewedCandidateEdited(candidateId);
   render({ refreshMeasurementSelection: false });
 }
 
@@ -1333,19 +1542,19 @@ function rectangleFromPoints(start, end) {
   const width = Math.abs(end.x - start.x);
   const height = Math.abs(end.y - start.y);
   if (width < 0.001 || height < 0.001) return null;
-  return {
+  return manualAuthoredCandidate({
     id: "",
     kind: "rectangle",
     x: Math.min(start.x, end.x),
     y: Math.min(start.y, end.y),
     width,
     height,
-  };
+  });
 }
 
 function segmentFromPoints(start, end) {
   if (Math.hypot(end.x - start.x, end.y - start.y) < 0.001) return null;
-  return { id: "", kind: "segment", start, end };
+  return manualAuthoredCandidate({ id: "", kind: "segment", start, end });
 }
 
 function renumberAuthoredIds() {
@@ -1360,6 +1569,213 @@ function renumberAuthoredIds() {
       candidate.id = `manual-segment-${String(segment)}`;
     }
   });
+}
+
+function manualAuthoredCandidate(candidate) {
+  return {
+    ...candidate,
+    source: "manual",
+    included: true,
+    provenance: manualCandidateProvenance(),
+  };
+}
+
+function manualCandidateProvenance() {
+  return {
+    source: "manual-browser",
+    userEdited: false,
+  };
+}
+
+function localCvAuthoredCandidate(candidate, result) {
+  const shared = {
+    id: "",
+    source: "local-cv",
+    included: false,
+    provenance: {
+      source: "browser-local-cv",
+      contractId: result.contractId,
+      algorithmVersion: result.algorithmVersion,
+      sourceImageContentIdentity: result.sourceImageContentIdentity,
+      executionIdentity: result.executionIdentity,
+      rasterContentIdentity: result.rasterContentIdentity,
+      runProposalIdentities: result.candidates.map(({ proposalIdentity }) => proposalIdentity),
+      proposalIdentity: candidate.proposalIdentity,
+      rank: candidate.rank,
+      rankScore: candidate.rankScore,
+      evidence: structuredClone(candidate.evidence),
+      workingImage: structuredClone(result.workingImage),
+      originalGeometry: localCvProposalGeometry(candidate),
+      userEdited: false,
+    },
+  };
+  if (candidate.kind === "rectangle") {
+    const x = clamp(candidate.geometry.x);
+    const y = clamp(candidate.geometry.y);
+    return {
+      ...shared,
+      kind: "rectangle",
+      x,
+      y,
+      width: Math.min(1 - x, clamp(candidate.geometry.width)),
+      height: Math.min(1 - y, clamp(candidate.geometry.height)),
+    };
+  }
+  return {
+    ...shared,
+    kind: "segment",
+    start: {
+      x: clamp(candidate.geometry.start.x),
+      y: clamp(candidate.geometry.start.y),
+    },
+    end: {
+      x: clamp(candidate.geometry.end.x),
+      y: clamp(candidate.geometry.end.y),
+    },
+  };
+}
+
+function isIncludedAuthoredCandidate(candidate) {
+  return candidate.source !== "local-cv" || candidate.included === true;
+}
+
+function createLocalCvProvenanceManifest(candidates, authoring) {
+  const proposals = candidates.flatMap((candidate, candidateOrder) => {
+    const provenance = candidateProvenance(candidate, authoring);
+    if (provenance.source !== "browser-local-cv") return [];
+    const reviewedGeometry = candidateGeometry(candidate, authoring);
+    return [{
+      candidateId: candidate.id,
+      candidateOrder,
+      originalProposalIdentity: provenance.proposalIdentity,
+      rank: provenance.rank,
+      rankScore: provenance.rankScore,
+      evidence: structuredClone(provenance.evidence),
+      originalGeometry: structuredClone(provenance.originalGeometry),
+      reviewedGeometry,
+      userEdited: canonicalJson(provenance.originalGeometry) !== canonicalJson(reviewedGeometry),
+    }];
+  });
+  if (proposals.length === 0) return null;
+  const first = candidateProvenance(candidates[proposals[0].candidateOrder], authoring);
+  return {
+    contractId: "norma.private-web-lab-local-cv-provenance@1",
+    browserSessionId: state.browserSessionId,
+    sourceImageContentIdentity: state.sourceIdentity,
+    sourcePixelWidth: state.dimensions.width,
+    sourcePixelHeight: state.dimensions.height,
+    detector: {
+      contractId: first.contractId,
+      algorithmVersion: first.algorithmVersion,
+    },
+    raster: {
+      contentIdentity: first.rasterContentIdentity,
+      width: first.workingImage.width,
+      height: first.workingImage.height,
+    },
+    run: {
+      contentIdentity: first.executionIdentity,
+      proposalIdentities: structuredClone(first.runProposalIdentities),
+    },
+    candidateOrderIds: candidates.map(({ id }) => id),
+    proposals,
+  };
+}
+
+function localCvProposalGeometry(candidate) {
+  return candidate.kind === "rectangle"
+    ? { kind: "rectangle", ...structuredClone(candidate.geometry) }
+    : { kind: "segment", ...structuredClone(candidate.geometry) };
+}
+
+function candidateGeometry(candidate, authoring) {
+  if (authoring) {
+    return candidate.kind === "rectangle"
+      ? {
+          kind: "rectangle",
+          x: candidate.x,
+          y: candidate.y,
+          width: candidate.width,
+          height: candidate.height,
+        }
+      : {
+          kind: "segment",
+          start: structuredClone(candidate.start),
+          end: structuredClone(candidate.end),
+        };
+  }
+  return candidate.primitive.kind === "rectangle"
+    ? {
+        kind: "rectangle",
+        x: candidate.x,
+        y: candidate.y,
+        width: candidate.width,
+        height: candidate.height,
+      }
+    : {
+        kind: "segment",
+        start: structuredClone(candidate.primitive.start),
+        end: structuredClone(candidate.primitive.end),
+      };
+}
+
+function manualDraftCandidateInput(candidate) {
+  if (candidate.kind === "rectangle") {
+    return {
+      id: candidate.id,
+      kind: "rectangle",
+      x: candidate.x,
+      y: candidate.y,
+      width: candidate.width,
+      height: candidate.height,
+    };
+  }
+  return {
+    id: candidate.id,
+    kind: "segment",
+    start: structuredClone(candidate.start),
+    end: structuredClone(candidate.end),
+  };
+}
+
+function candidateProvenance(candidate, authoring) {
+  if (authoring) return candidate.provenance ?? manualCandidateProvenance();
+  return state.reviewProvenanceById.get(candidate.id) ?? manualCandidateProvenance();
+}
+
+function markAuthoredCandidateEdited(candidate) {
+  candidate.provenance = {
+    ...candidateProvenance(candidate, true),
+    userEdited: true,
+  };
+}
+
+function markReviewedCandidateEdited(candidateId) {
+  const provenance = state.reviewProvenanceById.get(candidateId);
+  if (provenance === undefined) return;
+  state.reviewProvenanceById.set(candidateId, {
+    ...provenance,
+    userEdited: true,
+  });
+}
+
+function terminateLocalCvWorker() {
+  state.localCvWorker?.terminate();
+  state.localCvWorker = null;
+}
+
+function localCvAbstentionLabel(reason) {
+  return {
+    "canvas-unavailable": "Canvas local indisponible",
+    "detector-error": "erreur du détecteur",
+    "insufficient-edge-evidence": "preuves de contours insuffisantes",
+    "invalid-image-data": "raster invalide",
+    "invalid-worker-request": "requête worker invalide",
+    "no-bounded-candidate": "aucun candidat borné",
+    "scene-too-dense": "image trop dense pour ce proof",
+    "source-image-too-large": "image source trop grande",
+    "working-image-too-large": "raster de travail trop grand",
+  }[reason] ?? "raison locale non reconnue";
 }
 
 function valueAt(value, path) {
@@ -1389,14 +1805,16 @@ function updateAvailability() {
     setupStatus.textContent = "Tracez au moins un cadre ou segment manuel.";
   } else if (state.phase === "authoring" && !canPrepareAuthoredReview()) {
     setupStatus.textContent = goalInput.value === "compare-two-lengths"
-      ? "Tracez au moins deux cadres avant de préparer la revue."
-      : "Tracez au moins un cadre avant de préparer la revue.";
+      ? "Incluez ou tracez au moins deux cadres avant de préparer la revue."
+      : "Incluez ou tracez au moins un cadre avant de préparer la revue.";
   }
   prepareButton.disabled =
     state.phase !== "authoring"
+    || state.localCvInFlight
     || state.preparationInFlight
     || !canPrepareAuthoredReview();
-  const setupLocked = state.preparationInFlight
+  const setupLocked = state.localCvInFlight
+    || state.preparationInFlight
     || state.sessionResetInFlight
     || (state.phase !== "empty" && state.phase !== "authoring");
   imageInput.disabled = setupLocked;
@@ -1405,7 +1823,9 @@ function updateAvailability() {
 
 function canPrepareAuthoredReview() {
   if (goalInput.value === "") return false;
-  const rectangleCount = state.authored.filter(({ kind }) => kind === "rectangle").length;
+  const rectangleCount = state.authored.filter((candidate) => (
+    candidate.kind === "rectangle" && isIncludedAuthoredCandidate(candidate)
+  )).length;
   return rectangleCount >= 1
     && (goalInput.value !== "compare-two-lengths" || rectangleCount >= 2);
 }
@@ -1426,6 +1846,7 @@ function returnLinkedReviewToAuthoring({ preserveAuthored }) {
   state.draft = null;
   if (!preserveAuthored) state.authored = [];
   state.candidates = [];
+  state.reviewProvenanceById = new Map();
   state.selectedCandidateIds = new Set();
   state.measurementExpressions = [null, null];
   state.declaredSpatialMeasurementPlan = null;
@@ -1440,9 +1861,18 @@ function returnLinkedReviewToAuthoring({ preserveAuthored }) {
 }
 
 function reviewedCandidateToAuthored(candidate) {
+  const provenance = structuredClone(
+    state.reviewProvenanceById.get(candidate.id) ?? manualCandidateProvenance(),
+  );
+  const shared = {
+    id: candidate.id,
+    source: provenance.source === "browser-local-cv" ? "local-cv" : "manual",
+    included: true,
+    provenance,
+  };
   if (candidate.primitive.kind === "rectangle") {
     return {
-      id: candidate.id,
+      ...shared,
       kind: "rectangle",
       x: candidate.x,
       y: candidate.y,
@@ -1451,7 +1881,7 @@ function reviewedCandidateToAuthored(candidate) {
     };
   }
   return {
-    id: candidate.id,
+    ...shared,
     kind: "segment",
     start: structuredClone(candidate.primitive.start),
     end: structuredClone(candidate.primitive.end),
@@ -1468,6 +1898,9 @@ function clearImage() {
   state.preparationRevision += 1;
   state.preparationInFlight = false;
   state.sessionResetInFlight = false;
+  state.localCvRevision += 1;
+  state.localCvInFlight = false;
+  terminateLocalCvWorker();
   if (state.objectUrl !== null) URL.revokeObjectURL(state.objectUrl);
   state.image = null;
   state.dimensions = null;
@@ -1475,6 +1908,7 @@ function clearImage() {
   state.objectUrl = null;
   state.phase = "empty";
   state.authored = [];
+  state.reviewProvenanceById = new Map();
   state.draft = null;
   state.candidates = [];
   state.selectedCandidateIds = new Set();
@@ -1487,6 +1921,8 @@ function clearImage() {
   setTool("rectangle");
   reviewSection.hidden = true;
   receiptSection.hidden = true;
+  localCvStatus.textContent =
+    "Détection facultative : calcul local borné, aucune proposition acceptée automatiquement.";
 }
 
 function renderMeasurementReceipt(report, spatialConfirmation) {

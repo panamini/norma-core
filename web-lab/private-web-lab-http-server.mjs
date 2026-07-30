@@ -20,6 +20,8 @@ const RUNTIME_IDENTITY_FILES = Object.freeze([
   ["http-server", new URL("./private-web-lab-http-server.mjs", import.meta.url)],
   ["browser-runtime", new URL("./private-web-lab.js", import.meta.url)],
   ["browser-model", new URL("./private-web-lab-browser-model.js", import.meta.url)],
+  ["local-cv", new URL("./private-web-lab-local-cv.js", import.meta.url)],
+  ["local-cv-worker", new URL("./private-web-lab-local-cv-worker.js", import.meta.url)],
   ["document", new URL("./index.html", import.meta.url)],
   ["styles", new URL("./private-web-lab.css", import.meta.url)],
 ]);
@@ -31,6 +33,14 @@ const STATIC_ASSETS = new Map([
   ["/private-web-lab.js", { file: "private-web-lab.js", contentType: "text/javascript; charset=utf-8" }],
   ["/private-web-lab-browser-model.js", {
     file: "private-web-lab-browser-model.js",
+    contentType: "text/javascript; charset=utf-8",
+  }],
+  ["/private-web-lab-local-cv.js", {
+    file: "private-web-lab-local-cv.js",
+    contentType: "text/javascript; charset=utf-8",
+  }],
+  ["/private-web-lab-local-cv-worker.js", {
+    file: "private-web-lab-local-cv-worker.js",
     contentType: "text/javascript; charset=utf-8",
   }],
 ]);

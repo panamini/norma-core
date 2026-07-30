@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
@@ -13,6 +14,9 @@ import {
 } from "../dist/src/personal-visual-harmony-spatial-measurements.js";
 import {
   PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
+  PRIVATE_WEB_LAB_LOCAL_CV_COMPOSITE_EXPORT_CONTRACT_ID,
+  PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
+  PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_RECEIPT_CONTRACT_ID,
   PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
   PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID,
   PrivateWebLabApplicationV1,
@@ -105,6 +109,172 @@ test("manual authoring prepares truthful provider-neutral provenance with Core s
   assert.match(draft.perceptionReceiptIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.match(draft.coreCompatibilityCandidateSetIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.equal(coreCalls, 0);
+});
+
+test("manual-only sessions remain free of local-CV fields in drafts, receipts, and exports", () => {
+  const application = applicationWithCounter();
+  const draft = application.prepareManualDraft(manualDraftRequest());
+  const receipt = application.confirmManual(manualConfirmationRequest(draft));
+
+  for (const value of [draft, receipt, JSON.parse(receipt.exportJson)]) {
+    assert.equal(
+      Object.keys(value).some((key) => key.startsWith("localCv") || key.startsWith("composite")),
+      false,
+    );
+  }
+});
+
+test("local-CV provenance is server-bound, deterministic, and linked into the receipt composite", () => {
+  let coreCalls = 0;
+  const application = applicationWithCounter(() => {
+    coreCalls += 1;
+  });
+  const localCvProvenanceManifest = localCvManifest();
+  const draft = application.prepareManualDraft(manualDraftRequest({
+    localCvProvenanceManifest,
+  }));
+  assert.equal(coreCalls, 0);
+  assert.match(draft.localCvProvenanceDraftIdentity, /^sha256:[0-9a-f]{64}$/u);
+
+  const request = manualConfirmationRequest(draft, {
+    localCvProvenanceDraftIdentity: draft.localCvProvenanceDraftIdentity,
+    localCvProvenanceManifest,
+  });
+  const receipt = application.confirmManual(request);
+  assert.equal(coreCalls, 1);
+  assert.equal(
+    receipt.localCvProvenanceReceipt.contractId,
+    PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_RECEIPT_CONTRACT_ID,
+  );
+  assert.equal(
+    receipt.localCvProvenanceReceipt.serverReceiptIdentity,
+    receipt.receiptIdentity,
+  );
+  assert.equal(
+    receipt.localCvProvenanceReceipt.acceptedCandidateSetIdentity,
+    receipt.acceptedCandidateSetIdentity,
+  );
+  assert.equal(
+    receipt.localCvProvenanceReceipt.manifestIdentity,
+    receipt.localCvProvenanceManifestIdentity,
+  );
+  assert.equal(
+    receipt.localCvProvenanceReceipt.manifest.labSessionId,
+    draft.labSessionId,
+  );
+  assert.equal(
+    receipt.localCvProvenanceReceipt.manifest.acceptedCandidateSetIdentity,
+    receipt.acceptedCandidateSetIdentity,
+  );
+  const composite = JSON.parse(receipt.compositeExportJson);
+  assert.equal(
+    composite.contractId,
+    PRIVATE_WEB_LAB_LOCAL_CV_COMPOSITE_EXPORT_CONTRACT_ID,
+  );
+  assert.equal(composite.serverReceiptIdentity, receipt.receiptIdentity);
+  assert.equal(
+    composite.acceptedCandidateSetIdentity,
+    receipt.acceptedCandidateSetIdentity,
+  );
+  assert.deepEqual(composite.localCvProvenanceReceipt, receipt.localCvProvenanceReceipt);
+  assert.match(receipt.compositeExportIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.deepEqual(application.confirmManual(request), receipt);
+  assert.equal(coreCalls, 1);
+});
+
+test("local-CV provenance tampering and stale bindings fail before Core", () => {
+  let coreCalls = 0;
+  const application = applicationWithCounter(() => {
+    coreCalls += 1;
+  });
+  const manifest = localCvManifest();
+  const draft = application.prepareManualDraft(manualDraftRequest({
+    localCvProvenanceManifest: manifest,
+  }));
+  const base = manualConfirmationRequest(draft, {
+    localCvProvenanceDraftIdentity: draft.localCvProvenanceDraftIdentity,
+    localCvProvenanceManifest: manifest,
+  });
+
+  const tamperedManifests = [
+    { ...manifest, sourceImageContentIdentity: `sha256:${"e".repeat(64)}` },
+    { ...manifest, browserSessionId: "browser:another-session" },
+    { ...manifest, candidateOrderIds: [...manifest.candidateOrderIds].reverse() },
+    {
+      ...manifest,
+      raster: { ...manifest.raster, contentIdentity: `sha256:${"e".repeat(64)}` },
+    },
+    {
+      ...manifest,
+      run: { ...manifest.run, contentIdentity: `sha256:${"e".repeat(64)}` },
+    },
+    {
+      ...manifest,
+      proposals: manifest.proposals.map((proposal) => ({
+        ...proposal,
+        originalProposalIdentity: `sha256:${"e".repeat(64)}`,
+      })),
+    },
+    {
+      ...manifest,
+      proposals: manifest.proposals.map((proposal) => ({
+        ...proposal,
+        originalGeometry: { ...proposal.originalGeometry, x: 0.2 },
+      })),
+    },
+    {
+      ...manifest,
+      proposals: manifest.proposals.map((proposal) => ({
+        ...proposal,
+        reviewedGeometry: { ...proposal.reviewedGeometry, x: 0.2 },
+        userEdited: false,
+      })),
+    },
+  ];
+  for (const localCvProvenanceManifest of tamperedManifests) {
+    assert.throws(
+      () => application.confirmManual({ ...base, localCvProvenanceManifest }),
+      /local CV provenance/u,
+    );
+  }
+  assert.throws(
+    () => application.confirmManual({
+      ...base,
+      localCvProvenanceDraftIdentity: `sha256:${"e".repeat(64)}`,
+    }),
+    /local CV provenance/u,
+  );
+  const withoutManifest = { ...base };
+  delete withoutManifest.localCvProvenanceManifest;
+  assert.throws(
+    () => application.confirmManual(withoutManifest),
+    /local CV provenance/u,
+  );
+  assert.equal(coreCalls, 0);
+});
+
+test("local-CV draft provenance rejects forged source, order, run, and extra fields", () => {
+  const manifest = localCvManifest();
+  for (const localCvProvenanceManifest of [
+    { ...manifest, sourceImageContentIdentity: `sha256:${"e".repeat(64)}` },
+    { ...manifest, candidateOrderIds: [...manifest.candidateOrderIds].reverse() },
+    {
+      ...manifest,
+      run: { ...manifest.run, contentIdentity: `sha256:${"e".repeat(64)}` },
+    },
+    { ...manifest, unexpected: true },
+  ]) {
+    let coreCalls = 0;
+    const application = applicationWithCounter(() => {
+      coreCalls += 1;
+    });
+    assert.throws(
+      () => application.prepareManualDraft(manualDraftRequest({
+        localCvProvenanceManifest,
+      })),
+    );
+    assert.equal(coreCalls, 0);
+  }
 });
 
 test("manual contract keeps audit identity, truthful provenance, and explicit Core compatibility", () => {
@@ -621,3 +791,90 @@ test("declared spatial Web Lab rejects stale plan bindings before pair analysis"
   }
   assert.equal(coreCalls, 0);
 });
+
+function localCvManifest() {
+  const detectorContractId = "norma.private-web-lab.local-cv-candidates@1";
+  const algorithmVersion = "sobel-axis-runs-hough-v1";
+  const raster = {
+    contentIdentity: `sha256:${"b".repeat(64)}`,
+    width: 320,
+    height: 213,
+  };
+  const originalGeometry = {
+    kind: "rectangle",
+    x: 0.1,
+    y: 0.1,
+    width: 0.6,
+    height: 0.7,
+  };
+  const evidence = {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages: [0.9, 0.91, 0.92, 0.93],
+    meanCoverage: 0.915,
+  };
+  const originalProposalIdentity = contentIdentityForTest({
+    contractId: detectorContractId,
+    algorithmVersion,
+    sourceImageContentIdentity,
+    kind: "rectangle",
+    geometry: {
+      x: originalGeometry.x,
+      y: originalGeometry.y,
+      width: originalGeometry.width,
+      height: originalGeometry.height,
+    },
+    evidence,
+  });
+  const proposalIdentities = [originalProposalIdentity];
+  const run = {
+    contentIdentity: contentIdentityForTest({
+      contractId: detectorContractId,
+      algorithmVersion,
+      sourceImageContentIdentity,
+      workingImage: { width: raster.width, height: raster.height },
+      rasterContentIdentity: raster.contentIdentity,
+      status: "detected",
+      abstentionReason: null,
+      candidateProposalIdentities: proposalIdentities,
+    }),
+    proposalIdentities,
+  };
+  return {
+    contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
+    browserSessionId,
+    sourceImageContentIdentity,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    detector: { contractId: detectorContractId, algorithmVersion },
+    raster,
+    run,
+    candidateOrderIds: manualCandidates().map(({ id }) => id),
+    proposals: [{
+      candidateId: "manual-rectangle-1",
+      candidateOrder: 0,
+      originalProposalIdentity,
+      rank: 1,
+      rankScore: 0.91,
+      evidence,
+      originalGeometry,
+      reviewedGeometry: structuredClone(originalGeometry),
+      userEdited: false,
+    }],
+  };
+}
+
+function contentIdentityForTest(value) {
+  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  return `{${Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`;
+}
