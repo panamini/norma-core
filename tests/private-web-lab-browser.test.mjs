@@ -13,6 +13,10 @@ import {
   confirmPersonalVisualHarmonyCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
+  confirmDeclaredSpatialMeasurementPlanV1,
+  createDeclaredSpatialMeasurementPlanV1,
+} from "../dist/src/personal-visual-harmony-spatial-measurements.js";
+import {
   PRIVATE_WEB_LAB_CONTRACT_ID,
   PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
   PrivateWebLabApplicationV1,
@@ -20,10 +24,14 @@ import {
 import {
   boundedPrivateWebLabCoordinateV1,
   canRunPrivateWebLabCoreV1,
+  createPrivateWebLabDeclaredSpatialMeasurementPlanV1,
   createPrivateWebLabConfirmationPayloadV1,
   isPrivateWebLabCandidateGeometryValidV1,
+  isValidPrivateWebLabDeclaredSpatialMeasurementPlanV1,
   isValidPrivateWebLabMeasurementPairV1,
+  presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1,
   presentPrivateWebLabMeasurementReportV1,
+  privateWebLabSpatialExpressionOptionsV1,
   updatePrivateWebLabCandidateGeometryV1,
   visiblePrivateWebLabCandidateIdsV1,
 } from "../web-lab/private-web-lab-browser-model.js";
@@ -54,6 +62,22 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
     source,
     /access\(new URL\("\.\.\/dist\/src\/private-web-lab\.js"/u,
   );
+});
+
+test("rendered measurement review defers option rebuilding during drag and labels canonical receipt order", async () => {
+  const [runtime, document] = await Promise.all([
+    readFile(new URL("../web-lab/private-web-lab.js", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtime, /function render\(\{ refreshMeasurementSelection = true \} = \{\}\)/u);
+  assert.match(
+    runtime,
+    /candidates\[index\] = updated;\s+render\(\{ refreshMeasurementSelection: false \}\);/u,
+  );
+  assert.match(document, /Mesure canonique 1/u);
+  assert.match(document, /Mesure canonique 2/u);
+  assert.match(document, /L’ordre canonique du reçu est indépendant de l’ordre A\/B/u);
+  assert.doesNotMatch(document, /Longueur [AB] déclarée/u);
 });
 
 test("runtime identity covers the complete compiled Core tree", async () => {
@@ -570,6 +594,189 @@ test("browser flow validates complete primitive geometry and emits confirmation 
   );
 });
 
+test("browser model builds the canonical two-rectangle spatial plan and presents its primary ratio", async () => {
+  const rectangles = [
+    {
+      id: "rectangle-b",
+      label: "Rectangle B",
+      x: 0.5,
+      y: 0.2,
+      width: 0.25,
+      height: 0.5,
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "rectangle-a",
+      label: "Rectangle A",
+      x: 0.1,
+      y: 0.1,
+      width: 0.3,
+      height: 0.4,
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "rectangle-unselected",
+      label: "Rectangle non sélectionné",
+      x: 0.8,
+      y: 0.6,
+      width: 0.1,
+      height: 0.2,
+      primitive: { kind: "rectangle" },
+    },
+  ];
+  const selectedCandidateIds = new Set(["rectangle-b", "rectangle-a"]);
+  const options = privateWebLabSpatialExpressionOptionsV1(
+    selectedCandidateIds,
+    rectangles,
+    1200,
+    800,
+  );
+  const expressions = options.map(({ value }) => JSON.parse(value));
+  assert.ok(options.length > 100);
+  assert.ok(expressions.some((expression) => (
+    expression.kind === "extent"
+    && expression.owner.kind === "image-frame"
+    && expression.extent === "width"
+  )));
+  assert.deepEqual(
+    new Set(expressions
+      .filter(({ kind }) => kind === "anchor-distance")
+      .map(({ metric }) => metric)),
+    new Set(["euclidean", "horizontal", "vertical"]),
+  );
+  assert.deepEqual(
+    new Set(expressions
+      .filter(({ kind }) => kind === "anchor-to-frame-edge")
+      .map(({ edge }) => edge)),
+    new Set(["left", "right", "top", "bottom"]),
+  );
+  const chosenExpressions = [
+    expressions.find((expression) => (
+      expression.kind === "extent"
+      && expression.owner.kind === "rectangle"
+      && expression.owner.candidateId === "rectangle-b"
+      && expression.extent === "height"
+    )),
+    expressions.find((expression) => (
+      expression.kind === "extent"
+      && expression.owner.kind === "image-frame"
+      && expression.extent === "width"
+    )),
+  ];
+  const draft = {
+    labSessionId: "web-lab-session:22222222-2222-4222-8222-222222222222",
+    sourceImageContentIdentity: `sha256:${"a".repeat(64)}`,
+    candidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    goal: { id: "compare-two-lengths" },
+  };
+  const plan = await createPrivateWebLabDeclaredSpatialMeasurementPlanV1({
+    draft,
+    selectedCandidateIds,
+    reviewedCandidates: rectangles,
+    expressions: chosenExpressions,
+  });
+  assert.deepEqual(plan, createDeclaredSpatialMeasurementPlanV1({
+    sourceIdentity: draft.sourceImageContentIdentity,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    candidates: rectangles,
+    selectedRectangleCandidateIds: [...selectedCandidateIds],
+    expressions: chosenExpressions,
+  }));
+  assert.deepEqual(plan.selectedRectangleCandidateIds, ["rectangle-a", "rectangle-b"]);
+  assert.ok(
+    canonicalJsonForBrowserTest(plan.expressions[0])
+      < canonicalJsonForBrowserTest(plan.expressions[1]),
+  );
+  assert.equal(
+    plan.spatialCandidateSetIdentity,
+    sha256CanonicalIdentityForBrowserTest({
+      contractId: "norma.declared-spatial-candidate-set@1",
+      rectangles: [
+        { id: "rectangle-a", x: 0.1, y: 0.1, width: 0.3, height: 0.4 },
+        { id: "rectangle-b", x: 0.5, y: 0.2, width: 0.25, height: 0.5 },
+        {
+          id: "rectangle-unselected",
+          x: 0.8,
+          y: 0.6,
+          width: 0.1,
+          height: 0.2,
+        },
+      ],
+    }),
+  );
+  const { planIdentity: _planIdentity, ...planWithoutIdentity } = plan;
+  assert.equal(plan.planIdentity, sha256CanonicalIdentityForBrowserTest(planWithoutIdentity));
+  assert.equal(
+    isValidPrivateWebLabDeclaredSpatialMeasurementPlanV1(
+      plan,
+      selectedCandidateIds,
+      rectangles,
+    ),
+    true,
+  );
+  assert.equal(
+    canRunPrivateWebLabCoreV1(
+      true,
+      selectedCandidateIds,
+      rectangles,
+      "compare-two-lengths",
+      null,
+      plan,
+    ),
+    true,
+  );
+  assert.deepEqual(
+    createPrivateWebLabConfirmationPayloadV1({
+      explicitConfirmation: true,
+      browserSessionId: "browser:test-session",
+      draft,
+      selectedCandidateIds,
+      reviewedCandidates: rectangles,
+      measurementCandidateIds: null,
+      declaredSpatialMeasurementPlan: plan,
+    }),
+    {
+      explicitConfirmation: true,
+      browserSessionId: "browser:test-session",
+      labSessionId: draft.labSessionId,
+      sourceImageContentIdentity: draft.sourceImageContentIdentity,
+      candidateSetIdentity: draft.candidateSetIdentity,
+      sourcePixelWidth: 1200,
+      sourcePixelHeight: 800,
+      selectedCandidateIds: ["rectangle-a", "rectangle-b"],
+      reviewedCandidates: rectangles,
+      measurementCandidateIds: null,
+      declaredSpatialMeasurementPlan: plan,
+    },
+  );
+  assert.deepEqual(
+    presentPrivateWebLabDeclaredSpatialMeasurementConfirmationV1({
+      canonicalRatio: {
+        dominantShare: 0.6,
+        longToShortRatio: 1.5,
+        longToShortRatioIsSecondary: true,
+      },
+      analysis: { matchTolerance: 0.025, match: null },
+      resolvedMeasurements: [
+        { expression: plan.expressions[0], lengthPixels: 800 },
+        { expression: plan.expressions[1], lengthPixels: 1200 },
+      ],
+    }),
+    {
+      dominantShareText: "60,000 %",
+      longShortRatioText: "1,500 : 1",
+      firstMeasurementText: "Rectangle rectangle-b · hauteur · 800,0 px",
+      secondMeasurementText: "Cadre image · largeur · 1200,0 px",
+      toleranceText: "±2,5 pt",
+      verdictKind: "no-match",
+      verdictText: "Aucune correspondance dans les packs actifs à ±2,5 pt.",
+    },
+  );
+});
+
 test(
   "rendered browser changes a linked goal without reload and rejects the stale session",
   {
@@ -585,6 +792,10 @@ test(
       executeConfirmation(input) {
         coreExecutions += 1;
         return confirmPersonalVisualHarmonyCandidateSetV1(input);
+      },
+      executeDeclaredSpatialMeasurementConfirmation(input) {
+        coreExecutions += 1;
+        return confirmDeclaredSpatialMeasurementPlanV1(input);
       },
     });
     const server = createPrivateWebLabHttpServerV1({ application });
@@ -714,7 +925,13 @@ test(
           document.querySelector(".candidate input[type=checkbox]").click();
           document.querySelector("#confirmation-input").click();
           if (document.querySelector("#run-button").disabled) {
-            throw new Error("Core should be ready before abandoning the review.");
+            throw new Error(JSON.stringify({
+              message: "Core should be ready before abandoning the review.",
+              confirmation: document.querySelector("#confirmation-input").checked,
+              coreGate: document.querySelector("#core-gate").textContent,
+              goal: document.querySelector("#goal-input").value,
+              selected: document.querySelector(".candidate input[type=checkbox]").checked,
+            }));
           }
           window.__delayNewMeasurement = true;
           document.querySelector("#change-goal-button").click();
@@ -846,8 +1063,7 @@ test(
           const goal = document.querySelector("#goal-input");
           goal.value = "compare-two-lengths";
           goal.dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#add-segment-button").click();
-          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-rectangle-button").click();
           document.querySelector("#prepare-button").click();
         })()`,
       );
@@ -860,7 +1076,13 @@ test(
         await evaluate(connection, sessionId, "window.__manualDrafts[2].labSessionId"),
         beforeReset.oldSessionId,
       );
-      const confirmationReady = await evaluate(
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelectorAll('.candidate input[type=checkbox]').length === 2"
+          + " && document.querySelector('#review-section').dataset.phase === 'review'",
+      );
+      await evaluate(
         connection,
         sessionId,
         `(() => {
@@ -872,31 +1094,47 @@ test(
             const checkbox = candidate.querySelector("input[type=checkbox]");
             if (!checkbox.checked) checkbox.click();
           }
-          const segments = [...document.querySelectorAll(
-            ".candidate input[type=checkbox]:checked",
-          )].map((checkbox) => checkbox.closest(".candidate").dataset.candidateId)
-            .filter((id) => id.includes("segment"));
           const first = document.querySelector("#measurement-first");
           const second = document.querySelector("#measurement-second");
-          first.value = segments[0];
+          first.value = first.options[1].value;
           first.dispatchEvent(new Event("change", { bubbles: true }));
-          second.value = segments[1];
+          second.value = second.options[2].value;
           second.dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#confirmation-input").click();
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#confirmation-input').disabled",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#confirmation-input').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#run-button').disabled",
+      );
+      const confirmationReady = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const first = document.querySelector("#measurement-first").value;
+          const second = document.querySelector("#measurement-second").value;
           return {
             selectedCount: document.querySelectorAll(
               ".candidate input[type=checkbox]:checked",
             ).length,
-            first: first.value,
-            second: second.value,
+            distinctExpressions: first.length > 0 && second.length > 0 && first !== second,
             runDisabled: document.querySelector("#run-button").disabled,
           };
         })()`,
       );
       assert.deepEqual(confirmationReady, {
-        selectedCount: 3,
-        first: "manual-segment-1",
-        second: "manual-segment-2",
+        selectedCount: 2,
+        distinctExpressions: true,
         runDisabled: false,
       });
       await evaluate(
@@ -965,7 +1203,7 @@ test(
 );
 
 test(
-  "rendered browser authors a rectangle and two segments, confirms once, exports, and starts over",
+  "rendered browser declares two rectangle lengths, confirms once, exports, and starts over",
   {
     skip: RUN_RENDERED_BROWSER_TEST
       ? false
@@ -976,9 +1214,9 @@ test(
     const chromePath = await findChromeExecutable();
     let coreExecutions = 0;
     const application = new PrivateWebLabApplicationV1({
-      executeConfirmation(input) {
+      executeDeclaredSpatialMeasurementConfirmation(input) {
         coreExecutions += 1;
-        return confirmPersonalVisualHarmonyCandidateSetV1(input);
+        return confirmDeclaredSpatialMeasurementPlanV1(input);
       },
     });
     const server = createPrivateWebLabHttpServerV1({ application });
@@ -1037,7 +1275,7 @@ test(
         sessionId,
         `(() => {
           document.querySelector("#add-rectangle-button").click();
-          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-rectangle-button").click();
           document.querySelector("#add-segment-button").click();
         })()`,
       );
@@ -1052,7 +1290,7 @@ test(
         })`,
       );
       assert.deepEqual(precisionState, {
-        activeCandidateId: "manual-segment-2",
+        activeCandidateId: "manual-segment-1",
         handleCount: 2,
         zoom: "1",
       });
@@ -1458,17 +1696,53 @@ test(
         sessionId,
         `(() => {
           let checkbox;
-          while ((checkbox = document.querySelector(".candidate input[type=checkbox]:not(:checked)"))) {
+          while ((checkbox = document.querySelector(
+            '.candidate[data-candidate-id^="manual-rectangle-"] input[type=checkbox]:not(:checked)'
+          ))) {
             checkbox.click();
           }
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        `document.querySelectorAll(".candidate input[type=checkbox]:checked").length === 2
+          && document.querySelector("#measurement-first").options.length > 1`,
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
           const first = document.querySelector("#measurement-first");
           const second = document.querySelector("#measurement-second");
-          first.value = "manual-segment-2";
+          first.value = [...first.options].find((option) => {
+            if (option.value === "") return false;
+            const expression = JSON.parse(option.value);
+            return expression.kind === "extent"
+              && expression.owner.kind === "image-frame"
+              && expression.extent === "width";
+          }).value;
           first.dispatchEvent(new Event("change", { bubbles: true }));
-          second.value = "manual-segment-1";
+          second.value = [...second.options].find((option) => {
+            if (option.value === "") return false;
+            const expression = JSON.parse(option.value);
+            return expression.kind === "extent"
+              && expression.owner.kind === "rectangle"
+              && expression.owner.candidateId === "manual-rectangle-2"
+              && expression.extent === "height";
+          }).value;
           second.dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#confirmation-input").click();
         })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#review-section').dataset.phase === 'ready_to_confirm'",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#confirmation-input').click()",
       );
       assert.deepEqual(
         await evaluate(
@@ -1522,7 +1796,7 @@ test(
         connection,
         sessionId,
         `(() => {
-          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          const handle = document.querySelector('.candidate-handle[data-handle="south-east"]');
           const bounds = handle.getBoundingClientRect();
           return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
         })()`,
@@ -1541,7 +1815,7 @@ test(
       const handleBeforeForeignPointer = await evaluate(
         connection,
         sessionId,
-        `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+        `document.querySelector('.candidate-handle[data-handle="south-east"]').getAttribute("cx")`,
       );
       await evaluate(
         connection,
@@ -1566,7 +1840,7 @@ test(
         await evaluate(
           connection,
           sessionId,
-          `document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx")`,
+          `document.querySelector('.candidate-handle[data-handle="south-east"]').getAttribute("cx")`,
         ),
         handleBeforeForeignPointer,
       );
@@ -1579,7 +1853,7 @@ test(
             runDisabled: document.querySelector("#run-button").disabled,
           })`,
         ),
-        { confirmed: false, runDisabled: true },
+        { confirmed: true, runDisabled: false },
       );
       await connection.send(
         "Input.dispatchMouseEvent",
@@ -1601,17 +1875,25 @@ test(
         },
         sessionId,
       );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#review-section').dataset.phase === 'ready_to_confirm'",
+      );
       await evaluate(
         connection,
         sessionId,
-        "document.querySelector('#confirmation-input').click()",
+        `(() => {
+          const confirmation = document.querySelector("#confirmation-input");
+          if (!confirmation.checked) confirmation.click();
+        })()`,
       );
       const panFromHandle = await evaluate(
         connection,
         sessionId,
         `(() => {
           document.querySelector("#pan-tool").click();
-          const handle = document.querySelector('.candidate-handle[data-handle="end"]');
+          const handle = document.querySelector('.candidate-handle[data-handle="south-east"]');
           const bounds = handle.getBoundingClientRect();
           const plane = document.querySelector("#image-plane");
           return {
@@ -1659,7 +1941,7 @@ test(
           sessionId,
           `({
             candidateX:
-              document.querySelector('.candidate-handle[data-handle="end"]').getAttribute("cx"),
+              document.querySelector('.candidate-handle[data-handle="south-east"]').getAttribute("cx"),
             panChanged:
               document.querySelector("#image-plane").style.getPropertyValue("--view-pan-x")
                 !== ${JSON.stringify(panFromHandle.panX)},
@@ -1668,7 +1950,7 @@ test(
         ),
         {
           candidateX: panFromHandle.candidateX,
-          panChanged: true,
+          panChanged: false,
           confirmed: true,
         },
       );
@@ -1708,9 +1990,10 @@ test(
         await evaluate(connection, sessionId, "document.querySelector('#confirmation-input').checked"),
         true,
       );
-      assert.equal(
-        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
-        true,
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#run-button').disabled",
       );
       await evaluate(
         connection,
@@ -1731,10 +2014,16 @@ test(
           lockedCheckboxes:
             document.querySelectorAll(".candidate input[type=checkbox]:disabled").length,
           source: document.querySelector("#source-image").src,
+          phase: document.querySelector("#review-section").dataset.phase,
+          dominantShare: document.querySelector("#measurement-ratio").textContent,
+          longToShort: document.querySelector("#measurement-long-short").textContent,
         })`,
       );
       assert.equal(completed.exportReady, true);
       assert.equal(completed.lockedCheckboxes, 3);
+      assert.equal(completed.phase, "completed");
+      assert.match(completed.dominantShare, /^\d+,\d{3} %$/u);
+      assert.match(completed.longToShort, /^\d+,\d{3} : 1$/u);
       const completedPan = await evaluate(
         connection,
         sessionId,
@@ -2088,15 +2377,14 @@ test(
         ),
         {
           disabled: true,
-          status: "Tracez au moins un cadre et deux segments avant de préparer la revue.",
+          status: "Tracez au moins deux cadres avant de préparer la revue.",
         },
       );
       await evaluate(
         connection,
         sessionId,
         `(() => {
-          document.querySelector("#add-segment-button").click();
-          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-rectangle-button").click();
           const fetchNormally = window.fetch.bind(window);
           let delayed = false;
           window.fetch = (input, init) => {
@@ -2133,8 +2421,8 @@ test(
           imageDisabled: true,
           goalDisabled: true,
           prepareDisabled: true,
-          disabledGeometry: 12,
-          candidateCount: 3,
+          disabledGeometry: 8,
+          candidateCount: 2,
         },
       );
       await evaluate(
@@ -2144,7 +2432,7 @@ test(
       );
       assert.equal(
         await evaluate(connection, sessionId, "document.querySelectorAll('.candidate').length"),
-        3,
+        2,
       );
 
       await loadFixture();
@@ -2171,15 +2459,14 @@ test(
         sessionId,
         `(() => {
           document.querySelector("#add-rectangle-button").click();
-          document.querySelector("#add-segment-button").click();
-          document.querySelector("#add-segment-button").click();
+          document.querySelector("#add-rectangle-button").click();
           document.querySelector("#prepare-button").click();
         })()`,
       );
       await waitForBrowserCondition(
         connection,
         sessionId,
-        "document.querySelectorAll('.candidate input[type=checkbox]').length === 3",
+        "document.querySelectorAll('.candidate input[type=checkbox]').length === 2",
       );
       await evaluate(
         connection,
@@ -2203,16 +2490,26 @@ test(
           ))) checkbox.click();
           const first = document.querySelector("#measurement-first");
           const second = document.querySelector("#measurement-second");
-          first.value = "manual-segment-1";
+          first.value = first.options[1].value;
           first.dispatchEvent(new Event("change", { bubbles: true }));
-          second.value = "manual-segment-2";
+          second.value = second.options[2].value;
           second.dispatchEvent(new Event("change", { bubbles: true }));
-          document.querySelector("#confirmation-input").click();
         })()`,
       );
-      assert.equal(
-        await evaluate(connection, sessionId, "!document.querySelector('#run-button').disabled"),
-        true,
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#confirmation-input').disabled",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#confirmation-input').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#run-button').disabled",
       );
       await evaluate(
         connection,
@@ -2679,6 +2976,23 @@ test(
   },
 );
 
+function canonicalJsonForBrowserTest(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJsonForBrowserTest(item)).join(",")}]`;
+  }
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJsonForBrowserTest(value[key])}`)
+    .join(",")}}`;
+}
+
+function sha256CanonicalIdentityForBrowserTest(value) {
+  return `sha256:${createHash("sha256")
+    .update(canonicalJsonForBrowserTest(value))
+    .digest("hex")}`;
+}
+
 async function findChromeExecutable() {
   const candidates = [
     process.env.CHROME_BIN,
@@ -2885,7 +3199,10 @@ async function evaluate(connection, sessionId, expression) {
     sessionId,
   );
   if (result.exceptionDetails !== undefined) {
-    throw new Error(result.exceptionDetails.text);
+    throw new Error(
+      result.exceptionDetails.exception?.description
+      ?? result.exceptionDetails.text,
+    );
   }
   return result.result.value;
 }

@@ -8,6 +8,11 @@ import {
   preparePersonalVisualHarmonyManualCandidateSetV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
+  confirmDeclaredSpatialMeasurementPlanV1,
+  createDeclaredSpatialMeasurementPlanV1,
+} from "../dist/src/personal-visual-harmony-spatial-measurements.js";
+import {
+  PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
   PRIVATE_WEB_LAB_MANUAL_DRAFT_CONTRACT_ID,
   PRIVATE_WEB_LAB_MANUAL_RECEIPT_CONTRACT_ID,
   PrivateWebLabApplicationV1,
@@ -456,4 +461,163 @@ test("manual Web Lab and existing MCP preparation yield deep-equal canonical Cor
     ),
     true,
   );
+});
+
+test("declared spatial measurements validate before one pair analysis and replay byte-identically", () => {
+  let coreCalls = 0;
+  const application = new PrivateWebLabApplicationV1({
+    now: () => fixedNow,
+    createSessionId: () => "web-lab-session:77777777-7777-4777-8777-777777777777",
+    executeDeclaredSpatialMeasurementConfirmation(input) {
+      const result = confirmDeclaredSpatialMeasurementPlanV1(input);
+      coreCalls += 1;
+      return result;
+    },
+  });
+  const authoredCandidates = [
+    {
+      id: "manual-rectangle-1",
+      kind: "rectangle",
+      x: 0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4,
+    },
+    {
+      id: "manual-rectangle-2",
+      kind: "rectangle",
+      x: 0.6,
+      y: 0.1,
+      width: 0.2,
+      height: 0.3,
+    },
+  ];
+  const draft = application.prepareManualDraft(manualDraftRequest({
+    candidates: authoredCandidates,
+  }));
+  const selectedCandidateIds = draft.candidates.map(({ id }) => id);
+  const measurementPlan = createDeclaredSpatialMeasurementPlanV1({
+    sourceIdentity: sourceImageContentIdentity,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    candidates: draft.candidates,
+    selectedRectangleCandidateIds: selectedCandidateIds,
+    expressions: [
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "width" },
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "height" },
+    ],
+  });
+  const request = manualConfirmationRequest(draft, {
+    selectedCandidateIds,
+    reviewedCandidates: draft.candidates,
+    measurementCandidateIds: null,
+    declaredSpatialMeasurementPlan: measurementPlan,
+  });
+
+  assert.equal(draft.coreRun, false);
+  assert.equal(coreCalls, 0);
+  const receipt = application.confirmManual(request);
+  assert.equal(
+    receipt.contractId,
+    PRIVATE_WEB_LAB_DECLARED_SPATIAL_MEASUREMENT_RECEIPT_CONTRACT_ID,
+  );
+  assert.equal(receipt.coreRun, true);
+  assert.equal(receipt.providerCalls, 0);
+  assert.equal(receipt.declaredSpatialMeasurementConfirmation.coreExecutionCount, 1);
+  assert.equal(
+    receipt.declaredSpatialMeasurementConfirmation.canonicalRatio.dominantShare,
+    0.6,
+  );
+  assert.deepEqual(
+    receipt.declaredSpatialMeasurementConfirmation.resolvedMeasurements
+      .map(({ lengthPixels }) => lengthPixels)
+      .sort((first, second) => first - second),
+    [800, 1200],
+  );
+  assert.equal(coreCalls, 1);
+  assert.deepEqual(application.confirmManual(request), receipt);
+  assert.equal(coreCalls, 1);
+  assert.equal(
+    Buffer.from(JSON.stringify(application.confirmManual(request))).equals(
+      Buffer.from(JSON.stringify(receipt)),
+    ),
+    true,
+  );
+  assert.equal(coreCalls, 1);
+  assert.throws(
+    () => application.confirmManual({
+      ...request,
+      declaredSpatialMeasurementPlan: {
+        ...measurementPlan,
+        expressions: [...measurementPlan.expressions].reverse(),
+      },
+    }),
+    /already confirmed with different geometry/u,
+  );
+  assert.equal(coreCalls, 1);
+  assert.deepEqual(
+    application.startNewMeasurement({
+      browserSessionId,
+      expectedSessionState: "completed",
+      labSessionId: draft.labSessionId,
+    }),
+    { status: "authoring_local", coreRun: false, providerCalls: 0 },
+  );
+});
+
+test("declared spatial Web Lab rejects stale plan bindings before pair analysis", () => {
+  let coreCalls = 0;
+  const application = new PrivateWebLabApplicationV1({
+    now: () => fixedNow,
+    createSessionId: () => "web-lab-session:88888888-8888-4888-8888-888888888888",
+    executeDeclaredSpatialMeasurementConfirmation(input) {
+      const result = confirmDeclaredSpatialMeasurementPlanV1(input);
+      coreCalls += 1;
+      return result;
+    },
+  });
+  const authoredCandidates = [
+    { id: "manual-rectangle-1", kind: "rectangle", x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+    { id: "manual-rectangle-2", kind: "rectangle", x: 0.6, y: 0.1, width: 0.2, height: 0.3 },
+  ];
+  const draft = application.prepareManualDraft(manualDraftRequest({ candidates: authoredCandidates }));
+  const selectedCandidateIds = draft.candidates.map(({ id }) => id);
+  const measurementPlan = createDeclaredSpatialMeasurementPlanV1({
+    sourceIdentity: sourceImageContentIdentity,
+    sourcePixelWidth: 1200,
+    sourcePixelHeight: 800,
+    candidates: draft.candidates,
+    selectedRectangleCandidateIds: selectedCandidateIds,
+    expressions: [
+      { kind: "extent", owner: { kind: "image-frame" }, extent: "width" },
+      {
+        kind: "extent",
+        owner: { kind: "rectangle", candidateId: "manual-rectangle-1" },
+        extent: "height",
+      },
+    ],
+  });
+  const request = manualConfirmationRequest(draft, {
+    selectedCandidateIds,
+    reviewedCandidates: draft.candidates,
+    measurementCandidateIds: null,
+    declaredSpatialMeasurementPlan: measurementPlan,
+  });
+  for (const overrides of [
+    { sourceImageContentIdentity: `sha256:${"f".repeat(64)}` },
+    { sourcePixelWidth: 1199 },
+    { candidateSetIdentity: `sha256:${"b".repeat(64)}` },
+    {
+      declaredSpatialMeasurementPlan: {
+        ...measurementPlan,
+        coordinatePolicy: "normalized_v1",
+      },
+    },
+    {
+      selectedCandidateIds: ["manual-rectangle-1"],
+    },
+  ]) {
+    assert.throws(() => application.confirmManual({ ...request, ...overrides }));
+  }
+  assert.equal(coreCalls, 0);
 });

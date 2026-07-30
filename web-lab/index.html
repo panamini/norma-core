@@ -91,21 +91,24 @@
         <div id="measurement-section" class="confirmation" hidden>
           <h3>Comparaison déclarée de deux longueurs</h3>
           <p>
-            Choisissez exactement deux segments ou axes sélectionnés. Ce rapport reste
-            séparé du résultat Core.
+            Sélectionnez exactement deux rectangles acceptés, puis déclarez deux longueurs
+            dans le plan pixel. Norma n’évalue que cette paire après confirmation.
           </p>
           <label>
-            Première longueur
+            Longueur A
             <select id="measurement-first">
               <option value="">Choisir une longueur…</option>
             </select>
           </label>
           <label>
-            Deuxième longueur
+            Longueur B
             <select id="measurement-second">
               <option value="">Choisir une longueur…</option>
             </select>
           </label>
+          <p id="measurement-plan-status" role="status">
+            Sélectionnez exactement deux rectangles.
+          </p>
         </div>
 
         <div class="confirmation">
@@ -128,20 +131,25 @@
         <h2 id="receipt-title">3. Résultat confirmé</h2>
         <div id="measurement-summary" class="measurement-summary" aria-live="polite" hidden>
           <p class="measurement-kicker">Comparaison confirmée</p>
-          <p class="measurement-ratio-label">Rapport long / court</p>
+          <p class="measurement-ratio-label">Part dominante canonique</p>
           <p id="measurement-ratio" class="measurement-ratio"></p>
+          <p class="measurement-secondary">
+            Rapport long / court · <strong id="measurement-long-short"></strong>
+          </p>
           <p id="measurement-verdict" class="measurement-verdict"></p>
           <dl class="measurement-evidence">
             <div>
-              <dt>Première longueur choisie</dt>
+              <dt>Mesure canonique 1</dt>
               <dd id="measurement-first-result"></dd>
             </div>
             <div>
-              <dt>Deuxième longueur choisie</dt>
+              <dt>Mesure canonique 2</dt>
               <dd id="measurement-second-result"></dd>
             </div>
           </dl>
           <p class="measurement-context">
+            L’ordre canonique du reçu est indépendant de l’ordre A/B choisi avant confirmation.
+            ·
             Tolérance <strong id="measurement-tolerance"></strong>
             · comparaison limitée aux packs versionnés consultés dans les détails auditables.
           </p>
