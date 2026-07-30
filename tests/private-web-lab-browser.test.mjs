@@ -1975,6 +1975,17 @@ test(
           "Cadres sélectionnés : 0/2. Choisissez deux cadres rectangulaires; les segments ne sont pas sélectionnables.",
         receiptHidden: true,
       });
+      assert.equal(
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            document.querySelector(".candidate-precision summary").click();
+            return document.querySelector(".candidate-precision").open;
+          })()`,
+        ),
+        true,
+      );
       assert.deepEqual(
         await evaluate(
           connection,

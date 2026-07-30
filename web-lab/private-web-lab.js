@@ -625,6 +625,7 @@ function candidateCard(candidate, index, authoring, locked) {
   article.addEventListener("click", (event) => {
     if (
       event.target.closest("input, button")
+      || event.target.closest("details.candidate-precision")
       || (!authoring && event.target.closest("label"))
     ) return;
     state.activeCandidateId = candidate.id;
