@@ -517,6 +517,77 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     })),
     /local CV provenance run proposal is impossible/u,
   );
+
+  const rectangleEvidence = structuredClone(manifest.run.proposals[0].evidence);
+  const fourRectangles = [
+    [10, 10, 100, 80],
+    [140, 10, 100, 80],
+    [270, 10, 100, 80],
+    [400, 10, 100, 80],
+  ].map(([left, top, width, height]) => ({
+    geometry: localCvGridRectangleForTest(
+      left,
+      top,
+      width,
+      height,
+      manifest.raster,
+    ),
+    evidence: rectangleEvidence,
+  }));
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(
+        manifest,
+        fourRectangles,
+      ),
+    })),
+    /local CV provenance run exceeds detector kind limits/u,
+  );
+
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(manifest, [{
+        geometry: localCvGridRectangleForTest(10, 10, 1, 1, manifest.raster),
+        evidence: rectangleEvidence,
+      }]),
+    })),
+    /local CV provenance run geometry is below detector limits/u,
+  );
+
+  const boundaryRectangle = localCvGridRectangleForTest(
+    20,
+    20,
+    220,
+    160,
+    manifest.raster,
+  );
+  const boundarySegment = {
+    kind: "segment",
+    start: {
+      x: boundaryRectangle.x,
+      y: boundaryRectangle.y,
+    },
+    end: {
+      x: Number(((20 + 220) / (manifest.raster.width - 1)).toFixed(6)),
+      y: boundaryRectangle.y,
+    },
+  };
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(manifest, [
+        { geometry: boundaryRectangle, evidence: rectangleEvidence },
+        {
+          geometry: boundarySegment,
+          evidence: {
+            kind: "straight-edge-support",
+            supportCoverage: 0.9,
+            orientationDegrees: 0,
+          },
+        },
+      ]),
+    })),
+    /local CV provenance run contains a suppressed segment/u,
+  );
 });
 
 test("local-CV draft provenance rejects forged source, order, run, and extra fields", () => {
@@ -1164,6 +1235,91 @@ function localCvRankScoreForTest(geometry, evidence, raster) {
     (evidence.supportCoverage * 0.68)
       + ((length / Math.hypot(raster.width, raster.height)) * 0.32),
   ).toFixed(6));
+}
+
+function localCvGridRectangleForTest(left, top, width, height, raster) {
+  return {
+    kind: "rectangle",
+    x: Number((left / (raster.width - 1)).toFixed(6)),
+    y: Number((top / (raster.height - 1)).toFixed(6)),
+    width: Number((width / (raster.width - 1)).toFixed(6)),
+    height: Number((height / (raster.height - 1)).toFixed(6)),
+  };
+}
+
+function localCvManifestWithRunDefinitions(manifest, definitions) {
+  const proposals = definitions.map(({ geometry, evidence }) => {
+    const proposalIdentity = contentIdentityForTest({
+      contractId: manifest.detector.contractId,
+      algorithmVersion: manifest.detector.algorithmVersion,
+      sourceImageContentIdentity,
+      kind: geometry.kind,
+      geometry: geometry.kind === "rectangle"
+        ? {
+            x: geometry.x,
+            y: geometry.y,
+            width: geometry.width,
+            height: geometry.height,
+          }
+        : { start: geometry.start, end: geometry.end },
+      evidence,
+    });
+    return {
+      proposalIdentity,
+      rankScore: localCvRankScoreForTest(geometry, evidence, manifest.raster),
+      evidence: structuredClone(evidence),
+      geometry: structuredClone(geometry),
+    };
+  }).sort((first, second) => (
+    second.rankScore - first.rankScore
+    || (
+      first.geometry.kind === second.geometry.kind
+        ? 0
+        : first.geometry.kind === "rectangle" ? -1 : 1
+    )
+    || compareCodeUnitsForTest(
+      localCvGeometryKeyForTest(first.geometry),
+      localCvGeometryKeyForTest(second.geometry),
+    )
+  )).map((proposal, index) => ({ ...proposal, rank: index + 1 }));
+  const proposalIdentities = proposals.map(({ proposalIdentity }) => proposalIdentity);
+  return {
+    ...manifest,
+    run: {
+      proposals,
+      proposalIdentities,
+      contentIdentity: contentIdentityForTest({
+        contractId: manifest.detector.contractId,
+        algorithmVersion: manifest.detector.algorithmVersion,
+        sourceImageContentIdentity,
+        workingImage: {
+          width: manifest.raster.width,
+          height: manifest.raster.height,
+        },
+        rasterContentIdentity: manifest.raster.contentIdentity,
+        status: "detected",
+        abstentionReason: null,
+        candidateProposalIdentities: proposalIdentities,
+      }),
+    },
+  };
+}
+
+function localCvGeometryKeyForTest(geometry) {
+  return JSON.stringify(geometry.kind === "rectangle"
+    ? {
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+      }
+    : { start: geometry.start, end: geometry.end });
+}
+
+function compareCodeUnitsForTest(first, second) {
+  if (first < second) return -1;
+  if (first > second) return 1;
+  return 0;
 }
 
 function localCvManifestWithProposal(manifest, proposal) {

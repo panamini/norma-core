@@ -404,7 +404,7 @@ async function runLocalCvDetection() {
     } else {
       const totalMilliseconds = Number((performance.now() - startedAt).toFixed(2));
       localCvStatus.textContent =
-        `${String(localCandidates.length)} proposition(s) locale(s), toutes décochées · `
+        `${String(localCandidates.length)} proposition(s) locale(s), 0 incluse(s) · `
         + `${String(result.metrics.workingWidth)}×${String(result.metrics.workingHeight)} · `
         + `${String(result.metrics.detectionMilliseconds)} ms calcul, `
         + `${String(totalMilliseconds)} ms total observé sur cet appareil. `
@@ -823,6 +823,7 @@ function candidateCard(candidate, index, authoring, locked) {
     checkbox.addEventListener("change", () => {
       candidate.included = checkbox.checked;
       state.activeCandidateId = checkbox.checked ? candidate.id : state.activeCandidateId;
+      synchronizeLocalCvInclusionStatus();
       render();
     });
     header.append(checkbox);
@@ -1661,6 +1662,17 @@ function localCvAuthoredCandidate(candidate, result) {
 
 function isIncludedAuthoredCandidate(candidate) {
   return candidate.source !== "local-cv" || candidate.included === true;
+}
+
+function synchronizeLocalCvInclusionStatus() {
+  const localCandidates = state.authored.filter(({ source }) => source === "local-cv");
+  if (localCandidates.length === 0) return;
+  const includedCount = localCandidates.filter(isIncludedAuthoredCandidate).length;
+  const detailsStart = localCvStatus.textContent.indexOf(" · ");
+  const details = detailsStart < 0 ? "" : localCvStatus.textContent.slice(detailsStart);
+  localCvStatus.textContent =
+    `${String(localCandidates.length)} proposition(s) locale(s), `
+    + `${String(includedCount)} incluse(s)${details}`;
 }
 
 function createLocalCvProvenanceManifest(candidates, authoring) {

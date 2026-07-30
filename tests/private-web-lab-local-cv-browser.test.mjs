@@ -331,11 +331,16 @@ test(
           const include = refreshed.querySelector('input[type="checkbox"]');
           include.checked = true;
           include.dispatchEvent(new Event("change", { bubbles: true }));
-          return { changedText, restoredText };
+          return {
+            changedText,
+            restoredText,
+            status: document.querySelector("#local-cv-status").textContent,
+          };
         })()`,
       );
       assert.match(editedMarker.changedText, /géométrie modifiée/u);
       assert.doesNotMatch(editedMarker.restoredText, /géométrie modifiée/u);
+      assert.match(editedMarker.status, /1 incluse/u);
       await waitForBrowserCondition(
         connection,
         sessionId,

@@ -55,6 +55,8 @@ const LOCAL_CV_MAX_SOURCE_PIXELS = 40_000_000;
 const LOCAL_CV_MAX_WORKING_SIDE = 640;
 const LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 const LOCAL_CV_MAX_PROPOSALS = 8;
+const LOCAL_CV_MAX_RECTANGLES = 3;
+const LOCAL_CV_MAX_SEGMENTS = 5;
 const LOCAL_CV_MIN_RECTANGLE_SIDE_COVERAGE = 0.42;
 const LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE = 0.62;
 const LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE = 0.000_001;
@@ -1244,6 +1246,32 @@ function parseLocalCvProvenanceManifest(
   ) {
     throw new Error("Private Web Lab local CV provenance run ranking is invalid.");
   }
+  const runRectangles = runProposals.filter(({ geometry }) => geometry.kind === "rectangle");
+  const runSegments = runProposals.filter(({ geometry }) => geometry.kind === "segment");
+  if (
+    runRectangles.length > LOCAL_CV_MAX_RECTANGLES
+    || runSegments.length > LOCAL_CV_MAX_SEGMENTS
+  ) {
+    throw new Error("Private Web Lab local CV provenance run exceeds detector kind limits.");
+  }
+  if (
+    runProposals.some(({ geometry }) => (
+      !localCvGeometryMeetsDetectorMinimum(geometry, rasterWidth, rasterHeight)
+    ))
+  ) {
+    throw new Error("Private Web Lab local CV provenance run geometry is below detector limits.");
+  }
+  if (runSegments.some(({ geometry }) => (
+    geometry.kind === "segment"
+    && localCvSegmentIsRectangleBoundary(
+      geometry,
+      runRectangles.map(({ geometry: rectangle }) => rectangle),
+      rasterWidth,
+      rasterHeight,
+    )
+  ))) {
+    throw new Error("Private Web Lab local CV provenance run contains a suppressed segment.");
+  }
   const candidateOrderIdsInput = input.candidateOrderIds;
   if (
     !Array.isArray(candidateOrderIdsInput)
@@ -1409,6 +1437,89 @@ function localCvOriginalGeometryMatchesDetectorGrid(
     && localCvNormalizedValueMatchesPixelGrid(geometry.width, rasterWidth - 1)
     && localCvNormalizedValueMatchesPixelGrid(geometry.y, rasterHeight - 1)
     && localCvNormalizedValueMatchesPixelGrid(geometry.height, rasterHeight - 1)
+  );
+}
+
+function localCvGeometryMeetsDetectorMinimum(
+  geometry: PrivateWebLabLocalCvGeometryV1,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  if (geometry.kind === "rectangle") {
+    return (
+      geometry.width * (rasterWidth - 1) >= Math.max(8, rasterWidth * 0.08)
+      && geometry.height * (rasterHeight - 1) >= Math.max(8, rasterHeight * 0.08)
+    );
+  }
+  const length = Math.hypot(
+    (geometry.end.x - geometry.start.x) * (rasterWidth - 1),
+    (geometry.end.y - geometry.start.y) * (rasterHeight - 1),
+  );
+  return length >= Math.max(8, Math.hypot(rasterWidth, rasterHeight) * 0.08);
+}
+
+function localCvSegmentIsRectangleBoundary(
+  segment: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+  rectangles: readonly PrivateWebLabLocalCvGeometryV1[],
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  const start = {
+    x: segment.start.x * (rasterWidth - 1),
+    y: segment.start.y * (rasterHeight - 1),
+  };
+  const end = {
+    x: segment.end.x * (rasterWidth - 1),
+    y: segment.end.y * (rasterHeight - 1),
+  };
+  const angle = (
+    Math.atan2(end.y - start.y, end.x - start.x)
+    + Math.PI
+  ) % Math.PI;
+  const horizontal = Math.min(angle, Math.PI - angle) <= 6 * Math.PI / 180;
+  const vertical = Math.abs(angle - (Math.PI / 2)) <= 6 * Math.PI / 180;
+  if (!horizontal && !vertical) return false;
+  const tolerance = Math.max(8, Math.min(rasterWidth, rasterHeight) * 0.035);
+  const coordinate = horizontal
+    ? (start.y + end.y) / 2
+    : (start.x + end.x) / 2;
+  const interval = horizontal
+    ? [start.x, end.x].sort((left, right) => left - right)
+    : [start.y, end.y].sort((left, right) => left - right);
+  return rectangles.some((rectangle) => {
+    if (rectangle.kind !== "rectangle") return false;
+    const left = rectangle.x * (rasterWidth - 1);
+    const top = rectangle.y * (rasterHeight - 1);
+    const right = left + (rectangle.width * (rasterWidth - 1));
+    const bottom = top + (rectangle.height * (rasterHeight - 1));
+    const sides = horizontal
+      ? [
+          { coordinate: top, interval: [left, right] },
+          { coordinate: bottom, interval: [left, right] },
+        ]
+      : [
+          { coordinate: left, interval: [top, bottom] },
+          { coordinate: right, interval: [top, bottom] },
+        ];
+    return sides.some((side) => (
+      Math.abs(coordinate - side.coordinate) <= tolerance
+      && localCvIntervalOverlapRatio(interval, side.interval) >= 0.65
+    ));
+  });
+}
+
+function localCvIntervalOverlapRatio(
+  first: readonly number[],
+  second: readonly number[],
+): number {
+  const overlap = Math.max(0, Math.min(first[1] ?? 0, second[1] ?? 0)
+    - Math.max(first[0] ?? 0, second[0] ?? 0));
+  return overlap / Math.max(
+    1,
+    Math.min(
+      (first[1] ?? 0) - (first[0] ?? 0),
+      (second[1] ?? 0) - (second[0] ?? 0),
+    ),
   );
 }
 
