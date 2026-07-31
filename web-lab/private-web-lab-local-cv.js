@@ -9,11 +9,17 @@ export const PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 export const PRIVATE_WEB_LAB_LOCAL_CV_WORKER_TIMEOUT_MILLISECONDS = 1_800;
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+const JPEG_SIGNATURE = new Uint8Array([0xff, 0xd8, 0xff]);
 
-export async function hasPrivateWebLabLocalCvAnimatedPngV1(source) {
+export async function isPrivateWebLabLocalCvStaticImageV1(source) {
   const bytes = new Uint8Array(await source.arrayBuffer());
+  if (source.type === "image/jpeg") {
+    return bytes.length >= JPEG_SIGNATURE.length
+      && JPEG_SIGNATURE.every((byte, index) => bytes[index] === byte);
+  }
   if (
-    bytes.length < PNG_SIGNATURE.length
+    source.type !== "image/png"
+    || bytes.length < PNG_SIGNATURE.length
     || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)
   ) return false;
 
@@ -25,15 +31,13 @@ export async function hasPrivateWebLabLocalCvAnimatedPngV1(source) {
       4,
     ).getUint32(0);
     const chunkEnd = offset + 12 + dataLength;
-    if (chunkEnd > bytes.length) {
-      throw new Error("PNG invalide pour la détection locale.");
-    }
+    if (chunkEnd > bytes.length) return false;
     const chunkType = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
-    if (chunkType === "acTL") return true;
-    if (chunkType === "IEND") return false;
+    if (chunkType === "acTL") return false;
+    if (chunkType === "IEND") return true;
     offset = chunkEnd;
   }
-  throw new Error("PNG invalide pour la détection locale.");
+  return false;
 }
 
 export function normalizePrivateWebLabLocalCvOrientationDegrees(directionDegrees) {

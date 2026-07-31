@@ -12,7 +12,7 @@ import {
 } from "/private-web-lab-browser-model.js";
 import {
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS,
-  hasPrivateWebLabLocalCvAnimatedPngV1,
+  isPrivateWebLabLocalCvStaticImageV1,
   requestPrivateWebLabLocalCvWorkerV1,
 } from "/private-web-lab-local-cv.js";
 
@@ -348,16 +348,16 @@ async function runLocalCvDetection() {
   let imageBitmap = null;
   let imageBitmapTransferred = false;
   try {
-    const animatedPng = await hasPrivateWebLabLocalCvAnimatedPngV1(selectedImage);
+    const staticImage = await isPrivateWebLabLocalCvStaticImageV1(selectedImage);
     if (
       state.localCvRevision !== localCvRevision
       || state.imageRevision !== imageRevision
       || state.image !== selectedImage
     ) return;
-    if (animatedPng) {
+    if (!staticImage) {
       localCvStatus.textContent =
-        "Détection locale arrêtée : les PNG animés ne garantissent pas la même frame "
-        + "entre l’analyse et la revue. Le tracé manuel reste disponible.";
+        "Détection locale arrêtée : la signature doit décrire un JPEG réel ou un PNG "
+        + "statique; les GIF, WebP et PNG animés restent disponibles pour le tracé manuel.";
       return;
     }
     imageBitmap = await createImageBitmap(selectedImage);

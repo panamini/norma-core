@@ -7,12 +7,12 @@ import {
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS,
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE,
   detectPrivateWebLabLocalCvCandidatesV1,
-  hasPrivateWebLabLocalCvAnimatedPngV1,
+  isPrivateWebLabLocalCvStaticImageV1,
   normalizePrivateWebLabLocalCvOrientationDegrees,
   requestPrivateWebLabLocalCvWorkerV1,
 } from "../web-lab/private-web-lab-local-cv.js";
 
-test("local CV distinguishes animated PNG control chunks from static raster bytes", async () => {
+test("local CV trusts static image signatures instead of mislabeled media types", async () => {
   const staticPng = pngFixture([
     pngChunk("IHDR"),
     pngChunk("IDAT", new TextEncoder().encode("acTL inside compressed bytes")),
@@ -26,17 +26,34 @@ test("local CV distinguishes animated PNG control chunks from static raster byte
     pngChunk("IEND"),
   ]);
 
-  assert.equal(await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([staticPng])), false);
-  assert.equal(await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([animatedPng])), true);
   assert.equal(
-    await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([new Uint8Array([0xff, 0xd8, 0xff])])),
+    await isPrivateWebLabLocalCvStaticImageV1(new Blob([staticPng], { type: "image/png" })),
+    true,
+  );
+  assert.equal(
+    await isPrivateWebLabLocalCvStaticImageV1(new Blob([animatedPng], { type: "image/png" })),
     false,
   );
-  await assert.rejects(
-    hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([
-      new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 8]),
-    ])),
-    /PNG invalide/u,
+  assert.equal(
+    await isPrivateWebLabLocalCvStaticImageV1(new Blob([
+      new Uint8Array([0xff, 0xd8, 0xff]),
+    ], { type: "image/jpeg" })),
+    true,
+  );
+  for (const bytes of [
+    new TextEncoder().encode("GIF89a"),
+    new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80]),
+  ]) {
+    assert.equal(
+      await isPrivateWebLabLocalCvStaticImageV1(new Blob([bytes], { type: "image/jpeg" })),
+      false,
+    );
+  }
+  assert.equal(
+    await isPrivateWebLabLocalCvStaticImageV1(new Blob([
+      new Uint8Array([0xff, 0xd8, 0xff]),
+    ], { type: "image/png" })),
+    false,
   );
 });
 

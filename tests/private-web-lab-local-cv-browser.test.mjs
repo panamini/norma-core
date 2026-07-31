@@ -111,7 +111,7 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
       < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
   );
   assert.ok(
-    localCvRuntime.indexOf("hasPrivateWebLabLocalCvAnimatedPngV1(selectedImage)")
+    localCvRuntime.indexOf("isPrivateWebLabLocalCvStaticImageV1(selectedImage)")
       < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
   );
   assert.equal(worker.includes("const MAX_SOURCE_PIXELS"), false);
@@ -196,63 +196,72 @@ test(
           + " && document.readyState === 'complete'"
           + " && document.querySelector('#image-input') !== null",
       );
-      const animatedPngBase64 =
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACGFjVEwAAAACAAAAAPONk3AAAAAa"
-        + "ZmNUTAAAAAAAAAABAAAAAQAAAAAAAAAAAAEACgAAWn8w0AAAAA1JREFUeJxjYGBg+A8AAQQB"
-        + "AF/lw0sAAAAaZmNUTAAAAAEAAAABAAAAAQAAAAAAAAAAAAEACgAAwQzaBAAAAA9mZEFUAAAAAni"
-        + "cY/gPBAAJ+wP9ff+mtAAAAABJRU5ErkJggg==";
-      await evaluate(
-        connection,
-        sessionId,
-        `(() => {
-          const binary = atob("${animatedPngBase64}");
-          const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-          const transfer = new DataTransfer();
-          transfer.items.add(new File(
-            [bytes],
-            "animated-local-cv.png",
-            { type: "image/png" },
-          ));
-          const input = document.querySelector("#image-input");
-          input.files = transfer.files;
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-          const goal = document.querySelector("#goal-input");
-          goal.value = "general-geometry";
-          goal.dispatchEvent(new Event("change", { bubbles: true }));
-        })()`,
-      );
-      await waitForBrowserCondition(
-        connection,
-        sessionId,
-        "!document.querySelector('#review-section').hidden"
-          + " && !document.querySelector('#local-cv-button').disabled",
-      );
-      await evaluate(
-        connection,
-        sessionId,
-        "document.querySelector('#local-cv-button').click()",
-      );
-      await waitForBrowserCondition(
-        connection,
-        sessionId,
-        "document.querySelector('#local-cv-status').textContent.includes('PNG animés')",
-      );
-      const animatedPngResult = await evaluate(
-        connection,
-        sessionId,
-        `({
-          localCandidateCount: document.querySelectorAll(
-            '[data-candidate-source="browser-local-cv"]'
-          ).length,
-          localCvButtonDisabled: document.querySelector("#local-cv-button").disabled,
-          reviewHidden: document.querySelector("#review-section").hidden,
-        })`,
-      );
-      assert.deepEqual(animatedPngResult, {
-        localCandidateCount: 0,
-        localCvButtonDisabled: false,
-        reviewHidden: false,
-      });
+      const blockedAnimatedFixtures = [
+        [
+          "animated-mislabeled.gif",
+          "image/jpeg",
+          "R0lGODlhAgACAIEAAAAAAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwA"
+            + "AAAAAgACAAAIBgABCAQQEAAh+QQACgAAACwAAAAAAgACAIH///8AAAAAAAAAAAAIBgABCAQQEAA7",
+        ],
+        [
+          "animated-local-cv.png",
+          "image/png",
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACGFjVEwAAAACAAAAAPONk3AAAAAa"
+            + "ZmNUTAAAAAAAAAABAAAAAQAAAAAAAAAAAAEACgAAWn8w0AAAAA1JREFUeJxjYGBg+A8AAQQB"
+            + "AF/lw0sAAAAaZmNUTAAAAAEAAAABAAAAAQAAAAAAAAAAAAEACgAAwQzaBAAAAA9mZEFUAAAAAni"
+            + "cY/gPBAAJ+wP9ff+mtAAAAABJRU5ErkJggg==",
+        ],
+      ];
+      for (const [fileName, mediaType, base64] of blockedAnimatedFixtures) {
+        await evaluate(
+          connection,
+          sessionId,
+          `(() => {
+            const binary = atob("${base64}");
+            const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+            const transfer = new DataTransfer();
+            transfer.items.add(new File([bytes], "${fileName}", { type: "${mediaType}" }));
+            const input = document.querySelector("#image-input");
+            input.files = transfer.files;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            const goal = document.querySelector("#goal-input");
+            goal.value = "general-geometry";
+            goal.dispatchEvent(new Event("change", { bubbles: true }));
+          })()`,
+        );
+        await waitForBrowserCondition(
+          connection,
+          sessionId,
+          "!document.querySelector('#review-section').hidden"
+            + " && !document.querySelector('#local-cv-button').disabled",
+        );
+        await evaluate(
+          connection,
+          sessionId,
+          "document.querySelector('#local-cv-button').click()",
+        );
+        await waitForBrowserCondition(
+          connection,
+          sessionId,
+          "document.querySelector('#local-cv-status').textContent.includes('GIF, WebP')",
+        );
+        const blockedResult = await evaluate(
+          connection,
+          sessionId,
+          `({
+            localCandidateCount: document.querySelectorAll(
+              '[data-candidate-source="browser-local-cv"]'
+            ).length,
+            localCvButtonDisabled: document.querySelector("#local-cv-button").disabled,
+            reviewHidden: document.querySelector("#review-section").hidden,
+          })`,
+        );
+        assert.deepEqual(blockedResult, {
+          localCandidateCount: 0,
+          localCvButtonDisabled: false,
+          reviewHidden: false,
+        }, fileName);
+      }
       await evaluate(
         connection,
         sessionId,
