@@ -3,6 +3,12 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
+  PRIVATE_WEB_LAB_LOCAL_CV_ALGORITHM_VERSION,
+  PRIVATE_WEB_LAB_LOCAL_CV_CONTRACT_ID,
+  detectPrivateWebLabLocalCvCandidatesV1,
+} from "../web-lab/private-web-lab-local-cv.js";
+
+import {
   analyzePersonalVisualHarmonyImagePlaneRelationsV1,
   confirmPersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV1,
@@ -421,6 +427,253 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
       }),
     })),
   );
+});
+
+test("local-CV run provenance rejects noncanonical detector precision", () => {
+  const manifest = localCvManifest();
+  const proposal = manifest.proposals[0];
+  const noncanonicalProposals = [
+    {
+      ...proposal,
+      originalGeometry: {
+        ...proposal.originalGeometry,
+        x: proposal.originalGeometry.x + 0.0000001,
+      },
+    },
+    {
+      ...proposal,
+      evidence: {
+        ...proposal.evidence,
+        sideCoverages: [0.9000001, ...proposal.evidence.sideCoverages.slice(1)],
+      },
+    },
+    {
+      ...proposal,
+      rankScore: proposal.rankScore + 0.0000001,
+    },
+  ];
+
+  for (const noncanonicalProposal of noncanonicalProposals) {
+    assert.throws(
+      () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+        localCvProvenanceManifest: localCvManifestWithProposal(
+          manifest,
+          noncanonicalProposal,
+        ),
+      })),
+      /local CV provenance run proposal is impossible/u,
+    );
+  }
+
+  const preciseReviewedCandidates = manualCandidates();
+  preciseReviewedCandidates[0] = {
+    ...preciseReviewedCandidates[0],
+    x: 0.1000001,
+  };
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      candidates: preciseReviewedCandidates,
+      localCvProvenanceManifest: {
+        ...manifest,
+        proposals: manifest.proposals.map((candidate) => ({
+          ...candidate,
+          reviewedGeometry: {
+            ...candidate.reviewedGeometry,
+            x: 0.1000001,
+          },
+        })),
+      },
+    })),
+  );
+});
+
+test("local-CV run provenance enforces the interior Hough angle lattice", () => {
+  const manifest = localCvManifest();
+  const segmentAtDegrees = (startX, startY, degrees) => {
+    const radians = degrees * Math.PI / 180;
+    const endX = startX + (Math.cos(radians) * 200);
+    const endY = startY + (Math.sin(radians) * 200);
+    const geometry = {
+      kind: "segment",
+      start: {
+        x: Number((startX / (manifest.raster.width - 1)).toFixed(6)),
+        y: Number((startY / (manifest.raster.height - 1)).toFixed(6)),
+      },
+      end: {
+        x: Number((endX / (manifest.raster.width - 1)).toFixed(6)),
+        y: Number((endY / (manifest.raster.height - 1)).toFixed(6)),
+      },
+    };
+    const deltaX = (geometry.end.x - geometry.start.x) * (manifest.raster.width - 1);
+    const deltaY = (geometry.end.y - geometry.start.y) * (manifest.raster.height - 1);
+    return {
+      geometry,
+      evidence: {
+        kind: "straight-edge-support",
+        supportCoverage: 0.9,
+        orientationDegrees: Number((
+          (Math.atan2(deltaY, deltaX) * 180 / Math.PI + 180) % 180
+        ).toFixed(6)),
+      },
+    };
+  };
+  const manifestForSegment = ({ geometry, evidence }) => {
+    const reviewedSegment = manualCandidates()[1];
+    return localCvManifestWithProposal(manifest, {
+      candidateId: reviewedSegment.id,
+      candidateOrder: 1,
+      originalProposalIdentity: `sha256:${"0".repeat(64)}`,
+      rank: 1,
+      rankScore: localCvRankScoreForTest(geometry, evidence, manifest.raster),
+      evidence,
+      originalGeometry: geometry,
+      reviewedGeometry: {
+        kind: reviewedSegment.kind,
+        start: reviewedSegment.start,
+        end: reviewedSegment.end,
+      },
+      userEdited: true,
+    });
+  };
+  const impossibleInteriorSegment = segmentAtDegrees(100, 100, 46);
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: manifestForSegment(impossibleInteriorSegment),
+    })),
+    /local CV provenance run proposal is impossible/u,
+  );
+
+  const boundaryClampedSegment = segmentAtDegrees(0, 100, 46);
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: manifestForSegment(boundaryClampedSegment),
+    })),
+  );
+});
+
+test("local-CV server accepts genuine detector runs across the bounded corpus", () => {
+  let coreCalls = 0;
+  const corpus = [
+    ["frame-and-oblique", () => {
+      const raster = localCvConformanceRaster(192, 144);
+      drawLocalCvConformanceRectangle(raster, 14, 12, 112, 102, 2);
+      drawLocalCvConformanceSegment(raster, 140, 20, 178, 124, 2);
+      return raster;
+    }],
+    ["nested-frames", () => {
+      const raster = localCvConformanceRaster(192, 160);
+      drawLocalCvConformanceRectangle(raster, 12, 12, 166, 134, 2);
+      drawLocalCvConformanceRectangle(raster, 48, 42, 86, 72, 2);
+      return raster;
+    }],
+    ["axis-and-boundary-clamped", () => {
+      const raster = localCvConformanceRaster(160, 120);
+      drawLocalCvConformanceRectangle(raster, 48, 18, 95, 72, 3);
+      drawLocalCvConformanceSegment(raster, 0, 18, 32, 96, 2);
+      drawLocalCvConformanceSegment(raster, 18, 108, 142, 108, 2);
+      return raster;
+    }],
+    ["maximum-working-raster", () => {
+      const raster = localCvConformanceRaster(640, 640);
+      drawLocalCvConformanceRectangle(raster, 80, 72, 460, 472, 3);
+      drawLocalCvConformanceSegment(raster, 32, 580, 608, 580, 2);
+      return raster;
+    }],
+  ];
+
+  for (const [name, createRaster] of corpus) {
+    const application = applicationWithCounter(() => {
+      coreCalls += 1;
+    });
+    const raster = createRaster();
+    const detection = detectPrivateWebLabLocalCvCandidatesV1(raster);
+    assert.equal(detection.status, "detected", name);
+    assert.ok(detection.candidates.some(({ kind }) => kind === "rectangle"), name);
+    const { candidates, manifest } = localCvManifestFromDetectorRun(raster, detection);
+    const draft = application.prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: raster.width,
+      sourcePixelHeight: raster.height,
+      goalId: "general-geometry",
+      candidates,
+      localCvProvenanceManifest: manifest,
+    }));
+    assert.equal(draft.coreRun, false, name);
+    assert.equal(draft.providerCalls, 0, name);
+    assert.match(draft.localCvProvenanceDraftIdentity, /^sha256:[0-9a-f]{64}$/u, name);
+  }
+  assert.equal(coreCalls, 0);
+});
+
+test("local-CV genuine detector manifests fail closed after immutable mutations", () => {
+  let coreCalls = 0;
+  const application = applicationWithCounter(() => {
+    coreCalls += 1;
+  });
+  const raster = localCvConformanceRaster(192, 144);
+  drawLocalCvConformanceRectangle(raster, 14, 12, 112, 102, 2);
+  drawLocalCvConformanceSegment(raster, 140, 20, 178, 124, 2);
+  const detection = detectPrivateWebLabLocalCvCandidatesV1(raster);
+  assert.equal(detection.status, "detected");
+  const { candidates, manifest } = localCvManifestFromDetectorRun(raster, detection);
+  const firstRunProposal = manifest.run.proposals[0];
+  const firstBoundProposal = manifest.proposals[0];
+  const preciseGeometry = firstRunProposal.geometry.kind === "rectangle"
+    ? { ...firstRunProposal.geometry, x: firstRunProposal.geometry.x + 0.0000001 }
+    : {
+        ...firstRunProposal.geometry,
+        start: {
+          ...firstRunProposal.geometry.start,
+          x: firstRunProposal.geometry.start.x + 0.0000001,
+        },
+      };
+  const mutations = [
+    {
+      ...manifest,
+      run: {
+        ...manifest.run,
+        proposals: [
+          { ...firstRunProposal, geometry: preciseGeometry },
+          ...manifest.run.proposals.slice(1),
+        ],
+      },
+    },
+    {
+      ...manifest,
+      run: {
+        ...manifest.run,
+        proposals: [
+          { ...firstRunProposal, rankScore: firstRunProposal.rankScore + 0.0000001 },
+          ...manifest.run.proposals.slice(1),
+        ],
+      },
+    },
+    {
+      ...manifest,
+      run: { ...manifest.run, contentIdentity: `sha256:${"e".repeat(64)}` },
+    },
+    {
+      ...manifest,
+      proposals: [
+        { ...firstBoundProposal, originalProposalIdentity: `sha256:${"e".repeat(64)}` },
+        ...manifest.proposals.slice(1),
+      ],
+    },
+    { ...manifest, sourceImageContentIdentity: `sha256:${"e".repeat(64)}` },
+  ];
+
+  for (const localCvProvenanceManifest of mutations) {
+    assert.throws(
+      () => application.prepareManualDraft(manualDraftRequest({
+        sourcePixelWidth: raster.width,
+        sourcePixelHeight: raster.height,
+        goalId: "general-geometry",
+        candidates,
+        localCvProvenanceManifest,
+      })),
+      /local CV provenance/u,
+    );
+  }
+  assert.equal(coreCalls, 0);
 });
 
 test("local-CV run provenance binds every proposal, detector tie order, and rectangle grid", () => {
@@ -1646,6 +1899,136 @@ function localCvManifestWithProposal(manifest, proposal) {
     },
     proposals: [{ ...proposal, originalProposalIdentity, rankScore }],
   };
+}
+
+function localCvManifestFromDetectorRun(raster, detection) {
+  const rasterContentIdentity = `sha256:${createHash("sha256")
+    .update(Buffer.from(raster.data))
+    .digest("hex")}`;
+  const proposals = detection.candidates.map((candidate) => {
+    const proposalIdentity = contentIdentityForTest({
+      contractId: PRIVATE_WEB_LAB_LOCAL_CV_CONTRACT_ID,
+      algorithmVersion: PRIVATE_WEB_LAB_LOCAL_CV_ALGORITHM_VERSION,
+      sourceImageContentIdentity,
+      kind: candidate.kind,
+      geometry: candidate.geometry,
+      evidence: candidate.evidence,
+    });
+    return {
+      proposalIdentity,
+      rank: candidate.rank,
+      rankScore: candidate.rankScore,
+      evidence: structuredClone(candidate.evidence),
+      geometry: { kind: candidate.kind, ...structuredClone(candidate.geometry) },
+    };
+  });
+  const proposalIdentities = proposals.map(({ proposalIdentity }) => proposalIdentity);
+  const executionIdentity = contentIdentityForTest({
+    contractId: PRIVATE_WEB_LAB_LOCAL_CV_CONTRACT_ID,
+    algorithmVersion: PRIVATE_WEB_LAB_LOCAL_CV_ALGORITHM_VERSION,
+    sourceImageContentIdentity,
+    workingImage: detection.workingImage,
+    rasterContentIdentity,
+    status: detection.status,
+    abstentionReason: detection.abstentionReason,
+    candidateProposalIdentities: proposalIdentities,
+  });
+  let rectangleIndex = 0;
+  let segmentIndex = 0;
+  const candidates = detection.candidates.map((candidate) => {
+    const id = candidate.kind === "rectangle"
+      ? `manual-rectangle-${String(rectangleIndex += 1)}`
+      : `manual-segment-${String(segmentIndex += 1)}`;
+    return candidate.kind === "rectangle"
+      ? { id, kind: "rectangle", ...structuredClone(candidate.geometry) }
+      : { id, kind: "segment", ...structuredClone(candidate.geometry) };
+  });
+  return {
+    candidates,
+    manifest: {
+      contractId: PRIVATE_WEB_LAB_LOCAL_CV_PROVENANCE_MANIFEST_CONTRACT_ID,
+      browserSessionId,
+      sourceImageContentIdentity,
+      sourcePixelWidth: raster.width,
+      sourcePixelHeight: raster.height,
+      detector: {
+        contractId: PRIVATE_WEB_LAB_LOCAL_CV_CONTRACT_ID,
+        algorithmVersion: PRIVATE_WEB_LAB_LOCAL_CV_ALGORITHM_VERSION,
+      },
+      raster: {
+        contentIdentity: rasterContentIdentity,
+        width: raster.width,
+        height: raster.height,
+      },
+      run: {
+        contentIdentity: executionIdentity,
+        proposalIdentities,
+        proposals,
+      },
+      candidateOrderIds: candidates.map(({ id }) => id),
+      proposals: candidates.map((candidate, candidateOrder) => {
+        const runProposal = proposals[candidateOrder];
+        return {
+          candidateId: candidate.id,
+          candidateOrder,
+          originalProposalIdentity: runProposal.proposalIdentity,
+          rank: runProposal.rank,
+          rankScore: runProposal.rankScore,
+          evidence: structuredClone(runProposal.evidence),
+          originalGeometry: structuredClone(runProposal.geometry),
+          reviewedGeometry: structuredClone(runProposal.geometry),
+          userEdited: false,
+        };
+      }),
+    },
+  };
+}
+
+function localCvConformanceRaster(width, height) {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < data.length; index += 4) {
+    data[index] = 255;
+    data[index + 1] = 255;
+    data[index + 2] = 255;
+    data[index + 3] = 255;
+  }
+  return { width, height, data };
+}
+
+function drawLocalCvConformanceRectangle(raster, x, y, width, height, thickness) {
+  drawLocalCvConformanceSegment(raster, x, y, x + width, y, thickness);
+  drawLocalCvConformanceSegment(raster, x + width, y, x + width, y + height, thickness);
+  drawLocalCvConformanceSegment(
+    raster,
+    x + width,
+    y + height,
+    x,
+    y + height,
+    thickness,
+  );
+  drawLocalCvConformanceSegment(raster, x, y + height, x, y, thickness);
+}
+
+function drawLocalCvConformanceSegment(raster, x0, y0, x1, y1, thickness) {
+  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let step = 0; step <= steps; step += 1) {
+    const x = Math.round(x0 + ((x1 - x0) * step / Math.max(1, steps)));
+    const y = Math.round(y0 + ((y1 - y0) * step / Math.max(1, steps)));
+    for (let offsetY = -thickness; offsetY <= thickness; offsetY += 1) {
+      for (let offsetX = -thickness; offsetX <= thickness; offsetX += 1) {
+        if (
+          x + offsetX < 0
+          || y + offsetY < 0
+          || x + offsetX >= raster.width
+          || y + offsetY >= raster.height
+        ) continue;
+        const offset = (((y + offsetY) * raster.width) + x + offsetX) * 4;
+        raster.data[offset] = 0;
+        raster.data[offset + 1] = 0;
+        raster.data[offset + 2] = 0;
+      }
+    }
+  }
 }
 
 function contentIdentityForTest(value) {

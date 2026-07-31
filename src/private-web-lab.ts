@@ -63,6 +63,7 @@ const LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE = 0.62;
 const LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE = 0.000_001;
 const LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES = 0.01;
 const LOCAL_CV_HOUGH_POINT_DISTANCE_PIXELS = 1.6;
+const LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES = 3;
 
 type GuidedGoal = typeof PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1[number];
 
@@ -1215,10 +1216,12 @@ function parseLocalCvProvenanceManifest(
     if (
       (
         geometry.kind === "rectangle"
-        ? evidence.kind !== "axis-aligned-edge-coverage"
-        : evidence.kind !== "straight-edge-support"
+          ? evidence.kind !== "axis-aligned-edge-coverage"
+          : evidence.kind !== "straight-edge-support"
       )
+      || !localCvDetectorProposalHasCanonicalPrecision(rankScore, evidence, geometry)
       || !localCvOriginalGeometryMatchesDetectorGrid(geometry, rasterWidth, rasterHeight)
+      || !localCvSegmentMatchesDetectorAngleLattice(geometry, rasterWidth, rasterHeight)
       || !localCvEvidenceValuesMatchGeometry(
         evidence,
         geometry,
@@ -1468,6 +1471,59 @@ function localCvOriginalGeometryMatchesDetectorGrid(
     && localCvNormalizedValueMatchesPixelGrid(geometry.end.x, rasterWidth - 1)
     && localCvNormalizedValueMatchesPixelGrid(geometry.start.y, rasterHeight - 1)
     && localCvNormalizedValueMatchesPixelGrid(geometry.end.y, rasterHeight - 1)
+  );
+}
+
+function localCvDetectorProposalHasCanonicalPrecision(
+  rankScore: number,
+  evidence: PrivateWebLabLocalCvEvidenceV1,
+  geometry: PrivateWebLabLocalCvGeometryV1,
+): boolean {
+  const isCanonical = (value: number) => Number(value.toFixed(6)) === value;
+  const geometryValues = geometry.kind === "rectangle"
+    ? [geometry.x, geometry.y, geometry.width, geometry.height]
+    : [
+        geometry.start.x,
+        geometry.start.y,
+        geometry.end.x,
+        geometry.end.y,
+      ];
+  const evidenceValues = evidence.kind === "axis-aligned-edge-coverage"
+    ? [...evidence.sideCoverages, evidence.meanCoverage]
+    : [evidence.supportCoverage, evidence.orientationDegrees];
+  return [rankScore, ...geometryValues, ...evidenceValues].every(isCanonical);
+}
+
+function localCvSegmentMatchesDetectorAngleLattice(
+  geometry: PrivateWebLabLocalCvGeometryV1,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  if (geometry.kind !== "segment") return true;
+  const touchesBoundary = [
+    geometry.start.x,
+    geometry.start.y,
+    geometry.end.x,
+    geometry.end.y,
+  ].some((coordinate) => coordinate === 0 || coordinate === 1);
+  if (touchesBoundary) return true;
+  const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
+  const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
+  const orientationDegrees = (
+    Math.atan2(deltaY, deltaX) * 180 / Math.PI
+    + 180
+  ) % 180;
+  const latticeRemainder = orientationDegrees % LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES;
+  const latticeDistance = Math.min(
+    latticeRemainder,
+    LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES - latticeRemainder,
+  );
+  return latticeDistance <= (
+    localCvSegmentSerializationAngleToleranceDegrees(
+      geometry,
+      rasterWidth,
+      rasterHeight,
+    ) + LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE
   );
 }
 
