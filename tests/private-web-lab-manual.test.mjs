@@ -551,6 +551,51 @@ test("local-CV run provenance enforces the interior Hough angle lattice", () => 
   );
 });
 
+test("local-CV run provenance enforces the interior Hough rho lattice", () => {
+  const manifest = localCvManifest();
+  const raster = manifest.raster;
+  const geometry = {
+    kind: "segment",
+    start: {
+      x: Number((100 / (raster.width - 1)).toFixed(6)),
+      y: Number((100.5 / (raster.height - 1)).toFixed(6)),
+    },
+    end: {
+      x: Number((300 / (raster.width - 1)).toFixed(6)),
+      y: Number((300.5 / (raster.height - 1)).toFixed(6)),
+    },
+  };
+  const deltaX = (geometry.end.x - geometry.start.x) * (raster.width - 1);
+  const deltaY = (geometry.end.y - geometry.start.y) * (raster.height - 1);
+  const evidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: Number((
+      (Math.atan2(deltaY, deltaX) * 180 / Math.PI + 180) % 180
+    ).toFixed(6)),
+  };
+  const reviewedSegment = manualCandidates()[1];
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        candidateId: reviewedSegment.id,
+        candidateOrder: 1,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(geometry, evidence, raster),
+        evidence,
+        originalGeometry: geometry,
+        reviewedGeometry: {
+          kind: reviewedSegment.kind,
+          start: reviewedSegment.start,
+          end: reviewedSegment.end,
+        },
+        userEdited: true,
+      }),
+    })),
+    /local CV provenance run proposal is impossible/u,
+  );
+});
+
 test("local-CV server accepts genuine detector runs across the bounded corpus", () => {
   let coreCalls = 0;
   const corpus = [
@@ -886,17 +931,21 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     /local CV provenance run contains a suppressed segment/u,
   );
 
-  const nearCutoffAngle = 5.9998 * Math.PI / 180;
+  const nearCutoffAngle = 6 * Math.PI / 180;
+  const nearCutoffStartX = 20;
+  const nearCutoffStartY = (
+    18 + (Math.sin(nearCutoffAngle) * nearCutoffStartX)
+  ) / Math.cos(nearCutoffAngle);
   const nearCutoffSegment = {
     kind: "segment",
     start: {
-      x: boundaryRectangle.x,
-      y: boundaryRectangle.y,
+      x: Number((nearCutoffStartX / (manifest.raster.width - 1)).toFixed(6)),
+      y: Number((nearCutoffStartY / (manifest.raster.height - 1)).toFixed(6)),
     },
     end: {
-      x: Number(((20 + 220) / (manifest.raster.width - 1)).toFixed(6)),
+      x: Number(((nearCutoffStartX + 220) / (manifest.raster.width - 1)).toFixed(6)),
       y: Number((
-        (20 + (Math.tan(nearCutoffAngle) * 220))
+        (nearCutoffStartY + (Math.tan(nearCutoffAngle) * 220))
         / (manifest.raster.height - 1)
       ).toFixed(6)),
     },
@@ -972,11 +1021,25 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
       (geometry.end.x - geometry.start.x) * (cutoffRaster.width - 1),
     ) * 180 / Math.PI).toFixed(6)),
   });
-  const roundedDistanceSegment = {
-    kind: "segment",
-    start: { x: 0.130435, y: 0.212565 },
-    end: { x: 0.826087, y: 0.287433 },
+  const cutoffAngle = 3 * Math.PI / 180;
+  const cutoffSegmentAtRho = (rho, startX, endX) => {
+    const point = (x) => ({
+      x: Number((x / (cutoffRaster.width - 1)).toFixed(6)),
+      y: Number((
+        ((rho + (Math.sin(cutoffAngle) * x)) / Math.cos(cutoffAngle))
+        / (cutoffRaster.height - 1)
+      ).toFixed(6)),
+    });
+    return { kind: "segment", start: point(startX), end: point(endX) };
   };
+  const distanceCutoffMidpointX = (
+    (Math.cos(cutoffAngle) * 28.001) - 22
+  ) / Math.sin(cutoffAngle);
+  const roundedDistanceSegment = cutoffSegmentAtRho(
+    22,
+    distanceCutoffMidpointX - 80,
+    distanceCutoffMidpointX + 80,
+  );
   assert.doesNotThrow(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       sourcePixelWidth: cutoffRaster.width,
@@ -991,11 +1054,7 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     })),
   );
 
-  const roundedOverlapSegment = {
-    kind: "segment",
-    start: { x: 0.5, y: 0.199818 },
-    end: { x: 0.934782, y: 0.246611 },
-  };
+  const roundedOverlapSegment = cutoffSegmentAtRho(16, 115, 215);
   assert.doesNotThrow(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       sourcePixelWidth: cutoffRaster.width,
@@ -1010,11 +1069,7 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     })),
   );
 
-  const clearlySuppressedSegment = {
-    ...roundedDistanceSegment,
-    start: { ...roundedDistanceSegment.start, y: roundedDistanceSegment.start.y - 0.001 },
-    end: { ...roundedDistanceSegment.end, y: roundedDistanceSegment.end.y - 0.001 },
-  };
+  const clearlySuppressedSegment = cutoffSegmentAtRho(22, 20, 180);
   assert.throws(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       sourcePixelWidth: cutoffRaster.width,

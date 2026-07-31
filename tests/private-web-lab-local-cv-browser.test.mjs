@@ -140,6 +140,25 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
   assert.match(readme, /no image\s+bytes or provider call leaves the browser/u);
 });
 
+test("drawing commit rechecks the candidate cap after concurrent local CV", async () => {
+  const runtime = await readFile(
+    new URL("../web-lab/private-web-lab.js", import.meta.url),
+    "utf8",
+  );
+  const handlerStart = runtime.indexOf('imagePlane.addEventListener("pointerup"');
+  const handlerEnd = runtime.indexOf(
+    '\nimagePlane.addEventListener("pointercancel"',
+    handlerStart,
+  );
+  assert.equal(handlerStart >= 0, true);
+  assert.equal(handlerEnd > handlerStart, true);
+  const handler = runtime.slice(handlerStart, handlerEnd);
+  const capacityCheck = handler.indexOf("state.authored.length >= 12");
+  const append = handler.indexOf("state.authored.push(candidate);");
+  assert.equal(capacityCheck >= 0, true);
+  assert.equal(append > capacityCheck, true);
+});
+
 test(
   "rendered Chrome keeps local CV proposals unchecked until explicit inclusion and server projection",
   {

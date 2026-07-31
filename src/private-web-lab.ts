@@ -1223,6 +1223,7 @@ function parseLocalCvProvenanceManifest(
       || !localCvDetectorProposalHasCanonicalPrecision(rankScore, evidence, geometry)
       || !localCvOriginalGeometryMatchesDetectorGrid(geometry, rasterWidth, rasterHeight)
       || !localCvSegmentMatchesDetectorAngleLattice(geometry, rasterWidth, rasterHeight)
+      || !localCvSegmentMatchesDetectorRhoLattice(geometry, rasterWidth, rasterHeight)
       || !localCvEvidenceValuesMatchGeometry(
         evidence,
         geometry,
@@ -1536,6 +1537,44 @@ function localCvSegmentMatchesDetectorAngleLattice(
       rasterHeight,
     ) + LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE
   );
+}
+
+function localCvSegmentMatchesDetectorRhoLattice(
+  geometry: PrivateWebLabLocalCvGeometryV1,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  if (geometry.kind !== "segment") return true;
+  const touchesBoundary = [
+    geometry.start.x,
+    geometry.start.y,
+    geometry.end.x,
+    geometry.end.y,
+  ].some((coordinate) => coordinate === 0 || coordinate === 1);
+  if (touchesBoundary) return true;
+  const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
+  const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
+  const orientationDegrees = (
+    Math.atan2(deltaY, deltaX) * 180 / Math.PI
+    + 180
+  ) % 180;
+  const snappedOrientationDegrees = (
+    Math.round(orientationDegrees / LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES)
+    * LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES
+  ) % 180;
+  const normalRadians = (snappedOrientationDegrees + 90) * Math.PI / 180;
+  const normalX = Math.cos(normalRadians);
+  const normalY = Math.sin(normalRadians);
+  const serializationTolerance = (
+    Math.SQRT2 * localCvPixelSerializationTolerance(rasterWidth, rasterHeight)
+  ) + LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+  return [geometry.start, geometry.end].every((point) => {
+    const rho = (
+      (point.x * (rasterWidth - 1) * normalX)
+      + (point.y * (rasterHeight - 1) * normalY)
+    );
+    return Math.abs(rho - Math.round(rho)) <= serializationTolerance;
+  });
 }
 
 function localCvGeometryMeetsDetectorMinimum(

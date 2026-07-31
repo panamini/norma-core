@@ -283,9 +283,14 @@ imagePlane.addEventListener("pointerup", (event) => {
     || state.pointerStart.pointerId !== event.pointerId
     || state.phase !== "authoring"
   ) return;
-  const end = normalizedPointer(event);
   const start = state.pointerStart.point;
   state.pointerStart = null;
+  if (state.authored.length >= 12) {
+    setupStatus.textContent = "Limite de 12 candidats atteinte; le tracé n’a pas été ajouté.";
+    render();
+    return;
+  }
+  const end = normalizedPointer(event);
   const candidate = state.tool === "rectangle"
     ? rectangleFromPoints(start, end)
     : segmentFromPoints(start, end);
