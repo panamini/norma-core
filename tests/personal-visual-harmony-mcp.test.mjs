@@ -88,7 +88,7 @@ test("two-object spatial choices stay compact and exactly bounded to 21 expressi
     "eligibleDeclaredSpatialExpressions",
     "async function sha256SpatialIdentity",
     {
-      state: { dimensions },
+      state: { dimensions, payload: { prepared: { workflowMode: "two-object-spatial" } } },
       selectedSpatialRectangles: () => rectangles,
       canonicalSpatialExpression: (expression) => expression,
       spatialExpressionLabel: () => "length",
@@ -111,6 +111,51 @@ test("two-object spatial choices stay compact and exactly bounded to 21 expressi
     ["top-left", "top-right", "bottom-left", "bottom-right"]
       .map((anchor) => ["euclidean", anchor, anchor]),
   );
+});
+
+test("legacy spatial choices retain the full declared expression picker", () => {
+  const dimensions = { width: 1000, height: 800 };
+  const rectangles = [
+    { candidate: { id: "object-a" }, bounds: { x: 100, y: 80, width: 200, height: 240 } },
+    { candidate: { id: "object-b" }, bounds: { x: 600, y: 320, width: 250, height: 300 } },
+  ];
+  const factors = {
+    center: [0.5, 0.5],
+    "top-left": [0, 0],
+    "top-right": [1, 0],
+    "bottom-left": [0, 1],
+    "bottom-right": [1, 1],
+    "top-midpoint": [0.5, 0],
+    "right-midpoint": [1, 0.5],
+    "bottom-midpoint": [0.5, 1],
+    "left-midpoint": [0, 0.5],
+  };
+  const eligible = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: { dimensions, payload: { prepared: { contractVersion: 2 } } },
+      selectedSpatialRectangles: () => rectangles,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint: (bounds, anchor) => ({
+        x: bounds.x + (bounds.width * factors[anchor][0]),
+        y: bounds.y + (bounds.height * factors[anchor][1]),
+      }),
+      DECLARED_SPATIAL_ANCHORS: Object.keys(factors),
+      DECLARED_SPATIAL_METRICS: ["euclidean", "horizontal", "vertical"],
+      DECLARED_SPATIAL_EDGES: ["left", "right", "top", "bottom"],
+      compareSpatialCanonical: (left, right) => left.localeCompare(right),
+      canonicalSpatialJson: JSON.stringify,
+    },
+  );
+  const options = eligible();
+  assert.ok(options.length > 21);
+  assert.ok(options.some(({ reference }) => reference.kind === "extent"
+    && reference.owner.kind === "image-frame"));
+  assert.ok(options.some(({ reference }) => reference.kind === "anchor-distance"
+    && reference.from.anchor === "top-midpoint"));
 });
 
 function ellipseAxesForTest(primitive) {
@@ -1118,6 +1163,7 @@ test("widget guided analysis entry exposes the declared spatial mode without act
     {
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
       state,
+      twoObjectSpatialWorkflowActive: () => false,
       visibleKindsForGuidedAnalysisGoal,
       updateGuidedAnalysisGoalButtons,
       updateFamilyFilterButtons,
@@ -1656,6 +1702,7 @@ test("guided goals restore only for the same file and candidate-set identity", (
       DEFAULT_GUIDED_ANALYSIS_GOAL: "general-geometry",
       visibleKindsForGuidedAnalysisGoal,
       state,
+      twoObjectSpatialWorkflowActive: () => false,
     },
   );
 
@@ -1948,7 +1995,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=disabled\)/u,
+    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)/u,
   );
   assert.match(
     html,
@@ -1966,6 +2013,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
     {
       state,
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      twoObjectSpatialWorkflowActive: () => false,
       visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       updateGuidedAnalysisGoalButtons() {},
       updateFamilyFilterButtons() {},
@@ -6029,6 +6077,7 @@ test("guided analysis entry exposes the short default and every goal without act
       syncFamilyVisibility() { syncCalls += 1; },
       guidedGoalStatus,
       persistGuidedAnalysisGoal() { persistCalls += 1; },
+      twoObjectSpatialWorkflowActive: () => false,
     },
   );
 
