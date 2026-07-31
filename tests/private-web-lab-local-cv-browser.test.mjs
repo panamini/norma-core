@@ -112,6 +112,11 @@ test(
         sendJson(response, manualDraftResponse(body));
         return;
       }
+      if (request.method === "POST" && pathname === "/api/new-measurement") {
+        requests.push({ pathname, body: JSON.parse(await readRequestBody(request)) });
+        sendJson(response, { ok: true });
+        return;
+      }
       const asset = STATIC_FILES.get(pathname);
       if (request.method !== "GET" || asset === undefined) {
         response.writeHead(404).end();
@@ -446,6 +451,24 @@ test(
       assert.equal(review.runDisabled, true);
       assert.match(review.coreGate, /confirmation explicite requise/u);
       assert.equal(review.localCvHidden, true);
+
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#change-goal-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#review-section').dataset.phase === 'authoring'",
+      );
+      const resetStatus = await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#local-cv-status').textContent",
+      );
+      assert.match(resetStatus, /1 proposition\(s\) locale\(s\) disponible\(s\)/u);
+      assert.doesNotMatch(resetStatus, /0 incluse\(s\)/u);
 
       const screenshot = await connection.send(
         "Page.captureScreenshot",

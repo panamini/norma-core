@@ -1903,6 +1903,15 @@ function returnLinkedReviewToAuthoring({ preserveAuthored }) {
   if (state.receiptUrl !== null) URL.revokeObjectURL(state.receiptUrl);
   state.receiptUrl = null;
   setTool("rectangle");
+  resetLocalCvStatusForAuthoring();
+}
+
+function resetLocalCvStatusForAuthoring() {
+  const localCvCount = state.authored.filter(({ source }) => source === "local-cv").length;
+  localCvStatus.textContent = localCvCount === 0
+    ? "Image prête. La détection locale reste facultative et ne sélectionne rien."
+    : `${String(localCvCount)} proposition(s) locale(s) disponible(s) dans l’auteuring. `
+      + "Vérifiez la sélection avant de préparer la revue.";
 }
 
 function reviewedCandidateToAuthored(candidate) {
