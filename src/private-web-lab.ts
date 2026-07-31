@@ -1708,9 +1708,21 @@ function localCvSegmentsAreEquivalent(
     project(secondPixels.start),
     project(secondPixels.end),
   ].sort((left, right) => left - right);
+  const serializationTolerance = localCvPixelSerializationTolerance(
+    rasterWidth,
+    rasterHeight,
+  );
+  const distanceTolerance = Math.max(
+    3,
+    Math.hypot(rasterWidth, rasterHeight) * 0.015,
+  );
   return (
-    perpendicularDistance <= Math.max(3, Math.hypot(rasterWidth, rasterHeight) * 0.015)
-    && localCvIntervalOverlapRatio(firstInterval, secondInterval) >= 0.65
+    perpendicularDistance + (2 * serializationTolerance) <= distanceTolerance
+    && localCvIntervalOverlapRatioLowerBound(
+      firstInterval,
+      secondInterval,
+      serializationTolerance,
+    ) >= 0.65
   );
 }
 
@@ -1750,6 +1762,10 @@ function localCvSegmentIsRectangleBoundary(
   const interval = horizontal
     ? [start.x, end.x].sort((left, right) => left - right)
     : [start.y, end.y].sort((left, right) => left - right);
+  const serializationTolerance = localCvPixelSerializationTolerance(
+    rasterWidth,
+    rasterHeight,
+  );
   return rectangles.some((rectangle) => {
     if (rectangle.kind !== "rectangle") return false;
     const left = rectangle.x * (rasterWidth - 1);
@@ -1766,8 +1782,12 @@ function localCvSegmentIsRectangleBoundary(
           { coordinate: right, interval: [top, bottom] },
         ];
     return sides.some((side) => (
-      Math.abs(coordinate - side.coordinate) <= tolerance
-      && localCvIntervalOverlapRatio(interval, side.interval) >= 0.65
+      Math.abs(coordinate - side.coordinate) + (2 * serializationTolerance) <= tolerance
+      && localCvIntervalOverlapRatioLowerBound(
+        interval,
+        side.interval,
+        serializationTolerance,
+      ) >= 0.65
     ));
   });
 }
@@ -1787,19 +1807,29 @@ function localCvSegmentSerializationAngleToleranceDegrees(
   return Math.atan2(vectorError, length - vectorError) * 180 / Math.PI;
 }
 
-function localCvIntervalOverlapRatio(
+function localCvIntervalOverlapRatioLowerBound(
   first: readonly number[],
   second: readonly number[],
+  endpointTolerance: number,
 ): number {
   const overlap = Math.max(0, Math.min(first[1] ?? 0, second[1] ?? 0)
     - Math.max(first[0] ?? 0, second[0] ?? 0));
-  return overlap / Math.max(
-    1,
-    Math.min(
-      (first[1] ?? 0) - (first[0] ?? 0),
-      (second[1] ?? 0) - (second[0] ?? 0),
-    ),
+  const minimumLength = Math.min(
+    (first[1] ?? 0) - (first[0] ?? 0),
+    (second[1] ?? 0) - (second[0] ?? 0),
   );
+  return Math.max(0, overlap - (2 * endpointTolerance)) / Math.max(
+    1,
+    minimumLength + (2 * endpointTolerance),
+  );
+}
+
+function localCvPixelSerializationTolerance(
+  rasterWidth: number,
+  rasterHeight: number,
+): number {
+  return Math.max(rasterWidth - 1, rasterHeight - 1)
+    * LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
 }
 
 function localCvNormalizedValueMatchesPixelGrid(value: number, maximum: number): boolean {

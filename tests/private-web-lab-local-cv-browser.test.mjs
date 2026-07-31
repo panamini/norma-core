@@ -28,6 +28,43 @@ const STATIC_FILES = new Map([
   ],
 ]);
 
+test("Chrome launcher cleans process ownership when DevTools startup fails", async () => {
+  const child = { marker: "spawned-child" };
+  const cleanupCalls = [];
+  const profileCleanupCalls = [];
+  await assert.rejects(
+    () => launchChrome("/fake/chrome", {
+      createUserDataDirectory: async () => "/tmp/fake-chrome-profile",
+      spawnChrome: () => child,
+      waitForEndpoint: async () => {
+        throw new Error("synthetic DevTools startup failure");
+      },
+      closeBrowser: async (ownedChild, userDataDirectory) => {
+        cleanupCalls.push({ ownedChild, userDataDirectory });
+      },
+    }),
+    /synthetic DevTools startup failure/u,
+  );
+  assert.deepEqual(cleanupCalls, [{
+    ownedChild: child,
+    userDataDirectory: "/tmp/fake-chrome-profile",
+  }]);
+
+  await assert.rejects(
+    () => launchChrome("/fake/chrome", {
+      createUserDataDirectory: async () => "/tmp/fake-unspawned-profile",
+      spawnChrome: () => {
+        throw new Error("synthetic spawn failure");
+      },
+      removeUserDataDirectory: async (userDataDirectory) => {
+        profileCleanupCalls.push(userDataDirectory);
+      },
+    }),
+    /synthetic spawn failure/u,
+  );
+  assert.deepEqual(profileCleanupCalls, ["/tmp/fake-unspawned-profile"]);
+});
+
 test("local CV browser assets preserve the no-provider and no-auto-accept boundary", async () => {
   const [
     runtime,
@@ -148,7 +185,9 @@ test(
       await waitForBrowserCondition(
         connection,
         sessionId,
-        "document.readyState === 'complete'",
+        "location.pathname === '/'"
+          + " && document.readyState === 'complete'"
+          + " && document.querySelector('#image-input') !== null",
       );
       await evaluate(
         connection,
@@ -470,6 +509,31 @@ test(
       assert.match(resetStatus, /1 proposition\(s\) locale\(s\) disponible\(s\)/u);
       assert.doesNotMatch(resetStatus, /0 incluse\(s\)/u);
 
+      const deletedStatus = await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          while (true) {
+            const localCard = document.querySelector(
+              '#candidate-list .candidate[data-candidate-source="browser-local-cv"]'
+            );
+            if (localCard === null) break;
+            [...localCard.querySelectorAll("button")]
+              .find((button) => button.textContent === "Supprimer")
+              .click();
+          }
+          return {
+            localCount: document.querySelectorAll(
+              '#candidate-list .candidate[data-candidate-source="browser-local-cv"]'
+            ).length,
+            status: document.querySelector("#local-cv-status").textContent,
+          };
+        })()`,
+      );
+      assert.equal(deletedStatus.localCount, 0);
+      assert.match(deletedStatus.status, /détection locale reste facultative/u);
+      assert.doesNotMatch(deletedStatus.status, /proposition\(s\)|incluse\(s\)/u);
+
       const screenshot = await connection.send(
         "Page.captureScreenshot",
         { format: "png", fromSurface: true },
@@ -612,39 +676,59 @@ async function findChromeExecutable() {
   throw new Error("Chrome is required for the rendered local CV test.");
 }
 
-async function launchChrome(chromePath) {
-  const userDataDirectory = await mkdtemp(join(tmpdir(), "norma-local-cv-chrome-"));
-  const child = spawn(
-    chromePath,
-    [
-      "--headless=new",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-extensions",
-      "--disable-sync",
-      "--metrics-recording-only",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--remote-debugging-port=0",
-      `--user-data-dir=${userDataDirectory}`,
-      "about:blank",
-    ],
-    { stdio: ["ignore", "ignore", "pipe"] },
-  );
-  const devtoolsUrl = await waitForDevtoolsUrl(child);
-  return {
-    devtoolsUrl,
-    async close() {
-      child.kill("SIGTERM");
-      await Promise.race([
-        new Promise((resolve) => child.once("exit", resolve)),
-        delay(2_000),
-      ]);
-      if (child.exitCode === null) child.kill("SIGKILL");
-      await rm(userDataDirectory, { recursive: true, force: true });
-    },
-  };
+async function launchChrome(chromePath, dependencies = {}) {
+  const createUserDataDirectory = dependencies.createUserDataDirectory
+    ?? (() => mkdtemp(join(tmpdir(), "norma-local-cv-chrome-")));
+  const spawnChrome = dependencies.spawnChrome ?? spawn;
+  const waitForEndpoint = dependencies.waitForEndpoint ?? waitForDevtoolsUrl;
+  const closeBrowser = dependencies.closeBrowser ?? closeChrome;
+  const removeUserDataDirectory = dependencies.removeUserDataDirectory
+    ?? ((directory) => rm(directory, { recursive: true, force: true }));
+  const userDataDirectory = await createUserDataDirectory();
+  let child;
+  try {
+    child = spawnChrome(
+      chromePath,
+      [
+        "--headless=new",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-default-apps",
+        "--disable-extensions",
+        "--disable-sync",
+        "--metrics-recording-only",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--remote-debugging-port=0",
+        `--user-data-dir=${userDataDirectory}`,
+        "about:blank",
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    const devtoolsUrl = await waitForEndpoint(child);
+    return {
+      devtoolsUrl,
+      close: () => closeBrowser(child, userDataDirectory),
+    };
+  } catch (error) {
+    if (child === undefined) await removeUserDataDirectory(userDataDirectory);
+    else await closeBrowser(child, userDataDirectory);
+    throw error;
+  }
+}
+
+async function closeChrome(child, userDataDirectory) {
+  if (child.exitCode === null) {
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    child.kill("SIGTERM");
+    await Promise.race([exited, delay(2_000)]);
+  }
+  if (child.exitCode === null) {
+    const forceExited = new Promise((resolve) => child.once("exit", resolve));
+    child.kill("SIGKILL");
+    await Promise.race([forceExited, delay(2_000)]);
+  }
+  await rm(userDataDirectory, { recursive: true, force: true });
 }
 
 function waitForDevtoolsUrl(child) {

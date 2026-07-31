@@ -954,6 +954,7 @@ function candidateCard(candidate, index, authoring, locked) {
         && state.authored.includes(activeCandidate)
         ? activeCandidate.id
         : null;
+      synchronizeLocalCvInclusionStatus();
       render();
     });
     article.append(remove);
@@ -1666,7 +1667,10 @@ function isIncludedAuthoredCandidate(candidate) {
 
 function synchronizeLocalCvInclusionStatus() {
   const localCandidates = state.authored.filter(({ source }) => source === "local-cv");
-  if (localCandidates.length === 0) return;
+  if (localCandidates.length === 0) {
+    resetLocalCvStatusForAuthoring();
+    return;
+  }
   const includedCount = localCandidates.filter(isIncludedAuthoredCandidate).length;
   const detailsStart = localCvStatus.textContent.indexOf(" · ");
   const details = detailsStart < 0 ? "" : localCvStatus.textContent.slice(detailsStart);

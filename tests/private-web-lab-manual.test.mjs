@@ -927,6 +927,101 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
       ]),
     })),
   );
+
+  const cutoffRaster = {
+    contentIdentity: `sha256:${"9".repeat(64)}`,
+    width: 231,
+    height: 113,
+  };
+  const cutoffRectangle = localCvGridRectangleForTest(
+    20,
+    20,
+    160,
+    70,
+    cutoffRaster,
+  );
+  const cutoffRectangleEvidence = structuredClone(rectangleEvidence);
+  const cutoffBaseManifest = {
+    ...localCvManifest(),
+    sourcePixelWidth: cutoffRaster.width,
+    sourcePixelHeight: cutoffRaster.height,
+    raster: cutoffRaster,
+  };
+  const cutoffManifest = localCvManifestWithProposal(cutoffBaseManifest, {
+    ...cutoffBaseManifest.proposals[0],
+    originalGeometry: cutoffRectangle,
+    evidence: cutoffRectangleEvidence,
+    rankScore: localCvRankScoreForTest(
+      cutoffRectangle,
+      cutoffRectangleEvidence,
+      cutoffRaster,
+    ),
+  });
+  const cutoffSegmentEvidence = (geometry) => ({
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: Number((Math.atan2(
+      (geometry.end.y - geometry.start.y) * (cutoffRaster.height - 1),
+      (geometry.end.x - geometry.start.x) * (cutoffRaster.width - 1),
+    ) * 180 / Math.PI).toFixed(6)),
+  });
+  const roundedDistanceSegment = {
+    kind: "segment",
+    start: { x: 0.130435, y: 0.212565 },
+    end: { x: 0.826087, y: 0.287433 },
+  };
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: cutoffRaster.width,
+      sourcePixelHeight: cutoffRaster.height,
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(cutoffManifest, [
+        { geometry: cutoffRectangle, evidence: cutoffRectangleEvidence },
+        {
+          geometry: roundedDistanceSegment,
+          evidence: cutoffSegmentEvidence(roundedDistanceSegment),
+        },
+      ]),
+    })),
+  );
+
+  const roundedOverlapSegment = {
+    kind: "segment",
+    start: { x: 0.5, y: 0.199818 },
+    end: { x: 0.934782, y: 0.246611 },
+  };
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: cutoffRaster.width,
+      sourcePixelHeight: cutoffRaster.height,
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(cutoffManifest, [
+        { geometry: cutoffRectangle, evidence: cutoffRectangleEvidence },
+        {
+          geometry: roundedOverlapSegment,
+          evidence: cutoffSegmentEvidence(roundedOverlapSegment),
+        },
+      ]),
+    })),
+  );
+
+  const clearlySuppressedSegment = {
+    ...roundedDistanceSegment,
+    start: { ...roundedDistanceSegment.start, y: roundedDistanceSegment.start.y - 0.001 },
+    end: { ...roundedDistanceSegment.end, y: roundedDistanceSegment.end.y - 0.001 },
+  };
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: cutoffRaster.width,
+      sourcePixelHeight: cutoffRaster.height,
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(cutoffManifest, [
+        { geometry: cutoffRectangle, evidence: cutoffRectangleEvidence },
+        {
+          geometry: clearlySuppressedSegment,
+          evidence: cutoffSegmentEvidence(clearlySuppressedSegment),
+        },
+      ]),
+    })),
+    /local CV provenance run contains a suppressed segment/u,
+  );
 });
 
 test("local-CV run provenance preserves detector minimums after normalization", () => {
