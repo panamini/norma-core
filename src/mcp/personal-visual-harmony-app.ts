@@ -1826,7 +1826,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
       && prepared.sourceImageMediaType !== null
       && (PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES as readonly string[])
         .includes(prepared.sourceImageMediaType)
-      && personalVisualHarmonyPreparedSetHasPerceptionCapacity(prepared);
+      && (personalVisualHarmonyPreparedSetHasPerceptionCapacity(prepared)
+        || prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2);
     const perceptionAppCapability = perceptionEligible
       ? `pvh-app:${randomUUID()}`
       : undefined;
@@ -1887,6 +1888,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (input.workflowMode === undefined) {
       if (session.multiPerceptionWorkflow !== undefined) {
         throw new Error("The active two-object workflow cannot fall back to legacy perception.");
+      }
+      if (session.prepared.contractVersion !== 1
+        || !personalVisualHarmonyPreparedSetHasPerceptionCapacity(session.prepared)) {
+        throw new Error("Visual harmony candidates do not leave capacity for legacy perception.");
       }
       return {
         fileId: session.fileId,

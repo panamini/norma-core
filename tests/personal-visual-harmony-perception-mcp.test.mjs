@@ -252,7 +252,7 @@ test("prepare withholds perception capability for unsupported media and insuffic
           file_id: "file-saturated",
           mime_type: "image/png",
         },
-        candidates: Array.from({ length: 10 }, (_, index) => ({
+        candidates: Array.from({ length: 11 }, (_, index) => ({
           id: `frame-${String(index + 1)}`,
           label: `Cadre ${String(index + 1)}`,
           role: "frame",
@@ -274,6 +274,71 @@ test("prepare withholds perception capability for unsupported media and insuffic
         false,
       );
     }
+  } finally {
+    await connected.close();
+  }
+});
+
+test("ten-candidate preparation issues a capability only for the bounded A/B workflow", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
+          file_id: "file-ten-candidates",
+          mime_type: "image/png",
+        },
+        candidates: Array.from({ length: 10 }, (_, index) => ({
+          id: `frame-${String(index + 1)}`,
+          label: `Cadre ${String(index + 1)}`,
+          role: "frame",
+          reason: "Cadre visible.",
+          x: index * 0.01,
+          y: index * 0.01,
+          width: 0.5,
+          height: 0.5,
+        })),
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.match(payload.perceptionAppCapability, /^pvh-app:/u);
+
+    const sharedArguments = {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl:
+        "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
+      label: "client label ignored",
+      role: "frame",
+    };
+    const legacy = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        ...sharedArguments,
+        prompt: { points: [], box: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } },
+      },
+    });
+    assert.equal(legacy.isError, true);
+
+    const objectA = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        ...sharedArguments,
+        semanticTarget: "person",
+        workflowMode: "two-object-spatial",
+        guidedAnalysisGoal: "compare-two-lengths",
+      },
+    });
+    assert.equal(objectA.isError, undefined, JSON.stringify(objectA));
+    assert.equal(objectA.structuredContent.attemptOrdinal, 1);
   } finally {
     await connected.close();
   }
