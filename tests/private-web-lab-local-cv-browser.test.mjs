@@ -72,6 +72,7 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
     worker,
     server,
     document,
+    styleSheet,
     packageMetadata,
     webLabBoundary,
     readme,
@@ -81,6 +82,7 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
     readFile(new URL("../web-lab/private-web-lab-local-cv-worker.js", import.meta.url), "utf8"),
     readFile(new URL("../web-lab/private-web-lab-http-server.mjs", import.meta.url), "utf8"),
     readFile(new URL("../web-lab/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../web-lab/private-web-lab.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../src/private-web-lab.ts", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
@@ -88,6 +90,7 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
 
   assert.equal(document.includes('id="local-cv-button"'), true);
   assert.equal(document.includes("aucune proposition acceptée automatiquement"), true);
+  assert.match(styleSheet, /\.image-plane\s*\{[^}]*background:\s*#fff;/u);
   assert.equal(runtime.includes('new Worker("/private-web-lab-local-cv-worker.js"'), true);
   assert.equal(runtime.includes("included: false"), true);
   assert.equal(runtime.includes('source: "browser-local-cv"'), true);
@@ -197,8 +200,7 @@ test(
           canvas.width = 320;
           canvas.height = 240;
           const context = canvas.getContext("2d");
-          context.fillStyle = "#fff";
-          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.clearRect(0, 0, canvas.width, canvas.height);
           context.strokeStyle = "#000";
           context.lineWidth = 8;
           context.strokeRect(42, 34, 190, 142);
@@ -257,6 +259,8 @@ test(
             prepareDisabled: document.querySelector("#prepare-button").disabled,
             runDisabled: document.querySelector("#run-button").disabled,
             status: document.querySelector("#local-cv-status").textContent,
+            imageBackdrop: getComputedStyle(document.querySelector("#image-plane"))
+              .backgroundColor,
           };
         })()`,
       );
@@ -267,6 +271,7 @@ test(
       assert.deepEqual(initial.geometryPaths, ["x", "y", "width", "height"]);
       assert.equal(initial.prepareDisabled, true);
       assert.equal(initial.runDisabled, true);
+      assert.equal(initial.imageBackdrop, "rgb(255, 255, 255)");
       assert.match(initial.status, /temps ne mesurent pas la précision/u);
 
       await evaluate(

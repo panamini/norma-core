@@ -61,6 +61,7 @@ const LOCAL_CV_MAX_SEGMENTS = 5;
 const LOCAL_CV_MIN_RECTANGLE_SIDE_COVERAGE = 0.42;
 const LOCAL_CV_MIN_RECTANGLE_MEAN_COVERAGE = 0.62;
 const LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE = 0.000_001;
+const LOCAL_CV_CANONICAL_DECIMAL_SCALE = 1_000_000;
 const LOCAL_CV_ORIENTATION_TOLERANCE_DEGREES = 0.01;
 const LOCAL_CV_HOUGH_POINT_DISTANCE_PIXELS = 1.6;
 const LOCAL_CV_HOUGH_ANGLE_STEP_DEGREES = 3;
@@ -1456,11 +1457,21 @@ function localCvOriginalGeometryMatchesDetectorGrid(
   rasterHeight: number,
 ): boolean {
   if (geometry.kind === "rectangle") {
+    const horizontalMaximum = rasterWidth - 1;
+    const verticalMaximum = rasterHeight - 1;
+    const left = Math.round(geometry.x * horizontalMaximum);
+    const top = Math.round(geometry.y * verticalMaximum);
+    const width = Math.round(geometry.width * horizontalMaximum);
+    const height = Math.round(geometry.height * verticalMaximum);
     return (
-      localCvNormalizedValueMatchesPixelGrid(geometry.x, rasterWidth - 1)
-      && localCvNormalizedValueMatchesPixelGrid(geometry.width, rasterWidth - 1)
-      && localCvNormalizedValueMatchesPixelGrid(geometry.y, rasterHeight - 1)
-      && localCvNormalizedValueMatchesPixelGrid(geometry.height, rasterHeight - 1)
+      left > 0
+      && top > 0
+      && left + width < horizontalMaximum
+      && top + height < verticalMaximum
+      && localCvNormalizedValueMatchesPixelGrid(geometry.x, horizontalMaximum)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.width, horizontalMaximum)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.y, verticalMaximum)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.height, verticalMaximum)
     );
   }
   const deltaX = Math.abs(geometry.end.x - geometry.start.x);
@@ -1835,7 +1846,10 @@ function localCvPixelSerializationTolerance(
 function localCvNormalizedValueMatchesPixelGrid(value: number, maximum: number): boolean {
   const pixelCoordinate = Math.round(value * maximum);
   const normalizedCoordinate = Number((pixelCoordinate / maximum).toFixed(6));
-  return Math.abs(value - normalizedCoordinate) <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+  return Math.abs(
+    Math.round(value * LOCAL_CV_CANONICAL_DECIMAL_SCALE)
+      - Math.round(normalizedCoordinate * LOCAL_CV_CANONICAL_DECIMAL_SCALE),
+  ) <= 1;
 }
 
 function compareLocalCvRankedProposals(

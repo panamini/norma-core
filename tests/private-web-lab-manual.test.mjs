@@ -1024,6 +1024,84 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
   );
 });
 
+test("local-CV grid validation compares serialized units without binary epsilon loss", () => {
+  const gridRaster = {
+    contentIdentity: `sha256:${"8".repeat(64)}`,
+    width: 496,
+    height: 257,
+  };
+  const gridSegment = {
+    kind: "segment",
+    start: {
+      x: Number((50 / (gridRaster.width - 1)).toFixed(6)),
+      y: 0.460937,
+    },
+    end: {
+      x: Number((400 / (gridRaster.width - 1)).toFixed(6)),
+      y: 0.460937,
+    },
+  };
+  const segmentEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: 0,
+  };
+  const gridManifest = {
+    ...localCvManifest(),
+    sourcePixelWidth: gridRaster.width,
+    sourcePixelHeight: gridRaster.height,
+    raster: gridRaster,
+  };
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: gridRaster.width,
+      sourcePixelHeight: gridRaster.height,
+      localCvProvenanceManifest: localCvManifestWithProposal(gridManifest, {
+        candidateId: "manual-segment-1",
+        candidateOrder: 1,
+        originalGeometry: gridSegment,
+        reviewedGeometry: {
+          kind: "segment",
+          start: structuredClone(manualCandidates()[1].start),
+          end: structuredClone(manualCandidates()[1].end),
+        },
+        evidence: segmentEvidence,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(gridSegment, segmentEvidence, gridRaster),
+        userEdited: true,
+      }),
+    })),
+  );
+});
+
+test("local-CV run provenance rejects detector-inaccessible rectangle borders", () => {
+  const manifest = localCvManifest();
+  const rectangleEvidence = structuredClone(manifest.proposals[0].evidence);
+  const borderRectangles = [
+    localCvGridRectangleForTest(0, 20, 100, 80, manifest.raster),
+    localCvGridRectangleForTest(20, 0, 100, 80, manifest.raster),
+    localCvGridRectangleForTest(20, 20, manifest.raster.width - 21, 80, manifest.raster),
+    localCvGridRectangleForTest(20, 20, 100, manifest.raster.height - 21, manifest.raster),
+  ];
+  for (const originalGeometry of borderRectangles) {
+    assert.throws(
+      () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+        localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+          ...manifest.proposals[0],
+          originalGeometry,
+          evidence: rectangleEvidence,
+          rankScore: localCvRankScoreForTest(
+            originalGeometry,
+            rectangleEvidence,
+            manifest.raster,
+          ),
+        }),
+      })),
+      /local CV provenance run proposal is impossible/u,
+    );
+  }
+});
+
 test("local-CV run provenance preserves detector minimums after normalization", () => {
   const axisRaster = {
     contentIdentity: `sha256:${"a".repeat(64)}`,
