@@ -7,8 +7,14 @@ import {
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS,
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE,
   detectPrivateWebLabLocalCvCandidatesV1,
+  normalizePrivateWebLabLocalCvOrientationDegrees,
   requestPrivateWebLabLocalCvWorkerV1,
 } from "../web-lab/private-web-lab-local-cv.js";
+
+test("local CV wraps a rounded near-180 segment orientation into the provenance range", () => {
+  assert.equal(normalizePrivateWebLabLocalCvOrientationDegrees(179.9999996), 0);
+  assert.equal(normalizePrivateWebLabLocalCvOrientationDegrees(179.9999994), 179.999999);
+});
 
 test("local CV deterministically ranks bounded rectangle and straight-segment proposals", () => {
   const fixture = createSyntheticRaster(128, 96);

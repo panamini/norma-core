@@ -8,6 +8,10 @@ export const PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE = 640;
 export const PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 export const PRIVATE_WEB_LAB_LOCAL_CV_WORKER_TIMEOUT_MILLISECONDS = 1_800;
 
+export function normalizePrivateWebLabLocalCvOrientationDegrees(directionDegrees) {
+  return rounded(directionDegrees) % 180;
+}
+
 const MAX_EDGE_POINTS = 24_000;
 const MAX_RECTANGLES = 3;
 const MAX_SEGMENTS = 5;
@@ -531,7 +535,7 @@ function segmentCandidate(segment, width, height) {
     evidence: {
       kind: "straight-edge-support",
       supportCoverage: rounded(segment.supportCoverage),
-      orientationDegrees: rounded(directionDegrees),
+      orientationDegrees: normalizePrivateWebLabLocalCvOrientationDegrees(directionDegrees),
     },
   };
 }
