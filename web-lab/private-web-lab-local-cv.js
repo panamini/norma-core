@@ -8,6 +8,34 @@ export const PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE = 640;
 export const PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS = 409_600;
 export const PRIVATE_WEB_LAB_LOCAL_CV_WORKER_TIMEOUT_MILLISECONDS = 1_800;
 
+const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+
+export async function hasPrivateWebLabLocalCvAnimatedPngV1(source) {
+  const bytes = new Uint8Array(await source.arrayBuffer());
+  if (
+    bytes.length < PNG_SIGNATURE.length
+    || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)
+  ) return false;
+
+  let offset = PNG_SIGNATURE.length;
+  while (offset + 12 <= bytes.length) {
+    const dataLength = new DataView(
+      bytes.buffer,
+      bytes.byteOffset + offset,
+      4,
+    ).getUint32(0);
+    const chunkEnd = offset + 12 + dataLength;
+    if (chunkEnd > bytes.length) {
+      throw new Error("PNG invalide pour la détection locale.");
+    }
+    const chunkType = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    if (chunkType === "acTL") return true;
+    if (chunkType === "IEND") return false;
+    offset = chunkEnd;
+  }
+  throw new Error("PNG invalide pour la détection locale.");
+}
+
 export function normalizePrivateWebLabLocalCvOrientationDegrees(directionDegrees) {
   return rounded(directionDegrees) % 180;
 }

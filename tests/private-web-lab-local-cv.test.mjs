@@ -7,9 +7,38 @@ import {
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_PIXELS,
   PRIVATE_WEB_LAB_LOCAL_CV_MAX_WORKING_SIDE,
   detectPrivateWebLabLocalCvCandidatesV1,
+  hasPrivateWebLabLocalCvAnimatedPngV1,
   normalizePrivateWebLabLocalCvOrientationDegrees,
   requestPrivateWebLabLocalCvWorkerV1,
 } from "../web-lab/private-web-lab-local-cv.js";
+
+test("local CV distinguishes animated PNG control chunks from static raster bytes", async () => {
+  const staticPng = pngFixture([
+    pngChunk("IHDR"),
+    pngChunk("IDAT", new TextEncoder().encode("acTL inside compressed bytes")),
+    pngChunk("IEND"),
+  ]);
+  const animatedPng = pngFixture([
+    pngChunk("IHDR"),
+    pngChunk("acTL", new Uint8Array(8)),
+    pngChunk("fcTL"),
+    pngChunk("IDAT"),
+    pngChunk("IEND"),
+  ]);
+
+  assert.equal(await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([staticPng])), false);
+  assert.equal(await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([animatedPng])), true);
+  assert.equal(
+    await hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([new Uint8Array([0xff, 0xd8, 0xff])])),
+    false,
+  );
+  await assert.rejects(
+    hasPrivateWebLabLocalCvAnimatedPngV1(new Blob([
+      new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 8]),
+    ])),
+    /PNG invalide/u,
+  );
+});
 
 test("local CV wraps a rounded near-180 segment orientation into the provenance range", () => {
   assert.equal(normalizePrivateWebLabLocalCvOrientationDegrees(179.9999996), 0);
@@ -272,6 +301,27 @@ test("worker request rejects image and run stale responses before accepting cand
     assert.equal(worker.listenerCount(), 0);
   }
 });
+
+function pngFixture(chunks) {
+  const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const length = signature.length + chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const bytes = new Uint8Array(length);
+  bytes.set(signature);
+  let offset = signature.length;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+function pngChunk(type, data = new Uint8Array()) {
+  const bytes = new Uint8Array(12 + data.length);
+  new DataView(bytes.buffer).setUint32(0, data.length);
+  bytes.set(new TextEncoder().encode(type), 4);
+  bytes.set(data, 8);
+  return bytes;
+}
 
 function createSyntheticRaster(width, height, fill = 255, alpha = 255) {
   const data = new Uint8ClampedArray(width * height * 4);

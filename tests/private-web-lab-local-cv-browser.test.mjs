@@ -110,6 +110,10 @@ test("local CV browser assets preserve the no-provider and no-auto-accept bounda
     localCvRuntime.indexOf("LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES")
       < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
   );
+  assert.ok(
+    localCvRuntime.indexOf("hasPrivateWebLabLocalCvAnimatedPngV1(selectedImage)")
+      < localCvRuntime.indexOf("createImageBitmap(selectedImage)"),
+  );
   assert.equal(worker.includes("const MAX_SOURCE_PIXELS"), false);
   assert.equal(worker.includes("PRIVATE_WEB_LAB_LOCAL_CV_MAX_SOURCE_PIXELS"), true);
   assert.equal(server.includes('["local-cv", new URL("./private-web-lab-local-cv.js"'), true);
@@ -192,6 +196,63 @@ test(
           + " && document.readyState === 'complete'"
           + " && document.querySelector('#image-input') !== null",
       );
+      const animatedPngBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACGFjVEwAAAACAAAAAPONk3AAAAAa"
+        + "ZmNUTAAAAAAAAAABAAAAAQAAAAAAAAAAAAEACgAAWn8w0AAAAA1JREFUeJxjYGBg+A8AAQQB"
+        + "AF/lw0sAAAAaZmNUTAAAAAEAAAABAAAAAQAAAAAAAAAAAAEACgAAwQzaBAAAAA9mZEFUAAAAAni"
+        + "cY/gPBAAJ+wP9ff+mtAAAAABJRU5ErkJggg==";
+      await evaluate(
+        connection,
+        sessionId,
+        `(() => {
+          const binary = atob("${animatedPngBase64}");
+          const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File(
+            [bytes],
+            "animated-local-cv.png",
+            { type: "image/png" },
+          ));
+          const input = document.querySelector("#image-input");
+          input.files = transfer.files;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          const goal = document.querySelector("#goal-input");
+          goal.value = "general-geometry";
+          goal.dispatchEvent(new Event("change", { bubbles: true }));
+        })()`,
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "!document.querySelector('#review-section').hidden"
+          + " && !document.querySelector('#local-cv-button').disabled",
+      );
+      await evaluate(
+        connection,
+        sessionId,
+        "document.querySelector('#local-cv-button').click()",
+      );
+      await waitForBrowserCondition(
+        connection,
+        sessionId,
+        "document.querySelector('#local-cv-status').textContent.includes('PNG animés')",
+      );
+      const animatedPngResult = await evaluate(
+        connection,
+        sessionId,
+        `({
+          localCandidateCount: document.querySelectorAll(
+            '[data-candidate-source="browser-local-cv"]'
+          ).length,
+          localCvButtonDisabled: document.querySelector("#local-cv-button").disabled,
+          reviewHidden: document.querySelector("#review-section").hidden,
+        })`,
+      );
+      assert.deepEqual(animatedPngResult, {
+        localCandidateCount: 0,
+        localCvButtonDisabled: false,
+        reviewHidden: false,
+      });
       await evaluate(
         connection,
         sessionId,
