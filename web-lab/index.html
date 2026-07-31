@@ -34,6 +34,14 @@
             <option value="compare-two-lengths">Comparer des mesures entre 2 cadres</option>
           </select>
         </label>
+        <div class="local-cv-controls">
+          <button id="local-cv-button" type="button" disabled>
+            Proposer des cadres et segments localement
+          </button>
+          <p id="local-cv-status" role="status">
+            Détection facultative : calcul local borné, aucune proposition acceptée automatiquement.
+          </p>
+        </div>
         <button id="prepare-button" type="button" disabled>Préparer la revue liée</button>
         <p id="setup-status" role="status">Chargez une image et choisissez un objectif.</p>
       </section>
@@ -43,7 +51,7 @@
           <div>
             <h2 id="review-title">2. Revue explicite</h2>
             <p id="phase-description">
-              Dessinez vos propres candidats. Aucun guide n’est inféré ou détecté.
+              Dessinez vos propres candidats ou lancez la détection locale facultative.
             </p>
             <button id="change-goal-button" type="button" hidden>
               Modifier l’objectif / Recommencer

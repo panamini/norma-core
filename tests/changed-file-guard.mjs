@@ -693,6 +693,24 @@ export const privateWebLabResultPresentationChangedFiles = Object.freeze([
 export const privateWebLabSpatialPickerUxChangedFiles =
   privateWebLabResultPresentationChangedFiles;
 
+export const privateWebLabLocalCvCandidatesChangedFiles = Object.freeze([
+  "README.md",
+  "src/private-web-lab.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+  "tests/private-web-lab-local-cv-benchmark.mjs",
+  "tests/private-web-lab-local-cv-browser.test.mjs",
+  "tests/private-web-lab-local-cv.test.mjs",
+  "tests/private-web-lab-manual.test.mjs",
+  "web-lab/index.html",
+  "web-lab/private-web-lab-http-server.mjs",
+  "web-lab/private-web-lab-local-cv-worker.js",
+  "web-lab/private-web-lab-local-cv.js",
+  "web-lab/private-web-lab.css",
+  "web-lab/private-web-lab.js",
+].sort());
+
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2125,6 +2143,7 @@ const sharedExactApprovedChangedFileSets = [
   declaredImagePlaneMeasurementRatiosChangedFiles,
   declaredSpatialMeasurementsChangedFiles,
   privateWebLabSpatialPickerUxChangedFiles,
+  privateWebLabLocalCvCandidatesChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,
