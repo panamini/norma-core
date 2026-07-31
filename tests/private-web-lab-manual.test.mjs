@@ -590,6 +590,171 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
   );
 });
 
+test("local-CV run provenance preserves detector minimums after normalization", () => {
+  const axisRaster = {
+    contentIdentity: `sha256:${"a".repeat(64)}`,
+    width: 31,
+    height: 140,
+  };
+  const axisGeometry = {
+    kind: "segment",
+    start: {
+      x: Number((1 / (axisRaster.width - 1)).toFixed(6)),
+      y: Number((20 / (axisRaster.height - 1)).toFixed(6)),
+    },
+    end: {
+      x: Number((12 / (axisRaster.width - 1)).toFixed(6)),
+      y: Number((20 / (axisRaster.height - 1)).toFixed(6)),
+    },
+  };
+  const axisEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: 0,
+  };
+  const axisManifest = {
+    ...localCvManifest(),
+    sourcePixelWidth: axisRaster.width,
+    sourcePixelHeight: axisRaster.height,
+    raster: axisRaster,
+  };
+  const reviewedSegment = manualCandidates()[1];
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: axisRaster.width,
+      sourcePixelHeight: axisRaster.height,
+      localCvProvenanceManifest: localCvManifestWithProposal(axisManifest, {
+        candidateId: reviewedSegment.id,
+        candidateOrder: 1,
+        originalProposalIdentity: `sha256:${"0".repeat(64)}`,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(axisGeometry, axisEvidence, axisRaster),
+        evidence: axisEvidence,
+        originalGeometry: axisGeometry,
+        reviewedGeometry: {
+          kind: reviewedSegment.kind,
+          start: reviewedSegment.start,
+          end: reviewedSegment.end,
+        },
+        userEdited: true,
+      }),
+    })),
+  );
+
+  const rectangleRaster = {
+    contentIdentity: `sha256:${"c".repeat(64)}`,
+    width: 32,
+    height: 75,
+  };
+  const rectangleGeometry = localCvGridRectangleForTest(
+    4,
+    9,
+    8,
+    8,
+    rectangleRaster,
+  );
+  const rectangleEvidence = {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages: [0.9, 0.91, 0.92, 0.93],
+    meanCoverage: 0.915,
+  };
+  const rectangleManifest = {
+    ...localCvManifest(),
+    sourcePixelWidth: rectangleRaster.width,
+    sourcePixelHeight: rectangleRaster.height,
+    raster: rectangleRaster,
+  };
+  const reviewedRectangle = manualCandidates()[0];
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: rectangleRaster.width,
+      sourcePixelHeight: rectangleRaster.height,
+      localCvProvenanceManifest: localCvManifestWithProposal(rectangleManifest, {
+        candidateId: reviewedRectangle.id,
+        candidateOrder: 0,
+        originalProposalIdentity: `sha256:${"0".repeat(64)}`,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(
+          rectangleGeometry,
+          rectangleEvidence,
+          rectangleRaster,
+        ),
+        evidence: rectangleEvidence,
+        originalGeometry: rectangleGeometry,
+        reviewedGeometry: {
+          kind: reviewedRectangle.kind,
+          x: reviewedRectangle.x,
+          y: reviewedRectangle.y,
+          width: reviewedRectangle.width,
+          height: reviewedRectangle.height,
+        },
+        userEdited: true,
+      }),
+    })),
+  );
+});
+
+test("local-CV run provenance rejects detector-suppressed same-kind duplicates", () => {
+  const manifest = localCvManifest();
+  const rectangleEvidence = structuredClone(manifest.run.proposals[0].evidence);
+  const duplicateRectangles = [
+    localCvGridRectangleForTest(20, 20, 200, 150, manifest.raster),
+    localCvGridRectangleForTest(30, 25, 200, 150, manifest.raster),
+  ].map((geometry) => ({ geometry, evidence: rectangleEvidence }));
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(
+        manifest,
+        duplicateRectangles,
+      ),
+    })),
+    /local CV provenance run contains same-kind duplicates/u,
+  );
+
+  const duplicateSegments = [0.25, 0.255].map((y) => ({
+    geometry: {
+      kind: "segment",
+      start: { x: 0.1, y },
+      end: { x: 0.9, y },
+    },
+    evidence: {
+      kind: "straight-edge-support",
+      supportCoverage: 0.9,
+      orientationDegrees: 0,
+    },
+  }));
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(
+        manifest,
+        duplicateSegments,
+      ),
+    })),
+    /local CV provenance run contains same-kind duplicates/u,
+  );
+});
+
+test("local-CV run provenance rejects noncanonical segment endpoint order", () => {
+  const manifest = localCvManifest();
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(manifest, [{
+        geometry: {
+          kind: "segment",
+          start: { x: 0.9, y: 0.25 },
+          end: { x: 0.1, y: 0.25 },
+        },
+        evidence: {
+          kind: "straight-edge-support",
+          supportCoverage: 0.9,
+          orientationDegrees: 0,
+        },
+      }]),
+    })),
+    /local CV provenance run segment endpoint order is invalid/u,
+  );
+});
+
 test("local-CV draft provenance rejects forged source, order, run, and extra fields", () => {
   const manifest = localCvManifest();
   for (const localCvProvenanceManifest of [

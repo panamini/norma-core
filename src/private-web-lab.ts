@@ -1204,6 +1204,14 @@ function parseLocalCvProvenanceManifest(
     const evidence = parseLocalCvEvidence(proposal.evidence);
     const geometry = parseLocalCvGeometry(proposal.geometry);
     if (
+      geometry.kind === "segment"
+      && !localCvSegmentHasCanonicalEndpointOrder(geometry)
+    ) {
+      throw new Error(
+        "Private Web Lab local CV provenance run segment endpoint order is invalid.",
+      );
+    }
+    if (
       (
         geometry.kind === "rectangle"
         ? evidence.kind !== "axis-aligned-edge-coverage"
@@ -1253,6 +1261,18 @@ function parseLocalCvProvenanceManifest(
     || runSegments.length > LOCAL_CV_MAX_SEGMENTS
   ) {
     throw new Error("Private Web Lab local CV provenance run exceeds detector kind limits.");
+  }
+  if (
+    localCvRunContainsSameKindDuplicates(
+      runRectangles.map(({ geometry }) => geometry),
+      runSegments.map(({ geometry }) => geometry),
+      rasterWidth,
+      rasterHeight,
+    )
+  ) {
+    throw new Error(
+      "Private Web Lab local CV provenance run contains same-kind duplicates.",
+    );
   }
   if (
     runProposals.some(({ geometry }) => (
@@ -1446,16 +1466,185 @@ function localCvGeometryMeetsDetectorMinimum(
   rasterHeight: number,
 ): boolean {
   if (geometry.kind === "rectangle") {
+    const pixelWidth = Math.round(geometry.width * (rasterWidth - 1));
+    const pixelHeight = Math.round(geometry.height * (rasterHeight - 1));
     return (
-      geometry.width * (rasterWidth - 1) >= Math.max(8, rasterWidth * 0.08)
-      && geometry.height * (rasterHeight - 1) >= Math.max(8, rasterHeight * 0.08)
+      pixelWidth >= Math.max(8, rasterWidth * 0.08)
+      && pixelHeight >= Math.max(8, rasterHeight * 0.08)
     );
   }
-  const length = Math.hypot(
-    (geometry.end.x - geometry.start.x) * (rasterWidth - 1),
-    (geometry.end.y - geometry.start.y) * (rasterHeight - 1),
+  const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
+  const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
+  const diagonal = Math.hypot(rasterWidth, rasterHeight);
+  const axisAligned = deltaX === 0 || deltaY === 0;
+  const minimumLength = axisAligned
+    ? Math.max(8, Math.round(diagonal * 0.08))
+    : Math.max(8, diagonal * 0.08);
+  const length = Math.hypot(deltaX, deltaY);
+  return (axisAligned ? Math.round(length) : length) >= minimumLength;
+}
+
+function localCvSegmentHasCanonicalEndpointOrder(
+  segment: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+): boolean {
+  return (
+    segment.start.x < segment.end.x
+    || (
+      segment.start.x === segment.end.x
+      && segment.start.y <= segment.end.y
+    )
   );
-  return length >= Math.max(8, Math.hypot(rasterWidth, rasterHeight) * 0.08);
+}
+
+function localCvRunContainsSameKindDuplicates(
+  rectangles: readonly PrivateWebLabLocalCvGeometryV1[],
+  segments: readonly PrivateWebLabLocalCvGeometryV1[],
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  for (let first = 0; first < rectangles.length; first += 1) {
+    const firstRectangle = rectangles[first];
+    if (firstRectangle?.kind !== "rectangle") continue;
+    for (let second = first + 1; second < rectangles.length; second += 1) {
+      const secondRectangle = rectangles[second];
+      if (
+        secondRectangle?.kind === "rectangle"
+        && localCvRectangleIou(
+          firstRectangle,
+          secondRectangle,
+          rasterWidth,
+          rasterHeight,
+        ) >= 0.82
+      ) {
+        return true;
+      }
+    }
+  }
+  for (let first = 0; first < segments.length; first += 1) {
+    const firstSegment = segments[first];
+    if (firstSegment?.kind !== "segment") continue;
+    for (let second = first + 1; second < segments.length; second += 1) {
+      const secondSegment = segments[second];
+      if (
+        secondSegment?.kind === "segment"
+        && localCvSegmentsAreEquivalent(
+          firstSegment,
+          secondSegment,
+          rasterWidth,
+          rasterHeight,
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function localCvRectangleIou(
+  first: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "rectangle" }>,
+  second: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "rectangle" }>,
+  rasterWidth: number,
+  rasterHeight: number,
+): number {
+  const toPixels = (
+    rectangle: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "rectangle" }>,
+  ) => {
+    const left = Math.round(rectangle.x * (rasterWidth - 1));
+    const top = Math.round(rectangle.y * (rasterHeight - 1));
+    return {
+      left,
+      top,
+      right: left + Math.round(rectangle.width * (rasterWidth - 1)),
+      bottom: top + Math.round(rectangle.height * (rasterHeight - 1)),
+    };
+  };
+  const firstPixels = toPixels(first);
+  const secondPixels = toPixels(second);
+  const overlapWidth = Math.max(
+    0,
+    Math.min(firstPixels.right, secondPixels.right)
+      - Math.max(firstPixels.left, secondPixels.left),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(firstPixels.bottom, secondPixels.bottom)
+      - Math.max(firstPixels.top, secondPixels.top),
+  );
+  const intersection = overlapWidth * overlapHeight;
+  const firstArea = (
+    (firstPixels.right - firstPixels.left)
+    * (firstPixels.bottom - firstPixels.top)
+  );
+  const secondArea = (
+    (secondPixels.right - secondPixels.left)
+    * (secondPixels.bottom - secondPixels.top)
+  );
+  return intersection / Math.max(1, firstArea + secondArea - intersection);
+}
+
+function localCvSegmentsAreEquivalent(
+  first: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+  second: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+  rasterWidth: number,
+  rasterHeight: number,
+): boolean {
+  const toPixels = (
+    segment: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+  ) => ({
+    start: {
+      x: segment.start.x * (rasterWidth - 1),
+      y: segment.start.y * (rasterHeight - 1),
+    },
+    end: {
+      x: segment.end.x * (rasterWidth - 1),
+      y: segment.end.y * (rasterHeight - 1),
+    },
+  });
+  const firstPixels = toPixels(first);
+  const secondPixels = toPixels(second);
+  const firstAngle = Math.atan2(
+    firstPixels.end.y - firstPixels.start.y,
+    firstPixels.end.x - firstPixels.start.x,
+  );
+  const secondAngle = Math.atan2(
+    secondPixels.end.y - secondPixels.start.y,
+    secondPixels.end.x - secondPixels.start.x,
+  );
+  const angleDelta = Math.min(
+    Math.abs(firstAngle - secondAngle),
+    Math.PI - Math.abs(firstAngle - secondAngle),
+  );
+  if (angleDelta > 5 * Math.PI / 180) return false;
+  const firstMidpoint = {
+    x: (firstPixels.start.x + firstPixels.end.x) / 2,
+    y: (firstPixels.start.y + firstPixels.end.y) / 2,
+  };
+  const secondMidpoint = {
+    x: (secondPixels.start.x + secondPixels.end.x) / 2,
+    y: (secondPixels.start.y + secondPixels.end.y) / 2,
+  };
+  const normal = { x: -Math.sin(firstAngle), y: Math.cos(firstAngle) };
+  const perpendicularDistance = Math.abs(
+    ((secondMidpoint.x - firstMidpoint.x) * normal.x)
+    + ((secondMidpoint.y - firstMidpoint.y) * normal.y)
+  );
+  const direction = { x: Math.cos(firstAngle), y: Math.sin(firstAngle) };
+  const project = (point: { readonly x: number; readonly y: number }) => (
+    (point.x * direction.x) + (point.y * direction.y)
+  );
+  const firstInterval = [
+    project(firstPixels.start),
+    project(firstPixels.end),
+  ].sort((left, right) => left - right);
+  const secondInterval = [
+    project(secondPixels.start),
+    project(secondPixels.end),
+  ].sort((left, right) => left - right);
+  return (
+    perpendicularDistance <= Math.max(3, Math.hypot(rasterWidth, rasterHeight) * 0.015)
+    && localCvIntervalOverlapRatio(firstInterval, secondInterval) >= 0.65
+  );
 }
 
 function localCvSegmentIsRectangleBoundary(
