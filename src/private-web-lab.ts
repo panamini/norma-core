@@ -49,6 +49,7 @@ const BROWSER_SESSION_ID_PATTERN = /^[A-Za-z0-9:_-]{8,160}$/u;
 const LAB_SESSION_ID_PATTERN = /^web-lab-session:[0-9a-f-]{36}$/u;
 const MANUAL_CANDIDATE_ID_PATTERN = /^manual-(?:rectangle|segment)-[1-9][0-9]?$/u;
 const IMAGE_MEDIA_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+const LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png"]);
 const LOCAL_CV_DETECTOR_CONTRACT_ID = "norma.private-web-lab.local-cv-candidates@1";
 const LOCAL_CV_ALGORITHM_VERSION = "sobel-axis-runs-hough-v1";
 const LOCAL_CV_MAX_SOURCE_PIXELS = 40_000_000;
@@ -1451,12 +1452,22 @@ function localCvOriginalGeometryMatchesDetectorGrid(
   rasterWidth: number,
   rasterHeight: number,
 ): boolean {
-  if (geometry.kind !== "rectangle") return true;
+  if (geometry.kind === "rectangle") {
+    return (
+      localCvNormalizedValueMatchesPixelGrid(geometry.x, rasterWidth - 1)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.width, rasterWidth - 1)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.y, rasterHeight - 1)
+      && localCvNormalizedValueMatchesPixelGrid(geometry.height, rasterHeight - 1)
+    );
+  }
+  const deltaX = Math.abs(geometry.end.x - geometry.start.x);
+  const deltaY = Math.abs(geometry.end.y - geometry.start.y);
+  if (deltaX !== 0 && deltaY !== 0) return true;
   return (
-    localCvNormalizedValueMatchesPixelGrid(geometry.x, rasterWidth - 1)
-    && localCvNormalizedValueMatchesPixelGrid(geometry.width, rasterWidth - 1)
-    && localCvNormalizedValueMatchesPixelGrid(geometry.y, rasterHeight - 1)
-    && localCvNormalizedValueMatchesPixelGrid(geometry.height, rasterHeight - 1)
+    localCvNormalizedValueMatchesPixelGrid(geometry.start.x, rasterWidth - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.end.x, rasterWidth - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.start.y, rasterHeight - 1)
+    && localCvNormalizedValueMatchesPixelGrid(geometry.end.y, rasterHeight - 1)
   );
 }
 
@@ -1665,8 +1676,16 @@ function localCvSegmentIsRectangleBoundary(
     Math.atan2(end.y - start.y, end.x - start.x)
     + Math.PI
   ) % Math.PI;
-  const horizontal = Math.min(angle, Math.PI - angle) <= 6 * Math.PI / 180;
-  const vertical = Math.abs(angle - (Math.PI / 2)) <= 6 * Math.PI / 180;
+  const angleCutoff = Math.max(
+    0,
+    6 - localCvSegmentSerializationAngleToleranceDegrees(
+      segment,
+      rasterWidth,
+      rasterHeight,
+    ),
+  ) * Math.PI / 180;
+  const horizontal = Math.min(angle, Math.PI - angle) <= angleCutoff;
+  const vertical = Math.abs(angle - (Math.PI / 2)) <= angleCutoff;
   if (!horizontal && !vertical) return false;
   const tolerance = Math.max(8, Math.min(rasterWidth, rasterHeight) * 0.035);
   const coordinate = horizontal
@@ -1695,6 +1714,21 @@ function localCvSegmentIsRectangleBoundary(
       && localCvIntervalOverlapRatio(interval, side.interval) >= 0.65
     ));
   });
+}
+
+function localCvSegmentSerializationAngleToleranceDegrees(
+  segment: Extract<PrivateWebLabLocalCvGeometryV1, { readonly kind: "segment" }>,
+  rasterWidth: number,
+  rasterHeight: number,
+): number {
+  const deltaX = (segment.end.x - segment.start.x) * (rasterWidth - 1);
+  const deltaY = (segment.end.y - segment.start.y) * (rasterHeight - 1);
+  const length = Math.hypot(deltaX, deltaY);
+  const endpointError = Math.max(rasterWidth - 1, rasterHeight - 1)
+    * LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE;
+  const vectorError = 2 * Math.SQRT2 * endpointError;
+  if (length <= vectorError) return 90;
+  return Math.atan2(vectorError, length - vectorError) * 180 / Math.PI;
 }
 
 function localCvIntervalOverlapRatio(
@@ -1761,7 +1795,7 @@ function localCvEvidenceValuesMatchGeometry(
     ).toFixed(6));
     if (
       Math.abs(evidence.meanCoverage - expectedMeanCoverage)
-      > LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE
+      > LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE * 2
     ) {
       return false;
     }
@@ -1870,11 +1904,17 @@ function requireLocalCvManifestBinding(
     PrivateWebLabDraftRequestV1,
     | "browserSessionId"
     | "sourceImageContentIdentity"
+    | "sourceImageMediaType"
     | "sourcePixelHeight"
     | "sourcePixelWidth"
   >,
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
 ): void {
+  if (!LOCAL_CV_STATIC_IMAGE_MEDIA_TYPES.has(binding.sourceImageMediaType)) {
+    throw new Error(
+      "Private Web Lab local CV provenance requires a static PNG or JPEG source.",
+    );
+  }
   if (
     manifest.browserSessionId !== binding.browserSessionId
     || manifest.sourceImageContentIdentity !== binding.sourceImageContentIdentity
@@ -1975,7 +2015,17 @@ function requireConfirmedLocalCvProvenance(
   ) {
     throw new Error("Private Web Lab local CV provenance draft binding is stale.");
   }
-  requireLocalCvManifestBinding(inputManifest, input, reviewedCandidates);
+  requireLocalCvManifestBinding(
+    inputManifest,
+    {
+      browserSessionId: input.browserSessionId,
+      sourceImageContentIdentity: input.sourceImageContentIdentity,
+      sourceImageMediaType: session.sourceImageMediaType,
+      sourcePixelHeight: input.sourcePixelHeight,
+      sourcePixelWidth: input.sourcePixelWidth,
+    },
+    reviewedCandidates,
+  );
   if (
     serializeCanonicalJson(localCvImmutableManifest(inputManifest))
     !== serializeCanonicalJson(

@@ -253,6 +253,16 @@ test("local-CV provenance tampering and stale bindings fail before Core", () => 
   assert.equal(coreCalls, 0);
 });
 
+test("local-CV provenance rejects animated source media", () => {
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourceImageMediaType: "image/webp",
+      localCvProvenanceManifest: localCvManifest(),
+    })),
+    /local CV provenance requires a static PNG or JPEG source/u,
+  );
+});
+
 test("local-CV draft provenance rejects duplicate proposal identities and ranks", () => {
   const manifest = localCvManifest();
   const duplicateProposal = {
@@ -332,9 +342,7 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
     meanCoverage: 0.1,
   };
   const horizontalSegmentGeometry = {
-    kind: "segment",
-    start: { x: 0.1, y: 0.25 },
-    end: { x: 0.9, y: 0.25 },
+    ...localCvGridSegmentForTest(64, 106, 575, 106, manifest.raster),
   };
   const contradictoryManifests = [
     localCvManifestWithProposal(manifest, {
@@ -353,8 +361,12 @@ test("local-CV draft provenance rejects contradictory evidence values", () => {
         orientationDegrees: 90,
       },
       originalGeometry: horizontalSegmentGeometry,
-      reviewedGeometry: structuredClone(horizontalSegmentGeometry),
-      userEdited: false,
+      reviewedGeometry: {
+        kind: "segment",
+        start: manualCandidates()[1].start,
+        end: manualCandidates()[1].end,
+      },
+      userEdited: true,
     }),
     localCvManifestWithProposal(manifest, {
       ...manifest.proposals[0],
@@ -430,9 +442,7 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
   );
 
   const segmentGeometry = {
-    kind: "segment",
-    start: { x: 0.1, y: 0.25 },
-    end: { x: 0.9, y: 0.25 },
+    ...localCvGridSegmentForTest(64, 106, 575, 106, manifest.raster),
   };
   const lengthFraction = (
     Math.hypot(
@@ -518,6 +528,36 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     /local CV provenance run proposal is impossible/u,
   );
 
+  const offGridSegment = {
+    kind: "segment",
+    start: { x: 0.1, y: Number((106 / (manifest.raster.height - 1)).toFixed(6)) },
+    end: { x: 0.9, y: Number((106 / (manifest.raster.height - 1)).toFixed(6)) },
+  };
+  const offGridSegmentEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: 0,
+  };
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        candidateId: "manual-segment-1",
+        candidateOrder: 1,
+        originalGeometry: offGridSegment,
+        reviewedGeometry: structuredClone(offGridSegment),
+        evidence: offGridSegmentEvidence,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(
+          offGridSegment,
+          offGridSegmentEvidence,
+          manifest.raster,
+        ),
+        userEdited: false,
+      }),
+    })),
+    /local CV provenance run proposal is impossible/u,
+  );
+
   const rectangleEvidence = structuredClone(manifest.run.proposals[0].evidence);
   const fourRectangles = [
     [10, 10, 100, 80],
@@ -587,6 +627,52 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
       ]),
     })),
     /local CV provenance run contains a suppressed segment/u,
+  );
+
+  const nearCutoffAngle = 5.9998 * Math.PI / 180;
+  const nearCutoffSegment = {
+    kind: "segment",
+    start: {
+      x: boundaryRectangle.x,
+      y: boundaryRectangle.y,
+    },
+    end: {
+      x: Number(((20 + 220) / (manifest.raster.width - 1)).toFixed(6)),
+      y: Number((
+        (20 + (Math.tan(nearCutoffAngle) * 220))
+        / (manifest.raster.height - 1)
+      ).toFixed(6)),
+    },
+  };
+  const nearCutoffEvidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0.9,
+    orientationDegrees: Number((nearCutoffAngle * 180 / Math.PI).toFixed(6)),
+  };
+  const boundaryManifest = localCvManifestWithProposal(manifest, {
+    ...manifest.proposals[0],
+    originalGeometry: boundaryRectangle,
+    reviewedGeometry: {
+      kind: "rectangle",
+      x: manualCandidates()[0].x,
+      y: manualCandidates()[0].y,
+      width: manualCandidates()[0].width,
+      height: manualCandidates()[0].height,
+    },
+    evidence: rectangleEvidence,
+    rankScore: localCvRankScoreForTest(
+      boundaryRectangle,
+      rectangleEvidence,
+      manifest.raster,
+    ),
+  });
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithRunDefinitions(boundaryManifest, [
+        { geometry: boundaryRectangle, evidence: rectangleEvidence },
+        { geometry: nearCutoffSegment, evidence: nearCutoffEvidence },
+      ]),
+    })),
   );
 });
 
@@ -711,11 +797,9 @@ test("local-CV run provenance rejects detector-suppressed same-kind duplicates",
     /local CV provenance run contains same-kind duplicates/u,
   );
 
-  const duplicateSegments = [0.25, 0.255].map((y) => ({
+  const duplicateSegments = [106, 108].map((y) => ({
     geometry: {
-      kind: "segment",
-      start: { x: 0.1, y },
-      end: { x: 0.9, y },
+      ...localCvGridSegmentForTest(64, y, 575, y, manifest.raster),
     },
     evidence: {
       kind: "straight-edge-support",
@@ -731,6 +815,28 @@ test("local-CV run provenance rejects detector-suppressed same-kind duplicates",
       ),
     })),
     /local CV provenance run contains same-kind duplicates/u,
+  );
+});
+
+test("local-CV provenance tolerates rounded rectangle coverage means", () => {
+  const manifest = localCvManifest();
+  const evidence = {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages: [0.990741, 1, 0.981481, 1],
+    meanCoverage: 0.993056,
+  };
+  assert.doesNotThrow(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        ...manifest.proposals[0],
+        evidence,
+        rankScore: localCvRankScoreForTest(
+          manifest.proposals[0].originalGeometry,
+          evidence,
+          manifest.raster,
+        ),
+      }),
+    })),
   );
 });
 
@@ -1409,6 +1515,20 @@ function localCvGridRectangleForTest(left, top, width, height, raster) {
     y: Number((top / (raster.height - 1)).toFixed(6)),
     width: Number((width / (raster.width - 1)).toFixed(6)),
     height: Number((height / (raster.height - 1)).toFixed(6)),
+  };
+}
+
+function localCvGridSegmentForTest(startX, startY, endX, endY, raster) {
+  return {
+    kind: "segment",
+    start: {
+      x: Number((startX / (raster.width - 1)).toFixed(6)),
+      y: Number((startY / (raster.height - 1)).toFixed(6)),
+    },
+    end: {
+      x: Number((endX / (raster.width - 1)).toFixed(6)),
+      y: Number((endY / (raster.height - 1)).toFixed(6)),
+    },
   };
 }
 
