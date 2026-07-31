@@ -1852,6 +1852,11 @@ function localCvNormalizedValueMatchesPixelGrid(value: number, maximum: number):
   ) <= 1;
 }
 
+function localCvCoverageMatchesPixelCount(value: number, denominator: number): boolean {
+  const supportCount = Math.round(value * denominator);
+  return Number((supportCount / denominator).toFixed(6)) === value;
+}
+
 function compareLocalCvRankedProposals(
   first: PrivateWebLabLocalCvProvenanceManifestV1["run"]["proposals"][number],
   second: PrivateWebLabLocalCvProvenanceManifestV1["run"]["proposals"][number],
@@ -1899,6 +1904,16 @@ function localCvEvidenceValuesMatchGeometry(
     ) {
       return false;
     }
+    const pixelWidth = Math.round(geometry.width * (rasterWidth - 1));
+    const pixelHeight = Math.round(geometry.height * (rasterHeight - 1));
+    if (!evidence.sideCoverages.every((coverage, index) => (
+      localCvCoverageMatchesPixelCount(
+        coverage,
+        index < 2 ? pixelWidth + 1 : pixelHeight + 1,
+      )
+    ))) {
+      return false;
+    }
     const sizeFraction = (
       geometry.width * (rasterWidth - 1)
       * geometry.height * (rasterHeight - 1)
@@ -1911,6 +1926,7 @@ function localCvEvidenceValuesMatchGeometry(
       <= LOCAL_CV_EVIDENCE_ROUNDING_TOLERANCE * 2;
   }
   if (geometry.kind !== "segment") return false;
+  if (evidence.supportCoverage <= 0) return false;
   const deltaX = (geometry.end.x - geometry.start.x) * (rasterWidth - 1);
   const deltaY = (geometry.end.y - geometry.start.y) * (rasterHeight - 1);
   const expectedOrientation = Number((

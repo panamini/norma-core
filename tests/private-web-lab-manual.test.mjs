@@ -865,10 +865,14 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
       y: boundaryRectangle.y,
     },
   };
+  const boundaryRectangleEvidence = localCvQuantizedRectangleEvidenceForTest(
+    boundaryRectangle,
+    manifest.raster,
+  );
   assert.throws(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       localCvProvenanceManifest: localCvManifestWithRunDefinitions(manifest, [
-        { geometry: boundaryRectangle, evidence: rectangleEvidence },
+        { geometry: boundaryRectangle, evidence: boundaryRectangleEvidence },
         {
           geometry: boundarySegment,
           evidence: {
@@ -912,17 +916,17 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
       width: manualCandidates()[0].width,
       height: manualCandidates()[0].height,
     },
-    evidence: rectangleEvidence,
+    evidence: boundaryRectangleEvidence,
     rankScore: localCvRankScoreForTest(
       boundaryRectangle,
-      rectangleEvidence,
+      boundaryRectangleEvidence,
       manifest.raster,
     ),
   });
   assert.doesNotThrow(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
       localCvProvenanceManifest: localCvManifestWithRunDefinitions(boundaryManifest, [
-        { geometry: boundaryRectangle, evidence: rectangleEvidence },
+        { geometry: boundaryRectangle, evidence: boundaryRectangleEvidence },
         { geometry: nearCutoffSegment, evidence: nearCutoffEvidence },
       ]),
     })),
@@ -940,7 +944,10 @@ test("local-CV run provenance binds every proposal, detector tie order, and rect
     70,
     cutoffRaster,
   );
-  const cutoffRectangleEvidence = structuredClone(rectangleEvidence);
+  const cutoffRectangleEvidence = localCvQuantizedRectangleEvidenceForTest(
+    cutoffRectangle,
+    cutoffRaster,
+  );
   const cutoffBaseManifest = {
     ...localCvManifest(),
     sourcePixelWidth: cutoffRaster.width,
@@ -1167,8 +1174,8 @@ test("local-CV run provenance preserves detector minimums after normalization", 
   );
   const rectangleEvidence = {
     kind: "axis-aligned-edge-coverage",
-    sideCoverages: [0.9, 0.91, 0.92, 0.93],
-    meanCoverage: 0.915,
+    sideCoverages: [0.888889, 0.888889, 0.888889, 0.888889],
+    meanCoverage: 0.888889,
   };
   const rectangleManifest = {
     ...localCvManifest(),
@@ -1206,9 +1213,87 @@ test("local-CV run provenance preserves detector minimums after normalization", 
   );
 });
 
+test("local-CV provenance rejects zero-support segment evidence", () => {
+  const manifest = localCvManifest();
+  const raster = manifest.raster;
+  const geometry = localCvGridSegmentForTest(64, 106, 575, 106, raster);
+  const evidence = {
+    kind: "straight-edge-support",
+    supportCoverage: 0,
+    orientationDegrees: 0,
+  };
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        candidateId: "manual-segment-1",
+        candidateOrder: 1,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(geometry, evidence, raster),
+        evidence,
+        originalGeometry: geometry,
+        reviewedGeometry: {
+          kind: "segment",
+          start: structuredClone(manualCandidates()[1].start),
+          end: structuredClone(manualCandidates()[1].end),
+        },
+        userEdited: true,
+      }),
+    })),
+    /local CV provenance run proposal is impossible/u,
+  );
+});
+
+test("local-CV provenance rejects non-quantized rectangle coverage", () => {
+  const raster = {
+    contentIdentity: `sha256:${"c".repeat(64)}`,
+    width: 32,
+    height: 75,
+  };
+  const geometry = localCvGridRectangleForTest(4, 9, 8, 8, raster);
+  const evidence = {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages: [0.9, 0.91, 0.92, 0.93],
+    meanCoverage: 0.915,
+  };
+  const manifest = {
+    ...localCvManifest(),
+    sourcePixelWidth: raster.width,
+    sourcePixelHeight: raster.height,
+    raster,
+  };
+  const reviewedRectangle = manualCandidates()[0];
+  assert.throws(
+    () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
+      sourcePixelWidth: raster.width,
+      sourcePixelHeight: raster.height,
+      localCvProvenanceManifest: localCvManifestWithProposal(manifest, {
+        candidateId: "manual-rectangle-1",
+        candidateOrder: 0,
+        rank: 1,
+        rankScore: localCvRankScoreForTest(geometry, evidence, raster),
+        evidence,
+        originalGeometry: geometry,
+        reviewedGeometry: {
+          kind: reviewedRectangle.kind,
+          x: reviewedRectangle.x,
+          y: reviewedRectangle.y,
+          width: reviewedRectangle.width,
+          height: reviewedRectangle.height,
+        },
+        userEdited: true,
+      }),
+    })),
+    /local CV provenance run proposal is impossible/u,
+  );
+});
+
 test("local-CV run provenance rejects detector-suppressed same-kind duplicates", () => {
   const manifest = localCvManifest();
-  const rectangleEvidence = structuredClone(manifest.run.proposals[0].evidence);
+  const rectangleEvidence = {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages: [0.895522, 0.895522, 0.900662, 0.900662],
+    meanCoverage: 0.898092,
+  };
   const duplicateRectangles = [
     localCvGridRectangleForTest(20, 20, 200, 150, manifest.raster),
     localCvGridRectangleForTest(30, 25, 200, 150, manifest.raster),
@@ -1248,8 +1333,8 @@ test("local-CV provenance tolerates rounded rectangle coverage means", () => {
   const manifest = localCvManifest();
   const evidence = {
     kind: "axis-aligned-edge-coverage",
-    sideCoverages: [0.990741, 1, 0.981481, 1],
-    meanCoverage: 0.993056,
+    sideCoverages: [0.901042, 0.908854, 0.919732, 0.929766],
+    meanCoverage: 0.914849,
   };
   assert.doesNotThrow(
     () => applicationWithCounter().prepareManualDraft(manualDraftRequest({
@@ -1843,8 +1928,8 @@ function localCvManifest() {
   };
   const evidence = {
     kind: "axis-aligned-edge-coverage",
-    sideCoverages: [0.9, 0.91, 0.92, 0.93],
-    meanCoverage: 0.915,
+    sideCoverages: [0.901042, 0.908854, 0.919732, 0.929766],
+    meanCoverage: 0.914848,
   };
   const originalProposalIdentity = contentIdentityForTest({
     contractId: detectorContractId,
@@ -1958,8 +2043,32 @@ function localCvGridSegmentForTest(startX, startY, endX, endY, raster) {
   };
 }
 
+function localCvQuantizedRectangleEvidenceForTest(geometry, raster) {
+  const horizontal = Number((
+    Math.round(0.9 * (Math.round(geometry.width * (raster.width - 1)) + 1))
+    / (Math.round(geometry.width * (raster.width - 1)) + 1)
+  ).toFixed(6));
+  const vertical = Number((
+    Math.round(0.9 * (Math.round(geometry.height * (raster.height - 1)) + 1))
+    / (Math.round(geometry.height * (raster.height - 1)) + 1)
+  ).toFixed(6));
+  const sideCoverages = [horizontal, horizontal, vertical, vertical];
+  return {
+    kind: "axis-aligned-edge-coverage",
+    sideCoverages,
+    meanCoverage: Number((
+      sideCoverages.reduce((sum, coverage) => sum + coverage, 0)
+      / sideCoverages.length
+    ).toFixed(6)),
+  };
+}
+
 function localCvManifestWithRunDefinitions(manifest, definitions) {
   const proposals = definitions.map(({ geometry, evidence }) => {
+    const normalizedEvidence = geometry.kind === "rectangle"
+      && evidence.kind === "axis-aligned-edge-coverage"
+      ? localCvQuantizedRectangleEvidenceForTest(geometry, manifest.raster)
+      : evidence;
     const proposalIdentity = contentIdentityForTest({
       contractId: manifest.detector.contractId,
       algorithmVersion: manifest.detector.algorithmVersion,
@@ -1973,12 +2082,12 @@ function localCvManifestWithRunDefinitions(manifest, definitions) {
             height: geometry.height,
           }
         : { start: geometry.start, end: geometry.end },
-      evidence,
+      evidence: normalizedEvidence,
     });
     return {
       proposalIdentity,
-      rankScore: localCvRankScoreForTest(geometry, evidence, manifest.raster),
-      evidence: structuredClone(evidence),
+      rankScore: localCvRankScoreForTest(geometry, normalizedEvidence, manifest.raster),
+      evidence: structuredClone(normalizedEvidence),
       geometry: structuredClone(geometry),
     };
   }).sort((first, second) => (
