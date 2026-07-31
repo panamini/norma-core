@@ -164,6 +164,100 @@ test("perception job produces truthful V2 candidate evidence without Core author
   assert.equal("acceptedGeometry" in ready, false);
 });
 
+test("two-object perception jobs append exactly two ordered rectangle observations without Core", async () => {
+  let call = 0;
+  let job = 0;
+  const service = createService({
+    createJobId: () => `job:two-object-${String(++job)}`,
+    provider: {
+      async segment() {
+        call += 1;
+        const suffix = call === 1 ? "1" : "2";
+        const currentMask = call === 1
+          ? mask
+          : {
+              ...mask,
+              runs: [
+                { y: 2, startX: 6, endXExclusive: 9 },
+                { y: 3, startX: 6, endXExclusive: 9 },
+                { y: 4, startX: 6, endXExclusive: 9 },
+              ],
+            };
+        return {
+          response: {
+            ...(await successfulProvider().segment()).response,
+            requestIdentity: `sha256:${suffix.repeat(64)}`,
+            mask: currentMask,
+          },
+          receipt: {
+            ...(await successfulProvider().segment()).receipt,
+            requestIdentity: `sha256:${suffix.repeat(64)}`,
+            promptIdentity: `sha256:${(call === 1 ? "3" : "4").repeat(64)}`,
+            responseIdentity: `sha256:${(call === 1 ? "5" : "6").repeat(64)}`,
+            receiptIdentity: `sha256:${(call === 1 ? "7" : "8").repeat(64)}`,
+          },
+        };
+      },
+    },
+  });
+  const base = automaticCandidateSet();
+  const pendingA = service.start({
+    ...startInput(base),
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 1,
+    label: "Objet A",
+    role: "primary-subject",
+  });
+  const readyA = await waitForTerminal(service, {
+    jobId: pendingA.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  });
+  assert.equal(readyA.state, "ready", JSON.stringify(readyA));
+  assert.equal(readyA.preparedCandidateSet.contractVersion, 3);
+  assert.equal(readyA.preparedCandidateSet.perceptionManifest.observations.length, 1);
+  assert.equal(readyA.preparedCandidateSet.candidates.at(-1).role, "primary-subject");
+  assert.equal(readyA.coreRun, false);
+
+  const pendingB = service.start({
+    ...startInput(readyA.preparedCandidateSet),
+    prompt: { kind: "text", text: "bicycle" },
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 2,
+    label: "Objet B",
+    role: "secondary-subject",
+  });
+  const readyB = await waitForTerminal(service, {
+    jobId: pendingB.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  });
+  assert.equal(readyB.state, "ready", JSON.stringify(readyB));
+  assert.deepEqual(
+    readyB.preparedCandidateSet.perceptionManifest.observations.map(({ ordinal, role }) => ({ ordinal, role })),
+    [
+      { ordinal: 1, role: "primary-subject" },
+      { ordinal: 2, role: "secondary-subject" },
+    ],
+  );
+  assert.equal(new Set(readyB.preparedCandidateSet.perceptionManifest.observations
+    .map(({ providerReceiptIdentity }) => providerReceiptIdentity)).size, 2);
+  assert.equal(readyB.preparedCandidateSet.candidates.at(-1).primitive.kind, "rectangle");
+  assert.equal(readyB.coreRun, false);
+  assert.throws(
+    () => service.start({
+      ...startInput(readyB.preparedCandidateSet),
+      workflowMode: "two-object-spatial",
+      attemptOrdinal: 2,
+      label: "Objet C",
+      role: "secondary-subject",
+    }),
+    /exactly one current object observation/u,
+  );
+});
+
 test("perception job forwards one normalized semantic target without confirmation or Core", async () => {
   const prompts = [];
   const service = createService({

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  extractPersonalVisualHarmonyObjectRectangleV1,
   extractPersonalVisualHarmonyManualPerceptionV1,
   mergePersonalVisualHarmonyPerceptionCandidatesV1,
   normalizePersonalVisualHarmonySemanticTargetV1,
@@ -7,10 +8,13 @@ import {
   type PersonalVisualHarmonyPerceptionPromptV1,
 } from "./personal-visual-harmony-perception.js";
 import {
+  preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
   preparePersonalVisualHarmonyMergedPerceptionCandidatesV2,
   type PersonalVisualHarmonyCandidateRoleV1,
   type PersonalVisualHarmonyPreparedCandidateSetV1,
   type PersonalVisualHarmonyPreparedCandidateSetV2,
+  type PersonalVisualHarmonyPreparedCandidateSetV3,
 } from "./personal-visual-harmony.js";
 import { PERSONAL_VISUAL_HARMONY_MAX_TRIANGLE_REQUESTS } from "./personal-visual-harmony-constructions.js";
 import {
@@ -49,7 +53,13 @@ export interface PersonalVisualHarmonyPerceptionJobV1 {
   readonly createdAt: string;
   readonly expiresAt: string;
   readonly perceptionReceiptIdentity: string | null;
-  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV2 | null;
+  readonly preparedCandidateSet:
+    | PersonalVisualHarmonyPreparedCandidateSetV2
+    | PersonalVisualHarmonyPreparedCandidateSetV3
+    | null;
+  readonly workflowMode: "two-object-spatial" | null;
+  readonly attemptOrdinal: 1 | 2 | null;
+  readonly parentCandidateSetIdentity: string | null;
   readonly errorCode: string | null;
   readonly candidateEvidenceOnly: true;
   readonly sourceTruth: false;
@@ -94,7 +104,13 @@ interface StoredJob {
   readonly expiresAtMs: number;
   state: Exclude<PersonalVisualHarmonyPerceptionJobState, "expired">;
   perceptionReceiptIdentity: string | null;
-  preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV2 | null;
+  preparedCandidateSet:
+    | PersonalVisualHarmonyPreparedCandidateSetV2
+    | PersonalVisualHarmonyPreparedCandidateSetV3
+    | null;
+  readonly workflowMode: "two-object-spatial" | null;
+  readonly attemptOrdinal: 1 | 2 | null;
+  readonly parentCandidateSetIdentity: string | null;
   errorCode: string | null;
 }
 
@@ -159,7 +175,11 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     readonly prompt: PersonalVisualHarmonyPerceptionPromptV1 | PersonalVisualHarmonySegmentationPromptV1;
     readonly label: string;
     readonly role: PersonalVisualHarmonyCandidateRoleV1;
-    readonly automaticCandidateSet?: PersonalVisualHarmonyPreparedCandidateSetV1;
+    readonly automaticCandidateSet?:
+      | PersonalVisualHarmonyPreparedCandidateSetV1
+      | PersonalVisualHarmonyPreparedCandidateSetV3;
+    readonly workflowMode?: "two-object-spatial";
+    readonly attemptOrdinal?: 1 | 2;
   }): PersonalVisualHarmonyPerceptionJobV1 {
     const subjectId = requireSafeId(input.subjectId, "subjectId");
     const sessionId = requireSafeId(input.sessionId, "sessionId");
@@ -174,6 +194,44 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     if (!["primary-subject", "secondary-subject", "structural-region", "frame"].includes(input.role)) {
       throw new PersonalVisualHarmonyPerceptionJobError("request_invalid", "Perception role is invalid.");
     }
+    const multiMode = input.workflowMode === "two-object-spatial";
+    if (multiMode !== (input.attemptOrdinal !== undefined)) {
+      throw new PersonalVisualHarmonyPerceptionJobError(
+        "request_invalid",
+        "Two-object perception requires an exact server attempt ordinal.",
+      );
+    }
+    if (multiMode) {
+      const expectedRole = input.attemptOrdinal === 1 ? "primary-subject" : "secondary-subject";
+      if (input.role !== expectedRole || input.automaticCandidateSet === undefined) {
+        throw new PersonalVisualHarmonyPerceptionJobError(
+          "request_invalid",
+          "Two-object perception role and parent candidate set must be server-derived.",
+        );
+      }
+      if (input.attemptOrdinal === 1
+        && (input.automaticCandidateSet.contractVersion !== 1
+          || input.automaticCandidateSet.candidates.length > 10)) {
+        throw new PersonalVisualHarmonyPerceptionJobError(
+          "request_invalid",
+          "Object A requires a V1 set with two reserved candidate slots.",
+        );
+      }
+      if (input.attemptOrdinal === 2
+        && (input.automaticCandidateSet.contractVersion !== 3
+          || input.automaticCandidateSet.perceptionManifest.observations.length !== 1
+          || input.automaticCandidateSet.candidates.length > 11)) {
+        throw new PersonalVisualHarmonyPerceptionJobError(
+          "request_invalid",
+          "Object B requires exactly one current object observation and one remaining slot.",
+        );
+      }
+    } else if (input.automaticCandidateSet?.contractVersion === 3) {
+      throw new PersonalVisualHarmonyPerceptionJobError(
+        "request_invalid",
+        "A V3 candidate set requires the two-object workflow mode.",
+      );
+    }
     if (input.automaticCandidateSet !== undefined
       && input.automaticCandidateSet.sourceImageReferenceIdentity !== sourceImageReferenceIdentity) {
       throw new PersonalVisualHarmonyPerceptionJobError(
@@ -181,7 +239,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         "Automatic candidates belong to a different source image.",
       );
     }
-    if (input.automaticCandidateSet !== undefined
+    if (!multiMode && input.automaticCandidateSet?.contractVersion === 1
       && !personalVisualHarmonyPreparedSetHasPerceptionCapacity(input.automaticCandidateSet)) {
       throw new PersonalVisualHarmonyPerceptionJobError(
         "request_invalid",
@@ -210,6 +268,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       state: "pending",
       perceptionReceiptIdentity: null,
       preparedCandidateSet: null,
+      workflowMode: input.workflowMode ?? null,
+      attemptOrdinal: input.attemptOrdinal ?? null,
+      parentCandidateSetIdentity: input.automaticCandidateSet?.candidateSetIdentity ?? null,
       errorCode: null,
     };
     this.#jobs.set(jobId, job);
@@ -222,6 +283,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       prompt,
       label,
       role: input.role,
+      ...(input.workflowMode === undefined ? {} : { workflowMode: input.workflowMode }),
+      ...(input.attemptOrdinal === undefined ? {} : { attemptOrdinal: input.attemptOrdinal }),
       ...(input.automaticCandidateSet === undefined
         ? {}
         : { automaticCandidateSet: input.automaticCandidateSet }),
@@ -260,7 +323,11 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
       readonly label: string;
       readonly role: PersonalVisualHarmonyCandidateRoleV1;
-      readonly automaticCandidateSet?: PersonalVisualHarmonyPreparedCandidateSetV1;
+      readonly automaticCandidateSet?:
+        | PersonalVisualHarmonyPreparedCandidateSetV1
+        | PersonalVisualHarmonyPreparedCandidateSetV3;
+      readonly workflowMode?: "two-object-spatial";
+      readonly attemptOrdinal?: 1 | 2;
     },
   ): Promise<void> {
     try {
@@ -294,6 +361,69 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       const perceptionPrompt = input.prompt.kind === "interactive"
         ? { points: input.prompt.points, box: input.prompt.box }
         : input.prompt;
+      if (input.workflowMode === "two-object-spatial") {
+        if (input.attemptOrdinal === undefined || input.automaticCandidateSet === undefined) {
+          throw new PersonalVisualHarmonySegmentationError(
+            "provider_response_invalid",
+            "Two-object perception job lost its server reservation.",
+          );
+        }
+        const rectangle = extractPersonalVisualHarmonyObjectRectangleV1({
+          ordinal: input.attemptOrdinal,
+          sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+          provider: segmentation.response.provider,
+          prompt: perceptionPrompt,
+          mask: segmentation.response.mask,
+          label: input.label,
+        });
+        const previousObservations = input.automaticCandidateSet.contractVersion === 3
+          ? input.automaticCandidateSet.perceptionManifest.observations
+          : [];
+        if (previousObservations.length > 0
+          && previousObservations[0]!.sourceImageContentIdentity
+            !== segmentation.response.sourceImageContentIdentity) {
+          throw new PersonalVisualHarmonySegmentationError(
+            "provider_response_invalid",
+            "Object B source content does not match object A.",
+          );
+        }
+        const observation = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+          ordinal: input.attemptOrdinal,
+          role: input.attemptOrdinal === 1 ? "primary-subject" : "secondary-subject",
+          normalizedPrompt: input.prompt,
+          parentCandidateSetIdentity: input.automaticCandidateSet.candidateSetIdentity,
+          sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+          sourceImageContentIdentity: segmentation.response.sourceImageContentIdentity,
+          providerReceiptIdentity: segmentation.receipt.receiptIdentity,
+          maskIdentity: rectangle.maskIdentity,
+          perceptionIdentity: rectangle.perceptionIdentity,
+          candidateId: rectangle.candidate.id,
+          originalRectangle: rectangle.originalRectangle,
+        });
+        const observations = [...previousObservations, observation];
+        job.preparedCandidateSet = preparePersonalVisualHarmonyCandidateSetV3({
+          sourceFileId: input.sourceFileId,
+          sourceImageContentIdentity: segmentation.response.sourceImageContentIdentity,
+          sourceImageMediaType: source.mediaType,
+          expectedSourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+          visualInterpretationSource: input.automaticCandidateSet.candidates.length === 0
+            ? "sam3"
+            : "hybrid",
+          observations,
+          candidates: [...input.automaticCandidateSet.candidates, rectangle.candidate],
+          ...(input.automaticCandidateSet.triangleConstructionRequests === undefined
+            ? {}
+            : {
+                triangleConstructionRequests:
+                  input.automaticCandidateSet.triangleConstructionRequests,
+              }),
+        });
+        job.state = "ready";
+        return;
+      }
+      const legacyAutomaticCandidateSet = input.automaticCandidateSet?.contractVersion === 1
+        ? input.automaticCandidateSet
+        : undefined;
       const manualPerception = extractPersonalVisualHarmonyManualPerceptionV1({
         interactionId: safeInteractionId(job.jobId),
         sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
@@ -307,16 +437,16 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       });
       const merged = mergePersonalVisualHarmonyPerceptionCandidatesV1({
         expectedSourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
-        ...(input.automaticCandidateSet === undefined
+        ...(legacyAutomaticCandidateSet === undefined
           ? {}
-          : { automaticCandidateSet: input.automaticCandidateSet }),
+          : { automaticCandidateSet: legacyAutomaticCandidateSet }),
         manualPerception,
       });
       job.preparedCandidateSet = preparePersonalVisualHarmonyMergedPerceptionCandidatesV2({
         sourceFileId: input.sourceFileId,
         sourceImageContentIdentity: segmentation.response.sourceImageContentIdentity,
         sourceImageMediaType: source.mediaType,
-        visualInterpretationSource: input.automaticCandidateSet === undefined ? "sam3" : "hybrid",
+        visualInterpretationSource: legacyAutomaticCandidateSet === undefined ? "sam3" : "hybrid",
         perceptionReceiptIdentity: segmentation.receipt.receiptIdentity,
         mergedPerceptionCandidates: merged,
       });
@@ -350,6 +480,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       expiresAt: new Date(job.expiresAtMs).toISOString(),
       perceptionReceiptIdentity: job.perceptionReceiptIdentity,
       preparedCandidateSet: expired ? null : structuredClone(job.preparedCandidateSet),
+      workflowMode: job.workflowMode,
+      attemptOrdinal: job.attemptOrdinal,
+      parentCandidateSetIdentity: job.parentCandidateSetIdentity,
       errorCode: expired ? null : job.errorCode,
       candidateEvidenceOnly: true,
       sourceTruth: false,

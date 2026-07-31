@@ -6,6 +6,8 @@ import {
   createPersonalVisualHarmonyOverlaySvgV1,
   layoutPersonalVisualHarmonyCandidateLabelsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
   analyzeDeclaredLengthPairV1,
@@ -278,6 +280,134 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.equal(Object.hasOwn(first.candidates[0], "primitive"), false);
   assert.match(first.candidateSetIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
+});
+
+test("two-object candidate manifests bind ordered provenance and fail closed on tampering", () => {
+  const base = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-two-object",
+    sourceImageMediaType: "image/png",
+    candidates: goldenCandidates(),
+  });
+  const sourceContent = `sha256:${"9".repeat(64)}`;
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: base.candidateSetIdentity,
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: sourceContent,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-object-1-test",
+    originalRectangle: { x: 0.1, y: 0.1, width: 0.2, height: 0.3 },
+  });
+  const candidateA = {
+    id: observationA.candidateId,
+    label: "Objet A",
+    role: observationA.role,
+    reason: "Observation SAM bornée",
+    ...observationA.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  };
+  const first = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA],
+    candidates: [...base.candidates, candidateA],
+  });
+  const observationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 2,
+    role: "secondary-subject",
+    normalizedPrompt: { kind: "text", text: "bicycle" },
+    parentCandidateSetIdentity: first.candidateSetIdentity,
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: sourceContent,
+    providerReceiptIdentity: `sha256:${"4".repeat(64)}`,
+    maskIdentity: `sha256:${"5".repeat(64)}`,
+    perceptionIdentity: `sha256:${"6".repeat(64)}`,
+    candidateId: "sam3-object-2-test",
+    originalRectangle: { x: 0.6, y: 0.2, width: 0.25, height: 0.4 },
+  });
+  const candidateB = {
+    id: observationB.candidateId,
+    label: "Objet B",
+    role: observationB.role,
+    reason: "Observation SAM bornée",
+    ...observationB.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  };
+  for (const [field, duplicateValue] of [
+    ["providerReceiptIdentity", observationA.providerReceiptIdentity],
+    ["maskIdentity", observationA.maskIdentity],
+  ]) {
+    const duplicateObservationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+      ...observationB,
+      [field]: duplicateValue,
+      observationIdentity: undefined,
+    });
+    assert.throws(
+      () => preparePersonalVisualHarmonyCandidateSetV3({
+        sourceFileId: "file-two-object",
+        sourceImageContentIdentity: sourceContent,
+        sourceImageMediaType: "image/png",
+        expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+        visualInterpretationSource: "hybrid",
+        observations: [observationA, duplicateObservationB],
+        candidates: [...base.candidates, candidateA, candidateB],
+      }),
+      new RegExp(`duplicate ${field}`, "u"),
+    );
+  }
+  const second = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA, observationB],
+    candidates: [...base.candidates, candidateA, candidateB],
+  });
+  assert.equal(second.workflowMode, "two-object-spatial");
+  assert.deepEqual(second.perceptionManifest.observations.map(({ ordinal }) => ordinal), [1, 2]);
+  assert.equal(second.coreRun, false);
+  assert.equal(
+    preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, observationB],
+      candidates: [...base.candidates, candidateA, candidateB],
+    }).candidateSetIdentity,
+    second.candidateSetIdentity,
+  );
+  assert.throws(
+    () => confirmPersonalVisualHarmonyCandidateSetV1({
+      preparedCandidateSet: {
+        ...second,
+        perceptionManifest: {
+          ...second.perceptionManifest,
+          observations: [
+            second.perceptionManifest.observations[0],
+            { ...second.perceptionManifest.observations[1], role: "primary-subject" },
+          ],
+        },
+      },
+      expectedCandidateSetIdentity: second.candidateSetIdentity,
+      selectedCandidateIds: [candidateA.id, candidateB.id],
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      acceptedAt: "2026-07-31T12:00:00.000Z",
+    }),
+    /role does not match|manifest|stale|misordered/u,
+  );
 });
 
 test("candidate validation stays closed while explicit primitive envelopes are canonicalized", () => {

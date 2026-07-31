@@ -65,6 +65,54 @@ function deferred() {
   return { promise, resolve };
 }
 
+test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
+  const dimensions = { width: 1000, height: 800 };
+  const rectangles = [
+    { candidate: { id: "object-a" }, bounds: { x: 100, y: 80, width: 200, height: 240 } },
+    { candidate: { id: "object-b" }, bounds: { x: 600, y: 320, width: 250, height: 300 } },
+  ];
+  const spatialAnchorPoint = (bounds, anchor) => {
+    const factors = {
+      center: [0.5, 0.5],
+      "top-left": [0, 0],
+      "top-right": [1, 0],
+      "bottom-left": [0, 1],
+      "bottom-right": [1, 1],
+    }[anchor];
+    return {
+      x: bounds.x + (bounds.width * factors[0]),
+      y: bounds.y + (bounds.height * factors[1]),
+    };
+  };
+  const eligible = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: { dimensions },
+      selectedSpatialRectangles: () => rectangles,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint,
+    },
+  );
+  const options = eligible();
+  assert.equal(options.length, 21);
+  assert.equal(options.filter(({ reference }) => reference.kind === "extent").length, 6);
+  assert.equal(options.filter(({ reference }) => reference.kind === "anchor-to-frame-edge").length, 8);
+  const distances = options.filter(({ reference }) => reference.kind === "anchor-distance");
+  assert.equal(distances.length, 7);
+  assert.equal(distances.filter(({ reference }) => (
+    reference.from.anchor === "center" && reference.to.anchor === "center"
+  )).length, 3);
+  assert.deepEqual(
+    distances.filter(({ reference }) => reference.from.anchor !== "center")
+      .map(({ reference }) => [reference.metric, reference.from.anchor, reference.to.anchor]),
+    ["top-left", "top-right", "bottom-left", "bottom-right"]
+      .map((anchor) => ["euclidean", anchor, anchor]),
+  );
+});
+
 function ellipseAxesForTest(primitive) {
   const rotation = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
   return {
@@ -1900,11 +1948,11 @@ test("guided and family-filter choices are inert while confirmation locks the re
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=disabled\)/u,
   );
   assert.match(
     html,
-    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\)/u,
   );
   const state = {
     confirming: true,
@@ -5576,7 +5624,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v9.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v10.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -5591,9 +5639,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
-      uri: "ui://widget/norma-personal-visual-harmony-v8.html",
+      uri: "ui://widget/norma-personal-visual-harmony-v9.html",
     });
-    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
+    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v9.html");
     assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);

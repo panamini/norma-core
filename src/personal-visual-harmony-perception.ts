@@ -133,6 +133,23 @@ export interface PersonalVisualHarmonyManualPerceptionResultV1 {
   readonly warnings: readonly PersonalVisualHarmonyManualPerceptionWarningV1[];
 }
 
+export interface PersonalVisualHarmonyObjectRectanglePerceptionV1 {
+  readonly sourceImageReferenceIdentity: string;
+  readonly provider: PersonalVisualHarmonySegmentationProviderRefV1;
+  readonly prompt: PersonalVisualHarmonyPerceptionPromptV1;
+  readonly maskIdentity: string;
+  readonly perceptionIdentity: string;
+  readonly candidate: PersonalVisualHarmonyCandidateInputV1;
+  readonly originalRectangle: Pick<
+    PersonalVisualHarmonyCandidateInputV1,
+    "x" | "y" | "width" | "height"
+  >;
+  readonly candidateEvidenceOnly: true;
+  readonly sourceTruth: false;
+  readonly coreAuthority: false;
+  readonly coreRun: false;
+}
+
 export interface PersonalVisualHarmonyMergedPerceptionCandidatesV1 {
   readonly sourceImageReferenceIdentity: string;
   readonly manualPerceptionIdentity: string;
@@ -305,6 +322,75 @@ export function extractPersonalVisualHarmonyManualPerceptionV1(input: {
   return {
     ...withoutIdentity,
     perceptionIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+export function extractPersonalVisualHarmonyObjectRectangleV1(input: {
+  readonly ordinal: 1 | 2;
+  readonly sourceImageReferenceIdentity: string;
+  readonly provider: PersonalVisualHarmonySegmentationProviderRefV1;
+  readonly prompt: PersonalVisualHarmonyPerceptionPromptV1;
+  readonly mask: PersonalVisualHarmonySegmentationMaskV1;
+  readonly label: string;
+}): PersonalVisualHarmonyObjectRectanglePerceptionV1 {
+  if (input.ordinal !== 1 && input.ordinal !== 2) {
+    throw new Error("Two-object perception ordinal is invalid.");
+  }
+  if (!SHA256_PATTERN.test(input.sourceImageReferenceIdentity)) {
+    throw new Error("sourceImageReferenceIdentity must be a sha256 identity.");
+  }
+  const provider = validateProvider(input.provider);
+  const prompt = validatePrompt(input.prompt);
+  const decoded = decodeMask(input.mask);
+  if (decoded.connectedComponentCount !== 1) {
+    throw new Error("Two-object perception requires exactly one connected mask component.");
+  }
+  if (!("kind" in prompt)) validatePromptAgainstMask(prompt, decoded);
+  const maskIdentity = contentIdentityFor({
+    contractId: input.mask.contractId,
+    contractVersion: input.mask.contractVersion,
+    width: input.mask.width,
+    height: input.mask.height,
+    runs: input.mask.runs,
+  });
+  const originalRectangle = normalizedBounds(decoded);
+  const perceptionWithoutIdentity = {
+    operation: "two-object-spatial-rectangle@1",
+    ordinal: input.ordinal,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    provider,
+    prompt,
+    maskIdentity,
+    originalRectangle,
+    candidateEvidenceOnly: true as const,
+    sourceTruth: false as const,
+    coreAuthority: false as const,
+    coreRun: false as const,
+  };
+  const perceptionIdentity = contentIdentityFor(perceptionWithoutIdentity);
+  const candidateId = `sam3-object-${String(input.ordinal)}-${perceptionIdentity.slice(7, 23)}`;
+  const role = input.ordinal === 1 ? "primary-subject" as const : "secondary-subject" as const;
+  const candidate = {
+    id: candidateId,
+    label: requireBoundedString(input.label, "label", 1, 60),
+    role,
+    reason: `Rectangle SAM déterministe · objet ${input.ordinal === 1 ? "A" : "B"}`,
+    ...originalRectangle,
+    primitive: { kind: "rectangle" as const },
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+  };
+  return {
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    provider,
+    prompt,
+    maskIdentity,
+    perceptionIdentity,
+    candidate,
+    originalRectangle,
+    candidateEvidenceOnly: true,
+    sourceTruth: false,
+    coreAuthority: false,
+    coreRun: false,
   };
 }
 

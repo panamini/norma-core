@@ -9,7 +9,7 @@ The repository also contains bounded visual-review surfaces that can propose geo
 The active Personal Visual Harmony flow separates four responsibilities:
 
 - a host vision model may propose composition and visible construction geometry;
-- SAM 3 may propose one explicitly requested semantic object or region;
+- SAM 3 may propose one explicitly requested semantic object or region, or an opt-in ordered A/B pair for the `compare-two-lengths` goal;
 - deterministic local pixel/CV refinement may propose tighter lines, axes, quadrilaterals, or ellipses;
 - Norma Core measures only after explicit human review and confirmation.
 
@@ -20,6 +20,8 @@ The ChatGPT widget supports:
 - normalized candidate geometry with editable handles;
 - optional manual segments and deterministic constructions;
 - explicit semantic SAM targeting;
+- a fail-closed two-object spatial workflow with at most two sequential SAM attempts, unselected editable rectangle proposals, and no review or Core run between A and B;
+- exactly 21 compact spatial length choices after A and B are ready (six extents, three center distances, eight center-to-frame distances, and four matching-corner distances);
 - an `Original / Guides` comparison;
 - an initial four-candidate focus with an explicit show-all control;
 - bounded, analysis-scoped review metrics containing event codes, timestamps, and counts only;

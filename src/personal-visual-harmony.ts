@@ -52,6 +52,10 @@ export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@1" as const;
 export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V2_CONTRACT_ID =
   "norma.personal-visual-harmony-candidate-set@2" as const;
+export const PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID =
+  "norma.personal-visual-harmony-candidate-set@3" as const;
+export const PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID =
+  "norma.personal-visual-harmony-multi-perception-manifest@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID =
   "norma.personal-visual-harmony-manual-candidate-set@1" as const;
 export const PERSONAL_VISUAL_HARMONY_RESULT_CONTRACT_ID =
@@ -182,6 +186,73 @@ export interface PersonalVisualHarmonyPreparedCandidateSetV2 {
   readonly candidateSetIdentity: string;
 }
 
+export type PersonalVisualHarmonyMultiPerceptionPromptV1 =
+  | { readonly kind: "text"; readonly text: string }
+  | {
+    readonly kind: "interactive";
+    readonly points: readonly {
+      readonly x: number;
+      readonly y: number;
+      readonly label: "include" | "exclude";
+    }[];
+    readonly box: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    } | null;
+  };
+
+export interface PersonalVisualHarmonyMultiPerceptionObservationV1 {
+  readonly ordinal: 1 | 2;
+  readonly role: "primary-subject" | "secondary-subject";
+  readonly normalizedPrompt: PersonalVisualHarmonyMultiPerceptionPromptV1;
+  readonly parentCandidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly providerReceiptIdentity: string;
+  readonly maskIdentity: string;
+  readonly perceptionIdentity: string;
+  readonly candidateId: string;
+  readonly originalRectangle: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly observationIdentity: string;
+}
+
+export interface PersonalVisualHarmonyMultiPerceptionManifestV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
+  readonly manifestIdentity: string;
+}
+
+export interface PersonalVisualHarmonyPreparedCandidateSetV3 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID;
+  readonly contractVersion: 3;
+  readonly workflowMode: "two-object-spatial";
+  readonly status: "confirmation_required";
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType: string | null;
+  readonly imageBytesObservedByNorma: true;
+  readonly sourceImageIdentityBasis: "chatgpt_file_reference_plus_observed_image_bytes";
+  readonly visualInterpretationSource: "sam3" | "hybrid";
+  readonly perceptionManifest: PersonalVisualHarmonyMultiPerceptionManifestV1;
+  readonly candidateEvidenceOnly: true;
+  readonly explicitSelectionConfirmationRequired: true;
+  readonly coreRun: false;
+  readonly coordinateFrame: PersonalVisualHarmonyPreparedCandidateSetV1["coordinateFrame"];
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+  readonly candidateSetIdentity: string;
+}
+
 export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
   readonly contractId: typeof PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID;
   readonly contractVersion: 1;
@@ -208,7 +279,8 @@ export interface PersonalVisualHarmonyPreparedManualCandidateSetV1 {
 
 export type PersonalVisualHarmonyPreparedCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSetV1
-  | PersonalVisualHarmonyPreparedCandidateSetV2;
+  | PersonalVisualHarmonyPreparedCandidateSetV2
+  | PersonalVisualHarmonyPreparedCandidateSetV3;
 
 export type PersonalVisualHarmonyConfirmableCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSet
@@ -614,6 +686,207 @@ export function preparePersonalVisualHarmonyCandidateSetV2(input: {
     ...withoutIdentity,
     candidateSetIdentity: contentIdentityFor(withoutIdentity),
   };
+}
+
+export function preparePersonalVisualHarmonyMultiPerceptionObservationV1(
+  input: Omit<PersonalVisualHarmonyMultiPerceptionObservationV1, "observationIdentity">,
+): PersonalVisualHarmonyMultiPerceptionObservationV1 {
+  if (input.ordinal !== 1 && input.ordinal !== 2) {
+    throw new Error("Multi-perception observation ordinal is invalid.");
+  }
+  const expectedRole = input.ordinal === 1 ? "primary-subject" : "secondary-subject";
+  if (input.role !== expectedRole) {
+    throw new Error("Multi-perception observation role does not match its server ordinal.");
+  }
+  for (const [field, value] of Object.entries({
+    parentCandidateSetIdentity: input.parentCandidateSetIdentity,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    providerReceiptIdentity: input.providerReceiptIdentity,
+    maskIdentity: input.maskIdentity,
+    perceptionIdentity: input.perceptionIdentity,
+  })) {
+    if (!SHA256_PATTERN.test(value)) {
+      throw new Error(`${field} must be a sha256 identity.`);
+    }
+  }
+  if (!CANDIDATE_ID_PATTERN.test(input.candidateId)) {
+    throw new Error("Multi-perception candidateId is invalid.");
+  }
+  validateMultiPerceptionPrompt(input.normalizedPrompt);
+  const rectangleCandidate: PersonalVisualHarmonyCandidateInputV1 = {
+    id: input.candidateId,
+    label: "Observation",
+    role: input.role,
+    reason: "Observation SAM bornée",
+    ...input.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+  };
+  validateCandidates([rectangleCandidate], input.sourceImageReferenceIdentity);
+  const withoutIdentity = structuredClone(input);
+  return {
+    ...withoutIdentity,
+    observationIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+export function preparePersonalVisualHarmonyCandidateSetV3(input: {
+  readonly sourceFileId: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType?: string | null;
+  readonly expectedSourceImageReferenceIdentity?: string;
+  readonly visualInterpretationSource: "sam3" | "hybrid";
+  readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+}): PersonalVisualHarmonyPreparedCandidateSetV3 {
+  requireBoundedString(input.sourceFileId, "sourceFileId", 1, 2_048);
+  if (!SHA256_PATTERN.test(input.sourceImageContentIdentity)) {
+    throw new Error("sourceImageContentIdentity must be a sha256 identity.");
+  }
+  if (!Array.isArray(input.observations)
+    || input.observations.length < 1
+    || input.observations.length > 2) {
+    throw new Error("Two-object spatial perception requires one or two ordered observations.");
+  }
+  const sourceImageMediaType = normalizeMediaType(input.sourceImageMediaType);
+  const sourceImageReferenceIdentity = contentIdentityFor({
+    kind: "chatgpt-file-reference",
+    fileId: input.sourceFileId,
+  });
+  if (input.expectedSourceImageReferenceIdentity !== undefined
+    && input.expectedSourceImageReferenceIdentity !== sourceImageReferenceIdentity) {
+    throw new Error("Expected source image identity does not match sourceFileId.");
+  }
+  const observations = input.observations.map((observation, index) => {
+    const expected = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+      ordinal: observation.ordinal,
+      role: observation.role,
+      normalizedPrompt: observation.normalizedPrompt,
+      parentCandidateSetIdentity: observation.parentCandidateSetIdentity,
+      sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
+      sourceImageContentIdentity: observation.sourceImageContentIdentity,
+      providerReceiptIdentity: observation.providerReceiptIdentity,
+      maskIdentity: observation.maskIdentity,
+      perceptionIdentity: observation.perceptionIdentity,
+      candidateId: observation.candidateId,
+      originalRectangle: observation.originalRectangle,
+    });
+    if (observation.observationIdentity !== expected.observationIdentity
+      || observation.ordinal !== index + 1
+      || observation.sourceImageReferenceIdentity !== sourceImageReferenceIdentity
+      || observation.sourceImageContentIdentity !== input.sourceImageContentIdentity) {
+      throw new Error("Multi-perception observation is stale, misordered, or source-mismatched.");
+    }
+    return expected;
+  });
+  const duplicateFields = [
+    "providerReceiptIdentity",
+    "maskIdentity",
+    "perceptionIdentity",
+    "candidateId",
+  ] as const;
+  if (observations.length === 2) {
+    for (const field of duplicateFields) {
+      if (observations[0]![field] === observations[1]![field]) {
+        throw new Error(`Multi-perception observations duplicate ${field}.`);
+      }
+    }
+    if (serializeCanonicalJson(observations[0]!.originalRectangle)
+      === serializeCanonicalJson(observations[1]!.originalRectangle)) {
+      throw new Error("Multi-perception observations duplicate the original rectangle.");
+    }
+  }
+  const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
+  if (candidates.length < observations.length) {
+    throw new Error("Multi-perception candidates are incomplete.");
+  }
+  observations.forEach((observation, index) => {
+    const candidate = candidates[candidates.length - observations.length + index];
+    if (candidate?.id !== observation.candidateId
+      || candidate.role !== observation.role
+      || candidate.primitive?.kind !== "rectangle") {
+      throw new Error("Multi-perception candidate order or primitive is invalid.");
+    }
+  });
+  const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
+    input.triangleConstructionRequests ?? [],
+  );
+  validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
+  const manifestWithoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID,
+    contractVersion: 1 as const,
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    observations,
+  };
+  const perceptionManifest = {
+    ...manifestWithoutIdentity,
+    manifestIdentity: contentIdentityFor(manifestWithoutIdentity),
+  };
+  const coordinateFrame = {
+    dimensions: 2 as const,
+    coordinateScale: "normalized" as const,
+    origin: "top-left" as const,
+    xDirection: "right" as const,
+    yDirection: "down" as const,
+    bounds: { x: [0, 1] as const, y: [0, 1] as const },
+  };
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID,
+    contractVersion: 3 as const,
+    workflowMode: "two-object-spatial" as const,
+    status: "confirmation_required" as const,
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    sourceImageMediaType,
+    imageBytesObservedByNorma: true as const,
+    sourceImageIdentityBasis: "chatgpt_file_reference_plus_observed_image_bytes" as const,
+    visualInterpretationSource: input.visualInterpretationSource,
+    perceptionManifest,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateFrame,
+    candidates,
+    ...(triangleConstructionRequests.length === 0 ? {} : { triangleConstructionRequests }),
+  };
+  return {
+    ...withoutIdentity,
+    candidateSetIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+function validateMultiPerceptionPrompt(prompt: PersonalVisualHarmonyMultiPerceptionPromptV1): void {
+  if (prompt.kind === "text") {
+    requireBoundedString(prompt.text, "normalizedPrompt.text", 1, 500);
+    if (/[,;|\u0000-\u001f\u007f]/u.test(prompt.text) || prompt.text !== prompt.text.trim()) {
+      throw new Error("Multi-perception text prompt is not normalized.");
+    }
+    return;
+  }
+  if (prompt.kind !== "interactive"
+    || !Array.isArray(prompt.points)
+    || prompt.points.length > 16
+    || (prompt.box === null && !prompt.points.some(({ label }) => label === "include"))) {
+    throw new Error("Multi-perception interactive prompt is invalid.");
+  }
+  for (const point of prompt.points) {
+    if (!Number.isFinite(point.x) || point.x < 0 || point.x > 1
+      || !Number.isFinite(point.y) || point.y < 0 || point.y > 1
+      || (point.label !== "include" && point.label !== "exclude")) {
+      throw new Error("Multi-perception prompt point is invalid.");
+    }
+  }
+  if (prompt.box !== null) {
+    const { x, y, width, height } = prompt.box;
+    if (![x, y, width, height].every(Number.isFinite)
+      || x < 0 || y < 0 || width <= 0 || height <= 0
+      || x + width > 1 || y + height > 1) {
+      throw new Error("Multi-perception prompt box is invalid.");
+    }
+  }
 }
 
 function isManualBrowserCandidateSet(
@@ -2362,13 +2635,16 @@ function createAcceptedGeometry(
     return match;
   });
   const selectionToken = identityToken(selectionIdentity);
-  const isObservedImageCandidateSet = prepared.contractVersion === 2;
+  const isObservedImageCandidateSet = prepared.contractVersion === 2
+    || prepared.contractVersion === 3;
   const manualBrowserCandidateSet = isManualBrowserCandidateSet(prepared);
   const sourceObservationContentIdentity = contentIdentityFor(isObservedImageCandidateSet
     ? {
         candidateSetIdentity: prepared.candidateSetIdentity,
         sourceImageContentIdentity: prepared.sourceImageContentIdentity,
-        perceptionReceiptIdentity: prepared.perceptionReceiptIdentity,
+        ...(prepared.contractVersion === 2
+          ? { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }
+          : { perceptionManifestIdentity: prepared.perceptionManifest.manifestIdentity }),
         visualInterpretationSource: prepared.visualInterpretationSource,
         sourcePixelWidth,
         sourcePixelHeight,
@@ -2542,6 +2818,14 @@ function validatePreparedCandidateSet(
     && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
     && SHA256_PATTERN.test(prepared.perceptionReceiptIdentity)
     && ["chatgpt", "sam3", "manual", "hybrid"].includes(prepared.visualInterpretationSource);
+  const v3IsValid = prepared.contractVersion === 3
+    && prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID
+    && prepared.workflowMode === "two-object-spatial"
+    && prepared.imageBytesObservedByNorma === true
+    && prepared.sourceImageIdentityBasis === "chatgpt_file_reference_plus_observed_image_bytes"
+    && SHA256_PATTERN.test(prepared.sourceImageContentIdentity)
+    && (prepared.visualInterpretationSource === "sam3"
+      || prepared.visualInterpretationSource === "hybrid");
   const manualV1IsValid = prepared.contractVersion === 1
     && prepared.contractId === PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID
     && prepared.imageBytesObservedByNorma === false
@@ -2555,7 +2839,7 @@ function validatePreparedCandidateSet(
     && Number.isSafeInteger(prepared.sourcePixelHeight)
     && prepared.sourcePixelHeight > 0
     && SHA256_PATTERN.test(prepared.coreCompatibilityCandidateSetIdentity);
-  if ((!v1IsValid && !v2IsValid && !manualV1IsValid)
+  if ((!v1IsValid && !v2IsValid && !v3IsValid && !manualV1IsValid)
     || prepared.status !== "confirmation_required"
     || prepared.candidateEvidenceOnly !== true
     || prepared.explicitSelectionConfirmationRequired !== true
@@ -2572,6 +2856,52 @@ function validatePreparedCandidateSet(
     prepared.triangleConstructionRequests ?? [],
   );
   validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
+  if (prepared.contractVersion === 3) {
+    const manifest = prepared.perceptionManifest;
+    if (manifest.contractId !== PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID
+      || manifest.contractVersion !== 1
+      || manifest.sourceImageReferenceIdentity !== prepared.sourceImageReferenceIdentity
+      || manifest.sourceImageContentIdentity !== prepared.sourceImageContentIdentity
+      || manifest.observations.length < 1
+      || manifest.observations.length > 2) {
+      throw new Error("Multi-perception manifest is invalid or source-mismatched.");
+    }
+    manifest.observations.forEach((observation, index) => {
+      const expectedObservation = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+        ordinal: observation.ordinal,
+        role: observation.role,
+        normalizedPrompt: observation.normalizedPrompt,
+        parentCandidateSetIdentity: observation.parentCandidateSetIdentity,
+        sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
+        sourceImageContentIdentity: observation.sourceImageContentIdentity,
+        providerReceiptIdentity: observation.providerReceiptIdentity,
+        maskIdentity: observation.maskIdentity,
+        perceptionIdentity: observation.perceptionIdentity,
+        candidateId: observation.candidateId,
+        originalRectangle: observation.originalRectangle,
+      });
+      const candidate = candidates[candidates.length - manifest.observations.length + index];
+      if (observation.ordinal !== index + 1
+        || observation.observationIdentity !== expectedObservation.observationIdentity
+        || observation.sourceImageReferenceIdentity !== prepared.sourceImageReferenceIdentity
+        || observation.sourceImageContentIdentity !== prepared.sourceImageContentIdentity
+        || candidate?.id !== observation.candidateId
+        || candidate.role !== observation.role
+        || candidate.primitive?.kind !== "rectangle") {
+        throw new Error("Multi-perception observation is stale, misordered, or unbound.");
+      }
+    });
+    const manifestWithoutIdentity = {
+      contractId: manifest.contractId,
+      contractVersion: manifest.contractVersion,
+      sourceImageReferenceIdentity: manifest.sourceImageReferenceIdentity,
+      sourceImageContentIdentity: manifest.sourceImageContentIdentity,
+      observations: manifest.observations,
+    };
+    if (manifest.manifestIdentity !== contentIdentityFor(manifestWithoutIdentity)) {
+      throw new Error("Multi-perception manifest identity is invalid.");
+    }
+  }
   if (isManualBrowserCandidateSet(prepared)) {
     const expectedCoreCompatibilityCandidateSetIdentity =
       preparePersonalVisualHarmonyCandidateSetV1({
@@ -2612,9 +2942,14 @@ function prepareCandidateIdentityProjection(
     imageBytesObservedByNorma: prepared.imageBytesObservedByNorma,
     sourceImageIdentityBasis: prepared.sourceImageIdentityBasis,
     visualInterpretationSource: prepared.visualInterpretationSource,
-    ...(prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
-      ? {}
-      : { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }),
+    ...(prepared.contractVersion === 3
+      ? {
+          workflowMode: prepared.workflowMode,
+          perceptionManifest: prepared.perceptionManifest,
+        }
+      : prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
+        ? {}
+        : { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }),
     candidateEvidenceOnly: prepared.candidateEvidenceOnly,
     ...(isManualBrowserCandidateSet(prepared)
       ? {
