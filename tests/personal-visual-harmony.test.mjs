@@ -396,6 +396,22 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     observations: [observationA, observationB],
     candidates: [...base.candidates, candidateA, candidateB],
   });
+  for (const [prepared, selectedCandidateIds] of [
+    [first, [candidateA.id]],
+    [second, [candidateA.id, candidateB.id]],
+  ]) {
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: prepared,
+        expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+        selectedCandidateIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      /Two-object candidate sets require session-bound spatial confirmation/u,
+    );
+  }
   const forgedObservationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
     ...observationB,
     parentCandidateSetIdentity: `sha256:${"7".repeat(64)}`,

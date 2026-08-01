@@ -20,6 +20,7 @@ import {
   InMemoryPersonalVisualHarmonyPerceptionJobService,
 } from "../dist/src/personal-visual-harmony-perception-jobs.js";
 import {
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
   preparePersonalVisualHarmonyCandidateSetV2,
   preparePersonalVisualHarmonyCandidateSetV3,
 } from "../dist/src/personal-visual-harmony.js";
@@ -922,6 +923,49 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
     });
     assert.equal(ordinaryConfirm.isError, true);
 
+    const mismatchedObjectIds = ["frame", objectIds[0]];
+    const mismatchedPlan = createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity: sourceImageContentIdentity,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      candidates: payloadB.prepared.candidates,
+      selectedRectangleCandidateIds: mismatchedObjectIds,
+      expressions: mismatchedObjectIds.map((candidateId) => ({
+        kind: "extent",
+        owner: { kind: "rectangle", candidateId },
+        extent: "width",
+      })),
+    });
+    const mismatchedConfirm = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: payloadB.sessionId,
+        candidateSetIdentity: payloadB.prepared.candidateSetIdentity,
+        selectedCandidateIds: mismatchedObjectIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        confirmClientReviewedSelection: true,
+        declaredSpatialMeasurementPlan: mismatchedPlan,
+        recovery: {
+          fileId: "file-perception-mcp",
+          sourceImageMediaType: "image/png",
+          candidates: payloadB.prepared.candidates.map(
+            ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+          ),
+          contractVersion: 3,
+          sourceImageContentIdentity,
+          visualInterpretationSource: payloadB.prepared.visualInterpretationSource,
+          workflowMode: "two-object-spatial",
+          perceptionManifest: payloadB.prepared.perceptionManifest,
+        },
+      },
+    });
+    assert.equal(mismatchedConfirm.isError, true);
+    assert.match(
+      JSON.stringify(mismatchedConfirm),
+      /Successful two-object perception must confirm exactly objects A and B/u,
+    );
+
     const third = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: startArguments(payloadB, "person"),
@@ -1236,6 +1280,102 @@ test("multi-perception recovery capacity deterministically evicts its oldest evi
   assert.equal(evidenceStore.size, 3);
   assert.equal(evidenceStore.has("subject\u0000manifest-0"), false);
   assert.equal(evidenceStore.has("subject\u0000manifest-1"), true);
+});
+
+test("session capacity eviction terminalizes an active object-B attempt", () => {
+  const now = Date.parse("2026-07-31T10:00:00.000Z");
+  let sessionOrdinal = 0;
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    maxSessions: 1,
+    now: () => now,
+    createSessionId: () => `session:capacity-${String(++sessionOrdinal)}`,
+  });
+  const initial = service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-capacity-a",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a",
+    enablePerception: true,
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: initial.prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-capacity-object-a",
+    originalRectangle: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 },
+  });
+  const preparedA = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-capacity-a",
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+    visualInterpretationSource: "sam3",
+    observations: [observationA],
+    candidates: [
+      ...initial.prepared.candidates,
+      {
+        id: observationA.candidateId,
+        label: "Objet A",
+        role: observationA.role,
+        reason: "Observation SAM bornée",
+        ...observationA.originalRectangle,
+        primitive: { kind: "rectangle" },
+        sourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+      },
+    ],
+  });
+  const session = service.sessions.get(initial.sessionId);
+  session.prepared = preparedA;
+  session.multiPerceptionWorkflow = {
+    workflowMode: "two-object-spatial",
+    consumedOrdinals: [1],
+    reservedOrdinal: null,
+    activeJobId: null,
+    activeExpiresAtMs: null,
+    terminalJobId: null,
+    terminalAttemptOrdinal: null,
+    terminalState: null,
+  };
+  const reservation = service.reservePerceptionStart({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: preparedA.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+    workflowMode: "two-object-spatial",
+    guidedAnalysisGoal: "compare-two-lengths",
+  });
+  assert.equal(reservation.attemptOrdinal, 2);
+  service.bindPerceptionJob({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    attemptOrdinal: 2,
+    jobId: "job:capacity-object-b",
+    expiresAt: new Date(now + 10_000).toISOString(),
+  });
+
+  service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-capacity-b",
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+
+  assert.equal(service.sessions.has(initial.sessionId), false);
+  assert.equal(
+    service.assertMultiPerceptionRecoveryEvidence({
+      subjectId: "subject:owner",
+      fileId: "file-capacity-a",
+      preparedCandidateSet: preparedA,
+    }),
+    "object-b-failed",
+  );
 });
 
 test("app-only semantic targeting accepts exactly one normalized target and preserves the interactive boundary", async () => {

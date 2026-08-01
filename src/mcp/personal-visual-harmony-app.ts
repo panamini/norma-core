@@ -2065,23 +2065,12 @@ export class PersonalVisualHarmonySessionServiceV1 {
       throw new Error("Late or stale two-object perception job cannot modify the session.");
     }
     if (input.job.state === "pending") return;
-    workflow.activeJobId = null;
-    workflow.activeExpiresAtMs = null;
-    workflow.reservedOrdinal = null;
     if (input.job.state !== "ready" || input.job.preparedCandidateSet === null) {
-      workflow.terminalJobId = input.job.jobId;
-      workflow.terminalAttemptOrdinal = input.job.attemptOrdinal;
-      workflow.terminalState = input.job.attemptOrdinal === 1
-        ? "object-a-failed"
-        : "object-b-failed";
-      if (input.job.attemptOrdinal === 2 && session.prepared.contractVersion === 3
-        && session.prepared.perceptionManifest.observations.length === 1) {
-        this.rememberMultiPerceptionRecoveryEvidence(
-          session,
-          session.prepared,
-          "object-b-failed",
-        );
-      }
+      this.terminalizeMultiPerceptionAttempt(
+        session,
+        input.job.jobId,
+        input.job.attemptOrdinal,
+      );
       return;
     }
     const prepared = input.job.preparedCandidateSet;
@@ -2089,21 +2078,16 @@ export class PersonalVisualHarmonySessionServiceV1 {
       || prepared.workflowMode !== "two-object-spatial"
       || prepared.sourceImageReferenceIdentity !== session.prepared.sourceImageReferenceIdentity
       || prepared.perceptionManifest.observations.length !== input.job.attemptOrdinal) {
-      workflow.terminalJobId = input.job.jobId;
-      workflow.terminalAttemptOrdinal = input.job.attemptOrdinal;
-      workflow.terminalState = input.job.attemptOrdinal === 1
-        ? "object-a-failed"
-        : "object-b-failed";
-      if (input.job.attemptOrdinal === 2 && session.prepared.contractVersion === 3
-        && session.prepared.perceptionManifest.observations.length === 1) {
-        this.rememberMultiPerceptionRecoveryEvidence(
-          session,
-          session.prepared,
-          "object-b-failed",
-        );
-      }
+      this.terminalizeMultiPerceptionAttempt(
+        session,
+        input.job.jobId,
+        input.job.attemptOrdinal,
+      );
       throw new Error("Two-object perception result is invalid or source-mismatched.");
     }
+    workflow.activeJobId = null;
+    workflow.activeExpiresAtMs = null;
+    workflow.reservedOrdinal = null;
     this.rememberMultiPerceptionRecoveryEvidence(session, prepared, null);
     session.perceptionBaseCandidateSetIdentity = session.prepared.candidateSetIdentity;
     session.prepared = structuredClone(prepared);
@@ -2412,6 +2396,17 @@ export class PersonalVisualHarmonySessionServiceV1 {
       if (session.confirmation !== undefined) {
         throw new Error("This visual harmony session was already confirmed with a different operation.");
       }
+      if (session.prepared.contractVersion === 3
+        && session.prepared.perceptionManifest.observations.length === 2) {
+        const observationCandidateIds = session.prepared.perceptionManifest.observations
+          .map(({ candidateId }) => candidateId);
+        const selectedCandidateIds = new Set(input.selectedCandidateIds);
+        if (input.selectedCandidateIds.length !== observationCandidateIds.length
+          || selectedCandidateIds.size !== observationCandidateIds.length
+          || observationCandidateIds.some((candidateId) => !selectedCandidateIds.has(candidateId))) {
+          throw new Error("Successful two-object perception must confirm exactly objects A and B.");
+        }
+      }
       const effectiveCandidateSetIdentity = session.prepared.candidateSetIdentity;
       const confirmationKey = stableConfirmationKey({
         candidateSetIdentity: effectiveCandidateSetIdentity,
@@ -2532,7 +2527,11 @@ export class PersonalVisualHarmonySessionServiceV1 {
       && (session.prepared.triangleConstructionRequests?.length ?? 0) !== 1) {
       throw new Error("Triangle centroids require exactly one explicit current triangle request.");
     }
-    const effectiveCandidateSetIdentity = session.prepared.candidateSetIdentity;
+    const confirmablePrepared = session.prepared;
+    if (confirmablePrepared.contractVersion === 3) {
+      throw new Error("Two-object candidate sets require session-bound spatial confirmation.");
+    }
+    const effectiveCandidateSetIdentity = confirmablePrepared.candidateSetIdentity;
     const confirmationKey = stableConfirmationKey({
       candidateSetIdentity: effectiveCandidateSetIdentity,
       selectedCandidateIds: input.selectedCandidateIds,
@@ -2554,7 +2553,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
     const acceptedAt = new Date(now).toISOString();
     const confirmation = confirmPersonalVisualHarmonyCandidateSetV1({
-      preparedCandidateSet: session.prepared,
+      preparedCandidateSet: confirmablePrepared,
       expectedCandidateSetIdentity: effectiveCandidateSetIdentity,
       selectedCandidateIds: input.selectedCandidateIds,
       confirmedVisualGuideCandidateIds: input.confirmedVisualGuideCandidateIds ?? [],
@@ -2584,6 +2583,29 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
   }
 
+  private terminalizeMultiPerceptionAttempt(
+    session: PersonalVisualHarmonySessionV1,
+    terminalJobId: string | null,
+    attemptOrdinal: 1 | 2,
+  ): void {
+    const workflow = session.multiPerceptionWorkflow;
+    if (workflow === undefined) return;
+    workflow.activeJobId = null;
+    workflow.activeExpiresAtMs = null;
+    workflow.reservedOrdinal = null;
+    workflow.terminalJobId = terminalJobId;
+    workflow.terminalAttemptOrdinal = attemptOrdinal;
+    workflow.terminalState = attemptOrdinal === 1 ? "object-a-failed" : "object-b-failed";
+    if (attemptOrdinal === 2 && session.prepared.contractVersion === 3
+      && session.prepared.perceptionManifest.observations.length === 1) {
+      this.rememberMultiPerceptionRecoveryEvidence(
+        session,
+        session.prepared,
+        "object-b-failed",
+      );
+    }
+  }
+
   private expireActiveMultiPerceptionAttempt(
     session: PersonalVisualHarmonySessionV1,
   ): void {
@@ -2593,20 +2615,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
       || this.now() < workflow.activeExpiresAtMs) return;
     const terminalJobId = workflow.activeJobId;
     const ordinal = workflow.consumedOrdinals.at(-1);
-    workflow.activeJobId = null;
-    workflow.activeExpiresAtMs = null;
-    workflow.reservedOrdinal = null;
-    workflow.terminalJobId = terminalJobId;
-    workflow.terminalAttemptOrdinal = ordinal ?? null;
-    workflow.terminalState = ordinal === 1 ? "object-a-failed" : "object-b-failed";
-    if (ordinal === 2 && session.prepared.contractVersion === 3
-      && session.prepared.perceptionManifest.observations.length === 1) {
-      this.rememberMultiPerceptionRecoveryEvidence(
-        session,
-        session.prepared,
-        "object-b-failed",
-      );
+    if (ordinal !== 1 && ordinal !== 2) {
+      throw new Error("Active two-object perception attempt has no valid ordinal.");
     }
+    this.terminalizeMultiPerceptionAttempt(session, terminalJobId, ordinal);
   }
 
   private pruneExpired(now: number): void {
@@ -2742,7 +2754,20 @@ export class PersonalVisualHarmonySessionServiceV1 {
     for (const session of this.sessions.values()) {
       if (oldest === undefined || session.createdAtMs < oldest.createdAtMs) oldest = session;
     }
-    if (oldest !== undefined) this.sessions.delete(oldest.sessionId);
+    if (oldest !== undefined) {
+      const workflow = oldest.multiPerceptionWorkflow;
+      const activeOrdinal = workflow?.consumedOrdinals.at(-1);
+      if (workflow !== undefined
+        && (workflow.reservedOrdinal !== null || workflow.activeJobId !== null)
+        && (activeOrdinal === 1 || activeOrdinal === 2)) {
+        this.terminalizeMultiPerceptionAttempt(
+          oldest,
+          workflow.activeJobId,
+          activeOrdinal,
+        );
+      }
+      this.sessions.delete(oldest.sessionId);
+    }
   }
 }
 

@@ -282,8 +282,13 @@ export type PersonalVisualHarmonyPreparedCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSetV2
   | PersonalVisualHarmonyPreparedCandidateSetV3;
 
-export type PersonalVisualHarmonyConfirmableCandidateSet =
+type PersonalVisualHarmonyReviewableCandidateSet =
   | PersonalVisualHarmonyPreparedCandidateSet
+  | PersonalVisualHarmonyPreparedManualCandidateSetV1;
+
+export type PersonalVisualHarmonyConfirmableCandidateSet =
+  | PersonalVisualHarmonyPreparedCandidateSetV1
+  | PersonalVisualHarmonyPreparedCandidateSetV2
   | PersonalVisualHarmonyPreparedManualCandidateSetV1;
 
 export interface PersonalVisualHarmonyExplanationV1 {
@@ -545,8 +550,8 @@ export interface PersonalVisualHarmonyManualConfirmationV1
 }
 
 export type PersonalVisualHarmonyConfirmationInputV1<
-  Prepared extends PersonalVisualHarmonyConfirmableCandidateSet =
-    PersonalVisualHarmonyPreparedCandidateSet,
+  Prepared extends PersonalVisualHarmonyReviewableCandidateSet =
+    PersonalVisualHarmonyConfirmableCandidateSet,
 > = {
   readonly preparedCandidateSet: Prepared;
   readonly expectedCandidateSetIdentity: string;
@@ -999,7 +1004,7 @@ function validateMultiPerceptionPrompt(prompt: PersonalVisualHarmonyMultiPercept
 }
 
 function isManualBrowserCandidateSet(
-  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
+  prepared: PersonalVisualHarmonyReviewableCandidateSet,
 ): prepared is PersonalVisualHarmonyPreparedManualCandidateSetV1 {
   return prepared.contractId === PERSONAL_VISUAL_HARMONY_MANUAL_CANDIDATE_SET_CONTRACT_ID;
 }
@@ -1147,7 +1152,7 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(
 ): PersonalVisualHarmonyManualConfirmationV1;
 export function confirmPersonalVisualHarmonyCandidateSetV1(
   input: PersonalVisualHarmonyConfirmationInputV1<
-    PersonalVisualHarmonyPreparedCandidateSet
+    PersonalVisualHarmonyPreparedCandidateSetV1 | PersonalVisualHarmonyPreparedCandidateSetV2
   >,
 ): PersonalVisualHarmonyConfirmationV1;
 export function confirmPersonalVisualHarmonyCandidateSetV1(
@@ -1157,10 +1162,13 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(
 ): PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1;
 export function confirmPersonalVisualHarmonyCandidateSetV1(
   input: PersonalVisualHarmonyConfirmationInputV1<
-    PersonalVisualHarmonyConfirmableCandidateSet
+    PersonalVisualHarmonyReviewableCandidateSet
   >,
 ): PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1 {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
+  if (prepared.contractVersion === 3) {
+    throw new Error("Two-object candidate sets require session-bound spatial confirmation.");
+  }
   if (input.expectedCandidateSetIdentity !== prepared.candidateSetIdentity) {
     throw new Error("Candidate set identity does not match the prepared review.");
   }
@@ -1514,7 +1522,7 @@ function resolveMeasurementLengthEvidence(
 }
 
 export type PersonalVisualHarmonyImagePlaneRelationsInputV1<
-  Prepared extends PersonalVisualHarmonyConfirmableCandidateSet =
+  Prepared extends PersonalVisualHarmonyReviewableCandidateSet =
     PersonalVisualHarmonyPreparedCandidateSet,
 > = {
   readonly preparedCandidateSet: Prepared;
@@ -1536,12 +1544,12 @@ export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
 ): PersonalVisualHarmonyImagePlaneRelationsV1;
 export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
   input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
-    PersonalVisualHarmonyConfirmableCandidateSet
+    PersonalVisualHarmonyReviewableCandidateSet
   >,
 ): PersonalVisualHarmonyImagePlaneRelationsV1 | PersonalVisualHarmonyManualImagePlaneRelationsV1;
 export function analyzePersonalVisualHarmonyImagePlaneRelationsV1(
   input: PersonalVisualHarmonyImagePlaneRelationsInputV1<
-    PersonalVisualHarmonyConfirmableCandidateSet
+    PersonalVisualHarmonyReviewableCandidateSet
   >,
 ): PersonalVisualHarmonyImagePlaneRelationsV1 | PersonalVisualHarmonyManualImagePlaneRelationsV1 {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
@@ -2507,7 +2515,7 @@ export function layoutPersonalVisualHarmonyCandidateLabelsV1(input: {
 }
 
 export function createPersonalVisualHarmonyOverlaySvgV1(input: {
-  readonly preparedCandidateSet: PersonalVisualHarmonyConfirmableCandidateSet;
+  readonly preparedCandidateSet: PersonalVisualHarmonyReviewableCandidateSet;
   readonly result?: PersonalVisualHarmonyResultV1 | PersonalVisualHarmonyManualResultV1;
   readonly imagePlaneGuideAnalysis?:
     | PersonalVisualHarmonyImagePlaneRelationsV1
@@ -2744,16 +2752,13 @@ function createAcceptedGeometry(
     return match;
   });
   const selectionToken = identityToken(selectionIdentity);
-  const isObservedImageCandidateSet = prepared.contractVersion === 2
-    || prepared.contractVersion === 3;
+  const isObservedImageCandidateSet = prepared.contractVersion === 2;
   const manualBrowserCandidateSet = isManualBrowserCandidateSet(prepared);
   const sourceObservationContentIdentity = contentIdentityFor(isObservedImageCandidateSet
     ? {
         candidateSetIdentity: prepared.candidateSetIdentity,
         sourceImageContentIdentity: prepared.sourceImageContentIdentity,
-        ...(prepared.contractVersion === 2
-          ? { perceptionReceiptIdentity: prepared.perceptionReceiptIdentity }
-          : { perceptionManifestIdentity: prepared.perceptionManifest.manifestIdentity }),
+        perceptionReceiptIdentity: prepared.perceptionReceiptIdentity,
         visualInterpretationSource: prepared.visualInterpretationSource,
         sourcePixelWidth,
         sourcePixelHeight,
@@ -2913,8 +2918,8 @@ function metricLabel(metric: HarmonicRelationshipMetricV1): string {
 }
 
 function validatePreparedCandidateSet(
-  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
-): PersonalVisualHarmonyConfirmableCandidateSet {
+  prepared: PersonalVisualHarmonyReviewableCandidateSet,
+): PersonalVisualHarmonyReviewableCandidateSet {
   const v1IsValid = prepared.contractVersion === 1
     && prepared.contractId === PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID
     && prepared.imageBytesObservedByNorma === false
@@ -3050,7 +3055,7 @@ function validatePreparedCandidateSet(
 }
 
 function prepareCandidateIdentityProjection(
-  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
+  prepared: PersonalVisualHarmonyReviewableCandidateSet,
   candidates: readonly PersonalVisualHarmonyCandidateInputV1[],
   triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[],
 ) {
@@ -3584,7 +3589,7 @@ function normalizeSelectedCandidateIds(
 }
 
 function normalizeVisualGuideCandidateIds(
-  prepared: PersonalVisualHarmonyConfirmableCandidateSet,
+  prepared: PersonalVisualHarmonyReviewableCandidateSet,
   confirmedVisualGuideCandidateIds: readonly string[],
 ): readonly string[] {
   if (!Array.isArray(confirmedVisualGuideCandidateIds)) {
