@@ -10,7 +10,10 @@ import {
   PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
   PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V2_CONTRACT_ID,
   preparePersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
+import { serializeCanonicalJson } from "../dist/src/serialization.js";
 
 const sourceBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
 const sourceImageContentIdentity =
@@ -40,6 +43,42 @@ const prompt = {
   points: [],
   box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
 };
+
+function contentIdentityFor(value) {
+  return `sha256:${createHash("sha256").update(serializeCanonicalJson(value)).digest("hex")}`;
+}
+
+function sourceImageReferenceIdentityFor(fileId) {
+  return contentIdentityFor({
+    kind: "chatgpt-file-reference",
+    fileId,
+  });
+}
+
+function emptyBaseCandidateSetIdentity(fileId, sourceImageMediaType = "image/png") {
+  return contentIdentityFor({
+    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
+    contractVersion: 1,
+    status: "confirmation_required",
+    sourceImageReferenceIdentity: sourceImageReferenceIdentityFor(fileId),
+    sourceImageMediaType,
+    imageBytesObservedByNorma: false,
+    sourceImageIdentityBasis: "chatgpt_file_reference_not_image_bytes",
+    visualInterpretationSource: "chatgpt",
+    candidateEvidenceOnly: true,
+    explicitSelectionConfirmationRequired: true,
+    coreRun: false,
+    coordinateFrame: {
+      dimensions: 2,
+      coordinateScale: "normalized",
+      origin: "top-left",
+      xDirection: "right",
+      yDirection: "down",
+      bounds: { x: [0, 1], y: [0, 1] },
+    },
+    candidates: [],
+  });
+}
 
 function automaticCandidateSet(candidateCount = 1) {
   return preparePersonalVisualHarmonyCandidateSetV1({
@@ -164,6 +203,157 @@ test("perception job produces truthful V2 candidate evidence without Core author
   assert.equal("acceptedGeometry" in ready, false);
 });
 
+test("two-object perception jobs append exactly two ordered rectangle observations without Core", async () => {
+  let call = 0;
+  let job = 0;
+  const service = createService({
+    createJobId: () => `job:two-object-${String(++job)}`,
+    provider: {
+      async segment() {
+        call += 1;
+        const suffix = call === 1 ? "1" : "2";
+        const currentMask = call === 1
+          ? mask
+          : {
+              ...mask,
+              runs: [
+                { y: 2, startX: 6, endXExclusive: 9 },
+                { y: 3, startX: 6, endXExclusive: 9 },
+                { y: 4, startX: 6, endXExclusive: 9 },
+              ],
+            };
+        return {
+          response: {
+            ...(await successfulProvider().segment()).response,
+            requestIdentity: `sha256:${suffix.repeat(64)}`,
+            mask: currentMask,
+          },
+          receipt: {
+            ...(await successfulProvider().segment()).receipt,
+            requestIdentity: `sha256:${suffix.repeat(64)}`,
+            promptIdentity: `sha256:${(call === 1 ? "3" : "4").repeat(64)}`,
+            responseIdentity: `sha256:${(call === 1 ? "5" : "6").repeat(64)}`,
+            receiptIdentity: `sha256:${(call === 1 ? "7" : "8").repeat(64)}`,
+          },
+        };
+      },
+    },
+  });
+  const base = automaticCandidateSet();
+  const pendingA = service.start({
+    ...startInput(base),
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 1,
+    label: "Objet A",
+    role: "primary-subject",
+  });
+  const readyA = await waitForTerminal(service, {
+    jobId: pendingA.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  });
+  assert.equal(readyA.state, "ready", JSON.stringify(readyA));
+  assert.equal(readyA.preparedCandidateSet.contractVersion, 3);
+  assert.equal(readyA.preparedCandidateSet.perceptionManifest.observations.length, 1);
+  assert.equal(readyA.preparedCandidateSet.candidates.at(-1).role, "primary-subject");
+  assert.equal(readyA.coreRun, false);
+
+  const pendingB = service.start({
+    ...startInput(readyA.preparedCandidateSet),
+    prompt: { kind: "text", text: "bicycle" },
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 2,
+    label: "Objet B",
+    role: "secondary-subject",
+  });
+  const readyB = await waitForTerminal(service, {
+    jobId: pendingB.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  });
+  assert.equal(readyB.state, "ready", JSON.stringify(readyB));
+  assert.deepEqual(
+    readyB.preparedCandidateSet.perceptionManifest.observations.map(({ ordinal, role }) => ({ ordinal, role })),
+    [
+      { ordinal: 1, role: "primary-subject" },
+      { ordinal: 2, role: "secondary-subject" },
+    ],
+  );
+  assert.equal(new Set(readyB.preparedCandidateSet.perceptionManifest.observations
+    .map(({ providerReceiptIdentity }) => providerReceiptIdentity)).size, 2);
+  assert.equal(readyB.preparedCandidateSet.candidates.at(-1).primitive.kind, "rectangle");
+  assert.equal(readyB.coreRun, false);
+  assert.throws(
+    () => service.start({
+      ...startInput(readyB.preparedCandidateSet),
+      workflowMode: "two-object-spatial",
+      attemptOrdinal: 2,
+      label: "Objet C",
+      role: "secondary-subject",
+    }),
+    /exactly one current object observation/u,
+  );
+});
+
+test("object B preserves a SAM-only V3 parent interpretation source", async () => {
+  const service = createService();
+  const fileId = "file-perception-test";
+  const sourceImageReferenceIdentity = sourceImageReferenceIdentityFor(fileId);
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: emptyBaseCandidateSetIdentity(fileId),
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-object-a-only",
+    originalRectangle: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 },
+  });
+  const candidateA = {
+    id: observationA.candidateId,
+    label: "Objet A",
+    role: observationA.role,
+    reason: "Observation SAM bornée",
+    ...observationA.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity,
+  };
+  const preparedA = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: fileId,
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: sourceImageReferenceIdentity,
+    visualInterpretationSource: "sam3",
+    observations: [observationA],
+    candidates: [candidateA],
+  });
+  const pendingB = service.start({
+    ...startInput(preparedA),
+    prompt: { kind: "text", text: "bicycle" },
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 2,
+    label: "Objet B",
+    role: "secondary-subject",
+  });
+  const readyB = await waitForTerminal(service, {
+    jobId: pendingB.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity,
+  });
+  assert.equal(readyB.state, "ready", JSON.stringify(readyB));
+  assert.equal(readyB.preparedCandidateSet.visualInterpretationSource, "sam3");
+  assert.equal(
+    readyB.preparedCandidateSet.perceptionManifest.observations[1].parentCandidateSetIdentity,
+    preparedA.candidateSetIdentity,
+  );
+});
+
 test("perception job forwards one normalized semantic target without confirmation or Core", async () => {
   const prompts = [];
   const service = createService({
@@ -261,12 +451,14 @@ test("perception jobs reject stale subject, session, and source bindings", () =>
 
 test("perception jobs expire and enforce bounded capacity", () => {
   let now = Date.parse("2026-07-27T10:00:00.000Z");
+  let jobCount = 0;
   const neverProvider = { segment: async () => new Promise(() => {}) };
   const service = createService({
     provider: neverProvider,
     now: () => now,
     ttlMs: 1_000,
     capacity: 1,
+    createJobId: () => `job:expiry-${String(++jobCount)}`,
   });
   const prepared = automaticCandidateSet();
   const pending = service.start(startInput(prepared));
@@ -275,6 +467,8 @@ test("perception jobs expire and enforce bounded capacity", () => {
     (error) => error.code === "capacity_exhausted",
   );
   now += 1_000;
+  const replacement = service.start({ ...startInput(prepared), sessionId: "session:second" });
+  assert.equal(replacement.state, "pending");
   const expired = service.get({
     jobId: pending.jobId,
     subjectId: "subject:test",

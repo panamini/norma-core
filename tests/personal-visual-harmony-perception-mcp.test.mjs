@@ -20,8 +20,13 @@ import {
   InMemoryPersonalVisualHarmonyPerceptionJobService,
 } from "../dist/src/personal-visual-harmony-perception-jobs.js";
 import {
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
   preparePersonalVisualHarmonyCandidateSetV2,
+  preparePersonalVisualHarmonyCandidateSetV3,
 } from "../dist/src/personal-visual-harmony.js";
+import {
+  createDeclaredSpatialMeasurementPlanV1,
+} from "../dist/src/personal-visual-harmony-spatial-measurements.js";
 
 const sourceBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
 const sourceImageContentIdentity =
@@ -192,7 +197,7 @@ async function connect({ service, jobs, subjectId }) {
   };
 }
 
-async function prepare(client) {
+async function prepare(client, preparedCandidates = candidates()) {
   return client.callTool({
     name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
     arguments: {
@@ -201,7 +206,7 @@ async function prepare(client) {
         file_id: "file-perception-mcp",
         mime_type: "image/png",
       },
-      candidates: candidates(),
+      candidates: preparedCandidates,
     },
   });
 }
@@ -248,7 +253,7 @@ test("prepare withholds perception capability for unsupported media and insuffic
           file_id: "file-saturated",
           mime_type: "image/png",
         },
-        candidates: Array.from({ length: 10 }, (_, index) => ({
+        candidates: Array.from({ length: 11 }, (_, index) => ({
           id: `frame-${String(index + 1)}`,
           label: `Cadre ${String(index + 1)}`,
           role: "frame",
@@ -273,6 +278,127 @@ test("prepare withholds perception capability for unsupported media and insuffic
   } finally {
     await connected.close();
   }
+});
+
+test("ten-candidate preparation issues a capability only for the bounded A/B workflow", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
+          file_id: "file-ten-candidates",
+          mime_type: "image/png",
+        },
+        candidates: Array.from({ length: 10 }, (_, index) => ({
+          id: `frame-${String(index + 1)}`,
+          label: `Cadre ${String(index + 1)}`,
+          role: "frame",
+          reason: "Cadre visible.",
+          x: index * 0.01,
+          y: index * 0.01,
+          width: 0.5,
+          height: 0.5,
+        })),
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.match(payload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(payload.perceptionModes, ["two-object-spatial"]);
+
+    const sharedArguments = {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl:
+        "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
+      label: "client label ignored",
+      role: "frame",
+    };
+    const legacy = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        ...sharedArguments,
+        prompt: { points: [], box: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } },
+      },
+    });
+    assert.equal(legacy.isError, true);
+
+    const objectA = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        ...sharedArguments,
+        semanticTarget: "person",
+        workflowMode: "two-object-spatial",
+        guidedAnalysisGoal: "compare-two-lengths",
+      },
+    });
+    assert.equal(objectA.isError, undefined, JSON.stringify(objectA));
+    assert.equal(objectA.structuredContent.attemptOrdinal, 1);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("widget exposes an A/B-only capability only through compare-two-lengths", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function updatePerceptionUi(){");
+  const end = html.indexOf("\nfunction perceptionPromptFor(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    payload: {
+      perceptionAppCapability: "pvh-app:" + "a".repeat(32),
+      perceptionModes: ["two-object-spatial"],
+      prepared: {
+        contractVersion: 1,
+        candidates: Array.from({ length: 10 }, (_, index) => ({ id: `frame-${String(index)}` })),
+      },
+    },
+    guidedAnalysisGoal: "general-geometry",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+  };
+  const perceptionToggle = {};
+  const updatePerceptionUi = new Function(
+    "state",
+    "perceptionToggle",
+    "multiPerceptionObservationCount",
+    "eligibleInteractivePerceptionCandidates",
+    "multiPerceptionStartBlocked",
+    `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
+  )(
+    state,
+    perceptionToggle,
+    () => 0,
+    () => state.payload.prepared.candidates,
+    () => state.manualSegmentCandidateId !== null,
+  );
+
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, true);
+
+  state.guidedAnalysisGoal = "compare-two-lengths";
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, false);
+  assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
+
+  state.manualSegmentCandidateId = "manual-segment-1";
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, true);
 });
 
 test("edited perception geometry preserves explicit triangle requests", () => {
@@ -360,6 +486,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     );
     const privatePayload = prepared._meta.normaPersonalVisualHarmony;
     assert.match(privatePayload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(privatePayload.perceptionModes, ["legacy", "two-object-spatial"]);
 
     const unauthorized = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
@@ -604,6 +731,741 @@ test("app-only perception enforces capability, subject, session, and explicit co
   }
 });
 
+test("two-object MCP workflow is atomic, bounded to A then B, and emits full reviewed provenance", async () => {
+  let providerCallCount = 0;
+  let jobCount = 0;
+  const provider = {
+    async segment(input) {
+      providerCallCount += 1;
+      const first = providerCallCount === 1;
+      const digit = first ? "1" : "2";
+      const currentMask = first
+        ? {
+            contractId: "norma.personal-visual-harmony-segmentation-mask@1",
+            contractVersion: 1,
+            width: 10,
+            height: 10,
+            runs: [
+              { y: 1, startX: 1, endXExclusive: 4 },
+              { y: 2, startX: 1, endXExclusive: 4 },
+              { y: 3, startX: 1, endXExclusive: 4 },
+            ],
+          }
+        : {
+            contractId: "norma.personal-visual-harmony-segmentation-mask@1",
+            contractVersion: 1,
+            width: 10,
+            height: 10,
+            runs: [
+              { y: 5, startX: 6, endXExclusive: 9 },
+              { y: 6, startX: 6, endXExclusive: 9 },
+              { y: 7, startX: 6, endXExclusive: 9 },
+            ],
+          };
+      return {
+        response: {
+          contractId: "norma.personal-visual-harmony-segmentation-response@1",
+          contractVersion: 1,
+          status: "ready",
+          requestIdentity: `sha256:${digit.repeat(64)}`,
+          sourceImageContentIdentity,
+          provider: {
+            providerId: "modal-sam3",
+            modelId: "facebook/sam3",
+            modelVersion: "test-snapshot",
+          },
+          mask: currentMask,
+          providerConfidence: 0.9,
+          abstentionReason: null,
+        },
+        receipt: {
+          contractId: "norma.personal-visual-harmony-perception-receipt@1",
+          contractVersion: 1,
+          requestIdentity: `sha256:${digit.repeat(64)}`,
+          sourceImageContentIdentity,
+          promptIdentity: `sha256:${(first ? "3" : "4").repeat(64)}`,
+          provider: {
+            providerId: "modal-sam3",
+            modelId: "facebook/sam3",
+            modelVersion: "test-snapshot",
+          },
+          responseIdentity: `sha256:${(first ? "5" : "6").repeat(64)}`,
+          status: "ready",
+          inferenceAttempts: 1,
+          availabilityProbeCount: 0,
+          candidateEvidenceOnly: true,
+          sourceTruth: false,
+          coreAuthority: false,
+          coreRun: false,
+          receiptIdentity: `sha256:${(first ? "7" : "8").repeat(64)}`,
+        },
+      };
+    },
+  };
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider,
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        "content-length": String(sourceBytes.byteLength),
+      },
+    }),
+    createJobId: () => `job:mcp-two-object-${String(++jobCount)}`,
+  });
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:mcp-two-object",
+  });
+  const connected = await connect({ service, jobs, subjectId: "subject:owner" });
+  const statusUntilTerminal = async (payload, pending) => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const status = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload.sessionId,
+          candidateSetIdentity: payload.prepared.candidateSetIdentity,
+          appCapability: payload.perceptionAppCapability,
+          jobId: pending.structuredContent.jobId,
+        },
+      });
+      if (status.structuredContent?.state !== "pending") return status;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("two-object job did not settle");
+  };
+  try {
+    const initial = await prepare(connected.client);
+    const payload0 = initial._meta.normaPersonalVisualHarmony;
+    const startArguments = (payload, semanticTarget) => ({
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
+      semanticTarget,
+      label: "client label ignored",
+      role: "frame",
+      workflowMode: "two-object-spatial",
+      guidedAnalysisGoal: "compare-two-lengths",
+    });
+    const startedA = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payload0, "person"),
+    });
+    assert.equal(startedA.isError, undefined, JSON.stringify(startedA));
+    assert.equal(startedA.structuredContent.attemptOrdinal, 1);
+    const concurrent = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payload0, "bicycle"),
+    });
+    assert.equal(concurrent.isError, true);
+
+    const statusA = await statusUntilTerminal(payload0, startedA);
+    assert.equal(statusA.structuredContent.state, "ready");
+    assert.equal(statusA.structuredContent.coreRun, false);
+    const payloadA = statusA._meta.normaPersonalVisualHarmony;
+    assert.equal(payloadA.prepared.contractVersion, 3);
+    assert.equal(payloadA.prepared.perceptionManifest.observations.length, 1);
+    assert.equal(payloadA.prepared.candidates.at(-1).role, "primary-subject");
+
+    const staleB = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payload0, "bicycle"),
+    });
+    assert.equal(staleB.isError, true);
+    assert.equal(providerCallCount, 1);
+
+    const duplicateB = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payloadA, "person"),
+    });
+    assert.equal(duplicateB.isError, true);
+    assert.equal(providerCallCount, 1);
+
+    const earlyConfirm = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: payloadA.sessionId,
+        candidateSetIdentity: payloadA.prepared.candidateSetIdentity,
+        selectedCandidateIds: ["frame"],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        confirmClientReviewedSelection: true,
+      },
+    });
+    assert.equal(earlyConfirm.isError, true);
+
+    const startedB = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payloadA, "bicycle"),
+    });
+    assert.equal(startedB.isError, undefined, JSON.stringify(startedB));
+    assert.equal(startedB.structuredContent.attemptOrdinal, 2);
+    const statusB = await statusUntilTerminal(payloadA, startedB);
+    assert.equal(statusB.structuredContent.state, "ready");
+    assert.equal(statusB.structuredContent.coreRun, false);
+    assert.equal(providerCallCount, 2);
+    const payloadB = statusB._meta.normaPersonalVisualHarmony;
+    assert.equal(payloadB.prepared.perceptionManifest.observations.length, 2);
+    const objectIds = payloadB.prepared.perceptionManifest.observations.map(({ candidateId }) => candidateId);
+    assert.equal(objectIds.every((id) => !payloadB.selectedCandidateIds?.includes(id)), true);
+
+    const ordinaryConfirm = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: payloadB.sessionId,
+        candidateSetIdentity: payloadB.prepared.candidateSetIdentity,
+        selectedCandidateIds: objectIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        confirmClientReviewedSelection: true,
+      },
+    });
+    assert.equal(ordinaryConfirm.isError, true);
+
+    const mismatchedObjectIds = ["frame", objectIds[0]];
+    const mismatchedPlan = createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity: sourceImageContentIdentity,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      candidates: payloadB.prepared.candidates,
+      selectedRectangleCandidateIds: mismatchedObjectIds,
+      expressions: mismatchedObjectIds.map((candidateId) => ({
+        kind: "extent",
+        owner: { kind: "rectangle", candidateId },
+        extent: "width",
+      })),
+    });
+    const mismatchedConfirm = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: payloadB.sessionId,
+        candidateSetIdentity: payloadB.prepared.candidateSetIdentity,
+        selectedCandidateIds: mismatchedObjectIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        confirmClientReviewedSelection: true,
+        declaredSpatialMeasurementPlan: mismatchedPlan,
+        recovery: {
+          fileId: "file-perception-mcp",
+          sourceImageMediaType: "image/png",
+          candidates: payloadB.prepared.candidates.map(
+            ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+          ),
+          contractVersion: 3,
+          sourceImageContentIdentity,
+          visualInterpretationSource: payloadB.prepared.visualInterpretationSource,
+          workflowMode: "two-object-spatial",
+          perceptionManifest: payloadB.prepared.perceptionManifest,
+        },
+      },
+    });
+    assert.equal(mismatchedConfirm.isError, true);
+    assert.match(
+      JSON.stringify(mismatchedConfirm),
+      /Successful two-object perception must confirm exactly objects A and B/u,
+    );
+
+    const third = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments(payloadB, "person"),
+    });
+    assert.equal(third.isError, true);
+    assert.equal(providerCallCount, 2);
+
+    const reviewedCandidates = payloadB.prepared.candidates.map((candidate) => {
+      if (candidate.id === "frame") {
+        return { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 };
+      }
+      if (candidate.id === objectIds[0]) {
+        return { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 };
+      }
+      return candidate;
+    });
+    const plan = createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity: sourceImageContentIdentity,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      candidates: reviewedCandidates,
+      selectedRectangleCandidateIds: objectIds,
+      expressions: objectIds.map((candidateId) => ({
+        kind: "extent",
+        owner: { kind: "rectangle", candidateId },
+        extent: "width",
+      })),
+    });
+    const confirmationArguments = {
+      sessionId: payloadB.sessionId,
+      candidateSetIdentity: payloadB.prepared.candidateSetIdentity,
+      selectedCandidateIds: objectIds,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      reviewedCandidates: reviewedCandidates.map(
+        ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+      ),
+      confirmClientReviewedSelection: true,
+      declaredSpatialMeasurementPlan: plan,
+      recovery: {
+        fileId: "file-perception-mcp",
+        sourceImageMediaType: "image/png",
+        candidates: payloadB.prepared.candidates.map(
+          ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+        ),
+        contractVersion: 3,
+        sourceImageContentIdentity,
+        visualInterpretationSource: payloadB.prepared.visualInterpretationSource,
+        workflowMode: "two-object-spatial",
+        perceptionManifest: payloadB.prepared.perceptionManifest,
+      },
+    };
+    const completed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: confirmationArguments,
+    });
+    assert.equal(completed.isError, undefined, JSON.stringify(completed));
+    assert.equal(completed.structuredContent.coreRun, true);
+    assert.equal(completed.structuredContent.declaredSpatialMeasurementConfirmation.coreExecutionCount, 1);
+    assert.deepEqual(
+      completed.structuredContent.multiPerceptionReceipt.perceptionManifest,
+      payloadB.prepared.perceptionManifest,
+    );
+    assert.deepEqual(
+      completed.structuredContent.multiPerceptionReceipt.observations.map(({ userEdited }) => userEdited),
+      [true, false],
+    );
+    assert.match(completed.structuredContent.multiPerceptionReceipt.receiptIdentity, /^sha256:[0-9a-f]{64}$/u);
+    const replay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: structuredClone(confirmationArguments),
+    });
+    assert.equal(replay.isError, undefined, JSON.stringify(replay));
+    assert.deepEqual(replay.structuredContent, completed.structuredContent);
+    assert.equal(replay.structuredContent.declaredSpatialMeasurementConfirmation.coreExecutionCount, 1);
+    assert.equal(providerCallCount, 2);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("terminal object-B abstention is replay-safe and permits only its one-observation recovery", async () => {
+  let now = Date.parse("2026-07-31T10:00:00.000Z");
+  let providerCalls = 0;
+  const readyProvider = successfulProvider();
+  const provider = {
+    async segment(input) {
+      providerCalls += 1;
+      const result = await readyProvider.segment(input);
+      if (input.prompt.kind === "text" && input.prompt.text === "person") return result;
+      return {
+        response: {
+          ...result.response,
+          status: "abstained",
+          mask: null,
+          providerConfidence: null,
+          abstentionReason: "no_mask",
+        },
+        receipt: { ...result.receipt, status: "abstained" },
+      };
+    },
+  };
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider,
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(sourceBytes.byteLength) },
+    }),
+    createJobId: (() => { let count = 0; return () => `job:terminal-${String(++count)}`; })(),
+    now: () => now,
+    ttlMs: 1_000,
+  });
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => now,
+    sessionTtlMs: 2_000,
+    createSessionId: (() => { let count = 0; return () => `session:terminal-${String(++count)}`; })(),
+  });
+  const connected = await connect({ service, jobs, subjectId: "subject:owner" });
+  const poll = async (payload, pending) => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const status = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload.sessionId,
+          candidateSetIdentity: payload.prepared.candidateSetIdentity,
+          appCapability: payload.perceptionAppCapability,
+          jobId: pending.structuredContent.jobId,
+        },
+      });
+      if (status.structuredContent?.state !== "pending") return status;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    throw new Error("terminal job did not settle");
+  };
+  const start = (payload, semanticTarget) => connected.client.callTool({
+    name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+    arguments: {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=terminal",
+      semanticTarget,
+      label: "ignored",
+      role: "frame",
+      workflowMode: "two-object-spatial",
+      guidedAnalysisGoal: "compare-two-lengths",
+    },
+  });
+  try {
+    const initial = (await prepare(connected.client, [
+      ...candidates(),
+      {
+        id: "panel",
+        label: "Panneau",
+        role: "structural-region",
+        reason: "Panneau visible.",
+        x: 0.15,
+        y: 0.2,
+        width: 0.3,
+        height: 0.4,
+      },
+    ]))._meta.normaPersonalVisualHarmony;
+    const terminalA = await poll(initial, await start(initial, "person"));
+    assert.equal(terminalA.structuredContent.state, "ready");
+    const payloadA = terminalA._meta.normaPersonalVisualHarmony;
+    assert.throws(
+      () => service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: payloadA.prepared,
+      }),
+      /missing, expired, or invalid/u,
+    );
+    const terminalB = await poll(payloadA, await start(payloadA, "bicycle"));
+    assert.equal(terminalB.structuredContent.state, "abstained");
+    assert.equal(
+      service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: payloadA.prepared,
+      }),
+      "object-b-failed",
+    );
+    assert.throws(
+      () => service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: {
+          ...payloadA.prepared,
+          visualInterpretationSource: payloadA.prepared.visualInterpretationSource === "hybrid"
+            ? "sam3"
+            : "hybrid",
+        },
+      }),
+      /missing, expired, or invalid/u,
+    );
+    const replayB = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: payloadA.sessionId,
+        candidateSetIdentity: payloadA.prepared.candidateSetIdentity,
+        appCapability: payloadA.perceptionAppCapability,
+        jobId: terminalB.structuredContent.jobId,
+      },
+    });
+    assert.equal(replayB.isError, undefined, JSON.stringify(replayB));
+    assert.deepEqual(replayB.structuredContent, terminalB.structuredContent);
+
+    const objectAId = payloadA.prepared.perceptionManifest.observations[0].candidateId;
+    const rectangleIds = ["frame", objectAId];
+    const planFor = (selectedRectangleCandidateIds) => createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity: sourceImageContentIdentity,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      candidates: payloadA.prepared.candidates,
+      selectedRectangleCandidateIds,
+      expressions: selectedRectangleCandidateIds.map((candidateId) => ({
+        kind: "extent",
+        owner: { kind: "rectangle", candidateId },
+        extent: "width",
+      })),
+    });
+    const plan = planFor(rectangleIds);
+    const recoveryCandidates = payloadA.prepared.candidates.map(
+      ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
+    );
+    const rebuilt = preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-perception-mcp",
+      sourceImageContentIdentity,
+      sourceImageMediaType: "image/png",
+      visualInterpretationSource: payloadA.prepared.visualInterpretationSource,
+      observations: payloadA.prepared.perceptionManifest.observations,
+      candidates: recoveryCandidates.map((candidate) => (
+        payloadA.prepared.perceptionManifest.observations.some(
+          (observation) => observation.candidateId === candidate.id,
+        )
+          ? {
+              ...candidate,
+              sourceImageReferenceIdentity: payloadA.prepared.sourceImageReferenceIdentity,
+            }
+          : candidate
+      )),
+    });
+    assert.equal(rebuilt.candidateSetIdentity, payloadA.prepared.candidateSetIdentity);
+    now += 2_001;
+    const recoveryConfirmationArguments = {
+      sessionId: payloadA.sessionId,
+      candidateSetIdentity: payloadA.prepared.candidateSetIdentity,
+      selectedCandidateIds: rectangleIds,
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      confirmClientReviewedSelection: true,
+      declaredSpatialMeasurementPlan: plan,
+      recovery: {
+        fileId: "file-perception-mcp",
+        sourceImageMediaType: "image/png",
+        candidates: recoveryCandidates,
+        contractVersion: 3,
+        sourceImageContentIdentity,
+        visualInterpretationSource: payloadA.prepared.visualInterpretationSource,
+        workflowMode: "two-object-spatial",
+        perceptionManifest: payloadA.prepared.perceptionManifest,
+      },
+    };
+    const omittedObjectA = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        ...recoveryConfirmationArguments,
+        selectedCandidateIds: ["frame", "panel"],
+        declaredSpatialMeasurementPlan: planFor(["frame", "panel"]),
+      },
+    });
+    assert.equal(omittedObjectA.isError, true);
+    assert.match(omittedObjectA.content[0].text, /must include object A/u);
+    const recovered = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: recoveryConfirmationArguments,
+    });
+    assert.equal(recovered.isError, undefined, JSON.stringify(recovered));
+    assert.equal(recovered.structuredContent.coreRun, true);
+    assert.equal(recovered.structuredContent.multiPerceptionReceipt.perceptionManifest.observations.length, 1);
+    const recoveredReplay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: structuredClone(recoveryConfirmationArguments),
+    });
+    assert.equal(recoveredReplay.isError, undefined, JSON.stringify(recoveredReplay));
+    assert.equal(
+      recoveredReplay.structuredContent.multiPerceptionReceipt.receiptIdentity,
+      recovered.structuredContent.multiPerceptionReceipt.receiptIdentity,
+    );
+    assert.equal(
+      recoveredReplay.structuredContent.multiPerceptionReceipt.sessionId,
+      payloadA.sessionId,
+    );
+    const conflictingRecovery = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        ...recoveryConfirmationArguments,
+        selectedCandidateIds: ["panel", objectAId],
+        declaredSpatialMeasurementPlan: planFor(["panel", objectAId]),
+      },
+    });
+    assert.equal(conflictingRecovery.isError, true);
+    assert.match(conflictingRecovery.content[0].text, /already confirmed with a different review/u);
+    assert.equal(providerCalls, 2);
+    const initialWithoutStatus = (await prepare(connected.client))._meta.normaPersonalVisualHarmony;
+    const readyAWithoutStatus = await poll(
+      initialWithoutStatus,
+      await start(initialWithoutStatus, "person"),
+    );
+    const payloadAWithoutStatus = readyAWithoutStatus._meta.normaPersonalVisualHarmony;
+    await start(payloadAWithoutStatus, "bicycle");
+    await new Promise((resolve) => setImmediate(resolve));
+    now += 2_001;
+    await prepare(connected.client);
+    assert.equal(
+      service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: payloadAWithoutStatus.prepared,
+      }),
+      "object-b-failed",
+    );
+    assert.equal(providerCalls, 4);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("multi-perception recovery capacity deterministically evicts its oldest evidence", () => {
+  const service = new PersonalVisualHarmonySessionServiceV1({ maxSessions: 1 });
+  const evidenceStore = service.multiPerceptionRecoveryEvidence;
+  for (let index = 0; index < 4; index += 1) {
+    evidenceStore.set(`subject\u0000manifest-${String(index)}`, {
+      subjectId: "subject",
+      fileId: `file-${String(index)}`,
+      sourceImageReferenceIdentity: `sha256:${String(index).repeat(64)}`,
+      sourceImageContentIdentity: `sha256:${String(index + 4).repeat(64)}`,
+      manifestIdentity: `sha256:${String(index + 5).repeat(64)}`,
+      terminalState: null,
+      createdAtMs: index,
+      expiresAtMs: 10_000,
+    });
+  }
+  service.requireMultiPerceptionRecoveryCapacity("subject\u0000manifest-new");
+  assert.equal(evidenceStore.size, 3);
+  assert.equal(evidenceStore.has("subject\u0000manifest-0"), false);
+  assert.equal(evidenceStore.has("subject\u0000manifest-1"), true);
+});
+
+test("session capacity eviction terminalizes an active object-B attempt", () => {
+  const now = Date.parse("2026-07-31T10:00:00.000Z");
+  let sessionOrdinal = 0;
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    maxSessions: 1,
+    now: () => now,
+    createSessionId: () => `session:capacity-${String(++sessionOrdinal)}`,
+  });
+  const initial = service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-capacity-a",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a",
+    enablePerception: true,
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: initial.prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-capacity-object-a",
+    originalRectangle: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 },
+  });
+  const preparedA = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-capacity-a",
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+    visualInterpretationSource: "sam3",
+    observations: [observationA],
+    candidates: [
+      ...initial.prepared.candidates,
+      {
+        id: observationA.candidateId,
+        label: "Objet A",
+        role: observationA.role,
+        reason: "Observation SAM bornée",
+        ...observationA.originalRectangle,
+        primitive: { kind: "rectangle" },
+        sourceImageReferenceIdentity: initial.prepared.sourceImageReferenceIdentity,
+      },
+    ],
+  });
+  const session = service.sessions.get(initial.sessionId);
+  session.prepared = preparedA;
+  session.multiPerceptionWorkflow = {
+    workflowMode: "two-object-spatial",
+    consumedOrdinals: [1],
+    reservedOrdinal: null,
+    activeJobId: null,
+    activeExpiresAtMs: null,
+    terminalJobId: null,
+    terminalAttemptOrdinal: null,
+    terminalState: null,
+  };
+  const reservation = service.reservePerceptionStart({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: preparedA.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+    workflowMode: "two-object-spatial",
+    guidedAnalysisGoal: "compare-two-lengths",
+  });
+  assert.equal(reservation.attemptOrdinal, 2);
+  service.bindPerceptionJob({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    attemptOrdinal: 2,
+    jobId: "job:capacity-object-b",
+    expiresAt: new Date(now + 10_000).toISOString(),
+  });
+
+  service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-capacity-b",
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+
+  assert.equal(service.sessions.has(initial.sessionId), false);
+  assert.equal(
+    service.assertMultiPerceptionRecoveryEvidence({
+      subjectId: "subject:owner",
+      fileId: "file-capacity-a",
+      preparedCandidateSet: preparedA,
+    }),
+    "object-b-failed",
+  );
+});
+
+test("a bound two-object provider job keeps its session alive through the advertised expiry", () => {
+  let now = Date.parse("2026-08-01T10:00:00.000Z");
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => now,
+    sessionTtlMs: 1_000,
+    createSessionId: () => "session:bound-job-lifetime",
+  });
+  const initial = service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-bound-job-lifetime",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime",
+    enablePerception: true,
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+  const reservation = service.reservePerceptionStart({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: initial.prepared.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+    workflowMode: "two-object-spatial",
+    guidedAnalysisGoal: "compare-two-lengths",
+  });
+  assert.equal(reservation.attemptOrdinal, 1);
+  const jobExpiresAtMs = now + 5_000;
+  service.bindPerceptionJob({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    attemptOrdinal: 1,
+    jobId: "job:bound-session-lifetime",
+    expiresAt: new Date(jobExpiresAtMs).toISOString(),
+  });
+
+  now += 2_000;
+  assert.equal(service.perceptionContext({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: initial.prepared.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+  }).fileId, "file-bound-job-lifetime");
+
+  now = jobExpiresAtMs + 1;
+  assert.throws(
+    () => service.perceptionContext({
+      subjectId: "subject:owner",
+      sessionId: initial.sessionId,
+      candidateSetIdentity: initial.prepared.candidateSetIdentity,
+      appCapability: initial.perceptionAppCapability,
+    }),
+    /missing or expired/u,
+  );
+});
+
 test("app-only semantic targeting accepts exactly one normalized target and preserves the interactive boundary", async () => {
   const prompts = [];
   const downloadedUrls = [];
@@ -723,7 +1585,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, new RegExp(PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL, "u"));
   assert.match(
     html,
-    /payload\.prepared\?\.perceptionReceiptIdentity\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
+    /perceptionAssistedPrepared\(payload\.prepared\)\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
   );
   assert.match(
     html,
@@ -733,6 +1595,40 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
   assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=18/u);
   assert.match(html, /while\(Date\.now\(\)<expiresAtMs&&remainingPolls>0\)/u);
+  assert.match(html, /workflowMode:"two-object-spatial",guidedAnalysisGoal:"compare-two-lengths"/u);
+  assert.match(html, /twoObjectSpatialWorkflowActive\(\)&&id!=="compare-two-lengths"/u);
+  assert.match(html, /eligibleInteractivePerceptionCandidates\(payload\)/u);
+  assert.match(html, /!proposalIds\.has\(candidate\.id\)&&!usedPrompts\.has/u);
+  assert.match(html, /multiPerceptionReviewLocked\(\).*count===1/u);
+  assert.match(
+    html,
+    /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+  );
+  assert.equal(
+    html.match(/state\.perceptionRunning=true;setReviewLocked\(true\);recordReviewEvent\("sam-requested"\)/gu)?.length,
+    2,
+  );
+  assert.equal(
+    html.match(/finally\{state\.perceptionRunning=false;setReviewLocked\(multiPerceptionReviewLocked\(\)\)/gu)?.length,
+    2,
+  );
+  assert.match(html, /if\(reviewEditingBlocked\(\)\|\|!event\.key\.startsWith\("Arrow"\)/u);
+  assert.match(html, /if\(reviewEditingBlocked\(\)\|\|event\.isPrimary===false/u);
+  assert.match(
+    html,
+    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateId!==null&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
+  );
+  assert.match(html, /multiStartBlocked=multiPerceptionStartBlocked\(payload\)/u);
+  assert.match(html, /perceptionToggle\.disabled=.*?\|\|multiStartBlocked\|\|/u);
+  assert.match(html, /busy=.*?\|\|multiPerceptionStartBlocked\(\)\|\|/u);
+  assert.equal(
+    html.match(/if\([^}]*multiPerceptionStartBlocked\(payload\)[^}]*\)return;/gu)?.length,
+    2,
+  );
+  assert.match(html, /rectangleIds\.filter\(id=>!proposalIds\.has\(id\)\)/u);
+  assert.match(html, /setReviewLocked\(multiPerceptionReviewLocked\(\)\)/u);
+  assert.match(html, /remainingMs>0\)await new Promise\(resolve=>setTimeout\(resolve,remainingMs\)\)/u);
+  assert.match(html, /state\.multiPerceptionTerminalState=multiPerceptionObservationCount\(payload\)===0\?"object-a-failed":"object-b-failed"/u);
   assert.match(
     html,
     /candidates:prepared\.candidates\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
@@ -741,10 +1637,12 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /points:\[\{x:clampUnit\(x\),y:clampUnit\(y\),label:"include"\}\],box:null/u);
   assert.match(html, /Cibler un concept avec SAM 3/u);
   assert.match(html, /maxlength="500"/u);
-  assert.match(html, /semanticTarget:target,label:"Cible sémantique"/u);
+  assert.match(html, /semanticTarget:target,label:workflowArgs\.workflowMode\?"Objet "/u);
   assert.match(html, /normalizeSemanticTarget\(value\)/u);
   assert.match(html, /\/\[,;\|\]\/u\.test\(value\)/u);
   assert.match(html, /Saisissez une seule cible courte/u);
+  assert.match(html, /semanticTargetAlreadyUsed\(target\)/u);
+  assert.match(html, /L’objet B exige une cible distincte de l’objet A/u);
   assert.match(html, /chip\.disabled=busy/u);
   assert.match(
     html,
@@ -755,4 +1653,104 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     assert.match(html, new RegExp(`"value":"${target.value}"`, "u"));
     assert.equal(target.value.includes(" "), false);
   }
+});
+
+test("widget polling performs one final status read before declaring expiry", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function applyPerceptionStatusResponse(");
+  const end = html.indexOf("\nperceptionToggle.addEventListener", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  let statusReads = 0;
+  const state = {
+    activePayloadIdentity: "payload:active",
+    completed: false,
+    perceptionRunning: true,
+    multiPerceptionTerminalState: null,
+  };
+  const pollPerceptionJob = new Function(
+    "state",
+    "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_TOOL",
+    "callAppTool",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "setReviewLocked",
+    "multiPerceptionReviewLocked",
+    `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
+  )(
+    state,
+    18,
+    PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+    async () => {
+      statusReads += 1;
+      return { structuredContent: { state: "pending" } };
+    },
+    () => ({}),
+    () => 0,
+    () => {},
+    () => false,
+  );
+  await assert.rejects(
+    () => pollPerceptionJob(
+      {
+        sessionId: "session:poll-final",
+        fileId: "file:poll-final",
+        perceptionAppCapability: "pvh-app:poll-final-capability",
+        prepared: { candidateSetIdentity: `sha256:${"1".repeat(64)}` },
+      },
+      "job:poll-final",
+      new Date(Date.now() - 1).toISOString(),
+      "payload:active",
+    ),
+    /perception status polling expired/u,
+  );
+  assert.equal(statusReads, 1);
+});
+
+test("two-object workflow rejects family-filter transitions that clear the comparison goal", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function twoObjectSpatialWorkflowActive(");
+  const end = html.indexOf("\nfunction renderFamilyFilters(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    payload: { prepared: { workflowMode: "two-object-spatial" } },
+    confirming: false,
+    guidedAnalysisGoal: "compare-two-lengths",
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [{ kind: "extent" }],
+  };
+  const toggleFamilyVisibility = new Function(
+    "state",
+    "GUIDED_ANALYSIS_KINDS",
+    "updateGuidedAnalysisGoalButtons",
+    "guidedGoalStatus",
+    "CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updateMeasurementRatioControls",
+    "persistGuidedAnalysisGoal",
+    `"use strict";${html.slice(start, end)};return toggleFamilyVisibility;`,
+  )(
+    state,
+    ["rectangle"],
+    () => {},
+    { textContent: "" },
+    "custom",
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+  );
+  toggleFamilyVisibility("rectangle");
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual(state.measurementRatioRefs, [{ kind: "extent" }]);
+  assert.match(
+    html,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)\)/u,
+  );
 });

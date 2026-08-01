@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  extractPersonalVisualHarmonyObjectRectangleV1,
   PERSONAL_VISUAL_HARMONY_MANUAL_PERCEPTION_CONTRACT_ID,
   PERSONAL_VISUAL_HARMONY_SEGMENTATION_MASK_CONTRACT_ID,
 } from "../dist/src/personal-visual-harmony-perception.js";
@@ -41,6 +42,49 @@ function maskFromPredicate(width, height, predicate) {
     runs,
   };
 }
+
+test("two-object perception emits one deterministic bounding rectangle and abstains on disconnected masks", () => {
+  const input = {
+    ordinal: 1,
+    sourceImageReferenceIdentity: SOURCE_IDENTITY,
+    provider: PROVIDER,
+    prompt: { kind: "text", text: "person" },
+    mask: maskFromPredicate(
+      10,
+      8,
+      (x, y) => x >= 2 && x < 7 && y >= 1 && y < 6,
+    ),
+    label: "Objet A",
+  };
+  const runs = Array.from(
+    { length: 20 },
+    () => JSON.stringify(extractPersonalVisualHarmonyObjectRectangleV1(input)),
+  );
+  assert.equal(new Set(runs).size, 1);
+  const result = JSON.parse(runs[0]);
+  assert.deepEqual(result.originalRectangle, {
+    x: 0.2,
+    y: 0.125,
+    width: 0.5,
+    height: 0.625,
+  });
+  assert.equal(result.candidate.primitive.kind, "rectangle");
+  assert.equal(result.candidate.role, "primary-subject");
+  assert.equal(result.coreRun, false);
+
+  assert.throws(
+    () => extractPersonalVisualHarmonyObjectRectangleV1({
+      ...input,
+      mask: maskFromPredicate(
+        10,
+        8,
+        (x, y) => (x >= 1 && x <= 2 && y >= 1 && y <= 2)
+          || (x >= 7 && x <= 8 && y >= 5 && y <= 6),
+      ),
+    }),
+    /exactly one connected mask component/u,
+  );
+});
 
 function extract(mask, overrides = {}) {
   return extractPersonalVisualHarmonyManualPerceptionV1({

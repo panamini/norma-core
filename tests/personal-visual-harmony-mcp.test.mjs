@@ -65,6 +65,99 @@ function deferred() {
   return { promise, resolve };
 }
 
+test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
+  const dimensions = { width: 1000, height: 800 };
+  const rectangles = [
+    { candidate: { id: "object-a" }, bounds: { x: 100, y: 80, width: 200, height: 240 } },
+    { candidate: { id: "object-b" }, bounds: { x: 600, y: 320, width: 250, height: 300 } },
+  ];
+  const spatialAnchorPoint = (bounds, anchor) => {
+    const factors = {
+      center: [0.5, 0.5],
+      "top-left": [0, 0],
+      "top-right": [1, 0],
+      "bottom-left": [0, 1],
+      "bottom-right": [1, 1],
+    }[anchor];
+    return {
+      x: bounds.x + (bounds.width * factors[0]),
+      y: bounds.y + (bounds.height * factors[1]),
+    };
+  };
+  const eligible = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: { dimensions, payload: { prepared: { workflowMode: "two-object-spatial" } } },
+      selectedSpatialRectangles: () => rectangles,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint,
+    },
+  );
+  const options = eligible();
+  assert.equal(options.length, 21);
+  assert.equal(options.filter(({ reference }) => reference.kind === "extent").length, 6);
+  assert.equal(options.filter(({ reference }) => reference.kind === "anchor-to-frame-edge").length, 8);
+  const distances = options.filter(({ reference }) => reference.kind === "anchor-distance");
+  assert.equal(distances.length, 7);
+  assert.equal(distances.filter(({ reference }) => (
+    reference.from.anchor === "center" && reference.to.anchor === "center"
+  )).length, 3);
+  assert.deepEqual(
+    distances.filter(({ reference }) => reference.from.anchor !== "center")
+      .map(({ reference }) => [reference.metric, reference.from.anchor, reference.to.anchor]),
+    ["top-left", "top-right", "bottom-left", "bottom-right"]
+      .map((anchor) => ["euclidean", anchor, anchor]),
+  );
+});
+
+test("legacy spatial choices retain the full declared expression picker", () => {
+  const dimensions = { width: 1000, height: 800 };
+  const rectangles = [
+    { candidate: { id: "object-a" }, bounds: { x: 100, y: 80, width: 200, height: 240 } },
+    { candidate: { id: "object-b" }, bounds: { x: 600, y: 320, width: 250, height: 300 } },
+  ];
+  const factors = {
+    center: [0.5, 0.5],
+    "top-left": [0, 0],
+    "top-right": [1, 0],
+    "bottom-left": [0, 1],
+    "bottom-right": [1, 1],
+    "top-midpoint": [0.5, 0],
+    "right-midpoint": [1, 0.5],
+    "bottom-midpoint": [0.5, 1],
+    "left-midpoint": [0, 0.5],
+  };
+  const eligible = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: { dimensions, payload: { prepared: { contractVersion: 2 } } },
+      selectedSpatialRectangles: () => rectangles,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint: (bounds, anchor) => ({
+        x: bounds.x + (bounds.width * factors[anchor][0]),
+        y: bounds.y + (bounds.height * factors[anchor][1]),
+      }),
+      DECLARED_SPATIAL_ANCHORS: Object.keys(factors),
+      DECLARED_SPATIAL_METRICS: ["euclidean", "horizontal", "vertical"],
+      DECLARED_SPATIAL_EDGES: ["left", "right", "top", "bottom"],
+      compareSpatialCanonical: (left, right) => left.localeCompare(right),
+      canonicalSpatialJson: JSON.stringify,
+    },
+  );
+  const options = eligible();
+  assert.ok(options.length > 21);
+  assert.ok(options.some(({ reference }) => reference.kind === "extent"
+    && reference.owner.kind === "image-frame"));
+  assert.ok(options.some(({ reference }) => reference.kind === "anchor-distance"
+    && reference.from.anchor === "top-midpoint"));
+});
+
 function ellipseAxesForTest(primitive) {
   const rotation = (primitive.rotationDegrees ?? 0) * Math.PI / 180;
   return {
@@ -923,7 +1016,10 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
   assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
   assert.match(html, /state\.activePayloadIdentity!==null&&state\.activePayloadIdentity!==identity\)resetManualSegmentGesture\(\)/u);
-  assert.match(html, /preview\.remove\(\);if\(!state\.manualSegmentMode\)return/u);
+  assert.match(
+    html,
+    /preview\.remove\(\);if\(!state\.manualSegmentMode\|\|reviewEditingBlocked\(\)\)return/u,
+  );
   assert.match(html, /candidates\.length!==state\.proposalCandidates\.length\|\|candidates\.some/u);
 
   const nextManualSegmentId = widgetScriptFunction(
@@ -1070,6 +1166,7 @@ test("widget guided analysis entry exposes the declared spatial mode without act
     {
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
       state,
+      twoObjectSpatialWorkflowActive: () => false,
       visibleKindsForGuidedAnalysisGoal,
       updateGuidedAnalysisGoalButtons,
       updateFamilyFilterButtons,
@@ -1608,6 +1705,7 @@ test("guided goals restore only for the same file and candidate-set identity", (
       DEFAULT_GUIDED_ANALYSIS_GOAL: "general-geometry",
       visibleKindsForGuidedAnalysisGoal,
       state,
+      twoObjectSpatialWorkflowActive: () => false,
     },
   );
 
@@ -1829,6 +1927,7 @@ test("manual family filters become an identity-scoped custom guided state", () =
     {
       state,
       GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      twoObjectSpatialWorkflowActive: () => false,
       markGuidedAnalysisCustom() {
         state.guidedAnalysisGoal = null;
         guidedButtonUpdates += 1;
@@ -1900,11 +1999,11 @@ test("guided and family-filter choices are inert while confirmation locks the re
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+    /guidedGoals\.querySelectorAll\("\.guided-goal"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)/u,
   );
   assert.match(
     html,
-    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=state\.confirming\)/u,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)\)/u,
   );
   const state = {
     confirming: true,
@@ -1918,6 +2017,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
     {
       state,
       GUIDED_ANALYSIS_GOALS: PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
+      twoObjectSpatialWorkflowActive: () => false,
       visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       updateGuidedAnalysisGoalButtons() {},
       updateFamilyFilterButtons() {},
@@ -1932,6 +2032,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
     {
       state,
       GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      twoObjectSpatialWorkflowActive: () => false,
       markGuidedAnalysisCustom() {},
       updateFamilyFilterButtons() {},
       syncFamilyVisibility() {},
@@ -2087,6 +2188,7 @@ test("removing a manual segment preserves the remaining ratio selector slot", ()
       updateMeasurementRatioControls: () => calls.push("updateMeasurementRatioControls"),
       persistReviewState: () => calls.push("persistReviewState"),
       updateManualSegmentControls: () => calls.push("updateManualSegmentControls"),
+      updatePerceptionUi: () => calls.push("updatePerceptionUi"),
       updateConfirm: () => calls.push("updateConfirm"),
       statusNode,
     },
@@ -2106,6 +2208,7 @@ test("removing a manual segment preserves the remaining ratio selector slot", ()
   assert.equal(cardRemoved, true);
   assert.ok(calls.includes("syncPixelProposalOverlay"));
   assert.ok(calls.includes("updatePixelProposalUi"));
+  assert.ok(calls.includes("updatePerceptionUi"));
   assert.match(statusNode.textContent, /Segment manuel supprimé/u);
 });
 
@@ -2151,6 +2254,7 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
     "async function callConfirmation",
     {
       state,
+      perceptionAssistedPrepared: () => false,
       PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       callAppTool: async (name, args) => {
         calls.push({ name, args });
@@ -4104,6 +4208,7 @@ test("cached revalidation installs a re-prepared correlation before Core becomes
       state,
       reviewedCandidateSnapshot: () => [{ id: "adjusted" }],
       geometryChanged: () => true,
+      perceptionAssistedPrepared: () => false,
       statusNode: { textContent: "" },
       setReviewLocked() {},
       prepareReviewedPayload: async () => rePreparedPayload,
@@ -4134,6 +4239,31 @@ test("cached revalidation installs a re-prepared correlation before Core becomes
     { nextPayload: freshPayload, milestone: "result-received" },
     { nextPayload: freshPayload, milestone: "core-visible" },
   ]);
+});
+
+test("widget preserves perception provenance for reviewed V2 and V3 geometry", () => {
+  const perceptionAssistedPrepared = widgetScriptFunction(
+    "perceptionAssistedPrepared",
+    "async function prepareReviewedPayload",
+    {},
+  );
+  assert.equal(perceptionAssistedPrepared({ candidateSetIdentity: "v1" }), false);
+  assert.equal(perceptionAssistedPrepared({ perceptionReceiptIdentity: "sha256:receipt" }), true);
+  assert.equal(perceptionAssistedPrepared({
+    workflowMode: "two-object-spatial",
+    perceptionManifest: { observations: [] },
+  }), true);
+  assert.equal(perceptionAssistedPrepared({ workflowMode: "two-object-spatial" }), false);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /if\(perceptionAssistedPrepared\(payload\.prepared\)\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
+  );
+  assert.equal(
+    html.match(/perceptionEdited=changed&&perceptionAssistedPrepared\(/gu)?.length,
+    2,
+  );
 });
 
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
@@ -5576,7 +5706,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v9.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v10.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -5591,9 +5721,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.doesNotThrow(() => new Function(widgetScript[1]));
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
-      uri: "ui://widget/norma-personal-visual-harmony-v8.html",
+      uri: "ui://widget/norma-personal-visual-harmony-v9.html",
     });
-    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
+    assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v9.html");
     assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
@@ -5775,8 +5905,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
-    assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
-    assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
+    assert.match(
+      resource.contents[0].text,
+      /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+    );
+    assert.match(
+      resource.contents[0].text,
+      /moveEvent\.pointerId!==pointerId\|\|reviewEditingBlocked\(\)/u,
+    );
     assert.match(resource.contents[0].text, /group\.setPointerCapture\?\.\(pointerId\)/u);
     assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",editable\?"0":"-1"\)/u);
     assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\],\.overlay \[data-primitive-kind="quadrilateral"\]/u);
@@ -5981,6 +6117,7 @@ test("guided analysis entry exposes the short default and every goal without act
       syncFamilyVisibility() { syncCalls += 1; },
       guidedGoalStatus,
       persistGuidedAnalysisGoal() { persistCalls += 1; },
+      twoObjectSpatialWorkflowActive: () => false,
     },
   );
 

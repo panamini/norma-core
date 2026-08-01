@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
@@ -6,6 +7,8 @@ import {
   createPersonalVisualHarmonyOverlaySvgV1,
   layoutPersonalVisualHarmonyCandidateLabelsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
   analyzeDeclaredLengthPairV1,
@@ -15,9 +18,14 @@ import {
   BASIC_PROPORTIONS_PACK,
   GEOMETRY_HARMONIES_PACK,
 } from "../dist/src/ratio-pack.js";
+import { serializeCanonicalJson } from "../dist/src/serialization.js";
 
 const GOLDEN_MAJOR = 0.6180339887498949;
 const GOLDEN_MINOR = 1 - GOLDEN_MAJOR;
+
+function contentIdentityFor(value) {
+  return `sha256:${createHash("sha256").update(serializeCanonicalJson(value)).digest("hex")}`;
+}
 
 function goldenCandidates() {
   return [
@@ -278,6 +286,357 @@ test("personal visual harmony preparation is candidate-only, deterministic, and 
   assert.equal(Object.hasOwn(first.candidates[0], "primitive"), false);
   assert.match(first.candidateSetIdentity, /^sha256:[0-9a-f]{64}$/u);
   assert.doesNotMatch(JSON.stringify(first), /file-private-demo-123/u);
+});
+
+test("two-object candidate manifests bind ordered provenance and fail closed on tampering", () => {
+  const base = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-two-object",
+    sourceImageMediaType: "image/png",
+    candidates: goldenCandidates(),
+  });
+  const sourceContent = `sha256:${"9".repeat(64)}`;
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: base.candidateSetIdentity,
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: sourceContent,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-object-1-test",
+    originalRectangle: { x: 0.1, y: 0.1, width: 0.2, height: 0.3 },
+  });
+  const candidateA = {
+    id: observationA.candidateId,
+    label: "Objet A",
+    role: observationA.role,
+    reason: "Observation SAM bornée",
+    ...observationA.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  };
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "chatgpt",
+      observations: [observationA],
+      candidates: [...base.candidates, candidateA],
+    }),
+    /visualInterpretationSource is invalid/u,
+  );
+  const first = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA],
+    candidates: [...base.candidates, candidateA],
+  });
+  const forgedObservationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ...observationA,
+    parentCandidateSetIdentity: `sha256:${"8".repeat(64)}`,
+    observationIdentity: undefined,
+  });
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [forgedObservationA],
+      candidates: [...base.candidates, candidateA],
+    }),
+    /Object A parent candidate set identity is invalid/u,
+  );
+  const observationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 2,
+    role: "secondary-subject",
+    normalizedPrompt: { kind: "text", text: "bicycle" },
+    parentCandidateSetIdentity: first.candidateSetIdentity,
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: sourceContent,
+    providerReceiptIdentity: `sha256:${"4".repeat(64)}`,
+    maskIdentity: `sha256:${"5".repeat(64)}`,
+    perceptionIdentity: `sha256:${"6".repeat(64)}`,
+    candidateId: "sam3-object-2-test",
+    originalRectangle: { x: 0.6, y: 0.2, width: 0.25, height: 0.4 },
+  });
+  const candidateB = {
+    id: observationB.candidateId,
+    label: "Objet B",
+    role: observationB.role,
+    reason: "Observation SAM bornée",
+    ...observationB.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+  };
+  for (const [field, duplicateValue] of [
+    ["providerReceiptIdentity", observationA.providerReceiptIdentity],
+    ["maskIdentity", observationA.maskIdentity],
+  ]) {
+    const duplicateObservationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+      ...observationB,
+      [field]: duplicateValue,
+      observationIdentity: undefined,
+    });
+    assert.throws(
+      () => preparePersonalVisualHarmonyCandidateSetV3({
+        sourceFileId: "file-two-object",
+        sourceImageContentIdentity: sourceContent,
+        sourceImageMediaType: "image/png",
+        expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+        visualInterpretationSource: "hybrid",
+        observations: [observationA, duplicateObservationB],
+        candidates: [...base.candidates, candidateA, candidateB],
+      }),
+      new RegExp(`duplicate ${field}`, "u"),
+    );
+  }
+  const second = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA, observationB],
+    candidates: [...base.candidates, candidateA, candidateB],
+  });
+  const editedBaseCandidates = base.candidates.map((candidate) => (
+    candidate.id === "major"
+      ? { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 }
+      : candidate
+  ));
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, observationB],
+      candidates: [...editedBaseCandidates, candidateA, candidateB],
+    }),
+    /Object A parent candidate set identity is invalid/u,
+  );
+  const reviewedSecond = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA, observationB],
+    lineageBaseCandidates: base.candidates,
+    candidates: [...editedBaseCandidates, candidateA, candidateB],
+  });
+  assert.notEqual(reviewedSecond.candidateSetIdentity, second.candidateSetIdentity);
+  assert.equal(
+    reviewedSecond.perceptionManifest.manifestIdentity,
+    second.perceptionManifest.manifestIdentity,
+  );
+  for (const [prepared, selectedCandidateIds] of [
+    [first, [candidateA.id]],
+    [second, [candidateA.id, candidateB.id]],
+  ]) {
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: prepared,
+        expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+        selectedCandidateIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      /Two-object candidate sets require session-bound spatial confirmation/u,
+    );
+  }
+  const forgedObservationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ...observationB,
+    parentCandidateSetIdentity: `sha256:${"7".repeat(64)}`,
+    observationIdentity: undefined,
+  });
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, forgedObservationB],
+      candidates: [...base.candidates, candidateA, candidateB],
+    }),
+    /Object B parent candidate set identity is invalid/u,
+  );
+  assert.equal(second.workflowMode, "two-object-spatial");
+  assert.deepEqual(second.perceptionManifest.observations.map(({ ordinal }) => ordinal), [1, 2]);
+  assert.equal(second.coreRun, false);
+  assert.equal(
+    preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, observationB],
+      candidates: [...base.candidates, candidateA, candidateB],
+    }).candidateSetIdentity,
+    second.candidateSetIdentity,
+  );
+  const forgePreparedObservation = (prepared, observationIndex, overrides) => {
+    const observations = prepared.perceptionManifest.observations.map((observation, index) => (
+      index === observationIndex
+        ? preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+            ...observation,
+            ...overrides,
+            observationIdentity: undefined,
+          })
+        : observation
+    ));
+    const manifestWithoutIdentity = {
+      ...prepared.perceptionManifest,
+      observations,
+    };
+    delete manifestWithoutIdentity.manifestIdentity;
+    const preparedWithoutIdentity = {
+      ...prepared,
+      perceptionManifest: {
+        ...manifestWithoutIdentity,
+        manifestIdentity: contentIdentityFor(manifestWithoutIdentity),
+      },
+    };
+    delete preparedWithoutIdentity.candidateSetIdentity;
+    return {
+      ...preparedWithoutIdentity,
+      candidateSetIdentity: contentIdentityFor(preparedWithoutIdentity),
+    };
+  };
+  for (const [prepared, observationIndex, selectedCandidateIds, expectedMessage] of [
+    [first, 0, [candidateA.id], /Object A parent candidate set identity is invalid/u],
+    [second, 1, [candidateA.id, candidateB.id], /Object B parent candidate set identity is invalid/u],
+  ]) {
+    const forgedPrepared = forgePreparedObservation(
+      prepared,
+      observationIndex,
+      { parentCandidateSetIdentity: `sha256:${"8".repeat(64)}` },
+    );
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: forgedPrepared,
+        expectedCandidateSetIdentity: forgedPrepared.candidateSetIdentity,
+        selectedCandidateIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      expectedMessage,
+    );
+  }
+  for (const [overrides, expectedMessage] of [
+    [{ providerReceiptIdentity: observationA.providerReceiptIdentity }, /duplicate providerReceiptIdentity/u],
+    [{ maskIdentity: observationA.maskIdentity }, /duplicate maskIdentity/u],
+    [{ perceptionIdentity: observationA.perceptionIdentity }, /duplicate perceptionIdentity/u],
+    [{ candidateId: observationA.candidateId }, /duplicate candidateId/u],
+    [{ originalRectangle: observationA.originalRectangle }, /duplicate the original rectangle/u],
+  ]) {
+    const forgedPrepared = forgePreparedObservation(second, 1, overrides);
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: forgedPrepared,
+        expectedCandidateSetIdentity: forgedPrepared.candidateSetIdentity,
+        selectedCandidateIds: [candidateA.id, candidateB.id],
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      expectedMessage,
+    );
+  }
+  assert.throws(
+    () => confirmPersonalVisualHarmonyCandidateSetV1({
+      preparedCandidateSet: {
+        ...second,
+        perceptionManifest: {
+          ...second.perceptionManifest,
+          observations: [
+            second.perceptionManifest.observations[0],
+            { ...second.perceptionManifest.observations[1], role: "primary-subject" },
+          ],
+        },
+      },
+      expectedCandidateSetIdentity: second.candidateSetIdentity,
+      selectedCandidateIds: [candidateA.id, candidateB.id],
+      sourcePixelWidth: 1000,
+      sourcePixelHeight: 800,
+      acceptedAt: "2026-07-31T12:00:00.000Z",
+    }),
+    /role does not match|manifest|stale|misordered/u,
+  );
+});
+
+test("an interim V3 candidate set reserves exactly one slot for object B", () => {
+  const baseCandidates = (count) => Array.from({ length: count }, (_, index) => ({
+    id: `base-${String(index + 1)}`,
+    label: `Base ${String(index + 1)}`,
+    role: "structural-region",
+    reason: "Cadre de base explicite",
+    x: 0.05,
+    y: 0.05,
+    width: 0.2,
+    height: 0.2,
+  }));
+  const prepareInterim = (count) => {
+    const base = preparePersonalVisualHarmonyCandidateSetV1({
+      sourceFileId: `file-two-object-capacity-${String(count)}`,
+      sourceImageMediaType: "image/png",
+      candidates: baseCandidates(count),
+    });
+    const sourceImageContentIdentity = `sha256:${"c".repeat(64)}`;
+    const observation = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+      ordinal: 1,
+      role: "primary-subject",
+      normalizedPrompt: { kind: "text", text: "person" },
+      parentCandidateSetIdentity: base.candidateSetIdentity,
+      sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      sourceImageContentIdentity,
+      providerReceiptIdentity: `sha256:${"d".repeat(64)}`,
+      maskIdentity: `sha256:${"e".repeat(64)}`,
+      perceptionIdentity: `sha256:${"f".repeat(64)}`,
+      candidateId: "object-a-capacity",
+      originalRectangle: { x: 0.6, y: 0.2, width: 0.2, height: 0.3 },
+    });
+    return preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: `file-two-object-capacity-${String(count)}`,
+      sourceImageContentIdentity,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observation],
+      candidates: [
+        ...base.candidates,
+        {
+          id: observation.candidateId,
+          label: "Objet A",
+          role: observation.role,
+          reason: "Observation SAM bornée",
+          ...observation.originalRectangle,
+          primitive: { kind: "rectangle" },
+          sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+        },
+      ],
+    });
+  };
+
+  assert.equal(prepareInterim(10).candidates.length, 11);
+  assert.throws(
+    () => prepareInterim(11),
+    /Interim two-object candidate sets must reserve one candidate slot for object B/u,
+  );
 });
 
 test("candidate validation stays closed while explicit primitive envelopes are canonicalized", () => {
