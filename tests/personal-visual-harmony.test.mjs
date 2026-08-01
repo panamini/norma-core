@@ -317,6 +317,18 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     primitive: { kind: "rectangle" },
     sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
   };
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "chatgpt",
+      observations: [observationA],
+      candidates: [...base.candidates, candidateA],
+    }),
+    /visualInterpretationSource is invalid/u,
+  );
   const first = preparePersonalVisualHarmonyCandidateSetV3({
     sourceFileId: "file-two-object",
     sourceImageContentIdentity: sourceContent,
@@ -396,6 +408,38 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     observations: [observationA, observationB],
     candidates: [...base.candidates, candidateA, candidateB],
   });
+  const editedBaseCandidates = base.candidates.map((candidate) => (
+    candidate.id === "major"
+      ? { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 }
+      : candidate
+  ));
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, observationB],
+      candidates: [...editedBaseCandidates, candidateA, candidateB],
+    }),
+    /Object A parent candidate set identity is invalid/u,
+  );
+  const reviewedSecond = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: "file-two-object",
+    sourceImageContentIdentity: sourceContent,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+    visualInterpretationSource: "hybrid",
+    observations: [observationA, observationB],
+    lineageBaseCandidates: base.candidates,
+    candidates: [...editedBaseCandidates, candidateA, candidateB],
+  });
+  assert.notEqual(reviewedSecond.candidateSetIdentity, second.candidateSetIdentity);
+  assert.equal(
+    reviewedSecond.perceptionManifest.manifestIdentity,
+    second.perceptionManifest.manifestIdentity,
+  );
   for (const [prepared, selectedCandidateIds] of [
     [first, [candidateA.id]],
     [second, [candidateA.id, candidateB.id]],

@@ -197,7 +197,7 @@ async function connect({ service, jobs, subjectId }) {
   };
 }
 
-async function prepare(client) {
+async function prepare(client, preparedCandidates = candidates()) {
   return client.callTool({
     name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
     arguments: {
@@ -206,7 +206,7 @@ async function prepare(client) {
         file_id: "file-perception-mcp",
         mime_type: "image/png",
       },
-      candidates: candidates(),
+      candidates: preparedCandidates,
     },
   });
 }
@@ -973,11 +973,15 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
     assert.equal(third.isError, true);
     assert.equal(providerCallCount, 2);
 
-    const reviewedCandidates = payloadB.prepared.candidates.map((candidate) => (
-      candidate.id === objectIds[0]
-        ? { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 }
-        : candidate
-    ));
+    const reviewedCandidates = payloadB.prepared.candidates.map((candidate) => {
+      if (candidate.id === "frame") {
+        return { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 };
+      }
+      if (candidate.id === objectIds[0]) {
+        return { ...candidate, x: candidate.x + 0.01, width: candidate.width - 0.01 };
+      }
+      return candidate;
+    });
     const plan = createDeclaredSpatialMeasurementPlanV1({
       sourceIdentity: sourceImageContentIdentity,
       sourcePixelWidth: 1000,
@@ -1112,7 +1116,19 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
     },
   });
   try {
-    const initial = (await prepare(connected.client))._meta.normaPersonalVisualHarmony;
+    const initial = (await prepare(connected.client, [
+      ...candidates(),
+      {
+        id: "panel",
+        label: "Panneau",
+        role: "structural-region",
+        reason: "Panneau visible.",
+        x: 0.15,
+        y: 0.2,
+        width: 0.3,
+        height: 0.4,
+      },
+    ]))._meta.normaPersonalVisualHarmony;
     const terminalA = await poll(initial, await start(initial, "person"));
     assert.equal(terminalA.structuredContent.state, "ready");
     const payloadA = terminalA._meta.normaPersonalVisualHarmony;
@@ -1159,22 +1175,21 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
     assert.equal(replayB.isError, undefined, JSON.stringify(replayB));
     assert.deepEqual(replayB.structuredContent, terminalB.structuredContent);
 
-    const rectangleIds = payloadA.prepared.candidates
-      .filter((candidate) => candidate.width > 0 && candidate.height > 0)
-      .map((candidate) => candidate.id)
-      .slice(0, 2);
-    const plan = createDeclaredSpatialMeasurementPlanV1({
+    const objectAId = payloadA.prepared.perceptionManifest.observations[0].candidateId;
+    const rectangleIds = ["frame", objectAId];
+    const planFor = (selectedRectangleCandidateIds) => createDeclaredSpatialMeasurementPlanV1({
       sourceIdentity: sourceImageContentIdentity,
       sourcePixelWidth: 1000,
       sourcePixelHeight: 800,
       candidates: payloadA.prepared.candidates,
-      selectedRectangleCandidateIds: rectangleIds,
-      expressions: rectangleIds.map((candidateId) => ({
+      selectedRectangleCandidateIds,
+      expressions: selectedRectangleCandidateIds.map((candidateId) => ({
         kind: "extent",
         owner: { kind: "rectangle", candidateId },
         extent: "width",
       })),
     });
+    const plan = planFor(rectangleIds);
     const recoveryCandidates = payloadA.prepared.candidates.map(
       ({ sourceImageReferenceIdentity: _sourceIdentity, ...candidate }) => candidate,
     );
@@ -1216,6 +1231,16 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
         perceptionManifest: payloadA.prepared.perceptionManifest,
       },
     };
+    const omittedObjectA = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        ...recoveryConfirmationArguments,
+        selectedCandidateIds: ["frame", "panel"],
+        declaredSpatialMeasurementPlan: planFor(["frame", "panel"]),
+      },
+    });
+    assert.equal(omittedObjectA.isError, true);
+    assert.match(omittedObjectA.content[0].text, /must include object A/u);
     const recovered = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       arguments: recoveryConfirmationArguments,
@@ -1236,6 +1261,16 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
       recoveredReplay.structuredContent.multiPerceptionReceipt.sessionId,
       payloadA.sessionId,
     );
+    const conflictingRecovery = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        ...recoveryConfirmationArguments,
+        selectedCandidateIds: ["panel", objectAId],
+        declaredSpatialMeasurementPlan: planFor(["panel", objectAId]),
+      },
+    });
+    assert.equal(conflictingRecovery.isError, true);
+    assert.match(conflictingRecovery.content[0].text, /already confirmed with a different review/u);
     assert.equal(providerCalls, 2);
     const initialWithoutStatus = (await prepare(connected.client))._meta.normaPersonalVisualHarmony;
     const readyAWithoutStatus = await poll(

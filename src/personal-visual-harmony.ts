@@ -809,6 +809,7 @@ function assertPersonalVisualHarmonyMultiPerceptionLineage(input: {
   readonly visualInterpretationSource: "sam3" | "hybrid";
   readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly lineageBaseCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): void {
   const observationsByCandidateId = new Map(
@@ -825,10 +826,12 @@ function assertPersonalVisualHarmonyMultiPerceptionLineage(input: {
           sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
         };
   });
-  const baseCandidates = lineageCandidates.slice(
+  const reviewedBaseCandidates = lineageCandidates.slice(
     0,
     lineageCandidates.length - input.observations.length,
   );
+  const baseCandidates = input.lineageBaseCandidates ?? reviewedBaseCandidates;
+  assertMultiPerceptionLineageBaseCandidates(baseCandidates, reviewedBaseCandidates);
   validateTriangleRequestCandidateReferences(
     baseCandidates,
     input.triangleConstructionRequests,
@@ -843,7 +846,10 @@ function assertPersonalVisualHarmonyMultiPerceptionLineage(input: {
     throw new Error("Object A parent candidate set identity is invalid.");
   }
   if (input.observations.length === 2) {
-    const firstCandidates = lineageCandidates.slice(0, baseCandidates.length + 1);
+    const firstCandidates = [
+      ...baseCandidates,
+      ...lineageCandidates.slice(baseCandidates.length, baseCandidates.length + 1),
+    ];
     validateTriangleRequestCandidateReferences(
       firstCandidates,
       input.triangleConstructionRequests,
@@ -863,6 +869,29 @@ function assertPersonalVisualHarmonyMultiPerceptionLineage(input: {
   }
 }
 
+function assertMultiPerceptionLineageBaseCandidates(
+  lineageBaseCandidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+  reviewedBaseCandidates: readonly PersonalVisualHarmonyCandidateInputV1[],
+): void {
+  if (lineageBaseCandidates.length !== reviewedBaseCandidates.length) {
+    throw new Error("Multi-perception lineage base candidates are invalid.");
+  }
+  lineageBaseCandidates.forEach((lineageCandidate, index) => {
+    const reviewedCandidate = reviewedBaseCandidates[index]!;
+    const lineageKind = lineageCandidate.primitive?.kind ?? "rectangle";
+    const reviewedKind = reviewedCandidate.primitive?.kind ?? "rectangle";
+    if (lineageCandidate.id !== reviewedCandidate.id
+      || lineageCandidate.label !== reviewedCandidate.label
+      || lineageCandidate.role !== reviewedCandidate.role
+      || lineageCandidate.reason !== reviewedCandidate.reason
+      || lineageKind !== reviewedKind
+      || lineageCandidate.sourceImageReferenceIdentity
+        !== reviewedCandidate.sourceImageReferenceIdentity) {
+      throw new Error("Multi-perception lineage base candidates do not match reviewed candidates.");
+    }
+  });
+}
+
 export function preparePersonalVisualHarmonyCandidateSetV3(input: {
   readonly sourceFileId: string;
   readonly sourceImageContentIdentity: string;
@@ -871,11 +900,15 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
   readonly visualInterpretationSource: "sam3" | "hybrid";
   readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
   readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly lineageBaseCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
   readonly triangleConstructionRequests?: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
 }): PersonalVisualHarmonyPreparedCandidateSetV3 {
   requireBoundedString(input.sourceFileId, "sourceFileId", 1, 2_048);
   if (!SHA256_PATTERN.test(input.sourceImageContentIdentity)) {
     throw new Error("sourceImageContentIdentity must be a sha256 identity.");
+  }
+  if (input.visualInterpretationSource !== "sam3" && input.visualInterpretationSource !== "hybrid") {
+    throw new Error("visualInterpretationSource is invalid.");
   }
   if (!Array.isArray(input.observations)
     || input.observations.length < 1
@@ -915,6 +948,9 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
   });
   assertUniquePersonalVisualHarmonyMultiPerceptionObservations(observations);
   const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
+  const lineageBaseCandidates = input.lineageBaseCandidates === undefined
+    ? undefined
+    : validateCandidates(input.lineageBaseCandidates, sourceImageReferenceIdentity);
   if (candidates.length < observations.length) {
     throw new Error("Multi-perception candidates are incomplete.");
   }
@@ -937,6 +973,7 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
     visualInterpretationSource: input.visualInterpretationSource,
     observations,
     candidates,
+    ...(lineageBaseCandidates === undefined ? {} : { lineageBaseCandidates }),
     triangleConstructionRequests,
   });
   return sealPersonalVisualHarmonyCandidateSetV3({

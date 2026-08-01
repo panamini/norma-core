@@ -1688,6 +1688,7 @@ interface PersonalVisualHarmonySessionV1 {
   readonly perceptionAppCapability?: string;
   perceptionBaseCandidateSetIdentity?: string;
   reviewedCandidateSetSourceIdentity?: string;
+  multiPerceptionLineageBaseCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
   prepared: PersonalVisualHarmonyPreparedCandidateSet;
   readonly createdAtMs: number;
   readonly expiresAtMs: number;
@@ -1744,6 +1745,13 @@ export interface PersonalVisualHarmonyMultiPerceptionReviewReceiptV1 {
   readonly receiptIdentity: string;
 }
 
+interface PersonalVisualHarmonyRecoveredMultiPerceptionConfirmationV1 {
+  readonly fileId: string;
+  readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV3;
+  readonly declaredSpatialMeasurementConfirmation: DeclaredSpatialMeasurementConfirmationV1;
+  readonly multiPerceptionReceipt: PersonalVisualHarmonyMultiPerceptionReviewReceiptV1;
+}
+
 interface PersonalVisualHarmonyPerceptionRecoveryEvidenceV2 {
   readonly subjectId: string;
   readonly fileId: string;
@@ -1765,6 +1773,11 @@ interface PersonalVisualHarmonyPerceptionRecoveryEvidenceV3 {
   readonly terminalState: "object-b-failed" | null;
   readonly createdAtMs: number;
   readonly expiresAtMs: number;
+  readonly finalizedConfirmation?: {
+    readonly requestIdentity: string;
+    readonly effectiveSessionId: string;
+    readonly value: PersonalVisualHarmonyRecoveredMultiPerceptionConfirmationV1;
+  };
 }
 
 export interface PersonalVisualHarmonySessionServiceOptionsV1 {
@@ -2090,6 +2103,15 @@ export class PersonalVisualHarmonySessionServiceV1 {
     workflow.reservedOrdinal = null;
     this.rememberMultiPerceptionRecoveryEvidence(session, prepared, null);
     session.perceptionBaseCandidateSetIdentity = session.prepared.candidateSetIdentity;
+    if (prepared.perceptionManifest.observations.length === 1
+      || session.multiPerceptionLineageBaseCandidates === undefined) {
+      session.multiPerceptionLineageBaseCandidates = structuredClone(
+        prepared.candidates.slice(
+          0,
+          prepared.candidates.length - prepared.perceptionManifest.observations.length,
+        ),
+      );
+    }
     session.prepared = structuredClone(prepared);
     delete session.confirmation;
     delete session.declaredSpatialMeasurementConfirmation;
@@ -2144,6 +2166,75 @@ export class PersonalVisualHarmonySessionServiceV1 {
     return evidence.terminalState;
   }
 
+  replayMultiPerceptionRecoveryConfirmation(input: {
+    readonly subjectId: string;
+    readonly fileId: string;
+    readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV3;
+    readonly requestIdentity: string;
+  }): {
+    readonly effectiveSessionId: string;
+    readonly value: PersonalVisualHarmonyRecoveredMultiPerceptionConfirmationV1;
+  } | null {
+    this.assertMultiPerceptionRecoveryEvidence(input);
+    const evidence = this.multiPerceptionRecoveryEvidence.get(
+      this.multiPerceptionRecoveryEvidenceKey(
+        input.subjectId,
+        input.preparedCandidateSet.perceptionManifest.manifestIdentity,
+      ),
+    );
+    const finalized = evidence?.finalizedConfirmation;
+    if (finalized === undefined) return null;
+    if (finalized.requestIdentity !== input.requestIdentity) {
+      throw new Error("Multi-perception recovery was already confirmed with a different review.");
+    }
+    return structuredClone({
+      effectiveSessionId: finalized.effectiveSessionId,
+      value: finalized.value,
+    });
+  }
+
+  rememberMultiPerceptionRecoveryConfirmation(input: {
+    readonly subjectId: string;
+    readonly fileId: string;
+    readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSetV3;
+    readonly requestIdentity: string;
+    readonly effectiveSessionId: string;
+    readonly receiptSessionId: string;
+    readonly value: PersonalVisualHarmonyRecoveredMultiPerceptionConfirmationV1;
+  }): void {
+    this.assertMultiPerceptionRecoveryEvidence(input);
+    const key = this.multiPerceptionRecoveryEvidenceKey(
+      input.subjectId,
+      input.preparedCandidateSet.perceptionManifest.manifestIdentity,
+    );
+    const evidence = this.multiPerceptionRecoveryEvidence.get(key);
+    if (evidence === undefined) {
+      throw new Error("Multi-perception recovery evidence is missing, expired, or invalid.");
+    }
+    const finalized = evidence.finalizedConfirmation;
+    if (finalized !== undefined) {
+      if (finalized.requestIdentity !== input.requestIdentity) {
+        throw new Error("Multi-perception recovery was already confirmed with a different review.");
+      }
+      return;
+    }
+    if (input.value.fileId !== input.fileId
+      || input.value.prepared.contractVersion !== 3
+      || input.value.prepared.perceptionManifest.manifestIdentity !== evidence.manifestIdentity
+      || input.value.multiPerceptionReceipt.manifestIdentity !== evidence.manifestIdentity
+      || input.value.multiPerceptionReceipt.sessionId !== input.receiptSessionId) {
+      throw new Error("Multi-perception recovery confirmation is invalid or mismatched.");
+    }
+    this.multiPerceptionRecoveryEvidence.set(key, {
+      ...evidence,
+      finalizedConfirmation: structuredClone({
+        requestIdentity: input.requestIdentity,
+        effectiveSessionId: input.effectiveSessionId,
+        value: input.value,
+      }),
+    });
+  }
+
   applyRecoveredMultiPerceptionResult(input: {
     readonly subjectId: string;
     readonly sessionId: string;
@@ -2166,6 +2257,13 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
     session.perceptionBaseCandidateSetIdentity = input.expectedCandidateSetIdentity;
     session.multiPerceptionReceiptSessionId = input.receiptSessionId;
+    session.multiPerceptionLineageBaseCandidates = structuredClone(
+      input.preparedCandidateSet.candidates.slice(
+        0,
+        input.preparedCandidateSet.candidates.length
+          - input.preparedCandidateSet.perceptionManifest.observations.length,
+      ),
+    );
     session.prepared = structuredClone(input.preparedCandidateSet);
     session.multiPerceptionWorkflow = {
       workflowMode: "two-object-spatial",
@@ -2367,6 +2465,12 @@ export class PersonalVisualHarmonySessionServiceV1 {
             expectedSourceImageReferenceIdentity: currentPrepared.sourceImageReferenceIdentity,
             visualInterpretationSource: currentPrepared.visualInterpretationSource,
             observations: currentPrepared.perceptionManifest.observations,
+            lineageBaseCandidates: session.multiPerceptionLineageBaseCandidates
+              ?? currentPrepared.candidates.slice(
+                0,
+                currentPrepared.candidates.length
+                  - currentPrepared.perceptionManifest.observations.length,
+              ),
             candidates: input.reviewedCandidates,
             ...(currentPrepared.triangleConstructionRequests === undefined
               ? {}
@@ -2396,15 +2500,18 @@ export class PersonalVisualHarmonySessionServiceV1 {
       if (session.confirmation !== undefined) {
         throw new Error("This visual harmony session was already confirmed with a different operation.");
       }
-      if (session.prepared.contractVersion === 3
-        && session.prepared.perceptionManifest.observations.length === 2) {
+      if (session.prepared.contractVersion === 3) {
         const observationCandidateIds = session.prepared.perceptionManifest.observations
           .map(({ candidateId }) => candidateId);
         const selectedCandidateIds = new Set(input.selectedCandidateIds);
-        if (input.selectedCandidateIds.length !== observationCandidateIds.length
-          || selectedCandidateIds.size !== observationCandidateIds.length
-          || observationCandidateIds.some((candidateId) => !selectedCandidateIds.has(candidateId))) {
-          throw new Error("Successful two-object perception must confirm exactly objects A and B.");
+        if (observationCandidateIds.length === 2) {
+          if (input.selectedCandidateIds.length !== observationCandidateIds.length
+            || selectedCandidateIds.size !== observationCandidateIds.length
+            || observationCandidateIds.some((candidateId) => !selectedCandidateIds.has(candidateId))) {
+            throw new Error("Successful two-object perception must confirm exactly objects A and B.");
+          }
+        } else if (!selectedCandidateIds.has(observationCandidateIds[0]!)) {
+          throw new Error("Object-B failure fallback measurements must include object A.");
         }
       }
       const effectiveCandidateSetIdentity = session.prepared.candidateSetIdentity;
@@ -2726,6 +2833,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
       terminalState,
       createdAtMs: existing?.createdAtMs ?? now,
       expiresAtMs: now + (this.sessionTtlMs * 4),
+      ...(existing?.finalizedConfirmation === undefined
+        ? {}
+        : { finalizedConfirmation: existing.finalizedConfirmation }),
     } satisfies PersonalVisualHarmonyPerceptionRecoveryEvidenceV3;
     if (existing !== undefined && serializeCanonicalJson({
       subjectId: existing.subjectId,
@@ -3440,22 +3550,71 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         if (matchingMediaType === undefined) {
           throw new Error("Recovered visual harmony candidate identity does not match the confirmed review.");
         }
-        const recovered = restorePersonalVisualHarmonySessionFromRecovery({
-          service,
-          subjectId,
-          recovery,
-          matchingMediaType,
-          matchingV2Prepared,
-          matchingV3Prepared,
-          receiptSessionId: sessionId,
-        });
-        confirmed = service.confirm({
-          ...(subjectId === undefined ? {} : { subjectId }),
-          sessionId: recovered.sessionId,
-          ...confirmationInput,
-        });
+        let recoverySubjectId: string | undefined;
+        let recoveryConfirmationRequestIdentity: string | undefined;
+        let cachedRecoveryConfirmation: ReturnType<
+          PersonalVisualHarmonySessionServiceV1["replayMultiPerceptionRecoveryConfirmation"]
+        > = null;
+        if (matchingV3Prepared !== undefined) {
+          if (subjectId === undefined) {
+            throw new Error("Multi-perception recovery requires an authenticated subject.");
+          }
+          recoverySubjectId = subjectId;
+          recoveryConfirmationRequestIdentity =
+            stableMultiPerceptionRecoveryConfirmationKey(confirmationInput);
+          cachedRecoveryConfirmation = service.replayMultiPerceptionRecoveryConfirmation({
+            subjectId: recoverySubjectId,
+            fileId: recovery.fileId,
+            preparedCandidateSet: matchingV3Prepared,
+            requestIdentity: recoveryConfirmationRequestIdentity,
+          });
+        }
+        if (cachedRecoveryConfirmation !== null) {
+          confirmed = cachedRecoveryConfirmation.value;
+          effectiveSessionId = cachedRecoveryConfirmation.effectiveSessionId;
+        } else {
+          const recovered = restorePersonalVisualHarmonySessionFromRecovery({
+            service,
+            subjectId,
+            recovery,
+            matchingMediaType,
+            matchingV2Prepared,
+            matchingV3Prepared,
+            receiptSessionId: sessionId,
+          });
+          confirmed = service.confirm({
+            ...(subjectId === undefined ? {} : { subjectId }),
+            sessionId: recovered.sessionId,
+            ...confirmationInput,
+          });
+          effectiveSessionId = recovered.sessionId;
+          if (matchingV3Prepared !== undefined) {
+            if (recoverySubjectId === undefined
+              || recoveryConfirmationRequestIdentity === undefined
+              || !("declaredSpatialMeasurementConfirmation" in confirmed)
+              || confirmed.prepared.contractVersion !== 3
+              || !("multiPerceptionReceipt" in confirmed)
+              || confirmed.multiPerceptionReceipt === undefined) {
+              throw new Error("Recovered multi-perception confirmation is incomplete.");
+            }
+            service.rememberMultiPerceptionRecoveryConfirmation({
+              subjectId: recoverySubjectId,
+              fileId: recovery.fileId,
+              preparedCandidateSet: matchingV3Prepared,
+              requestIdentity: recoveryConfirmationRequestIdentity,
+              effectiveSessionId,
+              receiptSessionId: sessionId,
+              value: {
+                fileId: confirmed.fileId,
+                prepared: confirmed.prepared,
+                declaredSpatialMeasurementConfirmation:
+                  confirmed.declaredSpatialMeasurementConfirmation,
+                multiPerceptionReceipt: confirmed.multiPerceptionReceipt,
+              },
+            });
+          }
+        }
         sessionRecovered = true;
-        effectiveSessionId = recovered.sessionId;
       }
       if ("declaredSpatialMeasurementConfirmation" in confirmed) {
         const declared = confirmed.declaredSpatialMeasurementConfirmation;
@@ -4467,6 +4626,26 @@ function stableConfirmationKey(input: {
     sourcePixelWidth: input.sourcePixelWidth,
     sourcePixelHeight: input.sourcePixelHeight,
   });
+}
+
+function stableMultiPerceptionRecoveryConfirmationKey(input: {
+  readonly candidateSetIdentity: string;
+  readonly selectedCandidateIds: readonly string[];
+  readonly confirmedVisualGuideCandidateIds?: readonly string[];
+  readonly constructionLayers?: readonly PersonalVisualHarmonyConstructionLayerV1[];
+  readonly measurementRatioRequest?: PersonalVisualHarmonyMeasurementRatioRequestV1;
+  readonly declaredSpatialMeasurementPlan?: DeclaredSpatialMeasurementPlanV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly reviewedCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
+}): string {
+  const canonicalRequest = {
+    confirmationKey: stableConfirmationKey(input),
+    reviewedCandidates: input.reviewedCandidates ?? null,
+  };
+  return `sha256:${createHash("sha256")
+    .update(serializeCanonicalJson(canonicalRequest))
+    .digest("hex")}`;
 }
 
 function createMultiPerceptionReviewReceipt(

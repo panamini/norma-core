@@ -10,7 +10,10 @@ import {
   PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
   PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V2_CONTRACT_ID,
   preparePersonalVisualHarmonyCandidateSetV1,
+  preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
+import { serializeCanonicalJson } from "../dist/src/serialization.js";
 
 const sourceBytes = new Uint8Array([1, 2, 3, 4, 5, 6]);
 const sourceImageContentIdentity =
@@ -40,6 +43,42 @@ const prompt = {
   points: [],
   box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
 };
+
+function contentIdentityFor(value) {
+  return `sha256:${createHash("sha256").update(serializeCanonicalJson(value)).digest("hex")}`;
+}
+
+function sourceImageReferenceIdentityFor(fileId) {
+  return contentIdentityFor({
+    kind: "chatgpt-file-reference",
+    fileId,
+  });
+}
+
+function emptyBaseCandidateSetIdentity(fileId, sourceImageMediaType = "image/png") {
+  return contentIdentityFor({
+    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
+    contractVersion: 1,
+    status: "confirmation_required",
+    sourceImageReferenceIdentity: sourceImageReferenceIdentityFor(fileId),
+    sourceImageMediaType,
+    imageBytesObservedByNorma: false,
+    sourceImageIdentityBasis: "chatgpt_file_reference_not_image_bytes",
+    visualInterpretationSource: "chatgpt",
+    candidateEvidenceOnly: true,
+    explicitSelectionConfirmationRequired: true,
+    coreRun: false,
+    coordinateFrame: {
+      dimensions: 2,
+      coordinateScale: "normalized",
+      origin: "top-left",
+      xDirection: "right",
+      yDirection: "down",
+      bounds: { x: [0, 1], y: [0, 1] },
+    },
+    candidates: [],
+  });
+}
 
 function automaticCandidateSet(candidateCount = 1) {
   return preparePersonalVisualHarmonyCandidateSetV1({
@@ -255,6 +294,63 @@ test("two-object perception jobs append exactly two ordered rectangle observatio
       role: "secondary-subject",
     }),
     /exactly one current object observation/u,
+  );
+});
+
+test("object B preserves a SAM-only V3 parent interpretation source", async () => {
+  const service = createService();
+  const fileId = "file-perception-test";
+  const sourceImageReferenceIdentity = sourceImageReferenceIdentityFor(fileId);
+  const observationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ordinal: 1,
+    role: "primary-subject",
+    normalizedPrompt: { kind: "text", text: "person" },
+    parentCandidateSetIdentity: emptyBaseCandidateSetIdentity(fileId),
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity,
+    providerReceiptIdentity: `sha256:${"1".repeat(64)}`,
+    maskIdentity: `sha256:${"2".repeat(64)}`,
+    perceptionIdentity: `sha256:${"3".repeat(64)}`,
+    candidateId: "sam3-object-a-only",
+    originalRectangle: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 },
+  });
+  const candidateA = {
+    id: observationA.candidateId,
+    label: "Objet A",
+    role: observationA.role,
+    reason: "Observation SAM bornée",
+    ...observationA.originalRectangle,
+    primitive: { kind: "rectangle" },
+    sourceImageReferenceIdentity,
+  };
+  const preparedA = preparePersonalVisualHarmonyCandidateSetV3({
+    sourceFileId: fileId,
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: sourceImageReferenceIdentity,
+    visualInterpretationSource: "sam3",
+    observations: [observationA],
+    candidates: [candidateA],
+  });
+  const pendingB = service.start({
+    ...startInput(preparedA),
+    prompt: { kind: "text", text: "bicycle" },
+    workflowMode: "two-object-spatial",
+    attemptOrdinal: 2,
+    label: "Objet B",
+    role: "secondary-subject",
+  });
+  const readyB = await waitForTerminal(service, {
+    jobId: pendingB.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity,
+  });
+  assert.equal(readyB.state, "ready", JSON.stringify(readyB));
+  assert.equal(readyB.preparedCandidateSet.visualInterpretationSource, "sam3");
+  assert.equal(
+    readyB.preparedCandidateSet.perceptionManifest.observations[1].parentCandidateSetIdentity,
+    preparedA.candidateSetIdentity,
   );
 });
 

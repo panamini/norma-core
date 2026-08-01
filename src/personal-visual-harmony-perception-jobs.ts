@@ -407,9 +407,11 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
           sourceImageContentIdentity: segmentation.response.sourceImageContentIdentity,
           sourceImageMediaType: source.mediaType,
           expectedSourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
-          visualInterpretationSource: input.automaticCandidateSet.candidates.length === 0
-            ? "sam3"
-            : "hybrid",
+          visualInterpretationSource: input.automaticCandidateSet.contractVersion === 3
+            ? input.automaticCandidateSet.visualInterpretationSource
+            : input.automaticCandidateSet.candidates.length === 0
+              ? "sam3"
+              : "hybrid",
           observations,
           candidates: [...input.automaticCandidateSet.candidates, rectangle.candidate],
           ...(input.automaticCandidateSet.triangleConstructionRequests === undefined
