@@ -113,6 +113,189 @@ test("two-object spatial choices stay compact and exactly bounded to 21 expressi
   );
 });
 
+test("spatial controls require the versioned A/B binding and reject generic object rectangles", () => {
+  const rectangles = [
+    {
+      id: "object-a",
+      role: "primary-subject",
+      sourceImageReferenceIdentity: "sha256:source",
+      primitive: { kind: "rectangle" },
+      x: 0.1,
+      y: 0.1,
+      width: 0.2,
+      height: 0.3,
+    },
+    {
+      id: "object-b",
+      role: "secondary-subject",
+      sourceImageReferenceIdentity: "sha256:source",
+      primitive: { kind: "rectangle" },
+      x: 0.6,
+      y: 0.2,
+      width: 0.2,
+      height: 0.4,
+    },
+  ];
+  const genericState = {
+    payload: {
+      perceptionModes: ["legacy", "two-object-spatial"],
+      prepared: { contractVersion: 1, candidates: rectangles },
+    },
+    reviewedCandidates: rectangles,
+  };
+  const genericBinding = widgetScriptFunction(
+    "spatialWorkflowBinding",
+    "function selectedSpatialRectangles",
+    { state: genericState, primitiveKind: (item) => item?.primitive?.kind || "rectangle" },
+  );
+  assert.equal(genericBinding().status, "unbound");
+  assert.match(genericBinding().message, /Proposer.+objet A/u);
+  Object.assign(genericState, {
+    dimensions: { width: 1000, height: 800 },
+    selected: new Set(["object-a", "object-b"]),
+  });
+  const genericSelected = widgetScriptFunction(
+    "selectedSpatialRectangles",
+    "function spatialOwnerLabel",
+    {
+      state: genericState,
+      spatialWorkflowBinding: genericBinding,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+      compareSpatialCanonical: (left, right) => left < right ? -1 : left > right ? 1 : 0,
+    },
+  );
+  const genericOptions = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: genericState,
+      selectedSpatialRectangles: genericSelected,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint: () => ({ x: 0, y: 0 }),
+    },
+  )();
+  assert.deepEqual(genericOptions, []);
+
+  const v3State = {
+    payload: {
+      prepared: {
+        contractVersion: 3,
+        workflowMode: "two-object-spatial",
+        sourceImageReferenceIdentity: "sha256:source",
+        sourceImageContentIdentity: "sha256:content",
+        candidates: rectangles,
+        perceptionManifest: {
+          contractVersion: 1,
+          sourceImageReferenceIdentity: "sha256:source",
+          sourceImageContentIdentity: "sha256:content",
+          observations: [
+            {
+              ordinal: 1,
+              candidateId: "object-a",
+              role: "primary-subject",
+              sourceImageReferenceIdentity: "sha256:source",
+              sourceImageContentIdentity: "sha256:content",
+            },
+            {
+              ordinal: 2,
+              candidateId: "object-b",
+              role: "secondary-subject",
+              sourceImageReferenceIdentity: "sha256:source",
+              sourceImageContentIdentity: "sha256:content",
+            },
+          ],
+        },
+      },
+    },
+    reviewedCandidates: rectangles,
+  };
+  const v3Binding = widgetScriptFunction(
+    "spatialWorkflowBinding",
+    "function selectedSpatialRectangles",
+    { state: v3State, primitiveKind: (item) => item?.primitive?.kind || "rectangle" },
+  );
+  assert.deepEqual(v3Binding(), {
+    status: "bound",
+    candidateIds: ["object-a", "object-b"],
+    message: null,
+  });
+  const staleState = structuredClone(v3State);
+  staleState.payload.prepared.perceptionManifest.observations[1].sourceImageContentIdentity = "sha256:stale";
+  const staleBinding = widgetScriptFunction(
+    "spatialWorkflowBinding",
+    "function selectedSpatialRectangles",
+    { state: staleState, primitiveKind: (item) => item?.primitive?.kind || "rectangle" },
+  );
+  assert.equal(staleBinding().status, "invalid");
+  Object.assign(v3State, {
+    dimensions: { width: 1000, height: 800 },
+    selected: new Set(["object-a", "object-b"]),
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [null, null],
+    completed: false,
+    confirming: false,
+  });
+  const selectedSpatialRectangles = widgetScriptFunction(
+    "selectedSpatialRectangles",
+    "function spatialOwnerLabel",
+    {
+      state: v3State,
+      spatialWorkflowBinding: v3Binding,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+      compareSpatialCanonical: (left, right) => left < right ? -1 : left > right ? 1 : 0,
+    },
+  );
+  assert.deepEqual(selectedSpatialRectangles().map(({ candidate }) => candidate.id), [
+    "object-a",
+    "object-b",
+  ]);
+  const spatialOptions = widgetScriptFunction(
+    "eligibleDeclaredSpatialExpressions",
+    "async function sha256SpatialIdentity",
+    {
+      state: v3State,
+      selectedSpatialRectangles,
+      canonicalSpatialExpression: (expression) => expression,
+      spatialExpressionLabel: () => "length",
+      displayNumber: String,
+      spatialAnchorPoint: (bounds, anchor) => ({
+        x: bounds.x + (anchor === "center" ? bounds.width / 2 : 0),
+        y: bounds.y + (anchor === "center" ? bounds.height / 2 : 0),
+      }),
+    },
+  )();
+  assert.equal(spatialOptions.length, 21);
+  const measurementRatioToggle = { disabled: true, title: "", setAttribute() {}, textContent: "" };
+  const createSelect = () => ({ disabled: true, replaceChildren() {}, add() {}, value: "" });
+  const measurementRatioFirst = createSelect();
+  const measurementRatioSecond = createSelect();
+  const updateMeasurementRatioControls = widgetScriptFunction(
+    "updateMeasurementRatioControls",
+    "measurementRatioToggle.addEventListener",
+    {
+      state: v3State,
+      spatialWorkflowBinding: v3Binding,
+      eligibleDeclaredSpatialExpressions: () => spatialOptions,
+      eligibleMeasurementReferences: () => [],
+      measurementRefKey: (reference) => JSON.stringify(reference),
+      measurementRatioToggle,
+      measurementRatioFirst,
+      measurementRatioSecond,
+      Option: class Option {},
+      refreshWidgetDeclaredSpatialMeasurementPlan() {},
+      syncMeasurementRatioPreview() {},
+      updateConfirm() {},
+    },
+  );
+  updateMeasurementRatioControls();
+  assert.equal(measurementRatioToggle.disabled, false);
+  assert.equal(measurementRatioFirst.disabled, false);
+  assert.equal(measurementRatioSecond.disabled, false);
+});
+
 test("legacy spatial choices retain the full declared expression picker", () => {
   const dimensions = { width: 1000, height: 800 };
   const rectangles = [

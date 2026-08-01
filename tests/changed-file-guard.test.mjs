@@ -39,6 +39,7 @@ import {
   personalVisualHarmonyTriangleConstructionsChangedFiles,
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
+  personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
   personalVisualHarmonyTriangleAltitudesChangedFiles,
   personalVisualHarmonyTriangleCentroidChangedFiles,
@@ -1027,6 +1028,37 @@ test("personal visual harmony two-object spatial allowlist is exact and rejects 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyTwoObjectSpatialChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
+});
+
+test("personal visual harmony spatial activation allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySpatialActivationChangedFiles),
+    personalVisualHarmonySpatialActivationChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySpatialActivationChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonySpatialActivationChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "src/personal-visual-harmony-perception.ts",
+    "web-lab/private-web-lab.js",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySpatialActivationChangedFiles,
         forbidden,
       ]),
       null,
@@ -4334,10 +4366,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     privateWebLabLocalCvCandidatesChangedFiles,
   );
-  const isPersonalVisualHarmonyTwoObjectSpatialSet = isExactChangedFileSet(
-    changedFiles,
-    personalVisualHarmonyTwoObjectSpatialChangedFiles,
-  );
+  const isPersonalVisualHarmonyTwoObjectSpatialSet =
+    isExactChangedFileSet(changedFiles, personalVisualHarmonyTwoObjectSpatialChangedFiles) ||
+    isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles);
   const isPrivateWebLabManualAuthoringSet = isExactChangedFileSet(
     changedFiles,
     privateWebLabManualAuthoringChangedFiles,
@@ -4615,7 +4646,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       : isPrivateWebLabLocalCvCandidatesSet
       ? privateWebLabLocalCvCandidatesChangedFiles
       : isPersonalVisualHarmonyTwoObjectSpatialSet
-      ? personalVisualHarmonyTwoObjectSpatialChangedFiles
+      ? isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles)
+        ? personalVisualHarmonySpatialActivationChangedFiles
+        : personalVisualHarmonyTwoObjectSpatialChangedFiles
       : isPrivateWebLabManualAuthoringSet
       ? privateWebLabManualAuthoringChangedFiles
       : isPrivateWebLabAuthoringStatusTestFixSet

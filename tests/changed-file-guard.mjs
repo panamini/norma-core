@@ -733,6 +733,14 @@ export const personalVisualHarmonyTwoObjectSpatialChangedFiles = Object.freeze([
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
+// Covers the bounded V3 A/B spatial-workflow binding repair and its focused proof.
+export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2167,6 +2175,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabSpatialPickerUxChangedFiles,
   privateWebLabLocalCvCandidatesChangedFiles,
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
+  personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,
