@@ -125,6 +125,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #now: () => number;
   readonly #createJobId: () => string;
   readonly #jobs = new Map<string, StoredJob>();
+  readonly #expiredJobs = new Map<string, StoredJob>();
 
   public constructor(options: PersonalVisualHarmonyPerceptionJobServiceOptions) {
     this.#provider = options.provider;
@@ -255,7 +256,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       );
     }
     const jobId = requireSafeId(this.#createJobId(), "jobId");
-    if (this.#jobs.has(jobId)) {
+    if (this.#jobs.has(jobId) || this.#expiredJobs.has(jobId)) {
       throw new PersonalVisualHarmonyPerceptionJobError("request_invalid", "Perception job id collided.");
     }
     const job: StoredJob = {
@@ -299,7 +300,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     readonly sourceImageReferenceIdentity: string;
   }): PersonalVisualHarmonyPerceptionJobV1 {
     const jobId = requireSafeId(input.jobId, "jobId");
-    const job = this.#jobs.get(jobId);
+    const job = this.#jobs.get(jobId) ?? this.#expiredJobs.get(jobId);
     if (job === undefined) {
       throw new PersonalVisualHarmonyPerceptionJobError("job_not_found", "Perception job was not found.");
     }
@@ -462,7 +463,17 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
 
   #removeExpired(now: number): void {
     for (const [jobId, job] of this.#jobs) {
-      if (now >= job.expiresAtMs) this.#jobs.delete(jobId);
+      if (now < job.expiresAtMs) continue;
+      this.#jobs.delete(jobId);
+      this.#expiredJobs.set(jobId, job);
+    }
+    for (const [jobId, job] of this.#expiredJobs) {
+      if (now >= job.expiresAtMs + this.#ttlMs) this.#expiredJobs.delete(jobId);
+    }
+    while (this.#expiredJobs.size > this.#capacity) {
+      const oldestJobId = this.#expiredJobs.keys().next().value;
+      if (oldestJobId === undefined) break;
+      this.#expiredJobs.delete(oldestJobId);
     }
   }
 

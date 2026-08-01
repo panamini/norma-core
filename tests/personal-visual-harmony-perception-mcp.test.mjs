@@ -1074,6 +1074,27 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
     );
     const terminalB = await poll(payloadA, await start(payloadA, "bicycle"));
     assert.equal(terminalB.structuredContent.state, "abstained");
+    assert.equal(
+      service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: payloadA.prepared,
+      }),
+      "object-b-failed",
+    );
+    assert.throws(
+      () => service.assertMultiPerceptionRecoveryEvidence({
+        subjectId: "subject:owner",
+        fileId: "file-perception-mcp",
+        preparedCandidateSet: {
+          ...payloadA.prepared,
+          visualInterpretationSource: payloadA.prepared.visualInterpretationSource === "hybrid"
+            ? "sam3"
+            : "hybrid",
+        },
+      }),
+      /missing, expired, or invalid/u,
+    );
     const replayB = await connected.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
       arguments: {
@@ -1424,4 +1445,51 @@ test("widget polling performs one final status read before declaring expiry", as
     /perception status polling expired/u,
   );
   assert.equal(statusReads, 1);
+});
+
+test("two-object workflow rejects family-filter transitions that clear the comparison goal", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function twoObjectSpatialWorkflowActive(");
+  const end = html.indexOf("\nfunction renderFamilyFilters(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    payload: { prepared: { workflowMode: "two-object-spatial" } },
+    confirming: false,
+    guidedAnalysisGoal: "compare-two-lengths",
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: true,
+    measurementRatioRefs: [{ kind: "extent" }],
+  };
+  const toggleFamilyVisibility = new Function(
+    "state",
+    "GUIDED_ANALYSIS_KINDS",
+    "updateGuidedAnalysisGoalButtons",
+    "guidedGoalStatus",
+    "CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updateMeasurementRatioControls",
+    "persistGuidedAnalysisGoal",
+    `"use strict";${html.slice(start, end)};return toggleFamilyVisibility;`,
+  )(
+    state,
+    ["rectangle"],
+    () => {},
+    { textContent: "" },
+    "custom",
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+  );
+  toggleFamilyVisibility("rectangle");
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual(state.measurementRatioRefs, [{ kind: "extent" }]);
+  assert.match(
+    html,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)\)/u,
+  );
 });

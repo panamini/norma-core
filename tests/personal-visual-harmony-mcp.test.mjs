@@ -1924,6 +1924,7 @@ test("manual family filters become an identity-scoped custom guided state", () =
     {
       state,
       GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      twoObjectSpatialWorkflowActive: () => false,
       markGuidedAnalysisCustom() {
         state.guidedAnalysisGoal = null;
         guidedButtonUpdates += 1;
@@ -1999,7 +2000,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
   );
   assert.match(
     html,
-    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\)/u,
+    /familyFilters\.querySelectorAll\("\.family-filter"\)\.forEach\(button=>button\.disabled=disabled\|\|twoObjectSpatialWorkflowActive\(\)\)/u,
   );
   const state = {
     confirming: true,
@@ -2028,6 +2029,7 @@ test("guided and family-filter choices are inert while confirmation locks the re
     {
       state,
       GUIDED_ANALYSIS_KINDS: ["rectangle", "quadrilateral", "segment", "axis", "ellipse"],
+      twoObjectSpatialWorkflowActive: () => false,
       markGuidedAnalysisCustom() {},
       updateFamilyFilterButtons() {},
       syncFamilyVisibility() {},

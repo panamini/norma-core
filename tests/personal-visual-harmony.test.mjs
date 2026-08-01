@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
@@ -17,9 +18,14 @@ import {
   BASIC_PROPORTIONS_PACK,
   GEOMETRY_HARMONIES_PACK,
 } from "../dist/src/ratio-pack.js";
+import { serializeCanonicalJson } from "../dist/src/serialization.js";
 
 const GOLDEN_MAJOR = 0.6180339887498949;
 const GOLDEN_MINOR = 1 - GOLDEN_MAJOR;
+
+function contentIdentityFor(value) {
+  return `sha256:${createHash("sha256").update(serializeCanonicalJson(value)).digest("hex")}`;
+}
 
 function goldenCandidates() {
   return [
@@ -422,6 +428,55 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     }).candidateSetIdentity,
     second.candidateSetIdentity,
   );
+  const forgePreparedParent = (prepared, observationIndex, parentCandidateSetIdentity) => {
+    const observations = prepared.perceptionManifest.observations.map((observation, index) => (
+      index === observationIndex
+        ? preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+            ...observation,
+            parentCandidateSetIdentity,
+            observationIdentity: undefined,
+          })
+        : observation
+    ));
+    const manifestWithoutIdentity = {
+      ...prepared.perceptionManifest,
+      observations,
+    };
+    delete manifestWithoutIdentity.manifestIdentity;
+    const preparedWithoutIdentity = {
+      ...prepared,
+      perceptionManifest: {
+        ...manifestWithoutIdentity,
+        manifestIdentity: contentIdentityFor(manifestWithoutIdentity),
+      },
+    };
+    delete preparedWithoutIdentity.candidateSetIdentity;
+    return {
+      ...preparedWithoutIdentity,
+      candidateSetIdentity: contentIdentityFor(preparedWithoutIdentity),
+    };
+  };
+  for (const [prepared, observationIndex, selectedCandidateIds, expectedMessage] of [
+    [first, 0, [candidateA.id], /Object A parent candidate set identity is invalid/u],
+    [second, 1, [candidateA.id, candidateB.id], /Object B parent candidate set identity is invalid/u],
+  ]) {
+    const forgedPrepared = forgePreparedParent(
+      prepared,
+      observationIndex,
+      `sha256:${"8".repeat(64)}`,
+    );
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: forgedPrepared,
+        expectedCandidateSetIdentity: forgedPrepared.candidateSetIdentity,
+        selectedCandidateIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      expectedMessage,
+    );
+  }
   assert.throws(
     () => confirmPersonalVisualHarmonyCandidateSetV1({
       preparedCandidateSet: {

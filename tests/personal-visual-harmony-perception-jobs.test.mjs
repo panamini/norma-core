@@ -355,12 +355,14 @@ test("perception jobs reject stale subject, session, and source bindings", () =>
 
 test("perception jobs expire and enforce bounded capacity", () => {
   let now = Date.parse("2026-07-27T10:00:00.000Z");
+  let jobCount = 0;
   const neverProvider = { segment: async () => new Promise(() => {}) };
   const service = createService({
     provider: neverProvider,
     now: () => now,
     ttlMs: 1_000,
     capacity: 1,
+    createJobId: () => `job:expiry-${String(++jobCount)}`,
   });
   const prepared = automaticCandidateSet();
   const pending = service.start(startInput(prepared));
@@ -369,6 +371,8 @@ test("perception jobs expire and enforce bounded capacity", () => {
     (error) => error.code === "capacity_exhausted",
   );
   now += 1_000;
+  const replacement = service.start({ ...startInput(prepared), sessionId: "session:second" });
+  assert.equal(replacement.state, "pending");
   const expired = service.get({
     jobId: pending.jobId,
     subjectId: "subject:test",

@@ -570,6 +570,47 @@ const IMAGE_PLANE_SHALLOW_INTERSECTION_ANGLE_TOLERANCE_DEGREES = 12;
 const IMAGE_PLANE_PARALLEL_ANGLE_TOLERANCE_DEGREES = 2;
 const IMAGE_PLANE_RIGHT_ANGLE_TOLERANCE_DEGREES = 2;
 
+function personalVisualHarmonyCoordinateFrameV1() {
+  return {
+    dimensions: 2 as const,
+    coordinateScale: "normalized" as const,
+    origin: "top-left" as const,
+    xDirection: "right" as const,
+    yDirection: "down" as const,
+    bounds: { x: [0, 1] as const, y: [0, 1] as const },
+  };
+}
+
+function sealPersonalVisualHarmonyCandidateSetV1(input: {
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageMediaType: string | null;
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+}): PersonalVisualHarmonyPreparedCandidateSetV1 {
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "confirmation_required" as const,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    sourceImageMediaType: input.sourceImageMediaType,
+    imageBytesObservedByNorma: false as const,
+    sourceImageIdentityBasis: "chatgpt_file_reference_not_image_bytes" as const,
+    visualInterpretationSource: "chatgpt" as const,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateFrame: personalVisualHarmonyCoordinateFrameV1(),
+    candidates: input.candidates,
+    ...(input.triangleConstructionRequests.length === 0
+      ? {}
+      : { triangleConstructionRequests: input.triangleConstructionRequests }),
+  };
+  return {
+    ...withoutIdentity,
+    candidateSetIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
 export function preparePersonalVisualHarmonyCandidateSetV1(input: {
   readonly sourceFileId: string;
   readonly sourceImageMediaType?: string | null;
@@ -592,34 +633,12 @@ export function preparePersonalVisualHarmonyCandidateSetV1(input: {
     input.triangleConstructionRequests ?? [],
   );
   validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
-  const coordinateFrame = {
-    dimensions: 2 as const,
-    coordinateScale: "normalized" as const,
-    origin: "top-left" as const,
-    xDirection: "right" as const,
-    yDirection: "down" as const,
-    bounds: { x: [0, 1] as const, y: [0, 1] as const },
-  };
-  const withoutIdentity = {
-    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_CONTRACT_ID,
-    contractVersion: 1 as const,
-    status: "confirmation_required" as const,
+  return sealPersonalVisualHarmonyCandidateSetV1({
     sourceImageReferenceIdentity,
     sourceImageMediaType,
-    imageBytesObservedByNorma: false as const,
-    sourceImageIdentityBasis: "chatgpt_file_reference_not_image_bytes" as const,
-    visualInterpretationSource: "chatgpt" as const,
-    candidateEvidenceOnly: true as const,
-    explicitSelectionConfirmationRequired: true as const,
-    coreRun: false as const,
-    coordinateFrame,
     candidates,
-    ...(triangleConstructionRequests.length === 0 ? {} : { triangleConstructionRequests }),
-  };
-  return {
-    ...withoutIdentity,
-    candidateSetIdentity: contentIdentityFor(withoutIdentity),
-  };
+    triangleConstructionRequests,
+  });
 }
 
 export function preparePersonalVisualHarmonyCandidateSetV2(input: {
@@ -731,6 +750,114 @@ export function preparePersonalVisualHarmonyMultiPerceptionObservationV1(
   };
 }
 
+function sealPersonalVisualHarmonyCandidateSetV3(input: {
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType: string | null;
+  readonly visualInterpretationSource: "sam3" | "hybrid";
+  readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+}): PersonalVisualHarmonyPreparedCandidateSetV3 {
+  const manifestWithoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID,
+    contractVersion: 1 as const,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    observations: input.observations,
+  };
+  const perceptionManifest = {
+    ...manifestWithoutIdentity,
+    manifestIdentity: contentIdentityFor(manifestWithoutIdentity),
+  };
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID,
+    contractVersion: 3 as const,
+    workflowMode: "two-object-spatial" as const,
+    status: "confirmation_required" as const,
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    sourceImageMediaType: input.sourceImageMediaType,
+    imageBytesObservedByNorma: true as const,
+    sourceImageIdentityBasis: "chatgpt_file_reference_plus_observed_image_bytes" as const,
+    visualInterpretationSource: input.visualInterpretationSource,
+    perceptionManifest,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    coordinateFrame: personalVisualHarmonyCoordinateFrameV1(),
+    candidates: input.candidates,
+    ...(input.triangleConstructionRequests.length === 0
+      ? {}
+      : { triangleConstructionRequests: input.triangleConstructionRequests }),
+  };
+  return {
+    ...withoutIdentity,
+    candidateSetIdentity: contentIdentityFor(withoutIdentity),
+  };
+}
+
+function assertPersonalVisualHarmonyMultiPerceptionLineage(input: {
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourceImageContentIdentity: string;
+  readonly sourceImageMediaType: string | null;
+  readonly visualInterpretationSource: "sam3" | "hybrid";
+  readonly observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[];
+  readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly triangleConstructionRequests: readonly PersonalVisualHarmonyTriangleRequestInputV1[];
+}): void {
+  const observationsByCandidateId = new Map(
+    input.observations.map((observation) => [observation.candidateId, observation]),
+  );
+  const lineageCandidates = input.candidates.map((candidate) => {
+    const observation = observationsByCandidateId.get(candidate.id);
+    return observation === undefined
+      ? candidate
+      : {
+          ...candidate,
+          ...observation.originalRectangle,
+          primitive: { kind: "rectangle" as const },
+          sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
+        };
+  });
+  const baseCandidates = lineageCandidates.slice(
+    0,
+    lineageCandidates.length - input.observations.length,
+  );
+  validateTriangleRequestCandidateReferences(
+    baseCandidates,
+    input.triangleConstructionRequests,
+  );
+  const expectedBase = sealPersonalVisualHarmonyCandidateSetV1({
+    sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+    sourceImageMediaType: input.sourceImageMediaType,
+    candidates: baseCandidates,
+    triangleConstructionRequests: input.triangleConstructionRequests,
+  });
+  if (input.observations[0]!.parentCandidateSetIdentity !== expectedBase.candidateSetIdentity) {
+    throw new Error("Object A parent candidate set identity is invalid.");
+  }
+  if (input.observations.length === 2) {
+    const firstCandidates = lineageCandidates.slice(0, baseCandidates.length + 1);
+    validateTriangleRequestCandidateReferences(
+      firstCandidates,
+      input.triangleConstructionRequests,
+    );
+    const expectedFirst = sealPersonalVisualHarmonyCandidateSetV3({
+      sourceImageReferenceIdentity: input.sourceImageReferenceIdentity,
+      sourceImageContentIdentity: input.sourceImageContentIdentity,
+      sourceImageMediaType: input.sourceImageMediaType,
+      visualInterpretationSource: input.visualInterpretationSource,
+      observations: [input.observations[0]!],
+      candidates: firstCandidates,
+      triangleConstructionRequests: input.triangleConstructionRequests,
+    });
+    if (input.observations[1]!.parentCandidateSetIdentity !== expectedFirst.candidateSetIdentity) {
+      throw new Error("Object B parent candidate set identity is invalid.");
+    }
+  }
+}
+
 export function preparePersonalVisualHarmonyCandidateSetV3(input: {
   readonly sourceFileId: string;
   readonly sourceImageContentIdentity: string;
@@ -810,95 +937,28 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
       throw new Error("Multi-perception candidate order or primitive is invalid.");
     }
   });
-  const observationsByCandidateId = new Map(
-    observations.map((observation) => [observation.candidateId, observation]),
-  );
-  const lineageCandidates = candidates.map((candidate) => {
-    const observation = observationsByCandidateId.get(candidate.id);
-    return observation === undefined
-      ? candidate
-      : {
-          ...candidate,
-          ...observation.originalRectangle,
-          primitive: { kind: "rectangle" as const },
-          sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
-        };
-  });
-  const baseCandidates = lineageCandidates.slice(0, lineageCandidates.length - observations.length);
-  const expectedBase = preparePersonalVisualHarmonyCandidateSetV1({
-    sourceFileId: input.sourceFileId,
-    sourceImageMediaType,
-    candidates: baseCandidates,
-    ...(input.triangleConstructionRequests === undefined
-      ? {}
-      : { triangleConstructionRequests: input.triangleConstructionRequests }),
-  });
-  if (observations[0]!.parentCandidateSetIdentity !== expectedBase.candidateSetIdentity) {
-    throw new Error("Object A parent candidate set identity is invalid.");
-  }
-  if (observations.length === 2) {
-    const expectedFirst = preparePersonalVisualHarmonyCandidateSetV3({
-      sourceFileId: input.sourceFileId,
-      sourceImageContentIdentity: input.sourceImageContentIdentity,
-      sourceImageMediaType,
-      expectedSourceImageReferenceIdentity: sourceImageReferenceIdentity,
-      visualInterpretationSource: input.visualInterpretationSource,
-      observations: [observations[0]!],
-      candidates: lineageCandidates.slice(0, baseCandidates.length + 1),
-      ...(input.triangleConstructionRequests === undefined
-        ? {}
-        : { triangleConstructionRequests: input.triangleConstructionRequests }),
-    });
-    if (observations[1]!.parentCandidateSetIdentity !== expectedFirst.candidateSetIdentity) {
-      throw new Error("Object B parent candidate set identity is invalid.");
-    }
-  }
   const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
     input.triangleConstructionRequests ?? [],
   );
   validateTriangleRequestCandidateReferences(candidates, triangleConstructionRequests);
-  const manifestWithoutIdentity = {
-    contractId: PERSONAL_VISUAL_HARMONY_MULTI_PERCEPTION_MANIFEST_CONTRACT_ID,
-    contractVersion: 1 as const,
-    sourceImageReferenceIdentity,
-    sourceImageContentIdentity: input.sourceImageContentIdentity,
-    observations,
-  };
-  const perceptionManifest = {
-    ...manifestWithoutIdentity,
-    manifestIdentity: contentIdentityFor(manifestWithoutIdentity),
-  };
-  const coordinateFrame = {
-    dimensions: 2 as const,
-    coordinateScale: "normalized" as const,
-    origin: "top-left" as const,
-    xDirection: "right" as const,
-    yDirection: "down" as const,
-    bounds: { x: [0, 1] as const, y: [0, 1] as const },
-  };
-  const withoutIdentity = {
-    contractId: PERSONAL_VISUAL_HARMONY_CANDIDATE_SET_V3_CONTRACT_ID,
-    contractVersion: 3 as const,
-    workflowMode: "two-object-spatial" as const,
-    status: "confirmation_required" as const,
+  assertPersonalVisualHarmonyMultiPerceptionLineage({
     sourceImageReferenceIdentity,
     sourceImageContentIdentity: input.sourceImageContentIdentity,
     sourceImageMediaType,
-    imageBytesObservedByNorma: true as const,
-    sourceImageIdentityBasis: "chatgpt_file_reference_plus_observed_image_bytes" as const,
     visualInterpretationSource: input.visualInterpretationSource,
-    perceptionManifest,
-    candidateEvidenceOnly: true as const,
-    explicitSelectionConfirmationRequired: true as const,
-    coreRun: false as const,
-    coordinateFrame,
+    observations,
     candidates,
-    ...(triangleConstructionRequests.length === 0 ? {} : { triangleConstructionRequests }),
-  };
-  return {
-    ...withoutIdentity,
-    candidateSetIdentity: contentIdentityFor(withoutIdentity),
-  };
+    triangleConstructionRequests,
+  });
+  return sealPersonalVisualHarmonyCandidateSetV3({
+    sourceImageReferenceIdentity,
+    sourceImageContentIdentity: input.sourceImageContentIdentity,
+    sourceImageMediaType,
+    visualInterpretationSource: input.visualInterpretationSource,
+    observations,
+    candidates,
+    triangleConstructionRequests,
+  });
 }
 
 function validateMultiPerceptionPrompt(prompt: PersonalVisualHarmonyMultiPerceptionPromptV1): void {
@@ -2944,6 +3004,15 @@ function validatePreparedCandidateSet(
     if (manifest.manifestIdentity !== contentIdentityFor(manifestWithoutIdentity)) {
       throw new Error("Multi-perception manifest identity is invalid.");
     }
+    assertPersonalVisualHarmonyMultiPerceptionLineage({
+      sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+      sourceImageContentIdentity: prepared.sourceImageContentIdentity,
+      sourceImageMediaType: prepared.sourceImageMediaType,
+      visualInterpretationSource: prepared.visualInterpretationSource,
+      observations: manifest.observations,
+      candidates,
+      triangleConstructionRequests,
+    });
   }
   if (isManualBrowserCandidateSet(prepared)) {
     const expectedCoreCompatibilityCandidateSetIdentity =
