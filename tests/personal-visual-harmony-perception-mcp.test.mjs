@@ -309,6 +309,7 @@ test("ten-candidate preparation issues a capability only for the bounded A/B wor
     assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
     const payload = prepared._meta.normaPersonalVisualHarmony;
     assert.match(payload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(payload.perceptionModes, ["two-object-spatial"]);
 
     const sharedArguments = {
       sessionId: payload.sessionId,
@@ -342,6 +343,53 @@ test("ten-candidate preparation issues a capability only for the bounded A/B wor
   } finally {
     await connected.close();
   }
+});
+
+test("widget exposes an A/B-only capability only through compare-two-lengths", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function updatePerceptionUi(){");
+  const end = html.indexOf("\nfunction perceptionPromptFor(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    payload: {
+      perceptionAppCapability: "pvh-app:" + "a".repeat(32),
+      perceptionModes: ["two-object-spatial"],
+      prepared: {
+        contractVersion: 1,
+        candidates: Array.from({ length: 10 }, (_, index) => ({ id: `frame-${String(index)}` })),
+      },
+    },
+    guidedAnalysisGoal: "general-geometry",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    imageReady: true,
+  };
+  const perceptionToggle = {};
+  const updatePerceptionUi = new Function(
+    "state",
+    "perceptionToggle",
+    "multiPerceptionObservationCount",
+    "eligibleInteractivePerceptionCandidates",
+    `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
+  )(
+    state,
+    perceptionToggle,
+    () => 0,
+    () => state.payload.prepared.candidates,
+  );
+
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, true);
+
+  state.guidedAnalysisGoal = "compare-two-lengths";
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, false);
+  assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
 });
 
 test("edited perception geometry preserves explicit triangle requests", () => {
@@ -429,6 +477,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     );
     const privatePayload = prepared._meta.normaPersonalVisualHarmony;
     assert.match(privatePayload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(privatePayload.perceptionModes, ["legacy", "two-object-spatial"]);
 
     const unauthorized = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,

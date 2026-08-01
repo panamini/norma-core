@@ -1807,6 +1807,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly prepared: PersonalVisualHarmonyPreparedCandidateSetV1;
     readonly overlaySvg: string;
     readonly perceptionAppCapability?: string;
+    readonly perceptionModes: readonly ("legacy" | "two-object-spatial")[];
   } {
     const now = this.now();
     this.pruneExpired(now);
@@ -1823,13 +1824,19 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (this.sessions.has(sessionId) || sessionId.length < 1 || sessionId.length > 160) {
       throw new Error("Could not create a unique bounded visual harmony session.");
     }
-    const perceptionEligible = input.enablePerception === true
+    const perceptionMediaEligible = input.enablePerception === true
       && prepared.sourceImageMediaType !== null
       && (PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES as readonly string[])
-        .includes(prepared.sourceImageMediaType)
-      && (personalVisualHarmonyPreparedSetHasPerceptionCapacity(prepared)
-        || prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2);
-    const perceptionAppCapability = perceptionEligible
+        .includes(prepared.sourceImageMediaType);
+    const perceptionModes: ("legacy" | "two-object-spatial")[] = [];
+    if (perceptionMediaEligible && personalVisualHarmonyPreparedSetHasPerceptionCapacity(prepared)) {
+      perceptionModes.push("legacy");
+    }
+    if (perceptionMediaEligible
+      && prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2) {
+      perceptionModes.push("two-object-spatial");
+    }
+    const perceptionAppCapability = perceptionModes.length > 0
       ? `pvh-app:${randomUUID()}`
       : undefined;
     this.sessions.set(sessionId, {
@@ -1850,6 +1857,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
       sessionId,
       prepared,
       overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({ preparedCandidateSet: prepared }),
+      perceptionModes,
       ...(perceptionAppCapability === undefined ? {} : { perceptionAppCapability }),
     };
   }
@@ -2980,7 +2988,10 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             sessionId: prepared.sessionId,
             ...(prepared.perceptionAppCapability === undefined
               ? {}
-              : { perceptionAppCapability: prepared.perceptionAppCapability }),
+              : {
+                  perceptionAppCapability: prepared.perceptionAppCapability,
+                  perceptionModes: prepared.perceptionModes,
+                }),
             prepared: structuredContent,
             overlaySvg: prepared.overlaySvg,
             observability: {
@@ -3985,7 +3996,7 @@ pixelToggle.addEventListener("click",async()=>{if(state.completed||state.confirm
 function multiPerceptionObservationCount(payload=state.payload){const observations=payload?.prepared?.perceptionManifest?.observations;return Array.isArray(observations)?observations.length:0}
 function multiPerceptionReviewLocked(){const count=multiPerceptionObservationCount();return state.perceptionRunning||(count===1&&state.multiPerceptionTerminalState!=="object-b-failed")}
 function perceptionWorkflowArgs(payload=state.payload){const multi=payload?.prepared?.workflowMode==="two-object-spatial"||state.guidedAnalysisGoal==="compare-two-lengths";return multi?{workflowMode:"two-object-spatial",guidedAnalysisGoal:"compare-two-lengths"}:{}}
-function updatePerceptionUi(){const payload=state.payload,count=multiPerceptionObservationCount(payload),legacyAvailable=state.multiPerceptionTerminalState===null&&!payload?.prepared?.perceptionReceiptIdentity&&payload?.prepared?.workflowMode!=="two-object-spatial",multiAvailable=payload?.prepared?.workflowMode==="two-object-spatial"&&count===1&&state.multiPerceptionTerminalState===null,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&(legacyAvailable||multiAvailable),interactiveAvailable=!multiAvailable||eligibleInteractivePerceptionCandidates(payload).length>0;perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||!interactiveAvailable||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":multiAvailable?interactiveAvailable?"Proposer l’objet B":"Objet B · choisissez une cible sémantique distincte":"Proposer l’objet A / masque SAM 3"}
+function updatePerceptionUi(){const payload=state.payload,count=multiPerceptionObservationCount(payload),modes=Array.isArray(payload?.perceptionModes)?payload.perceptionModes:[],legacyAvailable=modes.includes("legacy")&&state.multiPerceptionTerminalState===null&&!payload?.prepared?.perceptionReceiptIdentity&&payload?.prepared?.workflowMode!=="two-object-spatial",multiStartAvailable=modes.includes("two-object-spatial")&&payload?.prepared?.contractVersion===1&&state.guidedAnalysisGoal==="compare-two-lengths"&&state.multiPerceptionTerminalState===null,multiAvailable=payload?.prepared?.workflowMode==="two-object-spatial"&&count===1&&state.multiPerceptionTerminalState===null,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&(legacyAvailable||multiStartAvailable||multiAvailable),interactiveAvailable=!multiAvailable||eligibleInteractivePerceptionCandidates(payload).length>0;perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||!interactiveAvailable||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":multiAvailable?interactiveAvailable?"Proposer l’objet B":"Objet B · choisissez une cible sémantique distincte":multiStartAvailable?"Proposer l’objet A":"Proposer un masque SAM 3"}
 function perceptionPromptFor(candidate){if(candidate.width>0&&candidate.height>0)return{points:[],box:{x:candidate.x,y:candidate.y,width:candidate.width,height:candidate.height}};const primitive=candidate.primitive,points=primitive?.kind==="segment"||primitive?.kind==="axis"?[primitive.start,primitive.end]:[],x=points.length===2?(points[0].x+points[1].x)/2:candidate.x+candidate.width/2,y=points.length===2?(points[0].y+points[1].y)/2:candidate.y+candidate.height/2;return{points:[{x:clampUnit(x),y:clampUnit(y),label:"include"}],box:null}}
 function perceptionPromptKey(prompt){return canonicalSpatialJson(prompt)}
 function eligibleInteractivePerceptionCandidates(payload=state.payload){const observations=Array.isArray(payload?.prepared?.perceptionManifest?.observations)?payload.prepared.perceptionManifest.observations:[],proposalIds=new Set(observations.map(observation=>observation.candidateId)),usedPrompts=new Set(observations.map(observation=>perceptionPromptKey(observation.normalizedPrompt)));return state.reviewedCandidates.filter(candidate=>!proposalIds.has(candidate.id)&&!usedPrompts.has(perceptionPromptKey(perceptionPromptFor(candidate))))}
