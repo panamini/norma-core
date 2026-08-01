@@ -366,6 +366,7 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
     confirming: false,
     pixelRefinementRunning: false,
     perceptionRunning: false,
+    manualSegmentCandidateId: null,
     imageReady: true,
   };
   const perceptionToggle = {};
@@ -374,12 +375,14 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
     "perceptionToggle",
     "multiPerceptionObservationCount",
     "eligibleInteractivePerceptionCandidates",
+    "multiPerceptionStartBlocked",
     `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
   )(
     state,
     perceptionToggle,
     () => 0,
     () => state.payload.prepared.candidates,
+    () => state.manualSegmentCandidateId !== null,
   );
 
   updatePerceptionUi();
@@ -390,6 +393,11 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
   assert.equal(perceptionToggle.hidden, false);
   assert.equal(perceptionToggle.disabled, false);
   assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
+
+  state.manualSegmentCandidateId = "manual-segment-1";
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, true);
 });
 
 test("edited perception geometry preserves explicit triangle requests", () => {
@@ -1364,6 +1372,31 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /eligibleInteractivePerceptionCandidates\(payload\)/u);
   assert.match(html, /!proposalIds\.has\(candidate\.id\)&&!usedPrompts\.has/u);
   assert.match(html, /multiPerceptionReviewLocked\(\).*count===1/u);
+  assert.match(
+    html,
+    /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+  );
+  assert.equal(
+    html.match(/state\.perceptionRunning=true;setReviewLocked\(true\);recordReviewEvent\("sam-requested"\)/gu)?.length,
+    2,
+  );
+  assert.equal(
+    html.match(/finally\{state\.perceptionRunning=false;setReviewLocked\(multiPerceptionReviewLocked\(\)\)/gu)?.length,
+    2,
+  );
+  assert.match(html, /if\(reviewEditingBlocked\(\)\|\|!event\.key\.startsWith\("Arrow"\)/u);
+  assert.match(html, /if\(reviewEditingBlocked\(\)\|\|event\.isPrimary===false/u);
+  assert.match(
+    html,
+    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateId!==null&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
+  );
+  assert.match(html, /multiStartBlocked=multiPerceptionStartBlocked\(payload\)/u);
+  assert.match(html, /perceptionToggle\.disabled=.*?\|\|multiStartBlocked\|\|/u);
+  assert.match(html, /busy=.*?\|\|multiPerceptionStartBlocked\(\)\|\|/u);
+  assert.equal(
+    html.match(/if\([^}]*multiPerceptionStartBlocked\(payload\)[^}]*\)return;/gu)?.length,
+    2,
+  );
   assert.match(html, /rectangleIds\.filter\(id=>!proposalIds\.has\(id\)\)/u);
   assert.match(html, /setReviewLocked\(multiPerceptionReviewLocked\(\)\)/u);
   assert.match(html, /remainingMs>0\)await new Promise\(resolve=>setTimeout\(resolve,remainingMs\)\)/u);

@@ -908,23 +908,7 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
     }
     return expected;
   });
-  const duplicateFields = [
-    "providerReceiptIdentity",
-    "maskIdentity",
-    "perceptionIdentity",
-    "candidateId",
-  ] as const;
-  if (observations.length === 2) {
-    for (const field of duplicateFields) {
-      if (observations[0]![field] === observations[1]![field]) {
-        throw new Error(`Multi-perception observations duplicate ${field}.`);
-      }
-    }
-    if (serializeCanonicalJson(observations[0]!.originalRectangle)
-      === serializeCanonicalJson(observations[1]!.originalRectangle)) {
-      throw new Error("Multi-perception observations duplicate the original rectangle.");
-    }
-  }
+  assertUniquePersonalVisualHarmonyMultiPerceptionObservations(observations);
   const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
   if (candidates.length < observations.length) {
     throw new Error("Multi-perception candidates are incomplete.");
@@ -959,6 +943,28 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
     candidates,
     triangleConstructionRequests,
   });
+}
+
+function assertUniquePersonalVisualHarmonyMultiPerceptionObservations(
+  observations: readonly PersonalVisualHarmonyMultiPerceptionObservationV1[],
+): void {
+  const duplicateFields = [
+    "providerReceiptIdentity",
+    "maskIdentity",
+    "perceptionIdentity",
+    "candidateId",
+  ] as const;
+  if (observations.length === 2) {
+    for (const field of duplicateFields) {
+      if (observations[0]![field] === observations[1]![field]) {
+        throw new Error(`Multi-perception observations duplicate ${field}.`);
+      }
+    }
+    if (serializeCanonicalJson(observations[0]!.originalRectangle)
+      === serializeCanonicalJson(observations[1]!.originalRectangle)) {
+      throw new Error("Multi-perception observations duplicate the original rectangle.");
+    }
+  }
 }
 
 function validateMultiPerceptionPrompt(prompt: PersonalVisualHarmonyMultiPerceptionPromptV1): void {
@@ -2969,7 +2975,7 @@ function validatePreparedCandidateSet(
       || manifest.observations.length > 2) {
       throw new Error("Multi-perception manifest is invalid or source-mismatched.");
     }
-    manifest.observations.forEach((observation, index) => {
+    const observations = manifest.observations.map((observation, index) => {
       const expectedObservation = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
         ordinal: observation.ordinal,
         role: observation.role,
@@ -2983,12 +2989,18 @@ function validatePreparedCandidateSet(
         candidateId: observation.candidateId,
         originalRectangle: observation.originalRectangle,
       });
-      const candidate = candidates[candidates.length - manifest.observations.length + index];
       if (observation.ordinal !== index + 1
         || observation.observationIdentity !== expectedObservation.observationIdentity
         || observation.sourceImageReferenceIdentity !== prepared.sourceImageReferenceIdentity
-        || observation.sourceImageContentIdentity !== prepared.sourceImageContentIdentity
-        || candidate?.id !== observation.candidateId
+        || observation.sourceImageContentIdentity !== prepared.sourceImageContentIdentity) {
+        throw new Error("Multi-perception observation is stale, misordered, or unbound.");
+      }
+      return expectedObservation;
+    });
+    assertUniquePersonalVisualHarmonyMultiPerceptionObservations(observations);
+    observations.forEach((observation, index) => {
+      const candidate = candidates[candidates.length - observations.length + index];
+      if (candidate?.id !== observation.candidateId
         || candidate.role !== observation.role
         || candidate.primitive?.kind !== "rectangle") {
         throw new Error("Multi-perception observation is stale, misordered, or unbound.");
@@ -2999,7 +3011,7 @@ function validatePreparedCandidateSet(
       contractVersion: manifest.contractVersion,
       sourceImageReferenceIdentity: manifest.sourceImageReferenceIdentity,
       sourceImageContentIdentity: manifest.sourceImageContentIdentity,
-      observations: manifest.observations,
+      observations,
     };
     if (manifest.manifestIdentity !== contentIdentityFor(manifestWithoutIdentity)) {
       throw new Error("Multi-perception manifest identity is invalid.");
@@ -3009,7 +3021,7 @@ function validatePreparedCandidateSet(
       sourceImageContentIdentity: prepared.sourceImageContentIdentity,
       sourceImageMediaType: prepared.sourceImageMediaType,
       visualInterpretationSource: prepared.visualInterpretationSource,
-      observations: manifest.observations,
+      observations,
       candidates,
       triangleConstructionRequests,
     });

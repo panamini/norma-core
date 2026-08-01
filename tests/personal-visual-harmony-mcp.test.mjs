@@ -1016,7 +1016,10 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
   assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
   assert.match(html, /state\.activePayloadIdentity!==null&&state\.activePayloadIdentity!==identity\)resetManualSegmentGesture\(\)/u);
-  assert.match(html, /preview\.remove\(\);if\(!state\.manualSegmentMode\)return/u);
+  assert.match(
+    html,
+    /preview\.remove\(\);if\(!state\.manualSegmentMode\|\|reviewEditingBlocked\(\)\)return/u,
+  );
   assert.match(html, /candidates\.length!==state\.proposalCandidates\.length\|\|candidates\.some/u);
 
   const nextManualSegmentId = widgetScriptFunction(
@@ -2185,6 +2188,7 @@ test("removing a manual segment preserves the remaining ratio selector slot", ()
       updateMeasurementRatioControls: () => calls.push("updateMeasurementRatioControls"),
       persistReviewState: () => calls.push("persistReviewState"),
       updateManualSegmentControls: () => calls.push("updateManualSegmentControls"),
+      updatePerceptionUi: () => calls.push("updatePerceptionUi"),
       updateConfirm: () => calls.push("updateConfirm"),
       statusNode,
     },
@@ -2204,6 +2208,7 @@ test("removing a manual segment preserves the remaining ratio selector slot", ()
   assert.equal(cardRemoved, true);
   assert.ok(calls.includes("syncPixelProposalOverlay"));
   assert.ok(calls.includes("updatePixelProposalUi"));
+  assert.ok(calls.includes("updatePerceptionUi"));
   assert.match(statusNode.textContent, /Segment manuel supprimé/u);
 });
 
@@ -5873,8 +5878,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(expectedPayloadIdentity\)\}/u);
     assert.match(resource.contents[0].text, /finally\{finishConfirmingPayload\(payloadIdentitySnapshot\)\}/u);
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
-    assert.match(resource.contents[0].text, /state\.confirming\|\|!state\.imageReady/u);
-    assert.match(resource.contents[0].text, /moveEvent\.pointerId!==pointerId\|\|state\.confirming/u);
+    assert.match(
+      resource.contents[0].text,
+      /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+    );
+    assert.match(
+      resource.contents[0].text,
+      /moveEvent\.pointerId!==pointerId\|\|reviewEditingBlocked\(\)/u,
+    );
     assert.match(resource.contents[0].text, /group\.setPointerCapture\?\.\(pointerId\)/u);
     assert.match(resource.contents[0].text, /group\.setAttribute\("tabindex",editable\?"0":"-1"\)/u);
     assert.match(resource.contents[0].text, /\.overlay \[data-primitive-kind="rectangle"\],\.overlay \[data-primitive-kind="quadrilateral"\]/u);

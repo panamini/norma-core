@@ -428,12 +428,12 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     }).candidateSetIdentity,
     second.candidateSetIdentity,
   );
-  const forgePreparedParent = (prepared, observationIndex, parentCandidateSetIdentity) => {
+  const forgePreparedObservation = (prepared, observationIndex, overrides) => {
     const observations = prepared.perceptionManifest.observations.map((observation, index) => (
       index === observationIndex
         ? preparePersonalVisualHarmonyMultiPerceptionObservationV1({
             ...observation,
-            parentCandidateSetIdentity,
+            ...overrides,
             observationIdentity: undefined,
           })
         : observation
@@ -460,16 +460,36 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     [first, 0, [candidateA.id], /Object A parent candidate set identity is invalid/u],
     [second, 1, [candidateA.id, candidateB.id], /Object B parent candidate set identity is invalid/u],
   ]) {
-    const forgedPrepared = forgePreparedParent(
+    const forgedPrepared = forgePreparedObservation(
       prepared,
       observationIndex,
-      `sha256:${"8".repeat(64)}`,
+      { parentCandidateSetIdentity: `sha256:${"8".repeat(64)}` },
     );
     assert.throws(
       () => confirmPersonalVisualHarmonyCandidateSetV1({
         preparedCandidateSet: forgedPrepared,
         expectedCandidateSetIdentity: forgedPrepared.candidateSetIdentity,
         selectedCandidateIds,
+        sourcePixelWidth: 1000,
+        sourcePixelHeight: 800,
+        acceptedAt: "2026-07-31T12:00:00.000Z",
+      }),
+      expectedMessage,
+    );
+  }
+  for (const [overrides, expectedMessage] of [
+    [{ providerReceiptIdentity: observationA.providerReceiptIdentity }, /duplicate providerReceiptIdentity/u],
+    [{ maskIdentity: observationA.maskIdentity }, /duplicate maskIdentity/u],
+    [{ perceptionIdentity: observationA.perceptionIdentity }, /duplicate perceptionIdentity/u],
+    [{ candidateId: observationA.candidateId }, /duplicate candidateId/u],
+    [{ originalRectangle: observationA.originalRectangle }, /duplicate the original rectangle/u],
+  ]) {
+    const forgedPrepared = forgePreparedObservation(second, 1, overrides);
+    assert.throws(
+      () => confirmPersonalVisualHarmonyCandidateSetV1({
+        preparedCandidateSet: forgedPrepared,
+        expectedCandidateSetIdentity: forgedPrepared.candidateSetIdentity,
+        selectedCandidateIds: [candidateA.id, candidateB.id],
         sourcePixelWidth: 1000,
         sourcePixelHeight: 800,
         acceptedAt: "2026-07-31T12:00:00.000Z",
