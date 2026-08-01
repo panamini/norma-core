@@ -320,6 +320,23 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     observations: [observationA],
     candidates: [...base.candidates, candidateA],
   });
+  const forgedObservationA = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ...observationA,
+    parentCandidateSetIdentity: `sha256:${"8".repeat(64)}`,
+    observationIdentity: undefined,
+  });
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [forgedObservationA],
+      candidates: [...base.candidates, candidateA],
+    }),
+    /Object A parent candidate set identity is invalid/u,
+  );
   const observationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
     ordinal: 2,
     role: "secondary-subject",
@@ -373,6 +390,23 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
     observations: [observationA, observationB],
     candidates: [...base.candidates, candidateA, candidateB],
   });
+  const forgedObservationB = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+    ...observationB,
+    parentCandidateSetIdentity: `sha256:${"7".repeat(64)}`,
+    observationIdentity: undefined,
+  });
+  assert.throws(
+    () => preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: "file-two-object",
+      sourceImageContentIdentity: sourceContent,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observationA, forgedObservationB],
+      candidates: [...base.candidates, candidateA, candidateB],
+    }),
+    /Object B parent candidate set identity is invalid/u,
+  );
   assert.equal(second.workflowMode, "two-object-spatial");
   assert.deepEqual(second.perceptionManifest.observations.map(({ ordinal }) => ordinal), [1, 2]);
   assert.equal(second.coreRun, false);

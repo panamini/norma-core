@@ -810,6 +810,49 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
       throw new Error("Multi-perception candidate order or primitive is invalid.");
     }
   });
+  const observationsByCandidateId = new Map(
+    observations.map((observation) => [observation.candidateId, observation]),
+  );
+  const lineageCandidates = candidates.map((candidate) => {
+    const observation = observationsByCandidateId.get(candidate.id);
+    return observation === undefined
+      ? candidate
+      : {
+          ...candidate,
+          ...observation.originalRectangle,
+          primitive: { kind: "rectangle" as const },
+          sourceImageReferenceIdentity: observation.sourceImageReferenceIdentity,
+        };
+  });
+  const baseCandidates = lineageCandidates.slice(0, lineageCandidates.length - observations.length);
+  const expectedBase = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: input.sourceFileId,
+    sourceImageMediaType,
+    candidates: baseCandidates,
+    ...(input.triangleConstructionRequests === undefined
+      ? {}
+      : { triangleConstructionRequests: input.triangleConstructionRequests }),
+  });
+  if (observations[0]!.parentCandidateSetIdentity !== expectedBase.candidateSetIdentity) {
+    throw new Error("Object A parent candidate set identity is invalid.");
+  }
+  if (observations.length === 2) {
+    const expectedFirst = preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: input.sourceFileId,
+      sourceImageContentIdentity: input.sourceImageContentIdentity,
+      sourceImageMediaType,
+      expectedSourceImageReferenceIdentity: sourceImageReferenceIdentity,
+      visualInterpretationSource: input.visualInterpretationSource,
+      observations: [observations[0]!],
+      candidates: lineageCandidates.slice(0, baseCandidates.length + 1),
+      ...(input.triangleConstructionRequests === undefined
+        ? {}
+        : { triangleConstructionRequests: input.triangleConstructionRequests }),
+    });
+    if (observations[1]!.parentCandidateSetIdentity !== expectedFirst.candidateSetIdentity) {
+      throw new Error("Object B parent candidate set identity is invalid.");
+    }
+  }
   const triangleConstructionRequests = normalizePersonalVisualHarmonyTriangleRequestsV1(
     input.triangleConstructionRequests ?? [],
   );
