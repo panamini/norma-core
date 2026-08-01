@@ -3048,7 +3048,7 @@ test(
         ),
         {
           disabled: true,
-          status: "Tracez au moins deux cadres avant de préparer la revue.",
+          status: "Incluez ou tracez au moins deux cadres avant de préparer la revue.",
         },
       );
       await evaluate(

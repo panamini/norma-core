@@ -670,6 +670,12 @@ export const privateWebLabManualAuthoringChangedFiles = Object.freeze([
   "web-lab/private-web-lab.js",
 ].sort());
 
+export const privateWebLabAuthoringStatusTestFixChangedFiles = Object.freeze([
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+].sort());
+
 export const privateWebLabManualPrecisionChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
@@ -2176,6 +2182,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
+  privateWebLabAuthoringStatusTestFixChangedFiles,
   privateWebLabManualAuthoringChangedFiles,
   privateWebLabManualPrecisionChangedFiles,
   privateWebLabResultPresentationChangedFiles,
