@@ -8,6 +8,8 @@ import {
   type PersonalVisualHarmonyPerceptionPromptV1,
 } from "./personal-visual-harmony-perception.js";
 import {
+  PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES,
+  PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES,
   preparePersonalVisualHarmonyCandidateSetV3,
   preparePersonalVisualHarmonyMultiPerceptionObservationV1,
   preparePersonalVisualHarmonyMergedPerceptionCandidatesV2,
@@ -212,7 +214,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       }
       if (input.attemptOrdinal === 1
         && (input.automaticCandidateSet.contractVersion !== 1
-          || input.automaticCandidateSet.candidates.length > 10)) {
+          || input.automaticCandidateSet.candidates.length
+            > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES)) {
         throw new PersonalVisualHarmonyPerceptionJobError(
           "request_invalid",
           "Object A requires a V1 set with two reserved candidate slots.",
@@ -221,7 +224,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       if (input.attemptOrdinal === 2
         && (input.automaticCandidateSet.contractVersion !== 3
           || input.automaticCandidateSet.perceptionManifest.observations.length !== 1
-          || input.automaticCandidateSet.candidates.length > 11)) {
+          || input.automaticCandidateSet.candidates.length
+            > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES)) {
         throw new PersonalVisualHarmonyPerceptionJobError(
           "request_invalid",
           "Object B requires exactly one current object observation and one remaining slot.",

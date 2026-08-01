@@ -9,6 +9,8 @@ import {
   PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
   PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
   PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES,
+  PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES,
+  PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES,
   PERSONAL_VISUAL_HARMONY_PRIMITIVE_KINDS,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV2,
@@ -1691,7 +1693,7 @@ interface PersonalVisualHarmonySessionV1 {
   multiPerceptionLineageBaseCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
   prepared: PersonalVisualHarmonyPreparedCandidateSet;
   readonly createdAtMs: number;
-  readonly expiresAtMs: number;
+  expiresAtMs: number;
   confirmation?: {
     readonly confirmationKey: string;
     readonly value: PersonalVisualHarmonyConfirmationV1;
@@ -1847,7 +1849,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
       perceptionModes.push("legacy");
     }
     if (perceptionMediaEligible
-      && prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2) {
+      && prepared.candidates.length <= PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES) {
       perceptionModes.push("two-object-spatial");
     }
     const perceptionAppCapability = perceptionModes.length > 0
@@ -1927,7 +1929,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
     let workflow = session.multiPerceptionWorkflow;
     if (workflow === undefined) {
-      if (session.prepared.contractVersion !== 1 || session.prepared.candidates.length > 10) {
+      if (session.prepared.contractVersion !== 1
+        || session.prepared.candidates.length
+          > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES) {
         throw new Error("Object A requires a V1 candidate set with two reserved slots.");
       }
       workflow = {
@@ -1958,7 +1962,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (attemptOrdinal === 2
       && (session.prepared.contractVersion !== 3
         || session.prepared.perceptionManifest.observations.length !== 1
-        || session.prepared.candidates.length > 11)) {
+        || session.prepared.candidates.length
+          > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES)) {
       throw new Error("Object B requires exactly one applied object observation and one free slot.");
     }
     workflow.consumedOrdinals.push(attemptOrdinal);
@@ -1978,20 +1983,23 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly jobId: string;
     readonly expiresAt: string;
   }): void {
+    const now = this.now();
     const session = this.sessions.get(input.sessionId);
     const workflow = session?.multiPerceptionWorkflow;
     if (session === undefined || session.subjectId !== input.subjectId
+      || session.expiresAtMs <= now
       || workflow === undefined || workflow.reservedOrdinal !== input.attemptOrdinal
       || workflow.activeJobId !== null) {
       throw new Error("Two-object provider job reservation is stale or invalid.");
     }
     const expiresAtMs = Date.parse(input.expiresAt);
-    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= this.now()) {
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now) {
       throw new Error("Two-object provider job expiry is invalid.");
     }
     workflow.activeJobId = input.jobId;
     workflow.activeExpiresAtMs = expiresAtMs;
     workflow.reservedOrdinal = null;
+    session.expiresAtMs = Math.max(session.expiresAtMs, expiresAtMs);
   }
 
   rollbackPerceptionReservation(input: {

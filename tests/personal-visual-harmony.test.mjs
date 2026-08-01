@@ -579,6 +579,66 @@ test("two-object candidate manifests bind ordered provenance and fail closed on 
   );
 });
 
+test("an interim V3 candidate set reserves exactly one slot for object B", () => {
+  const baseCandidates = (count) => Array.from({ length: count }, (_, index) => ({
+    id: `base-${String(index + 1)}`,
+    label: `Base ${String(index + 1)}`,
+    role: "structural-region",
+    reason: "Cadre de base explicite",
+    x: 0.05,
+    y: 0.05,
+    width: 0.2,
+    height: 0.2,
+  }));
+  const prepareInterim = (count) => {
+    const base = preparePersonalVisualHarmonyCandidateSetV1({
+      sourceFileId: `file-two-object-capacity-${String(count)}`,
+      sourceImageMediaType: "image/png",
+      candidates: baseCandidates(count),
+    });
+    const sourceImageContentIdentity = `sha256:${"c".repeat(64)}`;
+    const observation = preparePersonalVisualHarmonyMultiPerceptionObservationV1({
+      ordinal: 1,
+      role: "primary-subject",
+      normalizedPrompt: { kind: "text", text: "person" },
+      parentCandidateSetIdentity: base.candidateSetIdentity,
+      sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      sourceImageContentIdentity,
+      providerReceiptIdentity: `sha256:${"d".repeat(64)}`,
+      maskIdentity: `sha256:${"e".repeat(64)}`,
+      perceptionIdentity: `sha256:${"f".repeat(64)}`,
+      candidateId: "object-a-capacity",
+      originalRectangle: { x: 0.6, y: 0.2, width: 0.2, height: 0.3 },
+    });
+    return preparePersonalVisualHarmonyCandidateSetV3({
+      sourceFileId: `file-two-object-capacity-${String(count)}`,
+      sourceImageContentIdentity,
+      sourceImageMediaType: "image/png",
+      expectedSourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+      visualInterpretationSource: "hybrid",
+      observations: [observation],
+      candidates: [
+        ...base.candidates,
+        {
+          id: observation.candidateId,
+          label: "Objet A",
+          role: observation.role,
+          reason: "Observation SAM bornée",
+          ...observation.originalRectangle,
+          primitive: { kind: "rectangle" },
+          sourceImageReferenceIdentity: base.sourceImageReferenceIdentity,
+        },
+      ],
+    });
+  };
+
+  assert.equal(prepareInterim(10).candidates.length, 11);
+  assert.throws(
+    () => prepareInterim(11),
+    /Interim two-object candidate sets must reserve one candidate slot for object B/u,
+  );
+});
+
 test("candidate validation stays closed while explicit primitive envelopes are canonicalized", () => {
   assert.throws(
     () => prepare([{ ...goldenCandidates()[0], width: 1.1 }]),

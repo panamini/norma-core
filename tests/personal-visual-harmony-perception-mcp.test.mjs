@@ -1413,6 +1413,59 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
   );
 });
 
+test("a bound two-object provider job keeps its session alive through the advertised expiry", () => {
+  let now = Date.parse("2026-08-01T10:00:00.000Z");
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => now,
+    sessionTtlMs: 1_000,
+    createSessionId: () => "session:bound-job-lifetime",
+  });
+  const initial = service.prepare({
+    subjectId: "subject:owner",
+    fileId: "file-bound-job-lifetime",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime",
+    enablePerception: true,
+    mediaType: "image/png",
+    candidates: candidates(),
+  });
+  const reservation = service.reservePerceptionStart({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: initial.prepared.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+    workflowMode: "two-object-spatial",
+    guidedAnalysisGoal: "compare-two-lengths",
+  });
+  assert.equal(reservation.attemptOrdinal, 1);
+  const jobExpiresAtMs = now + 5_000;
+  service.bindPerceptionJob({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    attemptOrdinal: 1,
+    jobId: "job:bound-session-lifetime",
+    expiresAt: new Date(jobExpiresAtMs).toISOString(),
+  });
+
+  now += 2_000;
+  assert.equal(service.perceptionContext({
+    subjectId: "subject:owner",
+    sessionId: initial.sessionId,
+    candidateSetIdentity: initial.prepared.candidateSetIdentity,
+    appCapability: initial.perceptionAppCapability,
+  }).fileId, "file-bound-job-lifetime");
+
+  now = jobExpiresAtMs + 1;
+  assert.throws(
+    () => service.perceptionContext({
+      subjectId: "subject:owner",
+      sessionId: initial.sessionId,
+      candidateSetIdentity: initial.prepared.candidateSetIdentity,
+      appCapability: initial.perceptionAppCapability,
+    }),
+    /missing or expired/u,
+  );
+});
+
 test("app-only semantic targeting accepts exactly one normalized target and preserves the interactive boundary", async () => {
   const prompts = [];
   const downloadedUrls = [];

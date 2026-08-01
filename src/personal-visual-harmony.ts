@@ -65,6 +65,10 @@ export const PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID =
 export const PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_ID =
   "norma.personal-visual-harmony-declared-measurement-ratio-report@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES = 12;
+export const PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES =
+  PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2;
+export const PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES =
+  PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 1;
 export const PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS = [
   "norma.geometry-harmonies@0.1.0",
   "norma.basic-proportions@0.1.0",
@@ -948,6 +952,10 @@ export function preparePersonalVisualHarmonyCandidateSetV3(input: {
   });
   assertUniquePersonalVisualHarmonyMultiPerceptionObservations(observations);
   const candidates = validateCandidates(input.candidates, sourceImageReferenceIdentity);
+  validatePersonalVisualHarmonyMultiPerceptionCandidateCapacity(
+    observations.length,
+    candidates.length,
+  );
   const lineageBaseCandidates = input.lineageBaseCandidates === undefined
     ? undefined
     : validateCandidates(input.lineageBaseCandidates, sourceImageReferenceIdentity);
@@ -1006,6 +1014,18 @@ function assertUniquePersonalVisualHarmonyMultiPerceptionObservations(
       === serializeCanonicalJson(observations[1]!.originalRectangle)) {
       throw new Error("Multi-perception observations duplicate the original rectangle.");
     }
+  }
+}
+
+function validatePersonalVisualHarmonyMultiPerceptionCandidateCapacity(
+  observationCount: number,
+  candidateCount: number,
+): void {
+  if (observationCount === 1
+    && candidateCount > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES) {
+    throw new Error(
+      "Interim two-object candidate sets must reserve one candidate slot for object B.",
+    );
   }
 }
 
@@ -3040,6 +3060,10 @@ function validatePreparedCandidateSet(
       return expectedObservation;
     });
     assertUniquePersonalVisualHarmonyMultiPerceptionObservations(observations);
+    validatePersonalVisualHarmonyMultiPerceptionCandidateCapacity(
+      observations.length,
+      candidates.length,
+    );
     observations.forEach((observation, index) => {
       const candidate = candidates[candidates.length - observations.length + index];
       if (candidate?.id !== observation.candidateId
