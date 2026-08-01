@@ -57,6 +57,7 @@ import {
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
+  privateWebLabAuthoringStatusTestFixChangedFiles,
   privateWebLabLocalCvCandidatesChangedFiles,
   privateWebLabManualAuthoringChangedFiles,
   privateWebLabManualPrecisionChangedFiles,
@@ -1043,6 +1044,36 @@ test("private Web Lab manual authoring allowlist is exact and rejects scope drif
     ]),
     null,
   );
+});
+
+test("private Web Lab authoring status test fix preserves its exact test-only boundary", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(privateWebLabAuthoringStatusTestFixChangedFiles),
+    privateWebLabAuthoringStatusTestFixChangedFiles,
+  );
+  for (const missingFile of privateWebLabAuthoringStatusTestFixChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        privateWebLabAuthoringStatusTestFixChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbiddenFile of [
+    "src/private-web-lab.ts",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "web-lab/private-web-lab.js",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...privateWebLabAuthoringStatusTestFixChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("private Web Lab manual precision allowlist is exact and rejects scope drift", () => {
@@ -4274,6 +4305,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     privateWebLabManualAuthoringChangedFiles,
   );
+  const isPrivateWebLabAuthoringStatusTestFixSet = isExactChangedFileSet(
+    changedFiles,
+    privateWebLabAuthoringStatusTestFixChangedFiles,
+  );
   const isPrivateWebLabManualPrecisionSet = isExactChangedFileSet(
     changedFiles,
     privateWebLabManualPrecisionChangedFiles,
@@ -4520,7 +4555,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabAuthoringStatusTestFixSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -4544,6 +4579,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? privateWebLabLocalCvCandidatesChangedFiles
       : isPrivateWebLabManualAuthoringSet
       ? privateWebLabManualAuthoringChangedFiles
+      : isPrivateWebLabAuthoringStatusTestFixSet
+      ? privateWebLabAuthoringStatusTestFixChangedFiles
       : isPrivateWebLabManualPrecisionSet
       ? privateWebLabManualPrecisionChangedFiles
       : isPrivateWebLabResultPresentationSet
