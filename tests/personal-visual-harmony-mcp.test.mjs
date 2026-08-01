@@ -5954,7 +5954,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /ui\/notifications\/tool-result/u);
     assert.match(resource.contents[0].text, /rpcRequest\("ui\/initialize"/u);
     assert.match(resource.contents[0].text, /rpcNotify\("ui\/notifications\/initialized"/u);
-    assert.match(resource.contents[0].text, /rpcRequest\("tools\/call",\{name,arguments:args\}\)/u);
+    assert.match(resource.contents[0].text, /rpcRequest\("tools\/call",\{name,arguments:args\},remainingMs\)/u);
     assert.match(resource.contents[0].text, /pendingRequests\.get\(message\.id\)/u);
     assert.match(resource.contents[0].text, /data-norma-bridge","ready"/u);
     assert.match(resource.contents[0].text, /data-norma-last-error","tools-call"/u);

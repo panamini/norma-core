@@ -449,6 +449,61 @@ test("perception jobs reject stale subject, session, and source bindings", () =>
   }
 });
 
+test("a provider that never settles reaches one deterministic terminal failure", async () => {
+  let providerCalls = 0;
+  const service = createService({
+    provider: {
+      async segment() {
+        providerCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+    executionDeadlineMs: 10,
+  });
+  const prepared = automaticCandidateSet();
+  const pending = service.start(startInput(prepared));
+
+  await new Promise((resolve) => setTimeout(resolve, 25));
+
+  const failed = service.get({
+    jobId: pending.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  });
+  assert.equal(failed.state, "failed");
+  assert.equal(failed.errorCode, "job_execution_timeout");
+  assert.equal(failed.preparedCandidateSet, null);
+  assert.equal(failed.coreRun, false);
+  assert.equal(providerCalls, 1);
+});
+
+test("a provider failure terminalizes once without candidates or Core", async () => {
+  let providerCalls = 0;
+  const service = createService({
+    provider: {
+      async segment() {
+        providerCalls += 1;
+        throw new Error("provider unavailable");
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const pending = service.start(startInput(prepared));
+  const failed = await waitForTerminal(service, {
+    jobId: pending.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  });
+
+  assert.equal(failed.state, "failed");
+  assert.equal(failed.errorCode, "perception_failed");
+  assert.equal(failed.preparedCandidateSet, null);
+  assert.equal(failed.coreRun, false);
+  assert.equal(providerCalls, 1);
+});
+
 test("perception jobs expire and enforce bounded capacity", () => {
   let now = Date.parse("2026-07-27T10:00:00.000Z");
   let jobCount = 0;
@@ -476,6 +531,7 @@ test("perception jobs expire and enforce bounded capacity", () => {
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
   });
   assert.equal(expired.state, "expired");
+  assert.equal(expired.errorCode, "job_expired");
   assert.equal(expired.preparedCandidateSet, null);
 });
 

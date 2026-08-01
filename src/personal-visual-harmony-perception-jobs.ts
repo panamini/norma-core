@@ -31,6 +31,7 @@ import {
 export const PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CONTRACT_ID =
   "norma.personal-visual-harmony-perception-job@1" as const;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_TTL_MS = 10 * 60 * 1_000;
+export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS = 45_000;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CAPACITY = 32;
 export const PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION = 9;
 
@@ -73,6 +74,7 @@ export interface PersonalVisualHarmonyPerceptionJobV1 {
 export interface PersonalVisualHarmonyPerceptionJobServiceOptions {
   readonly provider: PersonalVisualHarmonySegmentationProvider;
   readonly ttlMs?: number;
+  readonly executionDeadlineMs?: number;
   readonly capacity?: number;
   readonly maxSourceImageBytes?: number;
   readonly downloadDeadlineMs?: number;
@@ -119,6 +121,7 @@ interface StoredJob {
 export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #provider: PersonalVisualHarmonySegmentationProvider;
   readonly #ttlMs: number;
+  readonly #executionDeadlineMs: number;
   readonly #capacity: number;
   readonly #maxSourceImageBytes: number;
   readonly #downloadDeadlineMs: number;
@@ -136,6 +139,13 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       "ttlMs",
       1_000,
       60 * 60 * 1_000,
+    );
+    this.#executionDeadlineMs = boundedPositiveInteger(
+      options.executionDeadlineMs
+        ?? Math.min(DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS, this.#ttlMs),
+      "executionDeadlineMs",
+      10,
+      this.#ttlMs,
     );
     this.#capacity = boundedPositiveInteger(
       options.capacity ?? DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CAPACITY,
@@ -316,7 +326,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         "Perception job binding does not match the active subject, session, and source image.",
       );
     }
-    return this.#publicJob(job, this.#now());
+    const now = this.#now();
+    if (now >= job.expiresAtMs) this.#terminalizePendingJob(job, "job_expired");
+    return this.#publicJob(job, now);
   }
 
   async #execute(
@@ -335,6 +347,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       readonly attemptOrdinal?: 1 | 2;
     },
   ): Promise<void> {
+    const executionTimer = setTimeout(() => {
+      this.#terminalizePendingJob(job, "job_execution_timeout");
+    }, this.#executionDeadlineMs);
     try {
       const source = await downloadPersonalVisualHarmonySourceImage({
         url: input.sourceImageUrl,
@@ -346,12 +361,21 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         deadlineMs: this.#downloadDeadlineMs,
         ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
       });
+      if (job.state !== "pending") return;
+      if (this.#now() >= job.expiresAtMs) {
+        this.#terminalizePendingJob(job, "job_expired");
+        return;
+      }
       const segmentation = await this.#provider.segment({
         sourceImageBytes: source.bytes,
         sourceImageMediaType: source.mediaType,
         prompt: input.prompt,
       });
-      if (this.#now() >= job.expiresAtMs) return;
+      if (job.state !== "pending") return;
+      if (this.#now() >= job.expiresAtMs) {
+        this.#terminalizePendingJob(job, "job_expired");
+        return;
+      }
       job.perceptionReceiptIdentity = segmentation.receipt.receiptIdentity;
       if (segmentation.response.status === "abstained") {
         job.state = "abstained";
@@ -459,17 +483,31 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       });
       job.state = "ready";
     } catch (error: unknown) {
-      if (this.#now() >= job.expiresAtMs) return;
-      job.state = "failed";
-      job.errorCode = error instanceof PersonalVisualHarmonySegmentationError
+      if (job.state !== "pending") return;
+      if (this.#now() >= job.expiresAtMs) {
+        this.#terminalizePendingJob(job, "job_expired");
+        return;
+      }
+      this.#terminalizePendingJob(job, error instanceof PersonalVisualHarmonySegmentationError
         ? error.code
-        : "perception_failed";
+        : "perception_failed");
+    } finally {
+      clearTimeout(executionTimer);
     }
+  }
+
+  #terminalizePendingJob(job: StoredJob, errorCode: string): void {
+    if (job.state !== "pending") return;
+    job.state = "failed";
+    job.errorCode = errorCode;
+    job.perceptionReceiptIdentity = null;
+    job.preparedCandidateSet = null;
   }
 
   #removeExpired(now: number): void {
     for (const [jobId, job] of this.#jobs) {
       if (now < job.expiresAtMs) continue;
+      this.#terminalizePendingJob(job, "job_expired");
       this.#jobs.delete(jobId);
       this.#expiredJobs.set(jobId, job);
     }
@@ -500,7 +538,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       workflowMode: job.workflowMode,
       attemptOrdinal: job.attemptOrdinal,
       parentCandidateSetIdentity: job.parentCandidateSetIdentity,
-      errorCode: expired ? null : job.errorCode,
+      errorCode: expired ? "job_expired" : job.errorCode,
       candidateEvidenceOnly: true,
       sourceTruth: false,
       coreAuthority: false,
