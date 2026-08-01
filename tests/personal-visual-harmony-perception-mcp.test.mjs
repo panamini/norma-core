@@ -1532,7 +1532,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, new RegExp(PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL, "u"));
   assert.match(
     html,
-    /payload\.prepared\?\.perceptionReceiptIdentity\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
+    /perceptionAssistedPrepared\(payload\.prepared\)\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
   );
   assert.match(
     html,

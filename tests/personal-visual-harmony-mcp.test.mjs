@@ -2254,6 +2254,7 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
     "async function callConfirmation",
     {
       state,
+      perceptionAssistedPrepared: () => false,
       PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       callAppTool: async (name, args) => {
         calls.push({ name, args });
@@ -4207,6 +4208,7 @@ test("cached revalidation installs a re-prepared correlation before Core becomes
       state,
       reviewedCandidateSnapshot: () => [{ id: "adjusted" }],
       geometryChanged: () => true,
+      perceptionAssistedPrepared: () => false,
       statusNode: { textContent: "" },
       setReviewLocked() {},
       prepareReviewedPayload: async () => rePreparedPayload,
@@ -4237,6 +4239,31 @@ test("cached revalidation installs a re-prepared correlation before Core becomes
     { nextPayload: freshPayload, milestone: "result-received" },
     { nextPayload: freshPayload, milestone: "core-visible" },
   ]);
+});
+
+test("widget preserves perception provenance for reviewed V2 and V3 geometry", () => {
+  const perceptionAssistedPrepared = widgetScriptFunction(
+    "perceptionAssistedPrepared",
+    "async function prepareReviewedPayload",
+    {},
+  );
+  assert.equal(perceptionAssistedPrepared({ candidateSetIdentity: "v1" }), false);
+  assert.equal(perceptionAssistedPrepared({ perceptionReceiptIdentity: "sha256:receipt" }), true);
+  assert.equal(perceptionAssistedPrepared({
+    workflowMode: "two-object-spatial",
+    perceptionManifest: { observations: [] },
+  }), true);
+  assert.equal(perceptionAssistedPrepared({ workflowMode: "two-object-spatial" }), false);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /if\(perceptionAssistedPrepared\(payload\.prepared\)\)throw new Error\("perception-assisted geometry cannot be relabeled by V1 preparation"\)/u,
+  );
+  assert.equal(
+    html.match(/perceptionEdited=changed&&perceptionAssistedPrepared\(/gu)?.length,
+    2,
+  );
 });
 
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
