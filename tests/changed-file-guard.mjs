@@ -733,7 +733,8 @@ export const personalVisualHarmonyTwoObjectSpatialChangedFiles = Object.freeze([
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
-// Covers the bounded V3 A/B spatial-workflow binding repair and its focused proof.
+// Covers the bounded V3 A/B spatial-workflow binding repair, including generated-widget
+// declarations required by the focused browser proof.
 export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
