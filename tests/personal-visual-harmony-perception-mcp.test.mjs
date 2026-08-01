@@ -1047,6 +1047,187 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
   }
 });
 
+test("a timed-out object A terminalizes its bound workflow without Core or provider retry", async () => {
+  let providerCalls = 0;
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment() {
+        providerCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+    executionDeadlineMs: 10,
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        "content-length": String(sourceBytes.byteLength),
+      },
+    }),
+    createJobId: () => "job:mcp-two-object-timeout",
+  });
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:mcp-two-object-timeout",
+  });
+  const connected = await connect({ service, jobs, subjectId: "subject:owner" });
+  try {
+    const initial = await prepare(connected.client);
+    const payload = initial._meta.normaPersonalVisualHarmony;
+    const startArguments = {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
+      semanticTarget: "person",
+      label: "Objet A",
+      role: "primary-subject",
+      workflowMode: "two-object-spatial",
+      guidedAnalysisGoal: "compare-two-lengths",
+    };
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments,
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const statusArguments = {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      jobId: started.structuredContent.jobId,
+    };
+    const failed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: statusArguments,
+    });
+    assert.equal(failed.isError, undefined, JSON.stringify(failed));
+    assert.equal(failed.structuredContent.state, "failed");
+    assert.equal(failed.structuredContent.errorCode, "job_execution_timeout");
+    assert.equal(failed.structuredContent.coreRun, false);
+    assert.equal("result" in failed.structuredContent, false);
+    assert.deepEqual(failed._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow, {
+      workflowMode: "two-object-spatial",
+      consumedAttempts: 1,
+      active: false,
+      terminalState: "object-a-failed",
+    });
+
+    const replay = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: statusArguments,
+    });
+    assert.equal(replay.isError, undefined, JSON.stringify(replay));
+    assert.deepEqual(replay.structuredContent, failed.structuredContent);
+    const retry = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments,
+    });
+    assert.equal(retry.isError, true);
+    assert.equal(providerCalls, 1);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("an expired object A terminalizes its bound workflow and releases review without Core", async () => {
+  let now = Date.parse("2026-08-01T12:00:00.000Z");
+  let providerCalls = 0;
+  let releaseProvider = null;
+  const readyProvider = successfulProvider();
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment() {
+        providerCalls += 1;
+        return new Promise((resolve) => {
+          releaseProvider = resolve;
+        });
+      },
+    },
+    now: () => now,
+    ttlMs: 1_000,
+    executionDeadlineMs: 1_000,
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        "content-length": String(sourceBytes.byteLength),
+      },
+    }),
+    createJobId: () => "job:mcp-two-object-expired",
+  });
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => now,
+    sessionTtlMs: 5_000,
+    createSessionId: () => "session:mcp-two-object-expired",
+  });
+  const connected = await connect({ service, jobs, subjectId: "subject:owner" });
+  try {
+    const initial = await prepare(connected.client);
+    const payload = initial._meta.normaPersonalVisualHarmony;
+    const startArguments = {
+      sessionId: payload.sessionId,
+      candidateSetIdentity: payload.prepared.candidateSetIdentity,
+      appCapability: payload.perceptionAppCapability,
+      sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
+      semanticTarget: "person",
+      label: "Objet A",
+      role: "primary-subject",
+      workflowMode: "two-object-spatial",
+      guidedAnalysisGoal: "compare-two-lengths",
+    };
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments,
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+    for (let attempt = 0; attempt < 20 && releaseProvider === null; attempt += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(providerCalls, 1);
+    assert.equal(typeof releaseProvider, "function");
+
+    now += 1_000;
+    const status = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        jobId: started.structuredContent.jobId,
+      },
+    });
+    assert.equal(status.isError, undefined, JSON.stringify(status));
+    assert.equal(status.structuredContent.state, "expired");
+    assert.equal(status.structuredContent.errorCode, "job_expired");
+    assert.equal(status.structuredContent.coreRun, false);
+    assert.deepEqual(status._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow, {
+      workflowMode: "two-object-spatial",
+      consumedAttempts: 1,
+      active: false,
+      terminalState: "object-a-failed",
+    });
+    const retry = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: startArguments,
+    });
+    assert.equal(retry.isError, true);
+    assert.equal(providerCalls, 1);
+
+    releaseProvider(await readyProvider.segment({
+      sourceImageBytes: sourceBytes,
+      sourceImageMediaType: "image/png",
+      prompt: { kind: "text", text: "person" },
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    await connected.close();
+  }
+});
+
 test("terminal object-B abstention is replay-safe and permits only its one-observation recovery", async () => {
   let now = Date.parse("2026-07-31T10:00:00.000Z");
   let providerCalls = 0;
@@ -1593,8 +1774,11 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
   assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
-  assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=18/u);
-  assert.match(html, /while\(Date\.now\(\)<expiresAtMs&&remainingPolls>0\)/u);
+  assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=24/u);
+  assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
+  assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=50000/u);
+  assert.match(html, /PERCEPTION_TOOL_CALL_TIMEOUT_MS=15000/u);
+  assert.match(html, /pollDeadlineMs=Math\.min\(expiresAtMs,Date\.now\(\)\+PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS\)/u);
   assert.match(html, /workflowMode:"two-object-spatial",guidedAnalysisGoal:"compare-two-lengths"/u);
   assert.match(html, /twoObjectSpatialWorkflowActive\(\)&&id!=="compare-two-lengths"/u);
   assert.match(html, /eligibleInteractivePerceptionCandidates\(payload\)/u);
@@ -1627,8 +1811,17 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /rectangleIds\.filter\(id=>!proposalIds\.has\(id\)\)/u);
   assert.match(html, /setReviewLocked\(multiPerceptionReviewLocked\(\)\)/u);
-  assert.match(html, /remainingMs>0\)await new Promise\(resolve=>setTimeout\(resolve,remainingMs\)\)/u);
+  assert.doesNotMatch(html, /setTimeout\(resolve,remainingMs\)/u);
   assert.match(html, /state\.multiPerceptionTerminalState=multiPerceptionObservationCount\(payload\)===0\?"object-a-failed":"object-b-failed"/u);
+  assert.equal(
+    html.match(/callAppTool\(START_PERCEPTION_TOOL,.*?,PERCEPTION_TOOL_CALL_TIMEOUT_MS\)/gu)?.length,
+    2,
+  );
+  assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,PERCEPTION_TOOL_CALL_TIMEOUT_MS\)/u);
+  assert.equal(
+    html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:payload\.fileId\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
+    2,
+  );
   assert.match(
     html,
     /candidates:prepared\.candidates\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
@@ -1655,9 +1848,9 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   }
 });
 
-test("widget polling performs one final status read before declaring expiry", async () => {
+test("widget polling stops at its client deadline without waiting for the server TTL", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
-  const start = html.indexOf("async function applyPerceptionStatusResponse(");
+  const start = html.indexOf("async function pollPerceptionJob(");
   const end = html.indexOf("\nperceptionToggle.addEventListener", start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
@@ -1671,25 +1864,27 @@ test("widget polling performs one final status read before declaring expiry", as
   const pollPerceptionJob = new Function(
     "state",
     "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_POLL_DELAY_MS",
+    "PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
-    "perceptionWorkflowArgs",
-    "multiPerceptionObservationCount",
-    "setReviewLocked",
-    "multiPerceptionReviewLocked",
+    "applyPerceptionStatusResponse",
+    "perceptionClientError",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
   )(
     state,
-    18,
+    24,
+    2_000,
+    50_000,
+    15_000,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     async () => {
       statusReads += 1;
       return { structuredContent: { state: "pending" } };
     },
-    () => ({}),
-    () => 0,
-    () => {},
-    () => false,
+    async () => false,
+    (code, message) => Object.assign(new Error(message), { code }),
   );
   await assert.rejects(
     () => pollPerceptionJob(
@@ -1703,9 +1898,71 @@ test("widget polling performs one final status read before declaring expiry", as
       new Date(Date.now() - 1).toISOString(),
       "payload:active",
     ),
-    /perception status polling expired/u,
+    (error) => error.code === "perception_poll_timeout",
   );
-  assert.equal(statusReads, 1);
+  assert.equal(statusReads, 0);
+});
+
+test("a bridge tools/call that never answers is bounded and clears its pending request", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("let rpcId=0,bridgeReady;");
+  const end = html.indexOf("\nasync function initializeBridge", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const posted = [];
+  const { rpcRequest, pendingRequests } = new Function(
+    "window",
+    `"use strict";${html.slice(start, end)};return{rpcRequest,pendingRequests};`,
+  )({ parent: { postMessage(message) { posted.push(message); } } });
+
+  await assert.rejects(
+    () => rpcRequest("tools/call", {
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {},
+    }, 5),
+    (error) => error.code === "perception_tool_timeout",
+  );
+  assert.equal(posted.length, 1);
+  assert.equal(pendingRequests.size, 0);
+});
+
+test("a terminal perception timeout unlocks the two-object review without Core or retry", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function perceptionFailureMessage(");
+  const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    perceptionRunning: true,
+    multiPerceptionTerminalState: null,
+  };
+  const locks = [];
+  let coreCalls = 0;
+  const terminalize = new Function(
+    "state",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "setReviewLocked",
+    "multiPerceptionReviewLocked",
+    `"use strict";${html.slice(start, end)};return terminalizePerceptionClientFailure;`,
+  )(
+    state,
+    () => ({ workflowMode: "two-object-spatial" }),
+    () => 0,
+    (locked) => locks.push(locked),
+    () => state.perceptionRunning
+      || state.multiPerceptionTerminalState === null,
+  );
+
+  const message = terminalize({}, Object.assign(new Error("timeout"), {
+    code: "perception_tool_timeout",
+  }));
+  assert.equal(state.perceptionRunning, false);
+  assert.equal(state.multiPerceptionTerminalState, "object-a-failed");
+  assert.deepEqual(locks, [false]);
+  assert.match(message, /Norma Core reste arrêté/u);
+  assert.match(message, /nouvelle tentative explicite/u);
+  assert.equal(coreCalls, 0);
 });
 
 test("two-object workflow rejects family-filter transitions that clear the comparison goal", () => {

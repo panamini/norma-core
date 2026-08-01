@@ -741,6 +741,17 @@ export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze(
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Covers the bounded SAM provider, bridge, and widget timeout recovery path.
+export const personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2176,6 +2187,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabLocalCvCandidatesChangedFiles,
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
+  personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,
