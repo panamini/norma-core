@@ -733,13 +733,16 @@ export const personalVisualHarmonyTwoObjectSpatialChangedFiles = Object.freeze([
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
-// Covers the bounded V3 A/B spatial-workflow binding repair, including generated-widget
-// declarations required by the focused browser proof.
+// Covers the bounded V3 A/B spatial-workflow binding repair and its exact-head
+// launcher freshness repair, which prevents parallel tests from rewriting dist.
 export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/private-web-lab-browser.test.mjs",
+  "web-lab/private-web-lab-build-freshness.mjs",
+  "web-lab/start-private-web-lab.mjs",
 ].sort());
 
 // Covers the bounded SAM provider, bridge, and widget timeout recovery path.

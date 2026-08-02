@@ -2,6 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { privateWebLabBuildIsCurrent } from "./private-web-lab-build-freshness.mjs";
 
 const ENABLE_FLAG = "--enable-private-web-lab";
 if (!process.argv.includes(ENABLE_FLAG)) {
@@ -25,6 +26,7 @@ await startOrReusePrivateWebLab(port);
 
 function ensurePrivateWebLabBuild() {
   const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+  if (privateWebLabBuildIsCurrent(repositoryRoot)) return;
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "build"], {
     cwd: repositoryRoot,
