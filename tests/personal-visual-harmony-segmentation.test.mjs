@@ -150,7 +150,7 @@ test("segmentation client accepts a bounded provider abstention", async () => {
   assert.equal(result.receipt.status, "abstained");
 });
 
-test("segmentation client limits cold-start probes to three and never sends inference", async () => {
+test("segmentation client waits through a bounded cold start and never sends inference after readiness failure", async () => {
   let getCount = 0;
   let postCount = 0;
   const fetch = async (_url, init) => {
@@ -162,7 +162,7 @@ test("segmentation client limits cold-start probes to three and never sends infe
     return new Response(null, { status: 500 });
   };
   await assert.rejects(
-    clientWith(fetch).segment({
+    clientWith(fetch, { deadlineMs: 1_000 }).segment({
       sourceImageBytes: imageBytes,
       sourceImageMediaType: "image/png",
       prompt,
@@ -172,6 +172,28 @@ test("segmentation client limits cold-start probes to three and never sends infe
   );
   assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
   assert.equal(postCount, 0);
+});
+
+test("segmentation client sends exactly one inference after a cold-start readiness wait", async () => {
+  let getCount = 0;
+  let postCount = 0;
+  const fetch = async (_url, init) => {
+    if (init.method === "GET") {
+      getCount += 1;
+      return new Response(null, { status: getCount < 4 ? 503 : 200 });
+    }
+    postCount += 1;
+    const request = JSON.parse(init.body);
+    return Response.json(responseFor(request));
+  };
+  const result = await clientWith(fetch, { deadlineMs: 1_000 }).segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+  assert.equal(getCount, 4);
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, 4);
 });
 
 test("segmentation client never replays an inference POST after 503", async () => {
@@ -355,6 +377,13 @@ test("configuration is disabled only when all provider variables are absent", ()
       "https://files.example.test,https://files-backup.example.test",
   };
   assert(createPersonalVisualHarmonySegmentationClientFromEnv(configured));
+  assert.throws(
+    () => createPersonalVisualHarmonySegmentationClientFromEnv({
+      ...configured,
+      NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "not-a-duration",
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
   assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv(configured), [
     "https://files.example.test",
     "https://files-backup.example.test",

@@ -1774,10 +1774,12 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
   assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
-  assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=24/u);
+  assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=160/u);
   assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
-  assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=50000/u);
+  assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=320000/u);
   assert.match(html, /PERCEPTION_TOOL_CALL_TIMEOUT_MS=15000/u);
+  assert.match(html, /code==="provider_unavailable"/u);
+  assert.match(html, /SAM 3 est resté indisponible pendant son démarrage/u);
   assert.match(html, /pollDeadlineMs=Math\.min\(expiresAtMs,Date\.now\(\)\+PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS\)/u);
   assert.match(html, /workflowMode:"two-object-spatial",guidedAnalysisGoal:"compare-two-lengths"/u);
   assert.match(html, /twoObjectSpatialWorkflowActive\(\)&&id!=="compare-two-lengths"/u);
@@ -1874,9 +1876,9 @@ test("widget polling stops at its client deadline without waiting for the server
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
   )(
     state,
-    24,
+    160,
     2_000,
-    50_000,
+    320_000,
     15_000,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     async () => {
