@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { access, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,11 +41,47 @@ import {
   createPrivateWebLabHttpServerV1,
   PRIVATE_WEB_LAB_RUNTIME_IDENTITY,
 } from "../web-lab/private-web-lab-http-server.mjs";
+import { privateWebLabBuildIsCurrent } from "../web-lab/private-web-lab-build-freshness.mjs";
 
 const RUN_RENDERED_BROWSER_TEST =
   process.env.NORMA_RUN_PRIVATE_WEB_LAB_BROWSER_TEST === "1";
 
-test("launcher rebuilds before loading the ignored runtime tree", async () => {
+test("launcher reuses a complete current build and rebuilds stale or incomplete output", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "norma-private-web-lab-build-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const sourceDir = join(root, "src", "nested");
+  const outputDir = join(root, "dist", "src", "nested");
+  await Promise.all([
+    mkdir(sourceDir, { recursive: true }),
+    mkdir(outputDir, { recursive: true }),
+  ]);
+  const sourcePath = join(sourceDir, "runtime.ts");
+  const outputPath = join(outputDir, "runtime.js");
+  const buildInputs = [
+    sourcePath,
+    join(root, "tsconfig.json"),
+    join(root, "package.json"),
+    join(root, "package-lock.json"),
+  ];
+  await Promise.all([
+    writeFile(sourcePath, "export const runtime = true;\n"),
+    writeFile(outputPath, "export const runtime = true;\n"),
+    writeFile(join(root, "tsconfig.json"), "{}\n"),
+    writeFile(join(root, "package.json"), "{}\n"),
+    writeFile(join(root, "package-lock.json"), "{}\n"),
+  ]);
+  const oldTime = new Date("2026-01-01T00:00:00.000Z");
+  const builtTime = new Date("2026-01-01T00:00:01.000Z");
+  await Promise.all(buildInputs.map((path) => utimes(path, oldTime, oldTime)));
+  await utimes(outputPath, builtTime, builtTime);
+  assert.equal(privateWebLabBuildIsCurrent(root), true);
+
+  await utimes(sourcePath, new Date("2026-01-01T00:00:02.000Z"), new Date("2026-01-01T00:00:02.000Z"));
+  assert.equal(privateWebLabBuildIsCurrent(root), false);
+  await utimes(sourcePath, oldTime, oldTime);
+  await rm(outputPath);
+  assert.equal(privateWebLabBuildIsCurrent(root), false);
+
   const source = await readFile(
     new URL("../web-lab/start-private-web-lab.mjs", import.meta.url),
     "utf8",
@@ -58,7 +94,7 @@ test("launcher rebuilds before loading the ignored runtime tree", async () => {
   assert.ok(runtimeImportIndex > buildIndex);
   assert.match(
     source,
-    /function ensurePrivateWebLabBuild\(\) \{[\s\S]*?spawnSync\(/u,
+    /function ensurePrivateWebLabBuild\(\) \{[\s\S]*?privateWebLabBuildIsCurrent[\s\S]*?spawnSync\(/u,
   );
   assert.doesNotMatch(
     source,

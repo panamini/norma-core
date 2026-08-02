@@ -5902,6 +5902,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
     assert.doesNotThrow(() => new Function(widgetScript[1]));
+    assert.match(widgetScript[1], /const DECLARED_SPATIAL_ANCHORS=\["center","top-left","top-right","bottom-left","bottom-right","top-midpoint","right-midpoint","bottom-midpoint","left-midpoint"\]/u);
+    assert.match(widgetScript[1], /DECLARED_SPATIAL_METRICS=\["euclidean","horizontal","vertical"\]/u);
+    assert.match(widgetScript[1], /DECLARED_SPATIAL_EDGES=\["left","right","top","bottom"\]/u);
     assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
       uri: "ui://widget/norma-personal-visual-harmony-v9.html",

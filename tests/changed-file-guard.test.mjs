@@ -1055,6 +1055,7 @@ test("personal visual harmony spatial activation allowlist is exact and rejects 
     "package.json",
     "package-lock.json",
     "src/personal-visual-harmony-perception.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
     "web-lab/private-web-lab.js",
   ]) {
     assert.equal(
