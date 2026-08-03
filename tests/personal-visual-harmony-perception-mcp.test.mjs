@@ -1820,7 +1820,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     html,
     /Math\.floor\(PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS\/2\)/u,
   );
-  assert.match(html, /state\.multiPerceptionTerminalState=multiPerceptionObservationCount\(payload\)===0\?"object-a-failed":"object-b-failed"/u);
+  assert.match(html, /state\.multiPerceptionTerminalState=multiPerceptionObservationCount\(terminalPayload\)===0\?"object-a-failed":"object-b-failed"/u);
   assert.equal(
     html.match(/callAppTool\(START_PERCEPTION_TOOL,.*?,PERCEPTION_TOOL_CALL_TIMEOUT_MS\)/gu)?.length,
     2,
@@ -2234,6 +2234,60 @@ test("widget preserves a poll timeout after late hydration replaces the payload 
     html.split("perceptionClientFailureIsCurrent(expectedPayloadIdentity,error)").length - 1,
     3,
   );
+});
+
+test("a late object-A hydration timeout terminalizes against the applied payload", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function perceptionFailureMessage(");
+  const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const originalPayload = {
+    prepared: {
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [] },
+    },
+  };
+  const appliedPayload = {
+    prepared: {
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [{ candidateId: "object-a" }] },
+    },
+  };
+  const state = {
+    activePayloadIdentity: "payload:ready",
+    payload: appliedPayload,
+    perceptionRunning: true,
+    multiPerceptionTerminalState: null,
+  };
+  const locks = [];
+  const observationCount = (payload = state.payload) =>
+    payload.prepared.perceptionManifest.observations.length;
+  const terminalize = new Function(
+    "state",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "setReviewLocked",
+    "multiPerceptionReviewLocked",
+    `"use strict";${html.slice(start, end)};return terminalizePerceptionClientFailure;`,
+  )(
+    state,
+    (payload) => payload.prepared.workflowMode === "two-object-spatial"
+      ? { workflowMode: "two-object-spatial" }
+      : {},
+    observationCount,
+    (locked) => locks.push(locked),
+    () => state.perceptionRunning
+      || (observationCount() === 1 && state.multiPerceptionTerminalState !== "object-b-failed"),
+  );
+
+  terminalize(originalPayload, Object.assign(new Error("late hydration"), {
+    code: "perception_poll_timeout",
+    appliedPayloadIdentity: "payload:ready",
+  }));
+
+  assert.equal(state.multiPerceptionTerminalState, "object-b-failed");
+  assert.deepEqual(locks, [false]);
 });
 
 test("a bridge tools/call that never answers is bounded and clears its pending request", async () => {
