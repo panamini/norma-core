@@ -655,6 +655,61 @@ test("a queued job is not admitted when the bounded provider window no longer fi
   }).errorCode, "job_execution_timeout");
 });
 
+test("a queued job uses the provider's configured shorter deadline for admission", async (t) => {
+  const providerGates = [];
+  let fetchCalls = 0;
+  let jobCount = 0;
+  let now = 0;
+  t.after(() => providerGates.forEach((gate) => gate.resolve()));
+  const service = createService({
+    capacity: 5,
+    executionDeadlineMs: DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS,
+    now: () => now,
+    createJobId: () => `job:configured-provider-budget-${String(++jobCount)}`,
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+    provider: {
+      deadlineMs: 60_000,
+      async segment(input) {
+        const gate = deferred();
+        providerGates.push(gate);
+        await gate.promise;
+        return successfulProvider().segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const jobs = Array.from({ length: 5 }, (_, index) => service.start({
+    ...startInput(prepared),
+    sessionId: `session:configured-provider-budget-${String(index + 1)}`,
+  }));
+
+  await waitForCondition(() => providerGates.length >= 4);
+  assert.equal(fetchCalls, 4);
+  now = 60_000;
+  providerGates[0].resolve();
+  await waitForCondition(() => providerGates.length >= 5);
+  assert.equal(fetchCalls, 5);
+
+  providerGates.forEach((gate) => gate.resolve());
+  const terminalJobs = await Promise.all(jobs.map((job, index) => waitForTerminal(service, {
+    jobId: job.jobId,
+    subjectId: "subject:test",
+    sessionId: `session:configured-provider-budget-${String(index + 1)}`,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  })));
+  assert.equal(terminalJobs.every((job) => job.state === "ready"), true);
+  assert.equal(terminalJobs.every((job) => job.coreRun === false), true);
+});
+
 test("a provider failure terminalizes once without candidates or Core", async () => {
   let providerCalls = 0;
   const service = createService({

@@ -649,6 +649,10 @@ test("configuration is disabled only when all provider variables are absent", ()
       "https://files.example.test,https://files-backup.example.test",
   };
   assert(createPersonalVisualHarmonySegmentationClientFromEnv(configured));
+  assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "60000",
+  })?.deadlineMs, 60_000);
   assert.throws(
     () => createPersonalVisualHarmonySegmentationClientFromEnv({
       ...configured,

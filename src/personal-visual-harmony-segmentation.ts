@@ -96,6 +96,7 @@ export interface PersonalVisualHarmonySegmentationResultV1 {
 }
 
 export interface PersonalVisualHarmonySegmentationProvider {
+  readonly deadlineMs?: number;
   segment(input: {
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
@@ -202,6 +203,10 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       }, milliseconds);
       signal.addEventListener("abort", onAbort, { once: true });
     }));
+  }
+
+  public get deadlineMs(): number {
+    return this.#deadlineMs;
   }
 
   public async segment(input: {

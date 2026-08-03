@@ -142,6 +142,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #maxSourceImageBytes: number;
   readonly #maxConcurrentSourceImages: number;
   readonly #downloadDeadlineMs: number;
+  readonly #providerDeadlineMs: number;
   readonly #allowedSourceImageOrigins: readonly string[];
   readonly #fetch: PersonalVisualHarmonyFetch | undefined;
   readonly #now: () => number;
@@ -193,6 +194,12 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       "downloadDeadlineMs",
       500,
       60_000,
+    );
+    this.#providerDeadlineMs = boundedPositiveInteger(
+      options.provider.deadlineMs ?? DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS,
+      "providerDeadlineMs",
+      1_000,
+      DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS,
     );
     if (!Array.isArray(options.allowedSourceImageOrigins)
       || options.allowedSourceImageOrigins.length === 0) {
@@ -579,7 +586,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     executionDeadlineAtMs: number,
   ): boolean {
     const requiredBudgetMs = this.#downloadDeadlineMs
-      + DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS;
+      + this.#providerDeadlineMs;
     if (this.#now() + requiredBudgetMs <= executionDeadlineAtMs) return false;
     this.#terminalizePendingJob(job, "job_execution_timeout");
     return true;
