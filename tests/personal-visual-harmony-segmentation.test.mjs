@@ -170,8 +170,30 @@ test("segmentation client waits through a bounded cold start and never sends inf
     (error) => error instanceof PersonalVisualHarmonySegmentationError
       && error.code === "provider_unavailable",
   );
-  assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
+  assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES + 1);
   assert.equal(postCount, 0);
+});
+
+test("segmentation client accepts readiness on the final bounded probe", async () => {
+  let getCount = 0;
+  let postCount = 0;
+  const fetch = async (_url, init) => {
+    if (init.method === "GET") {
+      getCount += 1;
+      return new Response(null, { status: getCount <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES ? 503 : 200 });
+    }
+    postCount += 1;
+    const request = JSON.parse(init.body);
+    return Response.json(responseFor(request));
+  };
+  const result = await clientWith(fetch, { deadlineMs: 1_000 }).segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+  assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES + 1);
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES + 1);
 });
 
 test("segmentation client sends exactly one inference after a cold-start readiness wait", async () => {

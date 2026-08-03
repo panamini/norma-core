@@ -1819,7 +1819,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     html.match(/callAppTool\(START_PERCEPTION_TOOL,.*?,PERCEPTION_TOOL_CALL_TIMEOUT_MS\)/gu)?.length,
     2,
   );
-  assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,PERCEPTION_TOOL_CALL_TIMEOUT_MS\)/u);
+  assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,statusTimeoutMs\)/u);
   assert.equal(
     html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:payload\.fileId\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
     2,
@@ -1903,6 +1903,58 @@ test("widget polling stops at its client deadline without waiting for the server
     (error) => error.code === "perception_poll_timeout",
   );
   assert.equal(statusReads, 0);
+});
+
+test("widget performs one final status read after the poll budget is exhausted", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function pollPerceptionJob(");
+  const end = html.indexOf("\nperceptionToggle.addEventListener", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  let statusReads = 0;
+  const state = {
+    activePayloadIdentity: "payload:active",
+    completed: false,
+    perceptionRunning: true,
+    multiPerceptionTerminalState: null,
+  };
+  const pollPerceptionJob = new Function(
+    "state",
+    "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_POLL_DELAY_MS",
+    "PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    "PERCEPTION_STATUS_TOOL",
+    "callAppTool",
+    "applyPerceptionStatusResponse",
+    "perceptionClientError",
+    `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
+  )(
+    state,
+    1,
+    2_000,
+    80,
+    15,
+    PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+    async () => {
+      statusReads += 1;
+      return { structuredContent: { state: statusReads === 1 ? "pending" : "ready" } };
+    },
+    async (_payload, response) => response.structuredContent.state === "ready",
+    (code, message) => Object.assign(new Error(message), { code }),
+  );
+  await pollPerceptionJob(
+    {
+      sessionId: "session:poll-final",
+      fileId: "file:poll-final",
+      perceptionAppCapability: "pvh-app:poll-final-capability",
+      prepared: { candidateSetIdentity: `sha256:${"1".repeat(64)}` },
+    },
+    "job:poll-final",
+    new Date(Date.now() + 80).toISOString(),
+    "payload:active",
+  );
+  assert.equal(statusReads, 2);
 });
 
 test("a bridge tools/call that never answers is bounded and clears its pending request", async () => {

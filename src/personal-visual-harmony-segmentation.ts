@@ -307,7 +307,10 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
   async #awaitAvailability(signal: AbortSignal): Promise<number> {
     const readinessUrl = new URL("./readyz", ensureTrailingSlash(this.#endpointUrl));
     const startedAt = Date.now();
-    for (let attempt = 1; attempt <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES; attempt += 1) {
+    let finalProbePending = false;
+    for (let attempt = 1; attempt <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES || finalProbePending; attempt += 1) {
+      const finalProbe = finalProbePending;
+      finalProbePending = false;
       const response = await this.#fetch(readinessUrl, {
         method: "GET",
         headers: this.#headers(),
@@ -327,7 +330,16 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         );
       }
       await response.body?.cancel();
-      if (attempt >= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES) break;
+      if (attempt >= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES && !finalProbe) {
+        const remainingMs = this.#deadlineMs - (Date.now() - startedAt);
+        if (remainingMs > 0) {
+          finalProbePending = true;
+          await this.#delay(Math.max(1, Math.floor(remainingMs / 2)), signal);
+          continue;
+        }
+        break;
+      }
+      if (finalProbe) break;
       const remainingMs = this.#deadlineMs - (Date.now() - startedAt);
       if (remainingMs <= 0) break;
       await this.#delay(Math.min(this.#availabilityProbeDelayMs, remainingMs), signal);
