@@ -5965,7 +5965,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /if\(completed&&!state\.confirming&&!state\.completed\)await revalidateCompleted\(revalidationPayload,completed,identity\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",bootstrap\)/u);
     assert.match(resource.contents[0].text, /window\.addEventListener\("message",event=>/u);
-    assert.match(resource.contents[0].text, /event\.source!==window\.parent/u);
+    assert.match(resource.contents[0].text, /function isBridgeMessageSource\(source\)\{return source===window\.parent\|\|source===window\.top\}/u);
+    assert.match(resource.contents[0].text, /if\(!isBridgeMessageSource\(event\.source\)\)return/u);
     assert.match(resource.contents[0].text, /ui\/notifications\/tool-result/u);
     assert.match(resource.contents[0].text, /rpcRequest\("ui\/initialize"/u);
     assert.match(resource.contents[0].text, /rpcNotify\("ui\/notifications\/initialized"/u);
@@ -6189,6 +6190,21 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
 
   assert.deepEqual(bootstrapStates, ["stale", "ready"]);
   assert.deepEqual(hydratedPayloads, [payload]);
+});
+
+test("widget accepts bridge messages from either host frame and rejects unrelated sources", () => {
+  const parent = {};
+  const top = {};
+  const unrelated = {};
+  const isBridgeMessageSource = widgetScriptFunction(
+    "isBridgeMessageSource",
+    "window.addEventListener",
+    { window: { parent, top } },
+  );
+
+  assert.equal(isBridgeMessageSource(parent), true);
+  assert.equal(isBridgeMessageSource(top), true);
+  assert.equal(isBridgeMessageSource(unrelated), false);
 });
 
 test("message-only hydration cannot make an already-ready widget stale again", () => {
