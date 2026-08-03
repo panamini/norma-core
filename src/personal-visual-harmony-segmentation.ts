@@ -447,7 +447,8 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
   if (endpointUrl === undefined
     && modalKey === undefined
     && modalSecret === undefined
-    && sourceImageAllowedOrigins === undefined) {
+    && sourceImageAllowedOrigins === undefined
+    && deadlineMs === undefined) {
     return null;
   }
   if (!endpointUrl || !modalKey || !modalSecret || !sourceImageAllowedOrigins) {

@@ -365,6 +365,12 @@ test("configuration is disabled only when all provider variables are absent", ()
   assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({}), null);
   assert.throws(
     () => createPersonalVisualHarmonySegmentationClientFromEnv({
+      NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "300000",
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
+  assert.throws(
+    () => createPersonalVisualHarmonySegmentationClientFromEnv({
       NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL: "https://sam3.example.test/",
     }),
     (error) => error.code === "configuration_invalid",
