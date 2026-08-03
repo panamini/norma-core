@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
+  DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS,
   InMemoryPersonalVisualHarmonyPerceptionJobService,
   PersonalVisualHarmonyPerceptionJobError,
 } from "../dist/src/personal-visual-harmony-perception-jobs.js";
@@ -589,6 +590,67 @@ test("a queued source reservation never dispatches after its job times out", asy
     jobId: second.jobId,
     subjectId: "subject:test",
     sessionId: "session:queued-second",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).errorCode, "job_execution_timeout");
+});
+
+test("a queued job is not admitted when the bounded provider window no longer fits", async (t) => {
+  const providerGates = [];
+  let fetchCalls = 0;
+  let jobCount = 0;
+  let now = 0;
+  t.after(() => providerGates.forEach((gate) => gate.resolve()));
+  const service = createService({
+    capacity: 2,
+    executionDeadlineMs: DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    now: () => now,
+    createJobId: () => `job:queued-budget-${String(++jobCount)}`,
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+    provider: {
+      async segment(input) {
+        const gate = deferred();
+        providerGates.push(gate);
+        await gate.promise;
+        return successfulProvider().segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const first = service.start({ ...startInput(prepared), sessionId: "session:queued-budget-first" });
+  const second = service.start({ ...startInput(prepared), sessionId: "session:queued-budget-second" });
+
+  await waitForCondition(() => providerGates.length >= 1);
+  assert.equal(fetchCalls, 1);
+  now = DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS - 29_999;
+  providerGates[0].resolve();
+  await waitForCondition(() => service.get({
+    jobId: second.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-budget-second",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).state === "failed");
+  assert.equal(providerGates.length, 1);
+  assert.equal(fetchCalls, 1);
+  assert.equal(service.get({
+    jobId: first.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-budget-first",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).state, "ready");
+  assert.equal(service.get({
+    jobId: second.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-budget-second",
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
   }).errorCode, "job_execution_timeout");
 });

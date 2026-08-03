@@ -126,7 +126,12 @@ interface StoredJob {
 interface QueuedSourceImageReservation {
   readonly job: StoredJob;
   readonly executionDeadlineAtMs: number;
-  readonly resolve: (acquired: boolean) => void;
+  readonly resolve: (result: SourceImageReservationResult) => void;
+}
+
+interface SourceImageReservationResult {
+  readonly acquired: boolean;
+  readonly waited: boolean;
 }
 
 export class InMemoryPersonalVisualHarmonyPerceptionJobService {
@@ -377,13 +382,16 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     }, this.#executionDeadlineMs);
     let sourceImageReservationAcquired = false;
     try {
-      sourceImageReservationAcquired = await this.#acquireSourceImageReservation(
+      const sourceImageReservation = await this.#acquireSourceImageReservation(
         job,
         executionDeadlineAtMs,
       );
-      if (!sourceImageReservationAcquired
+      sourceImageReservationAcquired = sourceImageReservation.acquired;
+      if (!sourceImageReservation.acquired
         || job.state !== "pending"
-        || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
+        || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)
+        || (sourceImageReservation.waited
+          && this.#terminalizeQueuedJobWithoutProviderBudget(job, executionDeadlineAtMs))) return;
       const source = await downloadPersonalVisualHarmonySourceImage({
         url: input.sourceImageUrl,
         allowedOrigins: this.#allowedSourceImageOrigins,
@@ -537,14 +545,14 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   #acquireSourceImageReservation(
     job: StoredJob,
     executionDeadlineAtMs: number,
-  ): Promise<boolean> {
+  ): Promise<SourceImageReservationResult> {
     if (job.state !== "pending"
       || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) {
-      return Promise.resolve(false);
+      return Promise.resolve({ acquired: false, waited: false });
     }
     if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
       this.#activeSourceImageReservations += 1;
-      return Promise.resolve(true);
+      return Promise.resolve({ acquired: true, waited: false });
     }
     return new Promise((resolve) => {
       this.#sourceImageReservationQueue.push({ job, executionDeadlineAtMs, resolve });
@@ -557,13 +565,24 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       const next = this.#sourceImageReservationQueue.shift()!;
       if (next.job.state !== "pending"
         || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs)) {
-        next.resolve(false);
+        next.resolve({ acquired: false, waited: true });
         continue;
       }
       this.#activeSourceImageReservations += 1;
-      next.resolve(true);
+      next.resolve({ acquired: true, waited: true });
       return;
     }
+  }
+
+  #terminalizeQueuedJobWithoutProviderBudget(
+    job: StoredJob,
+    executionDeadlineAtMs: number,
+  ): boolean {
+    const requiredBudgetMs = this.#downloadDeadlineMs
+      + DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS;
+    if (this.#now() + requiredBudgetMs <= executionDeadlineAtMs) return false;
+    this.#terminalizePendingJob(job, "job_execution_timeout");
+    return true;
   }
 
   #terminalizeAtExecutionDeadline(job: StoredJob, executionDeadlineAtMs: number): boolean {
@@ -585,7 +604,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     const queuedIndex = this.#sourceImageReservationQueue.findIndex((entry) => entry.job === job);
     if (queuedIndex < 0) return;
     const [queued] = this.#sourceImageReservationQueue.splice(queuedIndex, 1);
-    queued?.resolve(false);
+    queued?.resolve({ acquired: false, waited: true });
   }
 
   #removeExpired(now: number): void {
