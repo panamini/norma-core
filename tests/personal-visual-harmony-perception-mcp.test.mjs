@@ -1048,6 +1048,152 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
   }
 });
 
+test("a late ready object-A status can be rolled back idempotently before the old payload unlocks", async () => {
+  const prompts = [];
+  const jobs = perceptionJobs([], prompts);
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:mcp-late-ready-rollback",
+    maxSessions: 1,
+  });
+  const connected = await connect({ service, jobs, subjectId: "subject:owner" });
+  try {
+    const initial = await prepare(connected.client);
+    const payload0 = initial._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload0.sessionId,
+        candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+        appCapability: payload0.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
+        semanticTarget: "person",
+        label: "Objet A",
+        role: "primary-subject",
+        workflowMode: "two-object-spatial",
+        guidedAnalysisGoal: "compare-two-lengths",
+      },
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+    const evidenceStore = service.multiPerceptionRecoveryEvidence;
+    for (let index = 0; index < 4; index += 1) {
+      evidenceStore.set(`subject:other\u0000manifest-${String(index)}`, {
+        subjectId: "subject:other",
+        fileId: `file-other-${String(index)}`,
+        sourceImageReferenceIdentity: `sha256:${String(index).repeat(64)}`,
+        sourceImageContentIdentity: `sha256:${String(index + 4).repeat(64)}`,
+        visualInterpretationSource: "sam3",
+        manifestIdentity: `sha256:${String(index + 5).repeat(64)}`,
+        terminalState: null,
+        createdAtMs: index,
+        expiresAtMs: Number.MAX_SAFE_INTEGER,
+      });
+    }
+    const evidenceBeforeReady = structuredClone(
+      [...evidenceStore.entries()].sort(([left], [right]) => left.localeCompare(right)),
+    );
+
+    let ready;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      ready = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload0.sessionId,
+          candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+          appCapability: payload0.perceptionAppCapability,
+          jobId: started.structuredContent.jobId,
+        },
+      });
+      if (ready.structuredContent?.state !== "pending") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(ready.structuredContent.state, "ready");
+    assert.equal(
+      ready._meta.normaPersonalVisualHarmony.prepared.perceptionManifest.observations.length,
+      1,
+    );
+    const evidenceAfterReady = structuredClone([...evidenceStore.entries()]);
+    const appliedRecoveryKey = evidenceAfterReady.find(
+      ([key]) => key.startsWith("subject:owner\u0000"),
+    )?.[0];
+    assert.equal(typeof appliedRecoveryKey, "string");
+
+    const rollbackArguments = {
+      sessionId: payload0.sessionId,
+      candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+      appCapability: payload0.perceptionAppCapability,
+      jobId: started.structuredContent.jobId,
+      rollbackAppliedResult: true,
+    };
+    const restoreEvidenceStore = (entries) => {
+      evidenceStore.clear();
+      for (const [key, evidence] of structuredClone(entries)) evidenceStore.set(key, evidence);
+    };
+    const conflictingEvictedEvidence = {
+      ...evidenceBeforeReady[0][1],
+      fileId: "file-intervening-update",
+      createdAtMs: 100,
+    };
+    evidenceStore.delete(evidenceBeforeReady[1][0]);
+    evidenceStore.set(evidenceBeforeReady[0][0], conflictingEvictedEvidence);
+    const evidenceBeforeConflictRollback = structuredClone([...evidenceStore.entries()]);
+    const conflictingRollback = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: rollbackArguments,
+    });
+    assert.equal(conflictingRollback.isError, true);
+    assert.deepEqual([...evidenceStore.entries()], evidenceBeforeConflictRollback);
+
+    restoreEvidenceStore(evidenceAfterReady);
+    evidenceStore.delete(appliedRecoveryKey);
+    evidenceStore.set("subject:other\u0000manifest-intervening-pressure", {
+      ...evidenceBeforeReady[0][1],
+      fileId: "file-intervening-pressure",
+      createdAtMs: 101,
+    });
+    const evidenceBeforeCapacityRollback = structuredClone([...evidenceStore.entries()]);
+    const capacityRollback = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: rollbackArguments,
+    });
+    assert.equal(capacityRollback.isError, true);
+    assert.equal(evidenceStore.size, 4);
+    assert.deepEqual([...evidenceStore.entries()], evidenceBeforeCapacityRollback);
+
+    restoreEvidenceStore(evidenceAfterReady);
+    const rolledBack = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: rollbackArguments,
+    });
+    assert.equal(rolledBack.isError, undefined, JSON.stringify(rolledBack));
+    assert.equal(
+      rolledBack._meta.normaPersonalVisualHarmony.prepared.candidateSetIdentity,
+      payload0.prepared.candidateSetIdentity,
+    );
+    assert.equal(
+      rolledBack._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow.terminalState,
+      "object-a-failed",
+    );
+    assert.equal(rolledBack.structuredContent.coreRun, false);
+
+    const repeated = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: rollbackArguments,
+    });
+    assert.equal(repeated.isError, undefined, JSON.stringify(repeated));
+    assert.equal(
+      repeated._meta.normaPersonalVisualHarmony.prepared.candidateSetIdentity,
+      payload0.prepared.candidateSetIdentity,
+    );
+    assert.deepEqual(
+      [...evidenceStore.entries()].sort(([left], [right]) => left.localeCompare(right)),
+      evidenceBeforeReady,
+    );
+    assert.equal(prompts.length, 1);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("a timed-out object A terminalizes its bound workflow without Core or provider retry", async () => {
   let providerCalls = 0;
   const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
@@ -2133,6 +2279,268 @@ test("widget rejects a ready status response that resolves after its client dead
   assert.equal(applied, 0);
 });
 
+test("widget rolls back a ready two-object status that resolves after cutoff before timing out", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function pollPerceptionJob(");
+  const end = html.indexOf("\nperceptionToggle.addEventListener", start);
+  const originalPayload = {
+    sessionId: "session:poll-late-rollback",
+    fileId: "file:poll-late-rollback",
+    perceptionAppCapability: "pvh-app:poll-late-rollback-capability",
+    prepared: {
+      candidateSetIdentity: `sha256:${"5".repeat(64)}`,
+      workflowMode: "two-object-spatial",
+    },
+  };
+  const readyPayload = {
+    ...originalPayload,
+    prepared: {
+      candidateSetIdentity: `sha256:${"6".repeat(64)}`,
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [{ candidateId: "object-a" }] },
+    },
+  };
+  const rolledBackPayload = {
+    ...originalPayload,
+    multiPerceptionWorkflow: { terminalState: "object-a-failed" },
+  };
+  const state = { activePayloadIdentity: "payload:original", completed: false };
+  let now = 0;
+  let applied = 0;
+  const calls = [];
+  const pollPerceptionJob = new Function(
+    "state",
+    "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_POLL_DELAY_MS",
+    "PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
+    "PERCEPTION_STATUS_TOOL",
+    "callAppTool",
+    "findPayload",
+    "payloadIdentity",
+    "applyPerceptionStatusResponse",
+    "perceptionClientError",
+    "Date",
+    `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
+  )(
+    state,
+    1,
+    0,
+    1_000,
+    100,
+    250,
+    PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+    async (_tool, args, timeoutMs) => {
+      calls.push({ args, timeoutMs });
+      if (args.rollbackAppliedResult === true) {
+        return {
+          structuredContent: {
+            jobId: "job:poll-late-rollback",
+            state: "ready",
+            workflowMode: "two-object-spatial",
+            attemptOrdinal: 1,
+          },
+          _meta: { normaPersonalVisualHarmony: rolledBackPayload },
+        };
+      }
+      now = 1_000;
+      return {
+        structuredContent: {
+          jobId: "job:poll-late-rollback",
+          state: "ready",
+          workflowMode: "two-object-spatial",
+          attemptOrdinal: 1,
+        },
+        _meta: { normaPersonalVisualHarmony: readyPayload },
+      };
+    },
+    (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
+    (payload) => payload.prepared.candidateSetIdentity === originalPayload.prepared.candidateSetIdentity
+      ? "payload:original"
+      : "payload:ready",
+    async () => {
+      applied += 1;
+      return true;
+    },
+    (code, message) => Object.assign(new Error(message), { code }),
+    { now: () => now, parse: () => 1_000 },
+  );
+
+  await assert.rejects(
+    () => pollPerceptionJob(
+      originalPayload,
+      "job:poll-late-rollback",
+      "2026-08-03T00:00:01.000Z",
+      "payload:original",
+      1,
+    ),
+    (error) => error.code === "perception_poll_timeout",
+  );
+  assert.equal(applied, 0);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].args.rollbackAppliedResult, undefined);
+  assert.equal(calls[0].timeoutMs, 100);
+  assert.equal(calls[1].args.rollbackAppliedResult, true);
+  assert.equal(calls[1].timeoutMs, 100);
+});
+
+test("widget reconciles an applied two-object status discarded by the production timeout wrapper", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const pollStart = html.indexOf("async function pollPerceptionJob(");
+  const pollEnd = html.indexOf("\nperceptionToggle.addEventListener", pollStart);
+  const deadlineStart = html.indexOf("function withPerceptionDeadline(");
+  const deadlineEnd = html.indexOf("\nfunction rpcRequest", deadlineStart);
+  const callStart = html.indexOf("async function callAppTool(");
+  const callEnd = html.indexOf("\nfunction samePreparedReviewCandidates", callStart);
+  assert.notEqual(pollStart, -1);
+  assert.notEqual(pollEnd, -1);
+  assert.notEqual(deadlineStart, -1);
+  assert.notEqual(deadlineEnd, -1);
+  assert.notEqual(callStart, -1);
+  assert.notEqual(callEnd, -1);
+  const originalPayload = {
+    sessionId: "session:poll-wrapper-rollback",
+    fileId: "file:poll-wrapper-rollback",
+    perceptionAppCapability: "pvh-app:poll-wrapper-rollback-capability",
+    prepared: {
+      candidateSetIdentity: `sha256:${"7".repeat(64)}`,
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [] },
+    },
+  };
+  const rolledBackPayload = {
+    ...originalPayload,
+    multiPerceptionWorkflow: { terminalState: "object-a-failed" },
+  };
+  let serverApplied = false;
+  let serverCancelled = false;
+  let appliedInWidget = 0;
+  const calls = [];
+  let nextTimerId = 0;
+  const timers = new Map();
+  let now = 0;
+  const controlledDate = { now: () => now, parse: () => 1_000 };
+  const controlledSetTimeout = (callback, timeoutMs) => {
+    const timerId = ++nextTimerId;
+    timers.set(timerId, { callback, timeoutMs });
+    return timerId;
+  };
+  const controlledClearTimeout = (timerId) => {
+    timers.delete(timerId);
+  };
+  let resolveLateStatus;
+  const window = {
+    openai: {
+      callTool: async (_tool, args) => {
+        calls.push(args);
+        if (args.rollbackAppliedResult === true) {
+          serverCancelled = true;
+          serverApplied = false;
+          return {
+            structuredContent: {
+              jobId: "job:poll-wrapper-rollback",
+              state: "ready",
+              workflowMode: "two-object-spatial",
+              attemptOrdinal: 1,
+            },
+            _meta: { normaPersonalVisualHarmony: rolledBackPayload },
+          };
+        }
+        serverApplied = true;
+        return new Promise((resolve) => {
+          resolveLateStatus = () => resolve({
+            structuredContent: {
+              jobId: "job:poll-wrapper-rollback",
+              state: "ready",
+              workflowMode: "two-object-spatial",
+              attemptOrdinal: 1,
+            },
+          });
+        });
+      },
+    },
+  };
+  const perceptionClientError = (code, message) => Object.assign(new Error(message), { code });
+  const callAppTool = new Function(
+    "window",
+    "perceptionClientError",
+    "setTimeout",
+    "clearTimeout",
+    `"use strict";${html.slice(deadlineStart, deadlineEnd)}\n${html.slice(callStart, callEnd)};return callAppTool;`,
+  )(window, perceptionClientError, controlledSetTimeout, controlledClearTimeout);
+  const state = { activePayloadIdentity: "payload:original", completed: false };
+  const pollPerceptionJob = new Function(
+    "state",
+    "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_POLL_DELAY_MS",
+    "PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
+    "PERCEPTION_STATUS_TOOL",
+    "callAppTool",
+    "findPayload",
+    "payloadIdentity",
+    "applyPerceptionStatusResponse",
+    "perceptionClientError",
+    "Date",
+    "setTimeout",
+    `"use strict";${html.slice(pollStart, pollEnd)};return pollPerceptionJob;`,
+  )(
+    state,
+    1,
+    0,
+    1_000,
+    50,
+    5,
+    PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+    callAppTool,
+    (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
+    () => "payload:original",
+    async () => {
+      appliedInWidget += 1;
+      return true;
+    },
+    perceptionClientError,
+    controlledDate,
+    controlledSetTimeout,
+  );
+
+  const polling = pollPerceptionJob(
+    originalPayload,
+    "job:poll-wrapper-rollback",
+    "2026-08-03T00:00:01.000Z",
+    "payload:original",
+    1,
+  );
+  assert.equal(calls.length, 0);
+  assert.equal(timers.size, 1);
+  const finalWait = timers.entries().next().value;
+  timers.delete(finalWait[0]);
+  now += finalWait[1].timeoutMs;
+  finalWait[1].callback();
+  for (let attempt = 0; attempt < 10 && calls.length === 0; attempt += 1) {
+    await Promise.resolve();
+  }
+  assert.equal(serverApplied, true);
+  assert.equal(timers.size, 1);
+  const timeout = timers.entries().next().value;
+  timers.delete(timeout[0]);
+  now += timeout[1].timeoutMs;
+  timeout[1].callback();
+  await assert.rejects(
+    () => polling,
+    (error) => error.code === "perception_poll_timeout",
+  );
+  resolveLateStatus();
+  await Promise.resolve();
+  assert.equal(serverCancelled, true);
+  assert.equal(serverApplied, false);
+  assert.equal(appliedInWidget, 0);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].rollbackAppliedResult, true);
+});
+
 test("widget rejects a ready status whose application completes after its client deadline", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("async function pollPerceptionJob(");
@@ -2234,6 +2642,51 @@ test("widget preserves a poll timeout after late hydration replaces the payload 
     html.split("perceptionClientFailureIsCurrent(expectedPayloadIdentity,error)").length - 1,
     3,
   );
+});
+
+test("widget keeps the review fail-closed when late-result rollback cannot be confirmed", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function perceptionFailureMessage(");
+  const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
+  const payload = {
+    prepared: {
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [] },
+    },
+  };
+  const state = {
+    payload,
+    perceptionRunning: true,
+    perceptionReconciliationBlocked: false,
+    multiPerceptionTerminalState: null,
+  };
+  const locks = [];
+  const terminalize = new Function(
+    "state",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "setReviewLocked",
+    "multiPerceptionReviewLocked",
+    `"use strict";${html.slice(start, end)};return terminalizePerceptionClientFailure;`,
+  )(
+    state,
+    () => ({ workflowMode: "two-object-spatial" }),
+    () => 0,
+    (locked) => locks.push(locked),
+    () => state.perceptionReconciliationBlocked,
+  );
+
+  const message = terminalize(
+    payload,
+    Object.assign(new Error("rollback uncertain"), {
+      code: "perception_reconciliation_failed",
+    }),
+  );
+  assert.equal(state.perceptionRunning, false);
+  assert.equal(state.perceptionReconciliationBlocked, true);
+  assert.equal(state.multiPerceptionTerminalState, null);
+  assert.deepEqual(locks, [true]);
+  assert.match(message, /vue reste verrouillée/u);
 });
 
 test("a late object-A hydration timeout terminalizes against the applied payload", () => {
