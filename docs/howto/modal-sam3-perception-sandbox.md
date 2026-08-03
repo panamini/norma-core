@@ -85,6 +85,7 @@ Revoke or delete the dedicated Proxy Token after disabling the Railway variables
 ## Operational limits
 
 - Zero-to-one cold start returns 503 until a container is listening; the asynchronous job keeps polling the bounded readiness window and exposes a terminal `provider_unavailable` or `provider_timeout` state when it expires.
+- The readiness client makes at most 60 checks and reserves its last check for the configured cutoff instead of adding an undocumented 61st check.
 - The first inference POST is never replayed, including on 503, timeout, connection loss, or container preemption.
 - Jobs are process-memory-only, capacity-bounded, TTL-bound, and may disappear on restart.
 - The image is downloaded into bounded memory, identity-checked, normalized to at most 512 × 512, and never persisted.
