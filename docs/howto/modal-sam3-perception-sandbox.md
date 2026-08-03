@@ -51,7 +51,9 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
      readiness/inference deadline in milliseconds (`1000`–`300000`); omit it to use
      the five-minute cold-start window.
 
-   All four absent means disabled. A partial configuration fails startup. Never configure this provider in production as part of this sandbox action.
+   All five absent means disabled. A partial configuration, including the deadline without
+   the four required variables, fails startup. Never configure this provider in production
+   as part of this sandbox action.
 6. Restart only the Railway sandbox service. Authenticate through the existing OAuth flow with the existing visual-harmony scope, attach an approved non-sensitive image fixture, and use the widget’s **Proposer le masque SAM 3** action. Verify:
 
    - an unauthenticated request cannot list or call the two perception tools;
@@ -62,7 +64,9 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
 
 ## Rollback and stop
 
-Disable the integration first by removing all four Railway sandbox variables together and restarting that sandbox service. The existing ChatGPT V1 path then remains the only registered path.
+Disable the integration first by removing all five Railway sandbox variables together,
+including `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS`, and restarting that
+sandbox service. The existing ChatGPT V1 path then remains the only registered path.
 
 To roll back the Modal app to its preceding deployed version:
 
