@@ -72,6 +72,7 @@ import {
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyOffFrameEllipseEditingChangedFiles,
   personalVisualHarmonyStaleWidgetInstanceChangedFiles,
+  personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
   personalVisualHarmonyWidgetRuntimeDebugChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyTriangleRequestDiagnosticsChangedFiles,
@@ -1130,6 +1131,39 @@ test("personal visual harmony SAM cold-start async allowlist is exact and reject
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonySam3ColdStartAsyncChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
+});
+
+test("personal visual harmony widget bridge hydration allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyWidgetBridgeHydrationChangedFiles),
+    personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyWidgetBridgeHydrationChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyWidgetBridgeHydrationChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "src/personal-visual-harmony-perception.ts",
+    "deploy/modal/server.py",
+    "web-lab/private-web-lab.js",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
         forbidden,
       ]),
       null,
