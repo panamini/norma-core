@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -150,7 +151,7 @@ test("segmentation client accepts a bounded provider abstention", async () => {
   assert.equal(result.receipt.status, "abstained");
 });
 
-test("segmentation client limits cold-start probes to three and never sends inference", async () => {
+test("segmentation client waits through a bounded cold start and never sends inference after readiness failure", async () => {
   let getCount = 0;
   let postCount = 0;
   const fetch = async (_url, init) => {
@@ -162,7 +163,7 @@ test("segmentation client limits cold-start probes to three and never sends infe
     return new Response(null, { status: 500 });
   };
   await assert.rejects(
-    clientWith(fetch).segment({
+    clientWith(fetch, { deadlineMs: 1_000 }).segment({
       sourceImageBytes: imageBytes,
       sourceImageMediaType: "image/png",
       prompt,
@@ -172,6 +173,293 @@ test("segmentation client limits cold-start probes to three and never sends infe
   );
   assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
   assert.equal(postCount, 0);
+});
+
+test("segmentation client reserves its final bounded probe for the readiness deadline", async () => {
+  let getCount = 0;
+  let postCount = 0;
+  let now = 0;
+  const delays = [];
+  const fetch = async (_url, init) => {
+    if (init.method === "GET") {
+      getCount += 1;
+      return new Response(null, {
+        status: getCount < PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES ? 503 : 200,
+      });
+    }
+    postCount += 1;
+    const request = JSON.parse(init.body);
+    return Response.json(responseFor(request));
+  };
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    availabilityProbeDelayMs: 0,
+    deadlineMs: 1_000,
+  }, {
+    fetch,
+    delay: async (milliseconds) => {
+      delays.push(milliseconds);
+      now += milliseconds;
+    },
+    now: () => now,
+  });
+  const result = await client.segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+  assert.equal(getCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
+  assert.ok(now >= 700, `expected final bounded wait, got ${now}`);
+  assert.ok(now < 1_000, `final probe crossed the cutoff at ${now}`);
+});
+
+test("segmentation client observes readiness during the final 250ms without exceeding the probe cap", async () => {
+  let now = 0;
+  let postCount = 0;
+  const probeTimes = [];
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    availabilityProbeDelayMs: 5_000,
+    deadlineMs: 1_000,
+  }, {
+    now: () => now,
+    delay: async (milliseconds) => {
+      now += milliseconds;
+    },
+    fetch: async (_url, init) => {
+      if (init.method === "GET") {
+        probeTimes.push(now);
+        return new Response(null, { status: now >= 875 ? 200 : 503 });
+      }
+      postCount += 1;
+      const request = JSON.parse(init.body);
+      return Response.json(responseFor(request));
+    },
+  });
+
+  const result = await client.segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, probeTimes.length);
+  assert.ok(probeTimes.length <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
+  assert.equal(probeTimes.at(-2), 750);
+  assert.equal(probeTimes.at(-1), 875);
+  assert.ok(probeTimes.every((probeAt) => probeAt < 1_000));
+});
+
+test("segmentation client does not create the Base64 request before readiness", () => {
+  const source = readFileSync(
+    new URL("../src/personal-visual-harmony-segmentation.ts", import.meta.url),
+    "utf8",
+  );
+  const segmentStart = source.indexOf("public async segment(");
+  const segmentEnd = source.indexOf("\n  async #awaitAvailability", segmentStart);
+  const segmentSource = source.slice(segmentStart, segmentEnd);
+  const readinessIndex = segmentSource.indexOf("await this.#awaitAvailability");
+  const encodingIndex = segmentSource.indexOf("imageBase64: bytesToBase64");
+  assert.notEqual(readinessIndex, -1);
+  assert.notEqual(encodingIndex, -1);
+  assert.ok(readinessIndex < encodingIndex);
+});
+
+test("segmentation client rejects readiness and inference responses after the absolute deadline", async (context) => {
+  await context.test("late readiness performs zero inference", async () => {
+    let now = 0;
+    let postCount = 0;
+    const client = new PersonalVisualHarmonySegmentationClient({
+      endpointUrl: "https://sam3.example.test/",
+      modalKey: "key-private",
+      modalSecret: "secret-private",
+      deadlineMs: 1_000,
+      availabilityProbeDelayMs: 0,
+    }, {
+      now: () => now,
+      delay: async (milliseconds) => {
+        now += milliseconds;
+      },
+      fetch: async (_url, init) => {
+        if (init.method === "GET") {
+          now = 1_001;
+          return new Response(null, { status: 200 });
+        }
+        postCount += 1;
+        return new Response(null, { status: 500 });
+      },
+    });
+    await assert.rejects(
+      client.segment({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: "image/png",
+        prompt,
+      }),
+      (error) => error.code === "provider_timeout",
+    );
+    assert.equal(postCount, 0);
+  });
+
+  await context.test("late inference response is rejected", async () => {
+    let now = 0;
+    let postCount = 0;
+    const client = new PersonalVisualHarmonySegmentationClient({
+      endpointUrl: "https://sam3.example.test/",
+      modalKey: "key-private",
+      modalSecret: "secret-private",
+      deadlineMs: 1_000,
+      availabilityProbeDelayMs: 0,
+    }, {
+      now: () => now,
+      delay: async (milliseconds) => {
+        now += milliseconds;
+      },
+      fetch: async (_url, init) => {
+        if (init.method === "GET") return new Response(null, { status: 200 });
+        postCount += 1;
+        const request = JSON.parse(init.body);
+        now = 1_001;
+        return Response.json(responseFor(request));
+      },
+    });
+    await assert.rejects(
+      client.segment({
+        sourceImageBytes: imageBytes,
+        sourceImageMediaType: "image/png",
+        prompt,
+      }),
+      (error) => error.code === "provider_timeout",
+    );
+    assert.equal(postCount, 1);
+  });
+});
+
+test("segmentation client rejects a provider response decoded after the absolute deadline", async () => {
+  let now = 0;
+  let postCount = 0;
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    deadlineMs: 1_000,
+    availabilityProbeDelayMs: 0,
+  }, {
+    now: () => now,
+    delay: async () => {},
+    fetch: async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      postCount += 1;
+      const request = JSON.parse(init.body);
+      const bytes = new TextEncoder().encode(JSON.stringify(responseFor(request)));
+      let emitted = false;
+      return {
+        body: {
+          cancel: async () => {},
+          getReader: () => ({
+            cancel: async () => {},
+            read: async () => {
+              if (emitted) return { done: true, value: undefined };
+              emitted = true;
+              now = 1_001;
+              return { done: false, value: bytes };
+            },
+          }),
+        },
+        headers: new Headers({ "content-type": "application/json" }),
+        ok: true,
+        status: 200,
+      };
+    },
+  });
+
+  await assert.rejects(
+    client.segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/png",
+      prompt,
+    }),
+    (error) => error.code === "provider_timeout",
+  );
+  assert.equal(postCount, 1);
+});
+
+test("segmentation client rechecks the deadline after synchronous request body construction", async () => {
+  let nowReads = 0;
+  let postCount = 0;
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    deadlineMs: 1_000,
+    availabilityProbeDelayMs: 0,
+  }, {
+    now: () => {
+      nowReads += 1;
+      return nowReads <= 4 ? 0 : 1_000;
+    },
+    delay: async () => {},
+    fetch: async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      postCount += 1;
+      return new Response(null, { status: 500 });
+    },
+  });
+
+  await assert.rejects(
+    client.segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/png",
+      prompt,
+    }),
+    (error) => error.code === "provider_timeout",
+  );
+  assert.equal(postCount, 0);
+
+  const source = readFileSync(
+    new URL("../src/personal-visual-harmony-segmentation.ts", import.meta.url),
+    "utf8",
+  );
+  const segmentStart = source.indexOf("public async segment(");
+  const segmentEnd = source.indexOf("\n  async #awaitAvailability", segmentStart);
+  const segmentSource = source.slice(segmentStart, segmentEnd);
+  const bodyIndex = segmentSource.indexOf("const requestBody = JSON.stringify(request)");
+  const deadlineRecheckIndex = segmentSource.indexOf(
+    "if (controller.signal.aborted || this.#now() >= deadlineAtMs)",
+    bodyIndex,
+  );
+  const postIndex = segmentSource.indexOf("const response = await this.#fetch", bodyIndex);
+  assert.notEqual(bodyIndex, -1);
+  assert.ok(bodyIndex < deadlineRecheckIndex);
+  assert.ok(deadlineRecheckIndex < postIndex);
+});
+
+test("segmentation client sends exactly one inference after a cold-start readiness wait", async () => {
+  let getCount = 0;
+  let postCount = 0;
+  const fetch = async (_url, init) => {
+    if (init.method === "GET") {
+      getCount += 1;
+      return new Response(null, { status: getCount < 4 ? 503 : 200 });
+    }
+    postCount += 1;
+    const request = JSON.parse(init.body);
+    return Response.json(responseFor(request));
+  };
+  const result = await clientWith(fetch, { deadlineMs: 1_000 }).segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+  assert.equal(getCount, 4);
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, 4);
 });
 
 test("segmentation client never replays an inference POST after 503", async () => {
@@ -312,7 +600,7 @@ test("segmentation client aborts a bounded inference deadline", async () => {
   );
 });
 
-test("segmentation deadline aborts the readiness backoff", async () => {
+test("segmentation readiness backoff uses the remaining deadline window and then fails closed", async () => {
   let probeCount = 0;
   const client = new PersonalVisualHarmonySegmentationClient({
     endpointUrl: "https://sam3.example.test/",
@@ -333,14 +621,20 @@ test("segmentation deadline aborts the readiness backoff", async () => {
       sourceImageMediaType: "image/png",
       prompt,
     }),
-    (error) => error.code === "provider_timeout",
+    (error) => error.code === "provider_unavailable",
   );
-  assert.equal(probeCount, 1);
+  assert.equal(probeCount, 3);
   assert(Date.now() - startedAt < 3_000);
 });
 
 test("configuration is disabled only when all provider variables are absent", () => {
   assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({}), null);
+  assert.throws(
+    () => createPersonalVisualHarmonySegmentationClientFromEnv({
+      NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "300000",
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
   assert.throws(
     () => createPersonalVisualHarmonySegmentationClientFromEnv({
       NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL: "https://sam3.example.test/",
@@ -355,6 +649,17 @@ test("configuration is disabled only when all provider variables are absent", ()
       "https://files.example.test,https://files-backup.example.test",
   };
   assert(createPersonalVisualHarmonySegmentationClientFromEnv(configured));
+  assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "60000",
+  })?.deadlineMs, 60_000);
+  assert.throws(
+    () => createPersonalVisualHarmonySegmentationClientFromEnv({
+      ...configured,
+      NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS: "not-a-duration",
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
   assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv(configured), [
     "https://files.example.test",
     "https://files-backup.example.test",

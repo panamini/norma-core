@@ -20,8 +20,8 @@ export const PERSONAL_VISUAL_HARMONY_PERCEPTION_RECEIPT_CONTRACT_ID =
 
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_SOURCE_IMAGE_BYTES = 12 * 1024 * 1024;
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_PROVIDER_RESPONSE_BYTES = 4 * 1024 * 1024;
-export const DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS = 30_000;
-export const PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES = 3;
+export const DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS = 300_000;
+export const PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES = 60;
 export const PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES = [
   "image/png",
   "image/jpeg",
@@ -36,6 +36,8 @@ export const PERSONAL_VISUAL_HARMONY_SEGMENTATION_PROVIDER = {
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_MEDIA_TYPE_PATTERN = /^image\/[a-z0-9.+-]{1,63}$/u;
 const SAFE_PROVIDER_FIELD_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$/u;
+const PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS = 250;
+const PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS = 125;
 
 export type PersonalVisualHarmonySegmentationPromptV1 =
   | {
@@ -94,6 +96,7 @@ export interface PersonalVisualHarmonySegmentationResultV1 {
 }
 
 export interface PersonalVisualHarmonySegmentationProvider {
+  readonly deadlineMs?: number;
   segment(input: {
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
@@ -146,12 +149,14 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
   readonly #availabilityProbeDelayMs: number;
   readonly #fetch: PersonalVisualHarmonyFetch;
   readonly #delay: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+  readonly #now: () => number;
 
   public constructor(
     config: PersonalVisualHarmonySegmentationClientConfig,
     dependencies: {
       readonly fetch?: PersonalVisualHarmonyFetch;
       readonly delay?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+      readonly now?: () => number;
     } = {},
   ) {
     this.#endpointUrl = validateEndpoint(config.endpointUrl);
@@ -161,7 +166,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       config.deadlineMs ?? DEFAULT_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS,
       "deadline",
       1_000,
-      120_000,
+      300_000,
     );
     this.#maxSourceImageBytes = boundedPositiveInteger(
       config.maxSourceImageBytes ?? DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_SOURCE_IMAGE_BYTES,
@@ -182,6 +187,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       5_000,
     );
     this.#fetch = dependencies.fetch ?? fetch;
+    this.#now = dependencies.now ?? Date.now;
     this.#delay = dependencies.delay ?? ((milliseconds, signal) => new Promise((resolve, reject) => {
       if (signal.aborted) {
         reject(signal.reason);
@@ -197,6 +203,10 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       }, milliseconds);
       signal.addEventListener("abort", onAbort, { once: true });
     }));
+  }
+
+  public get deadlineMs(): number {
+    return this.#deadlineMs;
   }
 
   public async segment(input: {
@@ -223,27 +233,48 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       sourceImageMediaType,
       promptIdentity,
     });
-    const request: PersonalVisualHarmonySegmentationRequestV1 = {
-      contractId: PERSONAL_VISUAL_HARMONY_SEGMENTATION_REQUEST_CONTRACT_ID,
-      contractVersion: 1,
-      requestIdentity,
-      sourceImageContentIdentity,
-      sourceImageMediaType,
-      imageBase64: bytesToBase64(input.sourceImageBytes),
-      prompt,
-    };
     const controller = new AbortController();
+    const deadlineAtMs = this.#now() + this.#deadlineMs;
     const timeout = setTimeout(() => controller.abort(), this.#deadlineMs);
     try {
-      const availabilityProbeCount = await this.#awaitAvailability(controller.signal);
+      const availabilityProbeCount = await this.#awaitAvailability(controller.signal, deadlineAtMs);
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
+      const request: PersonalVisualHarmonySegmentationRequestV1 = {
+        contractId: PERSONAL_VISUAL_HARMONY_SEGMENTATION_REQUEST_CONTRACT_ID,
+        contractVersion: 1,
+        requestIdentity,
+        sourceImageContentIdentity,
+        sourceImageMediaType,
+        imageBase64: bytesToBase64(input.sourceImageBytes),
+        prompt,
+      };
+      const requestBody = JSON.stringify(request);
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
       const response = await this.#fetch(this.#endpointUrl, {
         method: "POST",
         headers: this.#headers("application/json"),
-        body: JSON.stringify(request),
+        body: requestBody,
         signal: controller.signal,
       }).catch((error: unknown) => {
         throw mapFetchError(error, "provider_rejected");
       });
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        await response.body?.cancel();
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
       if (response.status === 503) {
         await response.body?.cancel();
         throw new PersonalVisualHarmonySegmentationError(
@@ -280,15 +311,22 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         coreAuthority: false as const,
         coreRun: false as const,
       };
+      const receipt = {
+        ...receiptWithoutIdentity,
+        receiptIdentity: contentIdentityFor(receiptWithoutIdentity),
+      };
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
       return {
         response: validated,
-        receipt: {
-          ...receiptWithoutIdentity,
-          receiptIdentity: contentIdentityFor(receiptWithoutIdentity),
-        },
+        receipt,
       };
     } catch (error: unknown) {
-      if (controller.signal.aborted) {
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
         throw new PersonalVisualHarmonySegmentationError(
           "provider_timeout",
           "Segmentation deadline expired.",
@@ -304,9 +342,36 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
     }
   }
 
-  async #awaitAvailability(signal: AbortSignal): Promise<number> {
+  async #awaitAvailability(signal: AbortSignal, deadlineAtMs: number): Promise<number> {
     const readinessUrl = new URL("./readyz", ensureTrailingSlash(this.#endpointUrl));
+    let lateProbePhase: "normal" | "window" | "cutoff" = "normal";
     for (let attempt = 1; attempt <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES; attempt += 1) {
+      if (lateProbePhase === "normal") {
+        const remainingProbeCount = PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES - attempt + 1;
+        if (remainingProbeCount <= 2) {
+          lateProbePhase = remainingProbeCount === 2 ? "window" : "cutoff";
+        }
+      }
+      if (lateProbePhase !== "normal") {
+        const remainingMs = deadlineAtMs - this.#now();
+        const probeBudgetMs = lateProbePhase === "window"
+          ? Math.min(
+            PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS,
+            Math.max(PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS, remainingMs),
+          )
+          : Math.min(
+            PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS,
+            Math.max(0, remainingMs),
+          );
+        const waitMs = Math.max(0, remainingMs - probeBudgetMs);
+        if (waitMs > 0) await this.#delay(waitMs, signal);
+      }
+      if (signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation readiness deadline expired.",
+        );
+      }
       const response = await this.#fetch(readinessUrl, {
         method: "GET",
         headers: this.#headers(),
@@ -314,6 +379,13 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       }).catch((error: unknown) => {
         throw mapFetchError(error, "provider_unavailable");
       });
+      if (signal.aborted || this.#now() >= deadlineAtMs) {
+        await response.body?.cancel();
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation readiness deadline expired.",
+        );
+      }
       if (response.ok) {
         await response.body?.cancel();
         return attempt;
@@ -326,10 +398,21 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         );
       }
       await response.body?.cancel();
-      if (attempt < PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES) {
-        await this.#delay(this.#availabilityProbeDelayMs, signal);
+      const remainingMs = deadlineAtMs - this.#now();
+      if (remainingMs <= 0 || attempt >= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES) break;
+      if (lateProbePhase === "cutoff") break;
+      if (lateProbePhase === "window") {
+        lateProbePhase = "cutoff";
+        continue;
       }
+      if (this.#availabilityProbeDelayMs
+        >= remainingMs - PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS) {
+        lateProbePhase = "window";
+        continue;
+      }
+      await this.#delay(Math.min(this.#availabilityProbeDelayMs, remainingMs), signal);
     }
+    if (signal.aborted) throw signal.reason ?? new Error("Segmentation readiness deadline expired.");
     throw new PersonalVisualHarmonySegmentationError(
       "provider_unavailable",
       "Segmentation provider did not become ready within the bounded probe budget.",
@@ -435,10 +518,17 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
   const modalSecret = env.NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET?.trim();
   const sourceImageAllowedOrigins =
     env.NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS?.trim();
+  const deadlineMs = configuredIntegerFromEnv(
+    env.NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS,
+    "segmentation deadline",
+    1_000,
+    300_000,
+  );
   if (endpointUrl === undefined
     && modalKey === undefined
     && modalSecret === undefined
-    && sourceImageAllowedOrigins === undefined) {
+    && sourceImageAllowedOrigins === undefined
+    && deadlineMs === undefined) {
     return null;
   }
   if (!endpointUrl || !modalKey || !modalSecret || !sourceImageAllowedOrigins) {
@@ -451,6 +541,7 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
     endpointUrl,
     modalKey,
     modalSecret,
+    ...(deadlineMs === undefined ? {} : { deadlineMs }),
   }, dependencies);
 }
 
@@ -893,6 +984,23 @@ function mapFetchError(
 
 function ensureTrailingSlash(url: URL): URL {
   return new URL(url.pathname.endsWith("/") ? url.href : `${url.href}/`);
+}
+
+function configuredIntegerFromEnv(
+  value: string | undefined,
+  field: string,
+  minimum: number,
+  maximum: number,
+): number | undefined {
+  const normalized = value?.trim();
+  if (normalized === undefined || normalized === "") return undefined;
+  if (!/^\d+$/u.test(normalized)) {
+    throw new PersonalVisualHarmonySegmentationError(
+      "configuration_invalid",
+      `Configured ${field} must be a positive integer.`,
+    );
+  }
+  return boundedPositiveInteger(Number(normalized), field, minimum, maximum);
 }
 
 function isNormalized(value: unknown): boolean {

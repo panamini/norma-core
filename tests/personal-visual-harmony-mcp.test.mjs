@@ -59,6 +59,18 @@ function widgetScriptFunction(name, nextLinePrefix, bindings) {
   );
 }
 
+function widgetHydrateFunction(bindings) {
+  const resetPerceptionReconciliationForNewSession = widgetScriptFunction(
+    "resetPerceptionReconciliationForNewSession",
+    "async function hydrate",
+    { state: bindings.state },
+  );
+  return widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+    ...bindings,
+    resetPerceptionReconciliationForNewSession,
+  });
+}
+
 function deferred() {
   let resolve;
   const promise = new Promise((settle) => { resolve = settle; });
@@ -3031,7 +3043,7 @@ test("completed widget cache round-trips related candidates, guided scope, and r
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
   const hydrationState = widgetHydrationState();
   const revalidated = [];
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state: hydrationState,
     currentPayload: () => null,
     window: { openai: {} },
@@ -4072,7 +4084,7 @@ test("widget blocks geometry edits while pixel proposals are in flight", () => {
 test("widget hydration never requests pixel proposals while refinement is disabled", async () => {
   const state = widgetHydrationState({ pixelRefinementEnabled: false });
   let refinementCalls = 0;
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -4109,7 +4121,7 @@ test("widget revalidates completed state when the temporary image URL expired on
     sourcePixelHeight: 618,
   };
   const revalidations = [];
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -4146,7 +4158,7 @@ test("widget revalidates completed state when the temporary image URL expired on
 test("widget stays fail closed when image hydration fails without completed state", async () => {
   const state = widgetHydrationState();
   let revalidationCalls = 0;
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -4191,7 +4203,7 @@ test("widget revalidates completed state against the payload prepared during pix
   const completedPayloads = [];
   const revalidatedPayloads = [];
   const milestones = [];
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -6348,7 +6360,7 @@ test("same-file payload replacement invalidates the older widget hydration conti
     performImageLoad,
   });
   const revalidatedIdentities = [];
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -6418,7 +6430,7 @@ test("completed payload for a new file hydrates and renders over existing widget
   const rendered = [];
   let guidedGoalRestores = 0;
   let guidedGoalRenders = 0;
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },
@@ -6457,7 +6469,7 @@ test("completed payload renders even when its temporary image URL cannot be refr
   const payloadIdentity = widgetScriptFunction("payloadIdentity", "function imageLoadIsCurrent", {});
   const state = widgetHydrationState();
   const rendered = [];
-  const hydrate = widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
+  const hydrate = widgetHydrateFunction({
     state,
     currentPayload: () => null,
     window: { openai: {} },

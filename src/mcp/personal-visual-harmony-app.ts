@@ -35,6 +35,7 @@ import {
   type DeclaredSpatialMeasurementPlanV1,
 } from "../personal-visual-harmony-spatial-measurements.js";
 import {
+  DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS,
   InMemoryPersonalVisualHarmonyPerceptionJobService,
   personalVisualHarmonyPreparedSetHasPerceptionCapacity,
   type PersonalVisualHarmonyPerceptionJobV1,
@@ -149,6 +150,10 @@ export const PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1 = Object.freeze([
 
 const SESSION_TTL_MS = 30 * 60 * 1_000;
 const MAX_SESSIONS = 32;
+const PERSONAL_VISUAL_HARMONY_PERCEPTION_TOOL_CALL_TIMEOUT_MS = 15_000;
+const PERSONAL_VISUAL_HARMONY_PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS =
+  DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS
+  + PERSONAL_VISUAL_HARMONY_PERCEPTION_TOOL_CALL_TIMEOUT_MS;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CANONICAL_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 const MISSING_OR_EXPIRED_SESSION_MESSAGE =
@@ -791,7 +796,16 @@ const PerceptionStatusInputSchema = z.object({
   candidateSetIdentity: z.string().regex(SHA256_PATTERN),
   appCapability: z.string().min(32).max(160),
   jobId: z.string().min(1).max(128),
-}).strict();
+  rollbackAppliedResult: z.literal(true).optional(),
+  terminalizeAppliedResult: z.literal(true).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.rollbackAppliedResult === true && value.terminalizeAppliedResult === true) {
+    context.addIssue({
+      code: "custom",
+      message: "A late result can be rolled back or retained, but not both.",
+    });
+  }
+});
 
 const PerceptionJobOutputSchema = z.object({
   jobId: z.string().min(1).max(128),
@@ -1691,6 +1705,21 @@ interface PersonalVisualHarmonySessionV1 {
   perceptionBaseCandidateSetIdentity?: string;
   reviewedCandidateSetSourceIdentity?: string;
   multiPerceptionLineageBaseCandidates?: readonly PersonalVisualHarmonyCandidateInputV1[];
+  multiPerceptionAppliedRollback?: {
+    readonly jobId: string;
+    readonly attemptOrdinal: 1 | 2;
+    readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
+    readonly previousPerceptionBaseCandidateSetIdentity?: string;
+    readonly previousMultiPerceptionLineageBaseCandidates?:
+      readonly PersonalVisualHarmonyCandidateInputV1[];
+    readonly recoveryEvidenceKey: string;
+    readonly appliedRecoveryEvidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3;
+    readonly previousRecoveryEvidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3 | null;
+    readonly evictedRecoveryEvidence: {
+      readonly key: string;
+      readonly evidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3;
+    } | null;
+  };
   prepared: PersonalVisualHarmonyPreparedCandidateSet;
   readonly createdAtMs: number;
   expiresAtMs: number;
@@ -1963,9 +1992,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
       && (session.prepared.contractVersion !== 3
         || session.prepared.perceptionManifest.observations.length !== 1
         || session.prepared.candidates.length
-          > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES)) {
+        > PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES)) {
       throw new Error("Object B requires exactly one applied object observation and one free slot.");
     }
+    delete session.multiPerceptionAppliedRollback;
     workflow.consumedOrdinals.push(attemptOrdinal);
     workflow.reservedOrdinal = attemptOrdinal;
     return {
@@ -2109,7 +2139,44 @@ export class PersonalVisualHarmonySessionServiceV1 {
     workflow.activeJobId = null;
     workflow.activeExpiresAtMs = null;
     workflow.reservedOrdinal = null;
-    this.rememberMultiPerceptionRecoveryEvidence(session, prepared, null);
+    const recoveryEvidenceKey = this.multiPerceptionRecoveryEvidenceKey(
+      input.subjectId,
+      prepared.perceptionManifest.manifestIdentity,
+    );
+    const previousRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(recoveryEvidenceKey);
+    const evictedRecoveryEvidence = this.rememberMultiPerceptionRecoveryEvidence(
+      session,
+      prepared,
+      null,
+    );
+    const appliedRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(recoveryEvidenceKey);
+    if (appliedRecoveryEvidence === undefined) {
+      throw new Error("Applied multi-perception recovery evidence was not retained.");
+    }
+    session.multiPerceptionAppliedRollback = {
+      jobId: input.job.jobId,
+      attemptOrdinal: input.job.attemptOrdinal,
+      prepared: structuredClone(session.prepared),
+      ...(session.perceptionBaseCandidateSetIdentity === undefined
+        ? {}
+        : {
+            previousPerceptionBaseCandidateSetIdentity:
+              session.perceptionBaseCandidateSetIdentity,
+          }),
+      ...(session.multiPerceptionLineageBaseCandidates === undefined
+        ? {}
+        : {
+            previousMultiPerceptionLineageBaseCandidates: structuredClone(
+              session.multiPerceptionLineageBaseCandidates,
+            ),
+          }),
+      recoveryEvidenceKey,
+      appliedRecoveryEvidence: structuredClone(appliedRecoveryEvidence),
+      previousRecoveryEvidence: previousRecoveryEvidence === undefined
+        ? null
+        : structuredClone(previousRecoveryEvidence),
+      evictedRecoveryEvidence,
+    };
     session.perceptionBaseCandidateSetIdentity = session.prepared.candidateSetIdentity;
     if (prepared.perceptionManifest.observations.length === 1
       || session.multiPerceptionLineageBaseCandidates === undefined) {
@@ -2123,6 +2190,172 @@ export class PersonalVisualHarmonySessionServiceV1 {
     session.prepared = structuredClone(prepared);
     delete session.confirmation;
     delete session.declaredSpatialMeasurementConfirmation;
+  }
+
+  reconcileTimedOutMultiPerceptionJob(input: {
+    readonly subjectId: string;
+    readonly sessionId: string;
+    readonly job: PersonalVisualHarmonyPerceptionJobV1;
+  }): void {
+    const session = this.sessions.get(input.sessionId);
+    const workflow = session?.multiPerceptionWorkflow;
+    const attemptOrdinal = input.job.attemptOrdinal;
+    if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
+    if (workflow === undefined
+      || input.job.workflowMode !== "two-object-spatial"
+      || (attemptOrdinal !== 1 && attemptOrdinal !== 2)) {
+      throw new Error("Only a bound two-object result can be reconciled.");
+    }
+    const terminalState = attemptOrdinal === 1 ? "object-a-failed" : "object-b-failed";
+    if (workflow.terminalJobId === input.job.jobId
+      && workflow.terminalAttemptOrdinal === attemptOrdinal
+      && workflow.terminalState === terminalState
+      && input.job.parentCandidateSetIdentity === session.prepared.candidateSetIdentity) {
+      return;
+    }
+    const rollback = session.multiPerceptionAppliedRollback;
+    const appliedResultCanBeRolledBack = rollback !== undefined
+      && rollback.jobId === input.job.jobId
+      && rollback.attemptOrdinal === attemptOrdinal
+      && input.job.state === "ready"
+      && input.job.preparedCandidateSet?.contractVersion === 3
+      && input.job.parentCandidateSetIdentity === rollback.prepared.candidateSetIdentity
+      && input.job.preparedCandidateSet.candidateSetIdentity
+        === session.prepared.candidateSetIdentity;
+    if (!appliedResultCanBeRolledBack) {
+      if (workflow.activeJobId !== input.job.jobId
+        || workflow.reservedOrdinal !== null
+        || workflow.terminalState !== null
+        || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
+        || input.job.parentCandidateSetIdentity !== session.prepared.candidateSetIdentity
+        || session.confirmation !== undefined
+        || session.declaredSpatialMeasurementConfirmation !== undefined) {
+        throw new Error("Timed-out two-object result reconciliation is stale or invalid.");
+      }
+      this.terminalizeMultiPerceptionAttempt(session, input.job.jobId, attemptOrdinal);
+      return;
+    }
+    if (rollback === undefined
+      || workflow.activeJobId !== null
+      || workflow.reservedOrdinal !== null
+      || workflow.terminalState !== null
+      || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
+      || session.confirmation !== undefined
+      || session.declaredSpatialMeasurementConfirmation !== undefined) {
+      throw new Error("Applied two-object result rollback is stale or invalid.");
+    }
+    const currentRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(
+      rollback.recoveryEvidenceKey,
+    );
+    const recoveryEvidenceIsUnchanged = currentRecoveryEvidence !== undefined
+      && serializeCanonicalJson(currentRecoveryEvidence)
+        === serializeCanonicalJson(rollback.appliedRecoveryEvidence);
+    const evictedRecoveryEvidenceIsAbsent = rollback.evictedRecoveryEvidence === null
+      || (rollback.evictedRecoveryEvidence.key !== rollback.recoveryEvidenceKey
+        && !this.multiPerceptionRecoveryEvidence.has(rollback.evictedRecoveryEvidence.key));
+    const restoredRecoveryEvidenceSize = this.multiPerceptionRecoveryEvidence.size
+      + (rollback.previousRecoveryEvidence === null ? -1 : 0)
+      + (rollback.evictedRecoveryEvidence === null ? 0 : 1);
+    if (!recoveryEvidenceIsUnchanged
+      || !evictedRecoveryEvidenceIsAbsent
+      || restoredRecoveryEvidenceSize > this.maxSessions * 4) {
+      throw new Error("Applied two-object result recovery evidence changed before rollback.");
+    }
+    session.prepared = structuredClone(rollback.prepared);
+    if (rollback.previousPerceptionBaseCandidateSetIdentity === undefined) {
+      delete session.perceptionBaseCandidateSetIdentity;
+    } else {
+      session.perceptionBaseCandidateSetIdentity =
+        rollback.previousPerceptionBaseCandidateSetIdentity;
+    }
+    if (rollback.previousMultiPerceptionLineageBaseCandidates === undefined) {
+      delete session.multiPerceptionLineageBaseCandidates;
+    } else {
+      session.multiPerceptionLineageBaseCandidates = structuredClone(
+        rollback.previousMultiPerceptionLineageBaseCandidates,
+      );
+    }
+    if (rollback.previousRecoveryEvidence === null) {
+      this.multiPerceptionRecoveryEvidence.delete(rollback.recoveryEvidenceKey);
+    } else {
+      this.multiPerceptionRecoveryEvidence.set(
+        rollback.recoveryEvidenceKey,
+        structuredClone(rollback.previousRecoveryEvidence),
+      );
+    }
+    if (rollback.evictedRecoveryEvidence !== null) {
+      this.multiPerceptionRecoveryEvidence.set(
+        rollback.evictedRecoveryEvidence.key,
+        structuredClone(rollback.evictedRecoveryEvidence.evidence),
+      );
+    }
+    delete session.multiPerceptionAppliedRollback;
+    this.terminalizeMultiPerceptionAttempt(session, input.job.jobId, attemptOrdinal);
+  }
+
+  terminalizeRetainedMultiPerceptionJob(input: {
+    readonly subjectId: string;
+    readonly sessionId: string;
+    readonly job: PersonalVisualHarmonyPerceptionJobV1;
+  }): void {
+    const session = this.sessions.get(input.sessionId);
+    const workflow = session?.multiPerceptionWorkflow;
+    const attemptOrdinal = input.job.attemptOrdinal;
+    if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
+    if (session.subjectId !== input.subjectId) {
+      throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
+    if (workflow === undefined
+      || input.job.workflowMode !== "two-object-spatial"
+      || (attemptOrdinal !== 1 && attemptOrdinal !== 2)
+      || input.job.state !== "ready"
+      || input.job.preparedCandidateSet?.contractVersion !== 3) {
+      throw new Error("Only a ready bound two-object result can be retained.");
+    }
+    const retainedTerminalState = attemptOrdinal === 1 ? "object-b-failed" : null;
+    if (workflow.terminalJobId === input.job.jobId
+      && workflow.terminalAttemptOrdinal === attemptOrdinal
+      && workflow.terminalState === retainedTerminalState
+      && input.job.preparedCandidateSet.candidateSetIdentity
+        === session.prepared.candidateSetIdentity) {
+      return;
+    }
+    const rollback = session.multiPerceptionAppliedRollback;
+    if (rollback === undefined
+      || rollback.jobId !== input.job.jobId
+      || rollback.attemptOrdinal !== attemptOrdinal
+      || input.job.parentCandidateSetIdentity !== rollback.prepared.candidateSetIdentity
+      || input.job.preparedCandidateSet.candidateSetIdentity
+        !== session.prepared.candidateSetIdentity
+      || workflow.activeJobId !== null
+      || workflow.reservedOrdinal !== null
+      || workflow.terminalState !== null
+      || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
+      || session.confirmation !== undefined
+      || session.declaredSpatialMeasurementConfirmation !== undefined) {
+      throw new Error("Retained two-object result terminalization is stale or invalid.");
+    }
+    const currentRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(
+      rollback.recoveryEvidenceKey,
+    );
+    if (currentRecoveryEvidence === undefined
+      || serializeCanonicalJson(currentRecoveryEvidence)
+        !== serializeCanonicalJson(rollback.appliedRecoveryEvidence)) {
+      throw new Error("Retained two-object result recovery evidence changed before terminalization.");
+    }
+    if (attemptOrdinal === 1) {
+      this.multiPerceptionRecoveryEvidence.set(rollback.recoveryEvidenceKey, {
+        ...structuredClone(currentRecoveryEvidence),
+        terminalState: "object-b-failed",
+      });
+    }
+    delete session.multiPerceptionAppliedRollback;
+    workflow.terminalJobId = input.job.jobId;
+    workflow.terminalAttemptOrdinal = attemptOrdinal;
+    workflow.terminalState = retainedTerminalState;
   }
 
   perceptionWorkflowState(input: {
@@ -2801,9 +3034,12 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
   }
 
-  private requireMultiPerceptionRecoveryCapacity(key: string): void {
+  private requireMultiPerceptionRecoveryCapacity(key: string): {
+    readonly key: string;
+    readonly evidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3;
+  } | null {
     if (this.multiPerceptionRecoveryEvidence.has(key)
-      || this.multiPerceptionRecoveryEvidence.size < this.maxSessions * 4) return;
+      || this.multiPerceptionRecoveryEvidence.size < this.maxSessions * 4) return null;
     let oldestKey: string | undefined;
     let oldest: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3 | undefined;
     for (const [candidateKey, evidence] of this.multiPerceptionRecoveryEvidence) {
@@ -2812,14 +3048,19 @@ export class PersonalVisualHarmonySessionServiceV1 {
         oldest = evidence;
       }
     }
-    if (oldestKey !== undefined) this.multiPerceptionRecoveryEvidence.delete(oldestKey);
+    if (oldestKey === undefined || oldest === undefined) return null;
+    this.multiPerceptionRecoveryEvidence.delete(oldestKey);
+    return { key: oldestKey, evidence: structuredClone(oldest) };
   }
 
   private rememberMultiPerceptionRecoveryEvidence(
     session: PersonalVisualHarmonySessionV1,
     prepared: PersonalVisualHarmonyPreparedCandidateSetV3,
     terminalState: "object-b-failed" | null,
-  ): void {
+  ): {
+    readonly key: string;
+    readonly evidence: PersonalVisualHarmonyPerceptionRecoveryEvidenceV3;
+  } | null {
     const subjectId = session.subjectId;
     if (subjectId === undefined) {
       throw new Error("Multi-perception recovery requires an authenticated subject.");
@@ -2862,8 +3103,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     })) {
       throw new Error("Multi-perception manifest identity is already bound to different evidence.");
     }
-    this.requireMultiPerceptionRecoveryCapacity(key);
+    const evictedRecoveryEvidence = this.requireMultiPerceptionRecoveryCapacity(key);
     this.multiPerceptionRecoveryEvidence.set(key, evidence);
+    return evictedRecoveryEvidence;
   }
 
   private requireCapacity(): void {
@@ -3286,12 +3528,12 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
       {
         title: "Lire l’état d’une proposition SAM 3",
-        description: "Authenticated widget-only operation. Reads one source-, session-, and subject-bound perception job. Ready evidence still requires explicit visual confirmation before Norma Core.",
+        description: "Authenticated widget-only operation. Reads one source-, session-, and subject-bound perception job and can idempotently roll back or terminalize a late applied two-object result. Ready evidence still requires explicit visual confirmation before Norma Core.",
         inputSchema: PerceptionStatusInputSchema,
         outputSchema: PerceptionJobOutputSchema,
         annotations: {
-          readOnlyHint: true,
-          destructiveHint: false,
+          readOnlyHint: false,
+          destructiveHint: true,
           idempotentHint: true,
           openWorldHint: false,
         },
@@ -3302,7 +3544,14 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           },
         },
       },
-      ({ sessionId, candidateSetIdentity, appCapability, jobId }) => {
+      ({
+        sessionId,
+        candidateSetIdentity,
+        appCapability,
+        jobId,
+        rollbackAppliedResult,
+        terminalizeAppliedResult,
+      }) => {
         const context = service.perceptionContext({
           subjectId,
           sessionId,
@@ -3315,7 +3564,11 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           sessionId,
           sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
         });
-        if (job.workflowMode === "two-object-spatial") {
+        if (rollbackAppliedResult === true) {
+          service.reconcileTimedOutMultiPerceptionJob({ subjectId, sessionId, job });
+        } else if (terminalizeAppliedResult === true) {
+          service.terminalizeRetainedMultiPerceptionJob({ subjectId, sessionId, job });
+        } else if (job.workflowMode === "two-object-spatial") {
           service.applyMultiPerceptionJob({ subjectId, sessionId, job });
         } else if (job.state === "ready"
           && job.preparedCandidateSet?.contractVersion === 2) {
@@ -3326,7 +3579,10 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             preparedCandidateSet: job.preparedCandidateSet,
           });
         }
-        const currentContext = job.state !== "pending"
+        const includeCurrentPayload = job.state !== "pending"
+          || rollbackAppliedResult === true
+          || terminalizeAppliedResult === true;
+        const currentContext = includeCurrentPayload
           ? service.perceptionContext({
               subjectId,
               sessionId,
@@ -3344,7 +3600,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
               : `État de la proposition SAM 3 : ${job.state}. Norma Core reste arrêté.`,
           }],
           structuredContent: publicJob,
-          ...(job.state !== "pending"
+          ...(includeCurrentPayload
             ? {
                 _meta: {
                   normaPersonalVisualHarmony: {
@@ -3944,7 +4200,7 @@ const PREPARE_TOOL=${JSON.stringify(PERSONAL_VISUAL_HARMONY_PREPARE_TOOL)},CONFI
 const OBSERVABILITY_CORRELATION_PATTERN=new RegExp(${JSON.stringify(SHA256_PATTERN.source)},"u");
 const BOOTSTRAP_PENDING_NOTICE_AFTER=50,BOOTSTRAP_RETRY_DELAY_MS=100,BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000;
 const IMAGE_HYDRATION_MAX_ATTEMPTS=2,IMAGE_HYDRATION_RETRY_DELAY_MS=250,IMAGE_HYDRATION_TIMEOUT_MS=10000;
-const PERCEPTION_MAX_STATUS_POLLS=24,PERCEPTION_STATUS_POLL_DELAY_MS=2000,PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=50000,PERCEPTION_TOOL_CALL_TIMEOUT_MS=15000;
+const PERCEPTION_MAX_STATUS_POLLS=160,PERCEPTION_STATUS_POLL_DELAY_MS=2000,PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=${PERSONAL_VISUAL_HARMONY_PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS},PERCEPTION_TOOL_CALL_TIMEOUT_MS=${PERSONAL_VISUAL_HARMONY_PERCEPTION_TOOL_CALL_TIMEOUT_MS},PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS=250;
 const boundedImageHydrationAttemptCount=${boundedImageHydrationAttemptCount.toString()};
 const boundedImageHydrationRetryDelay=${boundedImageHydrationRetryDelay.toString()};
 const requestPersonalVisualHarmonyDownloadUrlV1=${requestPersonalVisualHarmonyDownloadUrlV1.toString()};
@@ -3955,7 +4211,7 @@ const createPixelCropPlan=${createPersonalVisualHarmonyPixelCropPlanV1.toString(
 const layoutCandidateLabels=${layoutPersonalVisualHarmonyCandidateLabelsV1.toString()};
 const GUIDED_ANALYSIS_GOALS=${JSON.stringify(PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1)},GUIDED_ANALYSIS_KINDS=["rectangle","quadrilateral","segment","axis","ellipse"],DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry",CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT="Affichage personnalisé · vos filtres de familles sont conservés pour cette analyse seulement.";
 const REVIEW_JOURNAL_CONTRACT_ID=${JSON.stringify(PERSONAL_VISUAL_HARMONY_REVIEW_JOURNAL_CONTRACT_ID)},REVIEW_EVENT_KINDS=${JSON.stringify(PERSONAL_VISUAL_HARMONY_REVIEW_EVENT_KINDS)},MAX_REVIEW_EVENTS=64;
-const state={payload:null,activePayload:null,activePayloadIdentity:null,displayedPayload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],principalCandidateIds:new Set(),guidesVisible:true,focusMainGuides:true,guidePresentation:null,reviewJournal:null,reviewJournalAnalysisIdentity:null,guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL,selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),constructionLayers:new Set(),visibleConstructionLayers:new Set(),measurementRatioEnabled:false,measurementRatioRefs:[],declaredSpatialMeasurementPlan:null,declaredSpatialMeasurementPlanInputKey:null,declaredSpatialMeasurementPlanRevision:0,declaredSpatialMeasurementPlanBuilding:false,pixelRefinementEnabled:false,pixelRefinementRunning:false,pixelRefinementGeneration:0,pixelRefinementProposals:new Map(),adoptedPixelRefinements:new Map(),perceptionRunning:false,multiPerceptionTerminalState:null,manualSegmentMode:false,manualSegmentAnchor:null,manualSegmentCandidateId:null,imageReady:false,imageLoadGeneration:0,imageLoadTask:null,imageLoadFileId:null,imageLoadPayloadIdentity:null,dimensions:null,downloadUrl:null,pendingStructuredContent:null,observationPrepareAttemptKey:null,completed:false,confirming:false};
+const state={payload:null,activePayload:null,activePayloadIdentity:null,displayedPayload:null,proposalCandidateSetIdentity:null,proposalCandidates:[],reviewedCandidates:[],principalCandidateIds:new Set(),guidesVisible:true,focusMainGuides:true,guidePresentation:null,reviewJournal:null,reviewJournalAnalysisIdentity:null,guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL,selected:new Set(),selectedGuides:new Set(),visibleKinds:new Set(["rectangle","quadrilateral","segment","axis","ellipse"]),constructionLayers:new Set(),visibleConstructionLayers:new Set(),measurementRatioEnabled:false,measurementRatioRefs:[],declaredSpatialMeasurementPlan:null,declaredSpatialMeasurementPlanInputKey:null,declaredSpatialMeasurementPlanRevision:0,declaredSpatialMeasurementPlanBuilding:false,pixelRefinementEnabled:false,pixelRefinementRunning:false,pixelRefinementGeneration:0,pixelRefinementProposals:new Map(),adoptedPixelRefinements:new Map(),perceptionRunning:false,perceptionReconciliationBlocked:false,multiPerceptionTerminalState:null,manualSegmentMode:false,manualSegmentAnchor:null,manualSegmentCandidateId:null,imageReady:false,imageLoadGeneration:0,imageLoadTask:null,imageLoadFileId:null,imageLoadPayloadIdentity:null,dimensions:null,downloadUrl:null,pendingStructuredContent:null,observationPrepareAttemptKey:null,completed:false,confirming:false};
 let rpcId=0,bridgeReady;
 const pendingRequests=new Map();
 function rpcNotify(method,params){window.parent.postMessage({jsonrpc:"2.0",method,params},"*")}
@@ -4196,18 +4452,19 @@ function applyPixelProposal(candidateId){if(state.completed||state.confirming||s
 function disablePixelRefinement(){for(const [candidateId,proposalContentIdentity] of state.adoptedPixelRefinements){const proposal=state.pixelRefinementProposals.get(candidateId),index=state.reviewedCandidates.findIndex(item=>item.id===candidateId);if(index>=0&&proposal?.status==="refined"&&proposal.contentIdentity===proposalContentIdentity&&samePixelProposalPrimitive(state.reviewedCandidates[index],state.reviewedCandidates[index].primitive,proposal.proposedGeometry))state.reviewedCandidates[index]=candidateWithPrimitive(state.reviewedCandidates[index],clonePrimitive(proposal.originalGeometry),true)}state.pixelRefinementGeneration+=1;state.pixelRefinementEnabled=false;state.pixelRefinementRunning=false;state.pixelRefinementProposals=new Map();state.adoptedPixelRefinements=new Map();document.documentElement.setAttribute("data-norma-pixel-refinement","disabled");syncOverlayGeometry();updateMeasurementRatioControls();persistReviewState();updatePixelProposalUi();statusNode.textContent="Propositions pixels désactivées. La géométrie originale est conservée et Core reste arrêté."}
 pixelToggle.addEventListener("click",async()=>{if(state.completed||state.confirming||state.pixelRefinementRunning||!state.imageReady)return;if(state.pixelRefinementEnabled){disablePixelRefinement();return}state.pixelRefinementEnabled=true;document.documentElement.setAttribute("data-norma-pixel-refinement","running");persistReviewState();updatePixelProposalUi();await refreshPixelRefinements()});
 function multiPerceptionObservationCount(payload=state.payload){const observations=payload?.prepared?.perceptionManifest?.observations;return Array.isArray(observations)?observations.length:0}
-function multiPerceptionReviewLocked(){const count=multiPerceptionObservationCount();return state.perceptionRunning||(count===1&&state.multiPerceptionTerminalState!=="object-b-failed")}
+function multiPerceptionReviewLocked(){const count=multiPerceptionObservationCount();return state.perceptionRunning||state.perceptionReconciliationBlocked||(count===1&&state.multiPerceptionTerminalState!=="object-b-failed")}
 function perceptionWorkflowArgs(payload=state.payload){const multi=payload?.prepared?.workflowMode==="two-object-spatial"||state.guidedAnalysisGoal==="compare-two-lengths";return multi?{workflowMode:"two-object-spatial",guidedAnalysisGoal:"compare-two-lengths"}:{}}
 function multiPerceptionStartBlocked(payload=state.payload){return state.manualSegmentCandidateId!==null&&perceptionWorkflowArgs(payload).workflowMode==="two-object-spatial"}
-function updatePerceptionUi(){const payload=state.payload,count=multiPerceptionObservationCount(payload),modes=Array.isArray(payload?.perceptionModes)?payload.perceptionModes:[],legacyAvailable=modes.includes("legacy")&&state.multiPerceptionTerminalState===null&&!payload?.prepared?.perceptionReceiptIdentity&&payload?.prepared?.workflowMode!=="two-object-spatial",multiStartAvailable=modes.includes("two-object-spatial")&&payload?.prepared?.contractVersion===1&&state.guidedAnalysisGoal==="compare-two-lengths"&&state.multiPerceptionTerminalState===null,multiAvailable=payload?.prepared?.workflowMode==="two-object-spatial"&&count===1&&state.multiPerceptionTerminalState===null,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&(legacyAvailable||multiStartAvailable||multiAvailable),interactiveAvailable=!multiAvailable||eligibleInteractivePerceptionCandidates(payload).length>0,multiStartBlocked=multiPerceptionStartBlocked(payload);perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||!interactiveAvailable||multiStartBlocked||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":multiStartBlocked?"Supprimez le segment manuel avant SAM 3":multiAvailable?interactiveAvailable?"Proposer l’objet B":"Objet B · choisissez une cible sémantique distincte":multiStartAvailable?"Proposer l’objet A":"Proposer un masque SAM 3"}
+function updatePerceptionUi(){const payload=state.payload,count=multiPerceptionObservationCount(payload),modes=Array.isArray(payload?.perceptionModes)?payload.perceptionModes:[],legacyAvailable=modes.includes("legacy")&&state.multiPerceptionTerminalState===null&&!payload?.prepared?.perceptionReceiptIdentity&&payload?.prepared?.workflowMode!=="two-object-spatial",multiStartAvailable=modes.includes("two-object-spatial")&&payload?.prepared?.contractVersion===1&&state.guidedAnalysisGoal==="compare-two-lengths"&&state.multiPerceptionTerminalState===null,multiAvailable=payload?.prepared?.workflowMode==="two-object-spatial"&&count===1&&state.multiPerceptionTerminalState===null,available=typeof payload?.perceptionAppCapability==="string"&&payload.perceptionAppCapability.length>=32&&(legacyAvailable||multiStartAvailable||multiAvailable),interactiveAvailable=!multiAvailable||eligibleInteractivePerceptionCandidates(payload).length>0,multiStartBlocked=multiPerceptionStartBlocked(payload);perceptionToggle.hidden=!available;perceptionToggle.disabled=!available||!interactiveAvailable||multiStartBlocked||state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||state.perceptionReconciliationBlocked||!state.imageReady;perceptionToggle.textContent=state.perceptionRunning?"SAM 3 · proposition en cours…":multiStartBlocked?"Supprimez le segment manuel avant SAM 3":multiAvailable?interactiveAvailable?"Proposer l’objet B":"Objet B · choisissez une cible sémantique distincte":multiStartAvailable?"Proposer l’objet A":"Proposer un masque SAM 3"}
 function perceptionPromptFor(candidate){if(candidate.width>0&&candidate.height>0)return{points:[],box:{x:candidate.x,y:candidate.y,width:candidate.width,height:candidate.height}};const primitive=candidate.primitive,points=primitive?.kind==="segment"||primitive?.kind==="axis"?[primitive.start,primitive.end]:[],x=points.length===2?(points[0].x+points[1].x)/2:candidate.x+candidate.width/2,y=points.length===2?(points[0].y+points[1].y)/2:candidate.y+candidate.height/2;return{points:[{x:clampUnit(x),y:clampUnit(y),label:"include"}],box:null}}
 function perceptionPromptKey(prompt){return canonicalSpatialJson(prompt)}
 function eligibleInteractivePerceptionCandidates(payload=state.payload){const observations=Array.isArray(payload?.prepared?.perceptionManifest?.observations)?payload.prepared.perceptionManifest.observations:[],proposalIds=new Set(observations.map(observation=>observation.candidateId)),usedPrompts=new Set(observations.map(observation=>perceptionPromptKey(observation.normalizedPrompt)));return state.reviewedCandidates.filter(candidate=>!proposalIds.has(candidate.id)&&!usedPrompts.has(perceptionPromptKey(perceptionPromptFor(candidate))))}
-function perceptionFailureMessage(error){const code=typeof error?.code==="string"?error.code:"perception_failed";if(code==="perception_tool_timeout"||code==="perception_poll_timeout")return"Le connecteur SAM 3 n’a pas répondu dans le délai prévu. Norma Core reste arrêté; relancez l’analyse pour une nouvelle tentative explicite.";if(code==="perception_file_timeout")return"La lecture temporaire de l’image n’a pas répondu. Norma Core reste arrêté; relancez l’analyse pour réessayer explicitement.";if(code==="job_execution_timeout"||code==="provider_timeout")return"SAM 3 n’a pas répondu dans le délai serveur. Norma Core reste arrêté; relancez l’analyse pour une nouvelle tentative explicite.";if(code==="job_expired")return"La proposition SAM 3 a expiré. Norma Core reste arrêté; relancez l’analyse pour créer une nouvelle session.";return"La proposition SAM 3 n’a pas abouti. Aucun retry provider automatique n’est lancé; Norma Core reste arrêté. Relancez l’analyse pour réessayer explicitement."}
-function terminalizePerceptionClientFailure(payload,error){state.perceptionRunning=false;if(perceptionWorkflowArgs(payload).workflowMode&&state.multiPerceptionTerminalState===null)state.multiPerceptionTerminalState=multiPerceptionObservationCount(payload)===0?"object-a-failed":"object-b-failed";setReviewLocked(multiPerceptionReviewLocked());return perceptionFailureMessage(error)}
+function perceptionFailureMessage(error){const code=typeof error?.code==="string"?error.code:"perception_failed";if(code==="perception_reconciliation_failed")return"La réponse SAM 3 est arrivée après le délai et son annulation n’a pas pu être confirmée. Norma Core reste arrêté et cette vue reste verrouillée; relancez l’analyse depuis l’image.";if(code==="perception_tool_timeout"||code==="perception_poll_timeout")return"SAM 3 n’a pas terminé son démarrage dans le délai prévu. Norma Core reste arrêté; relancez l’analyse pour une nouvelle tentative explicite.";if(code==="perception_file_timeout")return"La lecture temporaire de l’image n’a pas répondu. Norma Core reste arrêté; relancez l’analyse pour réessayer explicitement.";if(code==="job_execution_timeout"||code==="provider_timeout")return"SAM 3 n’a pas répondu dans le délai serveur. Norma Core reste arrêté; relancez l’analyse pour une nouvelle tentative explicite.";if(code==="provider_unavailable")return"SAM 3 est resté indisponible pendant son démarrage. Norma Core reste arrêté; relancez l’analyse pour une nouvelle tentative explicite.";if(code==="job_expired")return"La proposition SAM 3 a expiré. Norma Core reste arrêté. Relancez l’analyse pour créer une nouvelle session.";return"La proposition SAM 3 n’a pas abouti. Aucun retry provider automatique n’est lancé; Norma Core reste arrêté. Relancez l’analyse pour réessayer explicitement."}
+function terminalizePerceptionClientFailure(payload,error){state.perceptionRunning=false;if(error?.code==="perception_reconciliation_failed"){state.perceptionReconciliationBlocked=true;setReviewLocked(true);return perceptionFailureMessage(error)}const appliedPayloadIdentity=error?.appliedPayloadIdentity,terminalPayload=error?.code==="perception_poll_timeout"&&typeof appliedPayloadIdentity==="string"&&state.activePayloadIdentity===appliedPayloadIdentity&&state.payload?state.payload:payload;if(perceptionWorkflowArgs(terminalPayload).workflowMode&&state.multiPerceptionTerminalState===null)state.multiPerceptionTerminalState=multiPerceptionObservationCount(terminalPayload)===0?"object-a-failed":"object-b-failed";setReviewLocked(multiPerceptionReviewLocked());return perceptionFailureMessage(error)}
+function perceptionClientFailureIsCurrent(expectedPayloadIdentity,error){const appliedPayloadIdentity=error?.appliedPayloadIdentity;return state.activePayloadIdentity===expectedPayloadIdentity||(error?.code==="perception_poll_timeout"||error?.code==="perception_reconciliation_failed")&&typeof appliedPayloadIdentity==="string"&&state.activePayloadIdentity===appliedPayloadIdentity}
 async function applyPerceptionStatusResponse(payload,response){const job=response?.structuredContent||response;if(job?.state==="pending")return false;const readyPayload=findPayload(response);if(job?.state==="ready"){const multiReady=job.workflowMode==="two-object-spatial"&&readyPayload?.prepared?.workflowMode==="two-object-spatial"&&readyPayload.prepared.perceptionManifest?.observations?.length===job.attemptOrdinal&&readyPayload.prepared.perceptionManifest.observations.at(-1)?.providerReceiptIdentity===job.perceptionReceiptIdentity,legacyReady=job.workflowMode===null&&readyPayload?.prepared?.perceptionReceiptIdentity===job.perceptionReceiptIdentity;if(!readyPayload||readyPayload.stage!=="confirmation_required"||readyPayload.fileId!==payload.fileId||(!multiReady&&!legacyReady))throw new Error("invalid perception result");state.perceptionRunning=false;await hydrate(readyPayload,response?.structuredContent);setGuideFocus(false);recordReviewEvent("sam-ready");statusNode.textContent=job.workflowMode==="two-object-spatial"&&job.attemptOrdinal===1?"Objet A ajouté et verrouillé. Lancez maintenant l’objet B; Core reste arrêté.":"Proposition SAM 3 ajoutée comme preuve candidate non sélectionnée. Vérifiez-la; Core reste arrêté jusqu’à confirmation.";return true}if(readyPayload?.stage==="confirmation_required"){state.perceptionRunning=false;await hydrate(readyPayload,response?.structuredContent)}if(job?.state==="abstained"){recordReviewEvent("sam-abstained");statusNode.textContent="SAM 3 s’est abstenu. Aucun retry provider n’est possible dans cette session; les candidats conservés restent manuels et Core reste arrêté.";return true}throw perceptionClientError(typeof job?.errorCode==="string"?job.errorCode:job?.state==="expired"?"job_expired":"perception_failed","perception job failed")}
-async function pollPerceptionJob(payload,jobId,expiresAt,expectedPayloadIdentity){const expiresAtMs=Date.parse(expiresAt);if(!Number.isFinite(expiresAtMs))throw new Error("invalid perception job expiry");const pollDeadlineMs=Math.min(expiresAtMs,Date.now()+PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS),statusArgs={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,jobId};let remainingPolls=PERCEPTION_MAX_STATUS_POLLS;while(Date.now()<pollDeadlineMs&&remainingPolls>0){if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;remainingPolls-=1;const response=await callAppTool(PERCEPTION_STATUS_TOOL,statusArgs,PERCEPTION_TOOL_CALL_TIMEOUT_MS);if(await applyPerceptionStatusResponse(payload,response))return;if(remainingPolls===0)break;const remainingMs=Math.max(0,pollDeadlineMs-Date.now());if(remainingMs>0)await new Promise(resolve=>setTimeout(resolve,Math.min(PERCEPTION_STATUS_POLL_DELAY_MS,remainingMs)))}throw perceptionClientError("perception_poll_timeout","perception status polling timed out")}
-perceptionToggle.addEventListener("click",async()=>{const payload=state.payload;if(perceptionToggle.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string"||multiPerceptionStartBlocked(payload))return;const candidates=eligibleInteractivePerceptionCandidates(payload),candidate=candidates.find(item=>state.selected.has(item.id)||state.selectedGuides.has(item.id))||candidates[0];if(!candidate)return;const expectedPayloadIdentity=state.activePayloadIdentity;let failureMessage=null;state.perceptionRunning=true;setReviewLocked(true);recordReviewEvent("sam-requested");statusNode.textContent="SAM 3 prépare une proposition bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await withPerceptionDeadline(()=>fileApi({fileId:payload.fileId}),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const workflowArgs=perceptionWorkflowArgs(payload),ordinal=multiPerceptionObservationCount(payload)+1,response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,prompt:perceptionPromptFor(candidate),label:workflowArgs.workflowMode?"Objet "+(ordinal===1?"A":"B"):candidate.label,role:workflowArgs.workflowMode?(ordinal===1?"primary-subject":"secondary-subject"):candidate.role,...workflowArgs},PERCEPTION_TOOL_CALL_TIMEOUT_MS),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity)}catch(error){if(state.activePayloadIdentity===expectedPayloadIdentity){recordReviewEvent("sam-failed");failureMessage=terminalizePerceptionClientFailure(payload,error)}}finally{state.perceptionRunning=false;setReviewLocked(multiPerceptionReviewLocked());if(failureMessage!==null)statusNode.textContent=failureMessage}});
+async function pollPerceptionJob(payload,jobId,expiresAt,expectedPayloadIdentity,attemptOrdinal=null){const expiresAtMs=Date.parse(expiresAt);if(!Number.isFinite(expiresAtMs))throw new Error("invalid perception job expiry");const pollDeadlineMs=Math.min(expiresAtMs,Date.now()+PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS),statusArgs={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,jobId},observations=payload.prepared?.perceptionManifest?.observations,derivedAttemptOrdinal=Array.isArray(observations)?observations.length+1:null,expectedAttemptOrdinal=attemptOrdinal===1||attemptOrdinal===2?attemptOrdinal:derivedAttemptOrdinal,reconcileTimedOutStatus=async response=>{const responseJob=response?.structuredContent||response;if(response!==null&&(responseJob?.state!=="ready"||responseJob.workflowMode!=="two-object-spatial"))return;if((expectedAttemptOrdinal!==1&&expectedAttemptOrdinal!==2)||response!==null&&(responseJob?.jobId!==jobId||responseJob.attemptOrdinal!==expectedAttemptOrdinal))throw perceptionClientError("perception_reconciliation_failed","timed-out perception result cannot be reconciled safely");let reconciliationResponse;try{reconciliationResponse=await callAppTool(PERCEPTION_STATUS_TOOL,{...statusArgs,rollbackAppliedResult:true},PERCEPTION_TOOL_CALL_TIMEOUT_MS)}catch{throw perceptionClientError("perception_reconciliation_failed","timed-out perception reconciliation could not be confirmed")}const reconciliationJob=reconciliationResponse?.structuredContent||reconciliationResponse,reconciledPayload=findPayload(reconciliationResponse),expectedTerminalState=expectedAttemptOrdinal===1?"object-a-failed":"object-b-failed";if(reconciliationJob?.jobId!==jobId||reconciliationJob?.workflowMode!=="two-object-spatial"||reconciliationJob?.attemptOrdinal!==expectedAttemptOrdinal||!reconciledPayload||payloadIdentity(reconciledPayload)!==payloadIdentity(payload)||reconciledPayload.multiPerceptionWorkflow?.terminalState!==expectedTerminalState)throw perceptionClientError("perception_reconciliation_failed","timed-out perception reconciliation response is invalid")},terminalizeAppliedTimedOutStatus=async(response,appliedPayloadIdentity)=>{const reconciliationFailure=message=>Object.assign(perceptionClientError("perception_reconciliation_failed",message),{appliedPayloadIdentity}),responseJob=response?.structuredContent||response;if(responseJob?.state!=="ready"||responseJob.workflowMode!=="two-object-spatial"||responseJob.jobId!==jobId||responseJob.attemptOrdinal!==expectedAttemptOrdinal)throw reconciliationFailure("late applied perception result cannot be reconciled safely");let terminalizationResponse;try{terminalizationResponse=await callAppTool(PERCEPTION_STATUS_TOOL,{...statusArgs,terminalizeAppliedResult:true},PERCEPTION_TOOL_CALL_TIMEOUT_MS)}catch{throw reconciliationFailure("late applied perception terminalization could not be confirmed")}const terminalizationJob=terminalizationResponse?.structuredContent||terminalizationResponse,terminalizedPayload=findPayload(terminalizationResponse),workflow=terminalizedPayload?.multiPerceptionWorkflow,expectedTerminalState=expectedAttemptOrdinal===1?"object-b-failed":null;if(terminalizationJob?.jobId!==jobId||terminalizationJob?.workflowMode!=="two-object-spatial"||terminalizationJob?.attemptOrdinal!==expectedAttemptOrdinal||!terminalizedPayload||payloadIdentity(terminalizedPayload)!==appliedPayloadIdentity||workflow?.active!==false||workflow?.terminalState!==expectedTerminalState)throw reconciliationFailure("late applied perception terminalization response is invalid")};let remainingPolls=PERCEPTION_MAX_STATUS_POLLS,latePollPhase=0;while(remainingPolls>0){if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;if(latePollPhase===0&&remainingPolls<=2)latePollPhase=remainingPolls===2?1:2;if(latePollPhase!==0){const remainingMs=Math.max(0,pollDeadlineMs-Date.now()),retainedMs=latePollPhase===1?Math.min(PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS,Math.max(1,remainingMs)):Math.min(Math.max(1,Math.floor(PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS/2)),remainingMs),waitMs=Math.max(0,remainingMs-retainedMs);if(waitMs>0)await new Promise(resolve=>setTimeout(resolve,waitMs))}if(state.activePayloadIdentity!==expectedPayloadIdentity||state.completed)return;const remainingBeforePollMs=Math.max(0,pollDeadlineMs-Date.now());if(remainingBeforePollMs<=0)break;const statusTimeoutMs=Math.min(PERCEPTION_TOOL_CALL_TIMEOUT_MS,remainingBeforePollMs);remainingPolls-=1;let response;try{response=await callAppTool(PERCEPTION_STATUS_TOOL,statusArgs,statusTimeoutMs)}catch(error){if(error?.code!=="perception_tool_timeout"||(expectedAttemptOrdinal!==1&&expectedAttemptOrdinal!==2))throw error;await reconcileTimedOutStatus(null);throw perceptionClientError("perception_poll_timeout","perception status polling timed out")}if(Date.now()>=pollDeadlineMs){await reconcileTimedOutStatus(response);break}const appliedPayload=findPayload(response),appliedPayloadIdentity=appliedPayload?payloadIdentity(appliedPayload):null,applied=await applyPerceptionStatusResponse(payload,response);if(Date.now()>=pollDeadlineMs){if(applied&&response?.structuredContent?.workflowMode==="two-object-spatial"&&typeof appliedPayloadIdentity==="string")await terminalizeAppliedTimedOutStatus(response,appliedPayloadIdentity);throw Object.assign(perceptionClientError("perception_poll_timeout","perception status polling timed out"),{appliedPayloadIdentity})}if(applied)return;const remainingMs=Math.max(0,pollDeadlineMs-Date.now());if(remainingMs<=0)break;if(latePollPhase===2)break;if(latePollPhase===1){latePollPhase=2;continue}if(remainingPolls<=2)continue;if(PERCEPTION_STATUS_POLL_DELAY_MS>=remainingMs-PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS){latePollPhase=1;continue}const delayMs=Math.min(PERCEPTION_STATUS_POLL_DELAY_MS,remainingMs);if(delayMs>0)await new Promise(resolve=>setTimeout(resolve,delayMs))}throw perceptionClientError("perception_poll_timeout","perception status polling timed out")}
+perceptionToggle.addEventListener("click",async()=>{const payload=state.payload;if(perceptionToggle.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string"||multiPerceptionStartBlocked(payload))return;const candidates=eligibleInteractivePerceptionCandidates(payload),candidate=candidates.find(item=>state.selected.has(item.id)||state.selectedGuides.has(item.id))||candidates[0];if(!candidate)return;const expectedPayloadIdentity=state.activePayloadIdentity;let failureMessage=null;state.perceptionRunning=true;setReviewLocked(true);recordReviewEvent("sam-requested");statusNode.textContent="SAM 3 prépare une proposition bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await withPerceptionDeadline(()=>fileApi({fileId:payload.fileId}),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const workflowArgs=perceptionWorkflowArgs(payload),ordinal=multiPerceptionObservationCount(payload)+1,response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,prompt:perceptionPromptFor(candidate),label:workflowArgs.workflowMode?"Objet "+(ordinal===1?"A":"B"):candidate.label,role:workflowArgs.workflowMode?(ordinal===1?"primary-subject":"secondary-subject"):candidate.role,...workflowArgs},PERCEPTION_TOOL_CALL_TIMEOUT_MS),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity,job.attemptOrdinal)}catch(error){if(perceptionClientFailureIsCurrent(expectedPayloadIdentity,error)){recordReviewEvent("sam-failed");failureMessage=terminalizePerceptionClientFailure(payload,error)}}finally{state.perceptionRunning=false;setReviewLocked(multiPerceptionReviewLocked());if(failureMessage!==null)statusNode.textContent=failureMessage}});
 function updateConfirm(){const spatial=declaredSpatialMeasurementMode(),spatialBinding=spatial?spatialWorkflowBinding():null,noCoreRectangle=coreSelectedIds().length===0,incompleteSpatialPlan=spatial&&(!state.measurementRatioEnabled||state.declaredSpatialMeasurementPlanBuilding||state.declaredSpatialMeasurementPlan===null),incompleteMeasurementRatio=!spatial&&state.measurementRatioEnabled&&measurementRatioRequest()===undefined,multiLocked=multiPerceptionReviewLocked();confirmButton.disabled=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||multiLocked||!state.imageReady||noCoreRectangle||incompleteSpatialPlan||incompleteMeasurementRatio||!state.payload;updateManualSegmentControls();if(!state.completed&&!state.confirming&&state.imageReady&&multiLocked)statusNode.textContent="Terminez l’observation de l’objet B avant toute édition ou confirmation.";else if(!state.completed&&!state.confirming&&state.imageReady&&spatialBinding?.message)statusNode.textContent=spatialBinding.message;else if(!state.completed&&!state.confirming&&state.imageReady&&noCoreRectangle)statusNode.textContent="Sélectionnez au moins un rectangle structurel pour lancer le Core actuel.";else if(!state.completed&&!state.confirming&&state.imageReady&&incompleteSpatialPlan)statusNode.textContent="Sélectionnez exactement deux rectangles, activez le plan spatial et déclarez deux longueurs distinctes.";else if(!state.completed&&!state.confirming&&state.imageReady&&incompleteMeasurementRatio)statusNode.textContent="Choisissez exactement deux longueurs distinctes pour le rapport déclaré, ou désactivez-le."}
 function setReviewLocked(locked){const disabled=locked||state.completed;overlay.classList.toggle("locked",disabled);candidateList.querySelectorAll("input").forEach(input=>input.disabled=disabled);guidedGoals.querySelectorAll(".guided-goal").forEach(button=>button.disabled=disabled||twoObjectSpatialWorkflowActive()&&button.getAttribute("data-goal-id")!=="compare-two-lengths");familyFilters.querySelectorAll(".family-filter").forEach(button=>button.disabled=disabled||twoObjectSpatialWorkflowActive());overlay.querySelectorAll("[data-candidate-id]").forEach(group=>{const editable=!disabled;group.setAttribute("tabindex",editable?"0":"-1");group.querySelectorAll(EDIT_HANDLE_SELECTOR).forEach(handle=>handle.setAttribute("tabindex",editable?"0":"-1"));if(disabled)group.setAttribute("aria-disabled","true");else group.removeAttribute("aria-disabled")});updateConstructionControls();updatePixelProposalUi();updatePerceptionUi();updateMeasurementRatioControls();updateManualSegmentControls();updateConfirm()}
 function reviewEditingBlocked(){return state.completed||state.confirming||multiPerceptionReviewLocked()||!state.imageReady}
@@ -4259,7 +4516,8 @@ function finishMeasurementRatioGeometryEdit(event){if(event.target instanceof El
 overlay.addEventListener("keyup",event=>{if(event.key.startsWith("Arrow"))finishMeasurementRatioGeometryEdit(event)});
 window.addEventListener("pointerup",finishMeasurementRatioGeometryEdit);
 window.addEventListener("pointercancel",finishMeasurementRatioGeometryEdit);
-async function hydrate(payload=currentPayload(),structured=window.openai?.toolOutput,{forceImageReload=false}={}){if(!payload)return;if(typeof recordObservationMilestone==="function")recordObservationMilestone(payload,"result-received");const identity=payloadIdentity(payload),imageChanged=state.imageLoadFileId!==payload.fileId||state.imageLoadPayloadIdentity!==identity;if(state.activePayloadIdentity!==null&&state.activePayloadIdentity!==identity)resetManualSegmentGesture();state.pendingStructuredContent=structured;state.activePayload=payload;state.activePayloadIdentity=identity;if(payload.stage==="confirmation_required"&&state.confirming){state.payload=payload;return}if(payload.stage==="confirmation_required"||!state.payload||state.payload.fileId!==payload.fileId)state.payload=payload;if(imageChanged){state.imageReady=false;state.dimensions=null}if(payload.overlaySvg)overlay.innerHTML=safeSvg(payload.overlaySvg);if(payload.stage==="confirmation_required"){renderCandidates(payload.prepared);const imageLoaded=await loadImage(payload.fileId,identity,{force:forceImageReload});if(state.activePayloadIdentity!==identity)return;if(!imageLoaded){const revalidationPayload=state.payload,completed=completedWidgetStateFor(revalidationPayload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(revalidationPayload,completed,identity);return}if(state.pixelRefinementEnabled)await refreshPixelRefinements(state.payload,identity);if(state.activePayloadIdentity!==identity)return;const revalidationPayload=state.payload,completed=completedWidgetStateFor(revalidationPayload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(revalidationPayload,completed,identity);if(state.completed)return;if(typeof recordObservationMilestone==="function")recordObservationMilestone(state.payload,"widget-interactive");if(typeof recordReviewEventOnce==="function")recordReviewEventOnce("draft-visible");return}if(payload.stage==="completed"){if(payload.fileId)await loadImage(payload.fileId,identity,{force:forceImageReload});if(state.activePayloadIdentity!==identity)return;state.displayedPayload=payload;if(typeof restoreGuidePresentation==="function")restoreGuidePresentation();if(typeof restoreReviewJournal==="function")restoreReviewJournal();if(typeof syncGuidePresentation==="function")syncGuidePresentation();restoreGuidedAnalysisGoal();renderGuidedAnalysisGoals();const declared=findDeclaredSpatialConfirmation(structured)||findDeclaredSpatialConfirmation(payload);if(declared)renderDeclaredSpatialResult(payload,structured,declared);else renderResult(payload,structured);if(typeof recordObservationMilestoneAfterPaint==="function")recordObservationMilestoneAfterPaint(payload,"core-visible")}}
+function resetPerceptionReconciliationForNewSession(payload){const currentSessionId=state.payload?.sessionId??state.activePayload?.sessionId;if(state.perceptionReconciliationBlocked&&typeof currentSessionId==="string"&&typeof payload?.sessionId==="string"&&payload.sessionId!==currentSessionId)state.perceptionReconciliationBlocked=false}
+async function hydrate(payload=currentPayload(),structured=window.openai?.toolOutput,{forceImageReload=false}={}){if(!payload)return;resetPerceptionReconciliationForNewSession(payload);if(typeof recordObservationMilestone==="function")recordObservationMilestone(payload,"result-received");const identity=payloadIdentity(payload),imageChanged=state.imageLoadFileId!==payload.fileId||state.imageLoadPayloadIdentity!==identity;if(state.activePayloadIdentity!==null&&state.activePayloadIdentity!==identity)resetManualSegmentGesture();state.pendingStructuredContent=structured;state.activePayload=payload;state.activePayloadIdentity=identity;if(payload.stage==="confirmation_required"&&state.confirming){state.payload=payload;return}if(payload.stage==="confirmation_required"||!state.payload||state.payload.fileId!==payload.fileId)state.payload=payload;if(imageChanged){state.imageReady=false;state.dimensions=null}if(payload.overlaySvg)overlay.innerHTML=safeSvg(payload.overlaySvg);if(payload.stage==="confirmation_required"){renderCandidates(payload.prepared);const imageLoaded=await loadImage(payload.fileId,identity,{force:forceImageReload});if(state.activePayloadIdentity!==identity)return;if(!imageLoaded){const revalidationPayload=state.payload,completed=completedWidgetStateFor(revalidationPayload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(revalidationPayload,completed,identity);return}if(state.pixelRefinementEnabled)await refreshPixelRefinements(state.payload,identity);if(state.activePayloadIdentity!==identity)return;const revalidationPayload=state.payload,completed=completedWidgetStateFor(revalidationPayload);if(completed&&!state.confirming&&!state.completed)await revalidateCompleted(revalidationPayload,completed,identity);if(state.completed)return;if(typeof recordObservationMilestone==="function")recordObservationMilestone(state.payload,"widget-interactive");if(typeof recordReviewEventOnce==="function")recordReviewEventOnce("draft-visible");return}if(payload.stage==="completed"){if(payload.fileId)await loadImage(payload.fileId,identity,{force:forceImageReload});if(state.activePayloadIdentity!==identity)return;state.displayedPayload=payload;if(typeof restoreGuidePresentation==="function")restoreGuidePresentation();if(typeof restoreReviewJournal==="function")restoreReviewJournal();if(typeof syncGuidePresentation==="function")syncGuidePresentation();restoreGuidedAnalysisGoal();renderGuidedAnalysisGoals();const declared=findDeclaredSpatialConfirmation(structured)||findDeclaredSpatialConfirmation(payload);if(declared)renderDeclaredSpatialResult(payload,structured,declared);else renderResult(payload,structured);if(typeof recordObservationMilestoneAfterPaint==="function")recordObservationMilestoneAfterPaint(payload,"core-visible")}}
 confirmButton.addEventListener("click",async()=>{if(state.confirming||state.pixelRefinementRunning||!state.payload||!state.dimensions||coreSelectedIds().length===0)return;const spatial=declaredSpatialMeasurementMode(),measurementRatioSnapshot=measurementRatioRequest(),spatialPlanSnapshot=spatial?state.declaredSpatialMeasurementPlan:undefined;if((spatial&&spatialPlanSnapshot===null)||(!spatial&&state.measurementRatioEnabled&&measurementRatioSnapshot===undefined))return;const confirmationClickedAtMs=Date.now();recordReviewEvent("confirm-clicked",confirmationClickedAtMs);state.confirming=true;const payloadSnapshot=state.payload,payloadIdentitySnapshot=state.activePayloadIdentity,candidateSnapshot=reviewedCandidateSnapshot(),selectedSnapshot=Object.freeze(coreSelectedIds()),guideSnapshot=Object.freeze(spatial?[]:confirmedGuideIds()),constructionSnapshot=Object.freeze(spatial?[]:CONSTRUCTION_LAYERS.filter(layer=>state.constructionLayers.has(layer))),dimensionsSnapshot=Object.freeze({...state.dimensions}),changed=geometryChanged(candidateSnapshot),perceptionEdited=changed&&perceptionAssistedPrepared(payloadSnapshot.prepared);setReviewLocked(true);confirmButton.textContent="Norma mesure…";statusNode.textContent=changed?"Corrections structurées en cours de validation avant mesure…":"Sélection confirmée dans le widget. Calcul déterministe de la paire déclarée…";try{const analysisPayload=changed&&!perceptionEdited?await prepareReviewedPayload(payloadSnapshot,candidateSnapshot):payloadSnapshot;recordObservationMilestone(analysisPayload,"confirmation-clicked",confirmationClickedAtMs);const response=perceptionEdited?await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot,spatialPlanSnapshot,candidateSnapshot):await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot,spatialPlanSnapshot);if(state.activePayloadIdentity!==payloadIdentitySnapshot)return;const declared=findDeclaredSpatialConfirmation(response),structured=declared?response?.structuredContent||response:findCompletedResult(response),hiddenPayload=findPayload(response);if(!declared&&!structured)throw new Error("missing verified result");state.reviewedCandidates=candidateSnapshot.map(item=>({...item}));state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.constructionLayers=new Set(constructionSnapshot);state.dimensions={...dimensionsSnapshot};if(typeof structured?.candidateSetIdentity==="string")state.proposalCandidateSetIdentity=structured.candidateSetIdentity;const completedPayload=hiddenPayload||(declared?{stage:"completed",fileId:payloadSnapshot.fileId,declaredSpatialMeasurementConfirmation:declared}:{stage:"completed",fileId:payloadSnapshot.fileId,result:structured,imagePlaneGuideAnalysis:structured.imagePlaneGuideAnalysis,declaredMeasurementRatioReport:structured.declaredMeasurementRatioReport,overlaySvg:""});recordObservationMilestone(completedPayload,"result-received");if(declared){renderDeclaredSpatialResult(completedPayload,response,declared);recordObservationMilestoneAfterPaint(completedPayload,"core-visible",()=>{void sendDeclaredSpatialCompletionFollowUp(completedPayload,declared)})}else{renderResult(completedPayload,structured);recordObservationMilestoneAfterPaint(completedPayload,"core-visible",()=>{void sendCompletionFollowUp(completedPayload,structured)})}}catch{if(state.activePayloadIdentity!==payloadIdentitySnapshot)return;recordReviewEvent("confirm-failed");statusNode.textContent="Analyse interrompue : les corrections n’ont pas pu être validées par le connecteur local. Réessayez depuis cette image.";confirmButton.textContent="Réessayer l’analyse"}finally{finishConfirmingPayload(payloadIdentitySnapshot)}});
 let bootstrapRetryCount=0;
 function setWidgetBootstrapState(nextState){document.documentElement.setAttribute("data-norma-widget-bootstrap",nextState);document.body.hidden=nextState==="stale";if(nextState==="ready"&&!state.completed)stageNode.textContent="À CONFIRMER"}
@@ -4277,10 +4535,10 @@ const semanticTargetPanel=document.getElementById("semanticTargetPanel"),semanti
 function normalizeSemanticTarget(value){if(typeof value!=="string"||/[\\u0000-\\u001f\\u007f]/u.test(value)||/[,;|]/u.test(value))return null;const normalized=value.trim().replace(/\\s+/gu," ");return normalized.length>0&&normalized.length<=500?normalized:null}
 function selectedSemanticTarget(){return normalizeSemanticTarget(semanticTargetInput?.value||"")}
 function semanticTargetAlreadyUsed(target,payload=state.payload){return Array.isArray(payload?.prepared?.perceptionManifest?.observations)&&payload.prepared.perceptionManifest.observations.some(observation=>observation.normalizedPrompt?.kind==="text"&&observation.normalizedPrompt.text===target)}
-function refreshSemanticTargetUi(){if(!semanticTargetPanel||!semanticTargetInput||!semanticTargetSubmit)return;const available=!perceptionToggle.hidden,target=selectedSemanticTarget(),reused=target!==null&&semanticTargetAlreadyUsed(target),valid=target!==null&&!reused,busy=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||multiPerceptionStartBlocked()||!state.imageReady;semanticTargetPanel.hidden=!available;semanticTargetInput.disabled=busy;semanticTargetSubmit.disabled=!available||!valid||busy;semanticTargetValidation.dataset.invalid=String(!valid&&semanticTargetInput.value.length>0);semanticTargetValidation.textContent=reused?"L’objet B exige une cible distincte de l’objet A.":valid||semanticTargetInput.value.length===0?"":"Saisissez une seule cible courte, sans liste séparée par des virgules, avant l’inférence.";semanticTargetChips?.querySelectorAll(".semantic-target-chip").forEach(chip=>{chip.disabled=busy;chip.setAttribute("aria-pressed",String(chip.dataset.targetValue===target))})}
+function refreshSemanticTargetUi(){if(!semanticTargetPanel||!semanticTargetInput||!semanticTargetSubmit)return;const available=!perceptionToggle.hidden,target=selectedSemanticTarget(),reused=target!==null&&semanticTargetAlreadyUsed(target),valid=target!==null&&!reused,busy=state.completed||state.confirming||state.pixelRefinementRunning||state.perceptionRunning||state.perceptionReconciliationBlocked||multiPerceptionStartBlocked()||!state.imageReady;semanticTargetPanel.hidden=!available;semanticTargetInput.disabled=busy;semanticTargetSubmit.disabled=!available||!valid||busy;semanticTargetValidation.dataset.invalid=String(!valid&&semanticTargetInput.value.length>0);semanticTargetValidation.textContent=reused?"L’objet B exige une cible distincte de l’objet A.":valid||semanticTargetInput.value.length===0?"":"Saisissez une seule cible courte, sans liste séparée par des virgules, avant l’inférence.";semanticTargetChips?.querySelectorAll(".semantic-target-chip").forEach(chip=>{chip.disabled=busy;chip.setAttribute("aria-pressed",String(chip.dataset.targetValue===target))})}
 SEMANTIC_TARGETS.forEach(target=>{const chip=document.createElement("button");chip.type="button";chip.className="semantic-target-chip";chip.textContent=target.label;chip.dataset.targetValue=target.value;chip.setAttribute("aria-pressed","false");chip.addEventListener("click",()=>{if(semanticTargetInput.disabled)return;semanticTargetInput.value=target.value;refreshSemanticTargetUi();semanticTargetInput.focus()});semanticTargetChips?.append(chip)});
 semanticTargetInput?.addEventListener("input",refreshSemanticTargetUi);
-semanticTargetSubmit?.addEventListener("click",async()=>{const payload=state.payload,target=selectedSemanticTarget();if(semanticTargetSubmit.disabled||!payload?.prepared||typeof payload.perceptionAppCapability!=="string"||target===null||multiPerceptionStartBlocked(payload))return;const expectedPayloadIdentity=state.activePayloadIdentity;let failureMessage=null;state.perceptionRunning=true;setReviewLocked(true);recordReviewEvent("sam-requested");refreshSemanticTargetUi();statusNode.textContent="SAM 3 prépare une proposition sémantique bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await withPerceptionDeadline(()=>fileApi({fileId:payload.fileId}),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const workflowArgs=perceptionWorkflowArgs(payload),ordinal=multiPerceptionObservationCount(payload)+1,response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,semanticTarget:target,label:workflowArgs.workflowMode?"Objet "+(ordinal===1?"A":"B"):"Cible sémantique",role:workflowArgs.workflowMode?(ordinal===1?"primary-subject":"secondary-subject"):"primary-subject",...workflowArgs},PERCEPTION_TOOL_CALL_TIMEOUT_MS),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity)}catch(error){if(state.activePayloadIdentity===expectedPayloadIdentity){recordReviewEvent("sam-failed");failureMessage=terminalizePerceptionClientFailure(payload,error)}}finally{state.perceptionRunning=false;setReviewLocked(multiPerceptionReviewLocked());refreshSemanticTargetUi();if(failureMessage!==null)statusNode.textContent=failureMessage}});
+semanticTargetSubmit?.addEventListener("click",async()=>{const payload=state.payload,target=selectedSemanticTarget();if(semanticTargetSubmit.disabled||state.perceptionReconciliationBlocked||!payload?.prepared||typeof payload.perceptionAppCapability!=="string"||target===null||multiPerceptionStartBlocked(payload))return;const expectedPayloadIdentity=state.activePayloadIdentity;let failureMessage=null;state.perceptionRunning=true;setReviewLocked(true);recordReviewEvent("sam-requested");refreshSemanticTargetUi();statusNode.textContent="SAM 3 prépare une proposition sémantique bornée. Aucun calcul Core n’est lancé.";try{const fileApi=window.openai?.getFileDownloadUrl;if(typeof fileApi!=="function")throw new Error("file API unavailable");const freshDownload=await withPerceptionDeadline(()=>fileApi({fileId:payload.fileId}),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"),sourceImageDownloadUrl=freshDownload?.downloadUrl;if(typeof sourceImageDownloadUrl!=="string"||!sourceImageDownloadUrl.startsWith("https://"))throw new Error("invalid fresh image URL");const workflowArgs=perceptionWorkflowArgs(payload),ordinal=multiPerceptionObservationCount(payload)+1,response=await callAppTool(START_PERCEPTION_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,appCapability:payload.perceptionAppCapability,sourceImageDownloadUrl,semanticTarget:target,label:workflowArgs.workflowMode?"Objet "+(ordinal===1?"A":"B"):"Cible sémantique",role:workflowArgs.workflowMode?(ordinal===1?"primary-subject":"secondary-subject"):"primary-subject",...workflowArgs},PERCEPTION_TOOL_CALL_TIMEOUT_MS),job=response?.structuredContent||response;if(job?.state!=="pending"||typeof job.jobId!=="string"||typeof job.expiresAt!=="string")throw new Error("invalid perception job");await pollPerceptionJob(payload,job.jobId,job.expiresAt,expectedPayloadIdentity,job.attemptOrdinal)}catch(error){if(perceptionClientFailureIsCurrent(expectedPayloadIdentity,error)){recordReviewEvent("sam-failed");failureMessage=terminalizePerceptionClientFailure(payload,error)}}finally{state.perceptionRunning=false;setReviewLocked(multiPerceptionReviewLocked());refreshSemanticTargetUi();if(failureMessage!==null)statusNode.textContent=failureMessage}});
 new MutationObserver(refreshSemanticTargetUi).observe(perceptionToggle,{attributes:true,attributeFilter:["hidden","disabled"]});
 refreshSemanticTargetUi();
 `;

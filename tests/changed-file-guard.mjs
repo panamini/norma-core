@@ -756,6 +756,20 @@ export const personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles = Object
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());
 
+// Covers the bounded SAM cold-start readiness window and its asynchronous widget recovery path.
+export const personalVisualHarmonySam3ColdStartAsyncChangedFiles = Object.freeze([
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-segmentation.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  "tests/personal-visual-harmony-segmentation.test.mjs",
+].sort());
+
 export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "README.md",
   "src/private-web-lab.ts",
@@ -2192,6 +2206,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
+  personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
   personalVisualHarmonyMeasurementRatioClarityChangedFiles,
   personalVisualHarmonyObservabilityChangedFiles,

@@ -15,7 +15,7 @@ This is a custom authenticated Modal Server deployed with the Python SDK/CLI. Th
 - Hugging Face revision: `3c879f39826c281e95690f02c7821c4de09afae7`
 - Python 3.12, PyTorch 2.10.0 with CUDA 12.8 wheels, one L4 per container
 - Authenticated Modal Server (`unauthenticated=False`), no Volume, Dict, or durable payload store
-- At most three readiness probes for cold-start 503; exactly one inference request and no inference replay
+- A bounded five-minute readiness window for cold-start 503 (at most 60 probes); exactly one inference request and no inference replay
 
 The server accepts candidate prompts and returns bounded deterministic row-run masks. It is not source truth, does not create accepted geometry, and cannot run Norma Core.
 
@@ -47,8 +47,13 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
    - `NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS` — a comma-separated,
      credential-free HTTPS origin allowlist for the trusted ChatGPT file service; never
      paste a complete signed download URL here
+   - Optional: `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS` — a bounded
+     readiness/inference deadline in milliseconds (`1000`–`300000`); omit it to use
+     the five-minute cold-start window.
 
-   All four absent means disabled. A partial configuration fails startup. Never configure this provider in production as part of this sandbox action.
+   All five absent means disabled. A partial configuration, including the deadline without
+   the four required variables, fails startup. Never configure this provider in production
+   as part of this sandbox action.
 6. Restart only the Railway sandbox service. Authenticate through the existing OAuth flow with the existing visual-harmony scope, attach an approved non-sensitive image fixture, and use the widget’s **Proposer le masque SAM 3** action. Verify:
 
    - an unauthenticated request cannot list or call the two perception tools;
@@ -59,7 +64,9 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
 
 ## Rollback and stop
 
-Disable the integration first by removing all four Railway sandbox variables together and restarting that sandbox service. The existing ChatGPT V1 path then remains the only registered path.
+Disable the integration first by removing all five Railway sandbox variables together,
+including `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS`, and restarting that
+sandbox service. The existing ChatGPT V1 path then remains the only registered path.
 
 To roll back the Modal app to its preceding deployed version:
 
@@ -77,7 +84,8 @@ Revoke or delete the dedicated Proxy Token after disabling the Railway variables
 
 ## Operational limits
 
-- Zero-to-one cold start returns 503 until a container is listening; the client only retries the readiness probe.
+- Zero-to-one cold start returns 503 until a container is listening; the asynchronous job keeps polling the bounded readiness window and exposes a terminal `provider_unavailable` or `provider_timeout` state when it expires.
+- The readiness client makes at most 60 checks and reserves its last check for the configured cutoff instead of adding an undocumented 61st check.
 - The first inference POST is never replayed, including on 503, timeout, connection loss, or container preemption.
 - Jobs are process-memory-only, capacity-bounded, TTL-bound, and may disappear on restart.
 - The image is downloaded into bounded memory, identity-checked, normalized to at most 512 × 512, and never persisted.
