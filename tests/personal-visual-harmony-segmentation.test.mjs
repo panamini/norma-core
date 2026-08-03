@@ -341,6 +341,55 @@ test("segmentation client rejects readiness and inference responses after the ab
   });
 });
 
+test("segmentation client rejects a provider response decoded after the absolute deadline", async () => {
+  let now = 0;
+  let postCount = 0;
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    deadlineMs: 1_000,
+    availabilityProbeDelayMs: 0,
+  }, {
+    now: () => now,
+    delay: async () => {},
+    fetch: async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      postCount += 1;
+      const request = JSON.parse(init.body);
+      const bytes = new TextEncoder().encode(JSON.stringify(responseFor(request)));
+      let emitted = false;
+      return {
+        body: {
+          cancel: async () => {},
+          getReader: () => ({
+            cancel: async () => {},
+            read: async () => {
+              if (emitted) return { done: true, value: undefined };
+              emitted = true;
+              now = 1_001;
+              return { done: false, value: bytes };
+            },
+          }),
+        },
+        headers: new Headers({ "content-type": "application/json" }),
+        ok: true,
+        status: 200,
+      };
+    },
+  });
+
+  await assert.rejects(
+    client.segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/png",
+      prompt,
+    }),
+    (error) => error.code === "provider_timeout",
+  );
+  assert.equal(postCount, 1);
+});
+
 test("segmentation client rechecks the deadline after synchronous request body construction", async () => {
   let nowReads = 0;
   let postCount = 0;

@@ -17,6 +17,7 @@ import {
   PersonalVisualHarmonySessionServiceV1,
 } from "../dist/src/mcp/personal-visual-harmony-app.js";
 import {
+  DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS,
   InMemoryPersonalVisualHarmonyPerceptionJobService,
 } from "../dist/src/personal-visual-harmony-perception-jobs.js";
 import {
@@ -1776,7 +1777,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
   assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=160/u);
   assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
-  assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=320000/u);
+  assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=345000/u);
   assert.match(html, /PERCEPTION_TOOL_CALL_TIMEOUT_MS=15000/u);
   assert.match(html, /PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS=250/u);
   assert.match(html, /code==="provider_unavailable"/u);
@@ -1991,6 +1992,89 @@ test("widget observes pending then ready during the final 250ms without exceedin
   assert.equal(readTimes.at(-1), 875);
   assert.equal(appliedAt, 875);
   assert.ok(readTimes.every((readAt) => readAt < 1_000));
+});
+
+test("widget reserves a status read after the server execution deadline", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function pollPerceptionJob(");
+  const end = html.indexOf("\nperceptionToggle.addEventListener", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  let now = 0;
+  let terminalStatusObserved = false;
+  const readTimes = [];
+  const toolCallTimeoutMs = 15_000;
+  const clientWorkflowTimeoutMs =
+    DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS + toolCallTimeoutMs;
+  const state = {
+    activePayloadIdentity: "payload:active",
+    completed: false,
+    perceptionRunning: true,
+    multiPerceptionTerminalState: null,
+  };
+  const pollPerceptionJob = new Function(
+    "state",
+    "PERCEPTION_MAX_STATUS_POLLS",
+    "PERCEPTION_STATUS_POLL_DELAY_MS",
+    "PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
+    "PERCEPTION_STATUS_TOOL",
+    "callAppTool",
+    "findPayload",
+    "payloadIdentity",
+    "applyPerceptionStatusResponse",
+    "perceptionClientError",
+    "Date",
+    "setTimeout",
+    `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
+  )(
+    state,
+    160,
+    2_000,
+    clientWorkflowTimeoutMs,
+    toolCallTimeoutMs,
+    250,
+    PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+    async () => {
+      readTimes.push(now);
+      return {
+        structuredContent: {
+          state: now >= DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS
+            ? "failed"
+            : "pending",
+        },
+      };
+    },
+    () => null,
+    () => null,
+    async (_payload, response) => {
+      if (response.structuredContent.state === "pending") return false;
+      terminalStatusObserved = true;
+      return true;
+    },
+    (code, message) => Object.assign(new Error(message), { code }),
+    { now: () => now, parse: () => clientWorkflowTimeoutMs },
+    (resolve, delayMs) => {
+      now += delayMs;
+      resolve();
+    },
+  );
+
+  await pollPerceptionJob(
+    {
+      sessionId: "session:poll-server-terminal",
+      perceptionAppCapability: "pvh-app:poll-server-terminal-capability",
+      prepared: { candidateSetIdentity: `sha256:${"4".repeat(64)}` },
+    },
+    "job:poll-server-terminal",
+    "2026-08-03T00:05:45.000Z",
+    "payload:active",
+  );
+  assert.equal(terminalStatusObserved, true);
+  assert.ok(readTimes.at(-1) >= DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS);
+  assert.ok(readTimes.every((readAt) => readAt < clientWorkflowTimeoutMs));
+  assert.ok(readTimes.length <= 160);
 });
 
 test("widget rejects a ready status response that resolves after its client deadline", async () => {

@@ -306,12 +306,19 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         coreAuthority: false as const,
         coreRun: false as const,
       };
+      const receipt = {
+        ...receiptWithoutIdentity,
+        receiptIdentity: contentIdentityFor(receiptWithoutIdentity),
+      };
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
       return {
         response: validated,
-        receipt: {
-          ...receiptWithoutIdentity,
-          receiptIdentity: contentIdentityFor(receiptWithoutIdentity),
-        },
+        receipt,
       };
     } catch (error: unknown) {
       if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
