@@ -1877,6 +1877,8 @@ test("widget polling stops at its client deadline without waiting for the server
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPayload",
+    "payloadIdentity",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
@@ -1892,6 +1894,8 @@ test("widget polling stops at its client deadline without waiting for the server
       statusReads += 1;
       return { structuredContent: { state: "pending" } };
     },
+    () => null,
+    () => null,
     async () => false,
     (code, message) => Object.assign(new Error(message), { code }),
   );
@@ -1937,6 +1941,8 @@ test("widget observes pending then ready during the final 250ms without exceedin
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPayload",
+    "payloadIdentity",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
     "Date",
@@ -1955,6 +1961,8 @@ test("widget observes pending then ready during the final 250ms without exceedin
       readTimes.push(now);
       return { structuredContent: { state: now >= 875 ? "ready" : "pending" } };
     },
+    (response) => response.structuredContent.state === "ready" ? { id: "ready" } : null,
+    () => "payload:ready",
     async (_payload, response) => {
       if (response.structuredContent.state !== "ready") return false;
       appliedAt = now;
@@ -2000,6 +2008,8 @@ test("widget rejects a ready status response that resolves after its client dead
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPayload",
+    "payloadIdentity",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
@@ -2015,6 +2025,8 @@ test("widget rejects a ready status response that resolves after its client dead
       await new Promise((resolve) => setTimeout(resolve, 20));
       return { structuredContent: { state: "ready" } };
     },
+    () => null,
+    () => null,
     async () => {
       applied += 1;
       return true;
@@ -2052,6 +2064,8 @@ test("widget rejects a ready status whose application completes after its client
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPayload",
+    "payloadIdentity",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
@@ -2064,8 +2078,11 @@ test("widget rejects a ready status whose application completes after its client
     10,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     async () => ({ structuredContent: { state: "ready" } }),
+    () => ({ id: "ready" }),
+    () => "payload:ready",
     async () => {
       applied += 1;
+      state.activePayloadIdentity = "payload:ready";
       await new Promise((resolve) => setTimeout(resolve, 20));
       return true;
     },
@@ -2082,9 +2099,57 @@ test("widget rejects a ready status whose application completes after its client
       new Date(Date.now() + 100).toISOString(),
       "payload:active",
     ),
-    (error) => error.code === "perception_poll_timeout",
+    (error) => error.code === "perception_poll_timeout"
+      && error.appliedPayloadIdentity === "payload:ready",
   );
   assert.equal(applied, 1);
+});
+
+test("widget preserves a poll timeout after late hydration replaces the payload identity", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function perceptionClientFailureIsCurrent(");
+  const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = { activePayloadIdentity: "payload:ready" };
+  const perceptionClientFailureIsCurrent = new Function(
+    "state",
+    `"use strict";${html.slice(start, end)};return perceptionClientFailureIsCurrent;`,
+  )(state);
+
+  assert.equal(
+    perceptionClientFailureIsCurrent(
+      "payload:pending",
+      Object.assign(new Error("late hydration"), {
+        code: "perception_poll_timeout",
+        appliedPayloadIdentity: "payload:ready",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    perceptionClientFailureIsCurrent(
+      "payload:pending",
+      Object.assign(new Error("unrelated late hydration"), {
+        code: "perception_poll_timeout",
+        appliedPayloadIdentity: "payload:other",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    perceptionClientFailureIsCurrent("payload:pending", new Error("stale request")),
+    false,
+  );
+  assert.equal(
+    perceptionClientFailureIsCurrent("payload:ready", new Error("current request")),
+    true,
+  );
+
+  assert.equal(
+    html.split("perceptionClientFailureIsCurrent(expectedPayloadIdentity,error)").length - 1,
+    3,
+  );
 });
 
 test("a bridge tools/call that never answers is bounded and clears its pending request", async () => {
