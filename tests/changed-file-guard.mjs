@@ -557,6 +557,14 @@ export const personalVisualHarmonyWidgetEllipseResponsiveChangedFiles = Object.f
 export const personalVisualHarmonyStaleWidgetInstanceChangedFiles =
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles;
 
+// Bridge result hydration is confined to the widget and its exact changed-file guard surface.
+export const personalVisualHarmonyWidgetBridgeHydrationChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyWidgetRuntimeDebugChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-perception.ts",
@@ -2231,6 +2239,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyStaleWidgetInstanceChangedFiles,
+  personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
   personalVisualHarmonyWidgetRuntimeDebugChangedFiles,
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
