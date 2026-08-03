@@ -217,6 +217,46 @@ test("segmentation client reserves its final bounded probe for the readiness dea
   assert.ok(now < 1_000, `final probe crossed the cutoff at ${now}`);
 });
 
+test("segmentation client observes readiness during the final 250ms without exceeding the probe cap", async () => {
+  let now = 0;
+  let postCount = 0;
+  const probeTimes = [];
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    availabilityProbeDelayMs: 5_000,
+    deadlineMs: 1_000,
+  }, {
+    now: () => now,
+    delay: async (milliseconds) => {
+      now += milliseconds;
+    },
+    fetch: async (_url, init) => {
+      if (init.method === "GET") {
+        probeTimes.push(now);
+        return new Response(null, { status: now >= 875 ? 200 : 503 });
+      }
+      postCount += 1;
+      const request = JSON.parse(init.body);
+      return Response.json(responseFor(request));
+    },
+  });
+
+  const result = await client.segment({
+    sourceImageBytes: imageBytes,
+    sourceImageMediaType: "image/png",
+    prompt,
+  });
+
+  assert.equal(postCount, 1);
+  assert.equal(result.receipt.availabilityProbeCount, probeTimes.length);
+  assert.ok(probeTimes.length <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES);
+  assert.equal(probeTimes.at(-2), 750);
+  assert.equal(probeTimes.at(-1), 875);
+  assert.ok(probeTimes.every((probeAt) => probeAt < 1_000));
+});
+
 test("segmentation client does not create the Base64 request before readiness", () => {
   const source = readFileSync(
     new URL("../src/personal-visual-harmony-segmentation.ts", import.meta.url),
@@ -299,6 +339,56 @@ test("segmentation client rejects readiness and inference responses after the ab
     );
     assert.equal(postCount, 1);
   });
+});
+
+test("segmentation client rechecks the deadline after synchronous request body construction", async () => {
+  let nowReads = 0;
+  let postCount = 0;
+  const client = new PersonalVisualHarmonySegmentationClient({
+    endpointUrl: "https://sam3.example.test/",
+    modalKey: "key-private",
+    modalSecret: "secret-private",
+    deadlineMs: 1_000,
+    availabilityProbeDelayMs: 0,
+  }, {
+    now: () => {
+      nowReads += 1;
+      return nowReads <= 4 ? 0 : 1_000;
+    },
+    delay: async () => {},
+    fetch: async (_url, init) => {
+      if (init.method === "GET") return new Response(null, { status: 200 });
+      postCount += 1;
+      return new Response(null, { status: 500 });
+    },
+  });
+
+  await assert.rejects(
+    client.segment({
+      sourceImageBytes: imageBytes,
+      sourceImageMediaType: "image/png",
+      prompt,
+    }),
+    (error) => error.code === "provider_timeout",
+  );
+  assert.equal(postCount, 0);
+
+  const source = readFileSync(
+    new URL("../src/personal-visual-harmony-segmentation.ts", import.meta.url),
+    "utf8",
+  );
+  const segmentStart = source.indexOf("public async segment(");
+  const segmentEnd = source.indexOf("\n  async #awaitAvailability", segmentStart);
+  const segmentSource = source.slice(segmentStart, segmentEnd);
+  const bodyIndex = segmentSource.indexOf("const requestBody = JSON.stringify(request)");
+  const deadlineRecheckIndex = segmentSource.indexOf(
+    "if (controller.signal.aborted || this.#now() >= deadlineAtMs)",
+    bodyIndex,
+  );
+  const postIndex = segmentSource.indexOf("const response = await this.#fetch", bodyIndex);
+  assert.notEqual(bodyIndex, -1);
+  assert.ok(bodyIndex < deadlineRecheckIndex);
+  assert.ok(deadlineRecheckIndex < postIndex);
 });
 
 test("segmentation client sends exactly one inference after a cold-start readiness wait", async () => {
@@ -461,7 +551,7 @@ test("segmentation client aborts a bounded inference deadline", async () => {
   );
 });
 
-test("segmentation readiness backoff performs one deadline probe and then fails closed", async () => {
+test("segmentation readiness backoff uses the remaining deadline window and then fails closed", async () => {
   let probeCount = 0;
   const client = new PersonalVisualHarmonySegmentationClient({
     endpointUrl: "https://sam3.example.test/",
@@ -484,7 +574,7 @@ test("segmentation readiness backoff performs one deadline probe and then fails 
     }),
     (error) => error.code === "provider_unavailable",
   );
-  assert.equal(probeCount, 2);
+  assert.equal(probeCount, 3);
   assert(Date.now() - startedAt < 3_000);
 });
 

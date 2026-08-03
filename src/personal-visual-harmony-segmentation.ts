@@ -37,6 +37,7 @@ const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_MEDIA_TYPE_PATTERN = /^image\/[a-z0-9.+-]{1,63}$/u;
 const SAFE_PROVIDER_FIELD_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$/u;
 const PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS = 250;
+const PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS = 125;
 
 export type PersonalVisualHarmonySegmentationPromptV1 =
   | {
@@ -247,10 +248,17 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         imageBase64: bytesToBase64(input.sourceImageBytes),
         prompt,
       };
+      const requestBody = JSON.stringify(request);
+      if (controller.signal.aborted || this.#now() >= deadlineAtMs) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "provider_timeout",
+          "Segmentation deadline expired.",
+        );
+      }
       const response = await this.#fetch(this.#endpointUrl, {
         method: "POST",
         headers: this.#headers("application/json"),
-        body: JSON.stringify(request),
+        body: requestBody,
         signal: controller.signal,
       }).catch((error: unknown) => {
         throw mapFetchError(error, "provider_rejected");
@@ -324,16 +332,25 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
 
   async #awaitAvailability(signal: AbortSignal, deadlineAtMs: number): Promise<number> {
     const readinessUrl = new URL("./readyz", ensureTrailingSlash(this.#endpointUrl));
-    let finalProbePending = false;
+    let lateProbePhase: "normal" | "window" | "cutoff" = "normal";
     for (let attempt = 1; attempt <= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES; attempt += 1) {
-      const finalProbe = finalProbePending;
-      finalProbePending = false;
-      if (finalProbe) {
+      if (lateProbePhase === "normal") {
+        const remainingProbeCount = PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES - attempt + 1;
+        if (remainingProbeCount <= 2) {
+          lateProbePhase = remainingProbeCount === 2 ? "window" : "cutoff";
+        }
+      }
+      if (lateProbePhase !== "normal") {
         const remainingMs = deadlineAtMs - this.#now();
-        const probeBudgetMs = Math.min(
-          PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS,
-          Math.max(1, remainingMs),
-        );
+        const probeBudgetMs = lateProbePhase === "window"
+          ? Math.min(
+            PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS,
+            Math.max(PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS, remainingMs),
+          )
+          : Math.min(
+            PERSONAL_VISUAL_HARMONY_CUTOFF_AVAILABILITY_PROBE_BUDGET_MS,
+            Math.max(0, remainingMs),
+          );
         const waitMs = Math.max(0, remainingMs - probeBudgetMs);
         if (waitMs > 0) await this.#delay(waitMs, signal);
       }
@@ -369,13 +386,16 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         );
       }
       await response.body?.cancel();
-      if (finalProbe) break;
       const remainingMs = deadlineAtMs - this.#now();
       if (remainingMs <= 0 || attempt >= PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES) break;
-      if (attempt === PERSONAL_VISUAL_HARMONY_MAX_AVAILABILITY_PROBES - 1
-        || this.#availabilityProbeDelayMs
-          >= remainingMs - PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS) {
-        finalProbePending = true;
+      if (lateProbePhase === "cutoff") break;
+      if (lateProbePhase === "window") {
+        lateProbePhase = "cutoff";
+        continue;
+      }
+      if (this.#availabilityProbeDelayMs
+        >= remainingMs - PERSONAL_VISUAL_HARMONY_FINAL_AVAILABILITY_PROBE_BUDGET_MS) {
+        lateProbePhase = "window";
         continue;
       }
       await this.#delay(Math.min(this.#availabilityProbeDelayMs, remainingMs), signal);

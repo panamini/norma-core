@@ -1814,9 +1814,10 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /rectangleIds\.filter\(id=>!proposalIds\.has\(id\)\)/u);
   assert.match(html, /setReviewLocked\(multiPerceptionReviewLocked\(\)\)/u);
+  assert.match(html, /latePollPhase===0&&remainingPolls<=2/u);
   assert.match(
     html,
-    /finalBudgetMs=Math\.min\(PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS,remainingBeforePollMs\),waitMs=Math\.max\(0,remainingBeforePollMs-finalBudgetMs\)/u,
+    /Math\.floor\(PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS\/2\)/u,
   );
   assert.match(html, /state\.multiPerceptionTerminalState=multiPerceptionObservationCount\(payload\)===0\?"object-a-failed":"object-b-failed"/u);
   assert.equal(
@@ -1911,20 +1912,21 @@ test("widget polling stops at its client deadline without waiting for the server
   assert.equal(statusReads, 0);
 });
 
-test("widget reserves its final status read for the client deadline", async () => {
+test("widget observes pending then ready during the final 250ms without exceeding the poll cap", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("async function pollPerceptionJob(");
   const end = html.indexOf("\nperceptionToggle.addEventListener", start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   let statusReads = 0;
+  let now = 0;
+  let appliedAt = null;
   const state = {
     activePayloadIdentity: "payload:active",
     completed: false,
     perceptionRunning: true,
     multiPerceptionTerminalState: null,
   };
-  const startedAt = Date.now();
   const readTimes = [];
   const pollPerceptionJob = new Function(
     "state",
@@ -1937,22 +1939,33 @@ test("widget reserves its final status read for the client deadline", async () =
     "callAppTool",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
+    "Date",
+    "setTimeout",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
   )(
     state,
-    2,
-    2_000,
-    500,
+    160,
+    0,
+    1_000,
     100,
-    200,
+    250,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     async () => {
       statusReads += 1;
-      readTimes.push(Date.now() - startedAt);
-      return { structuredContent: { state: statusReads === 1 ? "pending" : "ready" } };
+      readTimes.push(now);
+      return { structuredContent: { state: now >= 875 ? "ready" : "pending" } };
     },
-    async (_payload, response) => response.structuredContent.state === "ready",
+    async (_payload, response) => {
+      if (response.structuredContent.state !== "ready") return false;
+      appliedAt = now;
+      return true;
+    },
     (code, message) => Object.assign(new Error(message), { code }),
+    { now: () => now, parse: () => 1_000 },
+    (resolve, delayMs) => {
+      now += delayMs;
+      resolve();
+    },
   );
   await pollPerceptionJob(
     {
@@ -1962,12 +1975,14 @@ test("widget reserves its final status read for the client deadline", async () =
       prepared: { candidateSetIdentity: `sha256:${"1".repeat(64)}` },
     },
     "job:poll-final",
-    new Date(Date.now() + 2_000).toISOString(),
+    "2026-08-03T00:00:01.000Z",
     "payload:active",
   );
-  assert.equal(statusReads, 2);
-  assert.ok(readTimes[1] >= 250, `expected final bounded read, got ${readTimes[1]}ms`);
-  assert.ok(readTimes[1] < 500, `final read crossed the cutoff at ${readTimes[1]}ms`);
+  assert.equal(statusReads, 160);
+  assert.equal(readTimes.at(-2), 750);
+  assert.equal(readTimes.at(-1), 875);
+  assert.equal(appliedAt, 875);
+  assert.ok(readTimes.every((readAt) => readAt < 1_000));
 });
 
 test("widget rejects a ready status response that resolves after its client deadline", async () => {
