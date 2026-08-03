@@ -1194,6 +1194,96 @@ test("a late ready object-A status can be rolled back idempotently before the ol
   }
 });
 
+test("a retained late object-A result terminalizes the server workflow before review unlocks", async () => {
+  const prompts = [];
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:mcp-late-ready-retained",
+  });
+  const connected = await connect({
+    service,
+    jobs: perceptionJobs([], prompts),
+    subjectId: "subject:owner",
+  });
+  try {
+    const initial = await prepare(connected.client);
+    const payload0 = initial._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload0.sessionId,
+        candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+        appCapability: payload0.perceptionAppCapability,
+        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
+        semanticTarget: "person",
+        label: "Objet A",
+        role: "primary-subject",
+        workflowMode: "two-object-spatial",
+        guidedAnalysisGoal: "compare-two-lengths",
+      },
+    });
+    let ready;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      ready = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload0.sessionId,
+          candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+          appCapability: payload0.perceptionAppCapability,
+          jobId: started.structuredContent.jobId,
+        },
+      });
+      if (ready.structuredContent?.state !== "pending") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(ready.structuredContent.state, "ready");
+    const readyPayload = ready._meta.normaPersonalVisualHarmony;
+    assert.equal(readyPayload.prepared.perceptionManifest.observations.length, 1);
+
+    const terminalizeArguments = {
+      sessionId: payload0.sessionId,
+      candidateSetIdentity: payload0.prepared.candidateSetIdentity,
+      appCapability: payload0.perceptionAppCapability,
+      jobId: started.structuredContent.jobId,
+      terminalizeAppliedResult: true,
+    };
+    const contradictory = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: { ...terminalizeArguments, rollbackAppliedResult: true },
+    });
+    assert.equal(contradictory.isError, true);
+    const terminalized = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: terminalizeArguments,
+    });
+    assert.equal(terminalized.isError, undefined, JSON.stringify(terminalized));
+    assert.equal(
+      terminalized._meta.normaPersonalVisualHarmony.prepared.candidateSetIdentity,
+      readyPayload.prepared.candidateSetIdentity,
+    );
+    assert.equal(
+      terminalized._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow.terminalState,
+      "object-b-failed",
+    );
+    assert.equal(
+      terminalized._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow.active,
+      false,
+    );
+    const repeated = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: terminalizeArguments,
+    });
+    assert.equal(repeated.isError, undefined, JSON.stringify(repeated));
+    assert.equal(
+      repeated._meta.normaPersonalVisualHarmony.multiPerceptionWorkflow.terminalState,
+      "object-b-failed",
+    );
+    assert.equal(prompts.length, 1);
+    assert.equal(terminalized.structuredContent.coreRun, false);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("a timed-out object A terminalizes its bound workflow without Core or provider retry", async () => {
   let providerCalls = 0;
   const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
@@ -2002,6 +2092,59 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   }
 });
 
+test("semantic targeting stays disabled while late-result reconciliation is blocked", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function refreshSemanticTargetUi(){");
+  const end = html.indexOf("\nSEMANTIC_TARGETS.forEach", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: true,
+    imageReady: true,
+  };
+  const semanticTargetPanel = { hidden: false };
+  const semanticTargetInput = { value: "person", disabled: false };
+  const semanticTargetSubmit = { disabled: false };
+  const semanticTargetValidation = { dataset: {}, textContent: "" };
+  const chip = { disabled: false, dataset: { targetValue: "person" }, setAttribute() {} };
+  const refreshSemanticTargetUi = new Function(
+    "state",
+    "semanticTargetPanel",
+    "semanticTargetInput",
+    "semanticTargetSubmit",
+    "semanticTargetValidation",
+    "semanticTargetChips",
+    "perceptionToggle",
+    "selectedSemanticTarget",
+    "semanticTargetAlreadyUsed",
+    "multiPerceptionStartBlocked",
+    `"use strict";${html.slice(start, end)};return refreshSemanticTargetUi;`,
+  )(
+    state,
+    semanticTargetPanel,
+    semanticTargetInput,
+    semanticTargetSubmit,
+    semanticTargetValidation,
+    { querySelectorAll: () => [chip] },
+    { hidden: false },
+    () => "person",
+    () => false,
+    () => false,
+  );
+  refreshSemanticTargetUi();
+  assert.equal(semanticTargetInput.disabled, true);
+  assert.equal(semanticTargetSubmit.disabled, true);
+  assert.equal(chip.disabled, true);
+  assert.match(
+    html,
+    /semanticTargetSubmit\.disabled\|\|state\.perceptionReconciliationBlocked\|\|!payload/u,
+  );
+});
+
 test("widget polling stops at its client deadline without waiting for the server TTL", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("async function pollPerceptionJob(");
@@ -2545,8 +2688,33 @@ test("widget rejects a ready status whose application completes after its client
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("async function pollPerceptionJob(");
   const end = html.indexOf("\nperceptionToggle.addEventListener", start);
-  const state = { activePayloadIdentity: "payload:active", completed: false };
+  const originalPayload = {
+    id: "payload:active",
+    sessionId: "session:poll-apply-late",
+    perceptionAppCapability: "pvh-app:poll-apply-late-capability",
+    prepared: {
+      candidateSetIdentity: `sha256:${"3".repeat(64)}`,
+      workflowMode: "two-object-spatial",
+      perceptionManifest: { observations: [] },
+    },
+  };
+  const readyPayload = {
+    ...originalPayload,
+    id: "payload:ready",
+    prepared: {
+      ...originalPayload.prepared,
+      candidateSetIdentity: `sha256:${"4".repeat(64)}`,
+      perceptionManifest: { observations: [{ candidateId: "object-a" }] },
+    },
+  };
+  const state = {
+    activePayloadIdentity: "payload:active",
+    payload: originalPayload,
+    completed: false,
+  };
   let applied = 0;
+  let now = 0;
+  const calls = [];
   const pollPerceptionJob = new Function(
     "state",
     "PERCEPTION_MAX_STATUS_POLLS",
@@ -2560,6 +2728,8 @@ test("widget rejects a ready status whose application completes after its client
     "payloadIdentity",
     "applyPerceptionStatusResponse",
     "perceptionClientError",
+    "Date",
+    "setTimeout",
     `"use strict";${html.slice(start, end)};return pollPerceptionJob;`,
   )(
     state,
@@ -2569,32 +2739,59 @@ test("widget rejects a ready status whose application completes after its client
     15,
     10,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
-    async () => ({ structuredContent: { state: "ready" } }),
-    () => ({ id: "ready" }),
-    () => "payload:ready",
+    async (_tool, args) => {
+      calls.push(args);
+      return {
+        structuredContent: {
+          jobId: "job:poll-apply-late",
+          state: "ready",
+          workflowMode: "two-object-spatial",
+          attemptOrdinal: 1,
+        },
+        _meta: {
+          normaPersonalVisualHarmony: args.terminalizeAppliedResult === true
+            ? {
+                ...readyPayload,
+                multiPerceptionWorkflow: {
+                  active: false,
+                  terminalState: "object-b-failed",
+                },
+              }
+            : readyPayload,
+        },
+      };
+    },
+    (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
+    (payload) => payload.id,
     async () => {
       applied += 1;
       state.activePayloadIdentity = "payload:ready";
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      state.payload = readyPayload;
+      now = 30;
       return true;
     },
     (code, message) => Object.assign(new Error(message), { code }),
+    { now: () => now, parse: () => 100 },
+    (resolve, delayMs) => {
+      now += delayMs;
+      resolve();
+    },
   );
   await assert.rejects(
     () => pollPerceptionJob(
-      {
-        sessionId: "session:poll-apply-late",
-        perceptionAppCapability: "pvh-app:poll-apply-late-capability",
-        prepared: { candidateSetIdentity: `sha256:${"3".repeat(64)}` },
-      },
+      originalPayload,
       "job:poll-apply-late",
-      new Date(Date.now() + 100).toISOString(),
+      "2026-08-03T00:00:00.100Z",
       "payload:active",
+      1,
     ),
     (error) => error.code === "perception_poll_timeout"
       && error.appliedPayloadIdentity === "payload:ready",
   );
   assert.equal(applied, 1);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].terminalizeAppliedResult, true);
+  assert.equal(calls[1].rollbackAppliedResult, undefined);
 });
 
 test("widget preserves a poll timeout after late hydration replaces the payload identity", () => {
@@ -2687,6 +2884,28 @@ test("widget keeps the review fail-closed when late-result rollback cannot be co
   assert.equal(state.multiPerceptionTerminalState, null);
   assert.deepEqual(locks, [true]);
   assert.match(message, /vue reste verrouillée/u);
+});
+
+test("a trusted payload for a new session clears only the old reconciliation lock", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function resetPerceptionReconciliationForNewSession(");
+  const end = html.indexOf("\nasync function hydrate(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const state = {
+    payload: { sessionId: "session:ambiguous" },
+    activePayload: { sessionId: "session:ambiguous" },
+    perceptionReconciliationBlocked: true,
+  };
+  const reset = new Function(
+    "state",
+    `"use strict";${html.slice(start, end)};return resetPerceptionReconciliationForNewSession;`,
+  )(state);
+  reset({ sessionId: "session:ambiguous" });
+  assert.equal(state.perceptionReconciliationBlocked, true);
+  reset({ sessionId: "session:fresh" });
+  assert.equal(state.perceptionReconciliationBlocked, false);
+  assert.match(html, /resetPerceptionReconciliationForNewSession\(payload\)/u);
 });
 
 test("a late object-A hydration timeout terminalizes against the applied payload", () => {
