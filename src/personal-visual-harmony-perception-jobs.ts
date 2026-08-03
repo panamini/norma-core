@@ -37,6 +37,9 @@ export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_EXECUTION_DEADLINE_MS =
 export const DEFAULT_PERSONAL_VISUAL_HARMONY_PERCEPTION_JOB_CAPACITY = 32;
 export const PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION = 9;
 
+// Keep cold-start source retention to four default maximum-size images, independent of job capacity.
+const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_RETAINED_SOURCE_IMAGE_BYTES = 48 * 1024 * 1024;
+
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
@@ -120,12 +123,19 @@ interface StoredJob {
   errorCode: string | null;
 }
 
+interface QueuedSourceImageReservation {
+  readonly job: StoredJob;
+  readonly executionDeadlineAtMs: number;
+  readonly resolve: (acquired: boolean) => void;
+}
+
 export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #provider: PersonalVisualHarmonySegmentationProvider;
   readonly #ttlMs: number;
   readonly #executionDeadlineMs: number;
   readonly #capacity: number;
   readonly #maxSourceImageBytes: number;
+  readonly #maxConcurrentSourceImages: number;
   readonly #downloadDeadlineMs: number;
   readonly #allowedSourceImageOrigins: readonly string[];
   readonly #fetch: PersonalVisualHarmonyFetch | undefined;
@@ -133,6 +143,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #createJobId: () => string;
   readonly #jobs = new Map<string, StoredJob>();
   readonly #expiredJobs = new Map<string, StoredJob>();
+  readonly #sourceImageReservationQueue: QueuedSourceImageReservation[] = [];
+  #activeSourceImageReservations = 0;
 
   public constructor(options: PersonalVisualHarmonyPerceptionJobServiceOptions) {
     this.#provider = options.provider;
@@ -160,6 +172,16 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       "maxSourceImageBytes",
       1,
       32 * 1024 * 1024,
+    );
+    this.#maxConcurrentSourceImages = Math.min(
+      this.#capacity,
+      Math.max(
+        1,
+        Math.floor(
+          DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_RETAINED_SOURCE_IMAGE_BYTES
+            / this.#maxSourceImageBytes,
+        ),
+      ),
     );
     this.#downloadDeadlineMs = boundedPositiveInteger(
       options.downloadDeadlineMs ?? 10_000,
@@ -349,10 +371,19 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       readonly attemptOrdinal?: 1 | 2;
     },
   ): Promise<void> {
+    const executionDeadlineAtMs = this.#now() + this.#executionDeadlineMs;
     const executionTimer = setTimeout(() => {
       this.#terminalizePendingJob(job, "job_execution_timeout");
     }, this.#executionDeadlineMs);
+    let sourceImageReservationAcquired = false;
     try {
+      sourceImageReservationAcquired = await this.#acquireSourceImageReservation(
+        job,
+        executionDeadlineAtMs,
+      );
+      if (!sourceImageReservationAcquired
+        || job.state !== "pending"
+        || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       const source = await downloadPersonalVisualHarmonySourceImage({
         url: input.sourceImageUrl,
         allowedOrigins: this.#allowedSourceImageOrigins,
@@ -364,6 +395,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
       });
       if (job.state !== "pending") return;
+      if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
         this.#terminalizePendingJob(job, "job_expired");
         return;
@@ -374,6 +406,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         prompt: input.prompt,
       });
       if (job.state !== "pending") return;
+      if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
         this.#terminalizePendingJob(job, "job_expired");
         return;
@@ -451,6 +484,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
                   input.automaticCandidateSet.triangleConstructionRequests,
               }),
         });
+        if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
         job.state = "ready";
         return;
       }
@@ -483,6 +517,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         perceptionReceiptIdentity: segmentation.receipt.receiptIdentity,
         mergedPerceptionCandidates: merged,
       });
+      if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       job.state = "ready";
     } catch (error: unknown) {
       if (job.state !== "pending") return;
@@ -494,8 +529,47 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         ? error.code
         : "perception_failed");
     } finally {
+      if (sourceImageReservationAcquired) this.#releaseSourceImageReservation();
       clearTimeout(executionTimer);
     }
+  }
+
+  #acquireSourceImageReservation(
+    job: StoredJob,
+    executionDeadlineAtMs: number,
+  ): Promise<boolean> {
+    if (job.state !== "pending"
+      || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) {
+      return Promise.resolve(false);
+    }
+    if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
+      this.#activeSourceImageReservations += 1;
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      this.#sourceImageReservationQueue.push({ job, executionDeadlineAtMs, resolve });
+    });
+  }
+
+  #releaseSourceImageReservation(): void {
+    this.#activeSourceImageReservations -= 1;
+    while (this.#sourceImageReservationQueue.length > 0) {
+      const next = this.#sourceImageReservationQueue.shift()!;
+      if (next.job.state !== "pending"
+        || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs)) {
+        next.resolve(false);
+        continue;
+      }
+      this.#activeSourceImageReservations += 1;
+      next.resolve(true);
+      return;
+    }
+  }
+
+  #terminalizeAtExecutionDeadline(job: StoredJob, executionDeadlineAtMs: number): boolean {
+    if (this.#now() < executionDeadlineAtMs) return false;
+    this.#terminalizePendingJob(job, "job_execution_timeout");
+    return true;
   }
 
   #terminalizePendingJob(job: StoredJob, errorCode: string): void {
@@ -504,6 +578,14 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     job.errorCode = errorCode;
     job.perceptionReceiptIdentity = null;
     job.preparedCandidateSet = null;
+    this.#cancelQueuedSourceImageReservation(job);
+  }
+
+  #cancelQueuedSourceImageReservation(job: StoredJob): void {
+    const queuedIndex = this.#sourceImageReservationQueue.findIndex((entry) => entry.job === job);
+    if (queuedIndex < 0) return;
+    const [queued] = this.#sourceImageReservationQueue.splice(queuedIndex, 1);
+    queued?.resolve(false);
   }
 
   #removeExpired(now: number): void {

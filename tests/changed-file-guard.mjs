@@ -765,6 +765,7 @@ export const personalVisualHarmonySam3ColdStartAsyncChangedFiles = Object.freeze
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());

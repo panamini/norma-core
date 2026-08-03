@@ -178,6 +178,20 @@ async function waitForTerminal(service, binding) {
   throw new Error("job did not settle");
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((settle) => { resolve = settle; });
+  return { promise, resolve };
+}
+
+async function waitForCondition(predicate) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error("condition did not settle");
+}
+
 test("perception job produces truthful V2 candidate evidence without Core authority", async () => {
   const service = createService();
   const prepared = automaticCandidateSet();
@@ -476,6 +490,107 @@ test("a provider that never settles reaches one deterministic terminal failure",
   assert.equal(failed.preparedCandidateSet, null);
   assert.equal(failed.coreRun, false);
   assert.equal(providerCalls, 1);
+});
+
+test("cold-start source-byte retention stays bounded below full job capacity", async (t) => {
+  const providerGates = [];
+  let releaseImmediately = false;
+  t.after(() => {
+    releaseImmediately = true;
+    providerGates.forEach((gate) => gate.resolve());
+  });
+  let jobCount = 0;
+  const service = createService({
+    capacity: 32,
+    createJobId: () => `job:retained-source-${String(++jobCount)}`,
+    provider: {
+      async segment(input) {
+        if (releaseImmediately) return successfulProvider().segment(input);
+        const gate = deferred();
+        providerGates.push(gate);
+        await gate.promise;
+        return successfulProvider().segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const jobs = Array.from({ length: 32 }, (_, index) => service.start({
+    ...startInput(prepared),
+    sessionId: `session:retained-source-${String(index + 1)}`,
+  }));
+
+  await waitForCondition(() => providerGates.length >= 4);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(providerGates.length, 4);
+
+  let released = 0;
+  while (released < jobs.length) {
+    const expectedVisible = Math.min(released + 4, jobs.length);
+    await waitForCondition(() => providerGates.length === expectedVisible);
+    const batch = providerGates.slice(released, expectedVisible);
+    assert.equal(batch.length, Math.min(4, jobs.length - released));
+    batch.forEach((gate) => gate.resolve());
+    released = expectedVisible;
+  }
+  const terminalJobs = await Promise.all(jobs.map((job, index) => waitForTerminal(service, {
+    jobId: job.jobId,
+    subjectId: "subject:test",
+    sessionId: `session:retained-source-${String(index + 1)}`,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  })));
+  assert.equal(terminalJobs.every((job) => job.state === "ready"), true);
+  assert.equal(terminalJobs.every((job) => job.coreRun === false), true);
+});
+
+test("a queued source reservation never dispatches after its job times out", async () => {
+  const providerGates = [];
+  let jobCount = 0;
+  let now = 0;
+  const service = createService({
+    capacity: 2,
+    executionDeadlineMs: 20,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    now: () => now,
+    createJobId: () => `job:queued-timeout-${String(++jobCount)}`,
+    provider: {
+      async segment(input) {
+        const gate = deferred();
+        providerGates.push(gate);
+        await gate.promise;
+        return successfulProvider().segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const first = service.start({ ...startInput(prepared), sessionId: "session:queued-first" });
+  const second = service.start({ ...startInput(prepared), sessionId: "session:queued-second" });
+
+  await waitForCondition(() => providerGates.length >= 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(providerGates.length, 1);
+
+  now = 20;
+  providerGates[0].resolve();
+  await waitForCondition(() => service.get({
+    jobId: first.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-first",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).state === "failed");
+  assert.equal(service.get({
+    jobId: first.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-first",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).errorCode, "job_execution_timeout");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(providerGates.length, 1);
+  assert.equal(service.get({
+    jobId: second.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:queued-second",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  }).errorCode, "job_execution_timeout");
 });
 
 test("a provider failure terminalizes once without candidates or Core", async () => {
