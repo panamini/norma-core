@@ -150,8 +150,13 @@ test("spatial controls require the versioned A/B binding and reject generic obje
   ];
   const genericState = {
     payload: {
+      sessionId: "session:manual-fallback",
       perceptionModes: ["legacy", "two-object-spatial"],
-      prepared: { contractVersion: 1, candidates: rectangles },
+      prepared: {
+        contractVersion: 1,
+        sourceImageReferenceIdentity: "sha256:manual-source",
+        candidates: rectangles,
+      },
     },
     reviewedCandidates: rectangles,
   };
@@ -189,6 +194,39 @@ test("spatial controls require the versioned A/B binding and reject generic obje
     },
   )();
   assert.deepEqual(genericOptions, []);
+
+  genericState.manualSpatialFallback = true;
+  genericState.manualSpatialFallbackSessionId = "session:manual-fallback";
+  const manualBinding = widgetScriptFunction(
+    "spatialWorkflowBinding",
+    "function selectedSpatialRectangles",
+    { state: genericState, primitiveKind: (item) => item?.primitive?.kind || "rectangle" },
+  );
+  assert.deepEqual(manualBinding(), {
+    status: "manual",
+    candidateIds: ["object-a", "object-b"],
+    message: null,
+  });
+  const manualSelected = widgetScriptFunction(
+    "selectedSpatialRectangles",
+    "function spatialOwnerLabel",
+    {
+      state: genericState,
+      spatialWorkflowBinding: manualBinding,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+      compareSpatialCanonical: (left, right) => left < right ? -1 : left > right ? 1 : 0,
+    },
+  );
+  assert.deepEqual(manualSelected().map(({ candidate }) => candidate.id), [
+    "object-a",
+    "object-b",
+  ]);
+  const manualSourceIdentity = widgetScriptFunction(
+    "declaredSpatialSourceIdentity",
+    "function declaredSpatialPlanInputSnapshot",
+    { state: genericState, spatialWorkflowBinding: manualBinding },
+  );
+  assert.equal(manualSourceIdentity(), "sha256:manual-source");
 
   const v3State = {
     payload: {
@@ -2482,6 +2520,317 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
   assert.deepEqual(state.proposalCandidates, candidates);
   assert.equal(state.pixelRefinementProposals.size, 0);
   assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
+test("explicit spatial recovery prepares one fresh V1 session without SAM or Core", async () => {
+  const candidates = [{
+    id: "object-a",
+    label: "Personnage A",
+    role: "primary-subject",
+    reason: "Rectangle explicitement sélectionné.",
+    x: 0.1,
+    y: 0.1,
+    width: 0.2,
+    height: 0.4,
+  }, {
+    id: "object-b",
+    label: "Personnage B",
+    role: "secondary-subject",
+    reason: "Rectangle explicitement sélectionné.",
+    x: 0.6,
+    y: 0.2,
+    width: 0.2,
+    height: 0.5,
+  }];
+  const fresh = {
+    stage: "confirmation_required",
+    fileId: "file-spatial-recovery",
+    sessionId: "session:fresh-v1",
+    prepared: { contractVersion: 1, candidates },
+  };
+  const calls = [];
+  const prepareSpatialRecoveryPayload = widgetScriptFunction(
+    "prepareSpatialRecoveryPayload",
+    "async function callConfirmation",
+    {
+      state: { activePayloadIdentity: "active-terminal-payload" },
+      window: {
+        openai: {
+          getFileDownloadUrl: async () => ({
+            downloadUrl: "https://files.example.test/fresh-spatial-recovery",
+          }),
+        },
+      },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      callAppTool: async (name, args) => {
+        calls.push({ name, args });
+        return { payload: fresh };
+      },
+      findPayload: (value) => value.payload,
+      samePreparedReviewCandidates: (requested, prepared) => (
+        JSON.stringify(requested) === JSON.stringify(prepared)
+      ),
+    },
+  );
+
+  const prepared = await prepareSpatialRecoveryPayload({
+    fileId: fresh.fileId,
+    sourceImageMediaType: "image/png",
+  }, candidates);
+
+  assert.equal(prepared, fresh);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+  assert.deepEqual(calls[0].args, {
+    image: {
+      download_url: "https://files.example.test/fresh-spatial-recovery",
+      file_id: fresh.fileId,
+      mime_type: "image/png",
+    },
+    candidates,
+  });
+});
+
+test("spatial recovery strips V3 provenance and excludes prior SAM observations from restart", () => {
+  const baseCandidates = Array.from({ length: 10 }, (_, index) => ({
+    id: `base-${String(index)}`,
+    label: `Base ${String(index)}`,
+    role: index === 0 ? "primary-subject" : index === 1 ? "secondary-subject" : "structural-region",
+    reason: "Visible candidate.",
+    x: index / 20,
+    y: 0.1,
+    width: 0.04,
+    height: 0.2,
+  }));
+  const observed = {
+    ...baseCandidates[0],
+    id: "sam-object-a",
+    label: "Objet A",
+    sourceImageReferenceIdentity: `sha256:${"a".repeat(64)}`,
+  };
+  const state = {
+    reviewedCandidates: [...baseCandidates, observed],
+    selected: new Set(["base-0", "base-1"]),
+  };
+  const payload = {
+    prepared: {
+      perceptionManifest: { observations: [{ candidateId: observed.id }] },
+    },
+  };
+  const spatialRecoveryCandidateSnapshot = widgetScriptFunction(
+    "spatialRecoveryCandidateSnapshot",
+    "function spatialRecoveryRequired",
+    {
+      state,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+    },
+  );
+
+  const restart = spatialRecoveryCandidateSnapshot(payload, false);
+  assert.equal(restart.length, 10);
+  assert.equal(restart.some(({ id }) => id === observed.id), false);
+  assert.equal(restart.some((candidate) => Object.hasOwn(candidate, "sourceImageReferenceIdentity")), false);
+
+  const manual = spatialRecoveryCandidateSnapshot(payload, true);
+  assert.deepEqual(manual.map(({ id }) => id), ["base-0", "base-1"]);
+  assert.equal(manual.some((candidate) => Object.hasOwn(candidate, "sourceImageReferenceIdentity")), false);
+});
+
+test("manual spatial fallback persists only for the exact V1 session and clears for V3", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /state\.measurementRatioEnabled=state\.manualSpatialFallback\|\|freshBoundSpatial\|\|/u,
+  );
+  const state = {
+    payload: {
+      sessionId: "session:manual",
+      prepared: { contractVersion: 1, candidateSetIdentity: `sha256:${"b".repeat(64)}` },
+    },
+    manualSpatialFallback: true,
+    manualSpatialFallbackSessionId: "session:manual",
+    reviewedCandidates: [{ id: "a" }, { id: "b" }],
+    selected: new Set(["a", "b"]),
+  };
+  const manualSpatialFallbackSnapshot = widgetScriptFunction(
+    "manualSpatialFallbackSnapshot",
+    "function storedManualSpatialFallbackFor",
+    {
+      state,
+      spatialWorkflowBinding: () => ({ status: "manual", candidateIds: ["a", "b"] }),
+      compareSpatialCanonical: (left, right) => left.localeCompare(right),
+    },
+  );
+  const stored = manualSpatialFallbackSnapshot();
+  assert.deepEqual(stored, {
+    contractId: "norma.personal-visual-harmony-manual-spatial-fallback@1",
+    sessionId: "session:manual",
+    candidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    candidateIds: ["a", "b"],
+  });
+
+  const storedManualSpatialFallbackFor = widgetScriptFunction(
+    "storedManualSpatialFallbackFor",
+    "function restoreManualSpatialFallbackState",
+    { compareSpatialCanonical: (left, right) => left.localeCompare(right) },
+  );
+  assert.equal(storedManualSpatialFallbackFor(stored, state.payload, state.selected), true);
+  assert.equal(storedManualSpatialFallbackFor(stored, {
+    ...state.payload,
+    prepared: { ...state.payload.prepared, contractVersion: 3 },
+  }, state.selected), false);
+  assert.equal(storedManualSpatialFallbackFor(stored, {
+    ...state.payload,
+    sessionId: "session:other",
+  }, state.selected), false);
+
+  const restoreManualSpatialFallbackState = widgetScriptFunction(
+    "restoreManualSpatialFallbackState",
+    "function persistReviewState",
+    { state, storedManualSpatialFallbackFor },
+  );
+  restoreManualSpatialFallbackState({
+    ...state.payload,
+    prepared: { ...state.payload.prepared, contractVersion: 3 },
+  }, stored, state.selected);
+  assert.equal(state.manualSpatialFallback, false);
+  assert.equal(state.manualSpatialFallbackSessionId, null);
+});
+
+test("manual spatial recovery restores its marker and enabled plan after hydration", async () => {
+  const candidates = [{ id: "a" }, { id: "b" }];
+  const fresh = {
+    stage: "confirmation_required",
+    sessionId: "session:fresh-manual",
+    prepared: { contractVersion: 1 },
+  };
+  const state = {
+    payload: { prepared: {} },
+    spatialRecoveryRunning: false,
+    perceptionReconciliationBlocked: true,
+    multiPerceptionTerminalState: "object-b-failed",
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  let persisted = false;
+  const runSpatialRecovery = widgetScriptFunction(
+    "runSpatialRecovery",
+    "restartSpatialReview.addEventListener",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      manualSelectedRectangleIds: () => ["a", "b"],
+      spatialRecoveryCandidateSnapshot: () => candidates,
+      reviewedCandidateSnapshot: () => candidates,
+      setReviewLocked: () => {},
+      prepareSpatialRecoveryPayload: async () => fresh,
+      hydrate: async () => {
+        state.manualSpatialFallback = false;
+        state.manualSpatialFallbackSessionId = null;
+        state.measurementRatioEnabled = false;
+      },
+      renderGuidedAnalysisGoals: () => {},
+      updatePerceptionUi: () => {},
+      updateMeasurementRatioControls: () => {},
+      persistReviewState: () => { persisted = true; },
+      multiPerceptionReviewLocked: () => false,
+      updateSpatialRecoveryUi: () => {},
+      statusNode: {},
+    },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, fresh.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual([...state.selected], ["a", "b"]);
+  assert.equal(persisted, true);
+});
+
+test("manual spatial recovery reuses a terminal V1 review without retrying the failed file API", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    sessionId: "session:terminal-v1",
+    prepared: { contractVersion: 1 },
+  };
+  const state = {
+    payload,
+    spatialRecoveryRunning: false,
+    perceptionReconciliationBlocked: false,
+    multiPerceptionTerminalState: "object-a-failed",
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  let prepareCalls = 0;
+  let hydrateCalls = 0;
+  const runSpatialRecovery = widgetScriptFunction(
+    "runSpatialRecovery",
+    "restartSpatialReview.addEventListener",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      manualSelectedRectangleIds: () => ["a", "b"],
+      spatialRecoveryCandidateSnapshot: () => [{ id: "a" }, { id: "b" }],
+      setReviewLocked: () => {},
+      prepareSpatialRecoveryPayload: async () => { prepareCalls += 1; throw new Error("file API unavailable"); },
+      hydrate: async () => { hydrateCalls += 1; },
+      renderGuidedAnalysisGoals: () => {},
+      updatePerceptionUi: () => {},
+      updateMeasurementRatioControls: () => {},
+      persistReviewState: () => {},
+      multiPerceptionReviewLocked: () => false,
+      updateSpatialRecoveryUi: () => {},
+      statusNode: {},
+    },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(prepareCalls, 0);
+  assert.equal(hydrateCalls, 0);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual([...state.selected], ["a", "b"]);
+});
+
+test("reconciliation lock permits only bounded rectangle pair selection", () => {
+  const state = {
+    perceptionReconciliationBlocked: true,
+    reviewedCandidates: [
+      { id: "rect-a" },
+      { id: "guide", primitive: { kind: "segment" } },
+    ],
+  };
+  const manualSpatialPairSelectionAllowed = widgetScriptFunction(
+    "manualSpatialPairSelectionAllowed",
+    "function updateSpatialRecoveryUi",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+    },
+  );
+
+  assert.equal(manualSpatialPairSelectionAllowed("rect-a"), true);
+  assert.equal(manualSpatialPairSelectionAllowed("guide"), false);
+  assert.equal(manualSpatialPairSelectionAllowed("missing"), false);
+  state.spatialRecoveryRunning = true;
+  assert.equal(manualSpatialPairSelectionAllowed("rect-a"), false);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /multiPerceptionReviewLocked\(\)&&!manualSpatialPairSelectionAllowed\(item\.id\)/u);
+  assert.match(html, /input\.disabled=disabled&&!manualSpatialPairSelectionAllowed\(candidateId\)/u);
+  assert.match(html, /updateConfirm\(\);updateSpatialRecoveryUi\(\)/u);
 });
 
 test("widget restores pending review geometry without adopting its missing server session", () => {
