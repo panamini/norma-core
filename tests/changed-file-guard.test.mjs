@@ -41,6 +41,7 @@ import {
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonySamAbRecoveryChangedFiles,
+  personalVisualHarmonySamGenericCapabilityChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
@@ -1182,8 +1183,18 @@ test("personal visual harmony SAM A/B recovery allowlist is exact and rejects sc
     const withoutMissing = sharedExactApprovedChangedFiles(
       personalVisualHarmonySamAbRecoveryChangedFiles.filter((file) => file !== missingFile),
     );
-    if (missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs") {
-      assert.deepEqual(withoutMissing, personalVisualHarmonyWidgetBridgeHydrationChangedFiles);
+    if (
+      missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs" ||
+      missingFile === "tests/personal-visual-harmony-mcp.test.mjs"
+    ) {
+      assert.ok(
+        [personalVisualHarmonyWidgetBridgeHydrationChangedFiles, personalVisualHarmonySamGenericCapabilityChangedFiles].some(
+          (expected) =>
+            Array.isArray(withoutMissing) &&
+            withoutMissing.length === expected.length &&
+            withoutMissing.every((file, index) => file === expected[index]),
+        ),
+      );
     } else {
       assert.equal(withoutMissing, null, missingFile);
     }
@@ -1200,6 +1211,40 @@ test("personal visual harmony SAM A/B recovery allowlist is exact and rejects sc
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonySamAbRecoveryChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
+});
+
+test("personal visual harmony generic V1 SAM capability allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySamGenericCapabilityChangedFiles),
+    personalVisualHarmonySamGenericCapabilityChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySamGenericCapabilityChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonySamGenericCapabilityChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "src/personal-visual-harmony-perception.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
+    "deploy/modal/server.py",
+    "web-lab/private-web-lab.js",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySamGenericCapabilityChangedFiles,
         forbidden,
       ]),
       null,
@@ -4510,7 +4555,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   const isPersonalVisualHarmonyTwoObjectSpatialSet =
     isExactChangedFileSet(changedFiles, personalVisualHarmonyTwoObjectSpatialChangedFiles) ||
     isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles) ||
-    isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles);
+    isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles) ||
+    isExactChangedFileSet(changedFiles, personalVisualHarmonySamGenericCapabilityChangedFiles);
   const isPersonalVisualHarmonyPerceptionTimeoutRecoverySet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
@@ -4796,7 +4842,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       : isPrivateWebLabLocalCvCandidatesSet
       ? privateWebLabLocalCvCandidatesChangedFiles
       : isPersonalVisualHarmonyTwoObjectSpatialSet
-      ? isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles)
+      ? isExactChangedFileSet(changedFiles, personalVisualHarmonySamGenericCapabilityChangedFiles)
+        ? personalVisualHarmonySamGenericCapabilityChangedFiles
+        : isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles)
         ? personalVisualHarmonySamAbRecoveryChangedFiles
         : isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles)
         ? personalVisualHarmonySpatialActivationChangedFiles

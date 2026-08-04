@@ -429,6 +429,200 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
   );
 });
 
+test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded session for 11 candidates", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function applyGuidedAnalysisGoal(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  const state = {
+    payload: {
+      perceptionAppCapability: "pvh-app:" + "b".repeat(32),
+      perceptionModes: ["legacy"],
+      prepared: {
+        contractVersion: 1,
+        candidates: Array.from({ length: 11 }, (_, index) => ({ id: `candidate-${String(index)}` })),
+      },
+    },
+    guidedAnalysisGoal: "general-geometry",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const calls = [];
+  const perceptionToggle = {};
+  const updateStart = html.indexOf("function updatePerceptionUi(){");
+  const updateEnd = html.indexOf("\nfunction perceptionPromptFor(", updateStart);
+  const updatePerceptionUi = new Function(
+    "state",
+    "perceptionToggle",
+    "multiPerceptionObservationCount",
+    "eligibleInteractivePerceptionCandidates",
+    "multiPerceptionStartBlocked",
+    "updateSpatialRecoveryUi",
+    `"use strict";${html.slice(updateStart, updateEnd)};return updatePerceptionUi;`,
+  )(
+    state,
+    perceptionToggle,
+    () => 0,
+    () => state.payload.prepared.candidates,
+    () => false,
+    () => calls.push({ type: "ui", goal: state.guidedAnalysisGoal, hidden: perceptionToggle.hidden }),
+  );
+  const applyGuidedAnalysisGoal = new Function(
+    "state",
+    "GUIDED_ANALYSIS_GOALS",
+    "twoObjectSpatialWorkflowActive",
+    "visibleKindsForGuidedAnalysisGoal",
+    "updateGuidedAnalysisGoalButtons",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updateMeasurementRatioControls",
+    "updatePerceptionUi",
+    "guidedGoalStatus",
+    "persistGuidedAnalysisGoal",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
+  )(
+    state,
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+    ],
+    () => false,
+    (goal) => goal.visibleKinds,
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    updatePerceptionUi,
+    { textContent: "" },
+    () => {},
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.deepEqual(calls, [
+    { type: "ui", goal: "compare-two-lengths", hidden: true },
+    { type: "recovery", args: [false, true] },
+  ]);
+});
+
+test("fresh two-object recovery re-prepares only the two explicitly selected rectangles", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function runSpatialRecovery(");
+  const end = html.indexOf("\nrestartSpatialReview.addEventListener", start);
+  const reviewedCandidates = Array.from({ length: 11 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    label: `Candidate ${String(index)}`,
+    role: index < 2 ? "primary-subject" : "structural-region",
+    reason: "Visible rectangle",
+    x: index / 20,
+    y: 0.1,
+    width: 0.04,
+    height: 0.2,
+    primitive: { kind: "rectangle" },
+  }));
+  const selectedIds = [reviewedCandidates[0].id, reviewedCandidates[1].id];
+  const initialPayload = {
+    sessionId: "session:eleven",
+    prepared: { contractVersion: 1, candidates: reviewedCandidates },
+  };
+  const freshPayload = {
+    sessionId: "session:bounded-two",
+    prepared: { contractVersion: 1, candidates: reviewedCandidates.slice(0, 2) },
+  };
+  const state = {
+    payload: initialPayload,
+    reviewedCandidates,
+    selected: new Set(selectedIds),
+    spatialRecoveryRunning: false,
+    confirming: false,
+    perceptionRunning: false,
+    completed: false,
+    perceptionReconciliationBlocked: false,
+    multiPerceptionTerminalState: null,
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioRefs: [],
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    measurementRatioEnabled: false,
+  };
+  const calls = [];
+  const runSpatialRecovery = new Function(
+    "state",
+    "spatialRecoveryRequired",
+    "manualSelectedRectangleIds",
+    "spatialRecoveryCandidateSnapshot",
+    "setReviewLocked",
+    "prepareSpatialRecoveryPayload",
+    "hydrate",
+    "renderGuidedAnalysisGoals",
+    "updatePerceptionUi",
+    "updateMeasurementRatioControls",
+    "persistReviewState",
+    "multiPerceptionReviewLocked",
+    "updateSpatialRecoveryUi",
+    "statusNode",
+    `"use strict";${html.slice(start, end)};return runSpatialRecovery;`,
+  )(
+    state,
+    () => false,
+    () => selectedIds,
+    (_payload, selectedOnly) => {
+      calls.push({ type: "snapshot", selectedOnly });
+      return reviewedCandidates.slice(0, 2);
+    },
+    (locked) => calls.push({ type: "lock", locked }),
+    async (_payload, candidates) => {
+      calls.push({ type: "prepare", candidateIds: candidates.map((candidate) => candidate.id) });
+      return freshPayload;
+    },
+    async (payload) => {
+      calls.push({ type: "hydrate", sessionId: payload.sessionId });
+      state.payload = payload;
+    },
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => false,
+    () => {},
+    { textContent: "" },
+  );
+
+  await runSpatialRecovery(false, true);
+
+  assert.deepEqual(calls.find((call) => call.type === "snapshot"), {
+    type: "snapshot",
+    selectedOnly: true,
+  });
+  assert.deepEqual(calls.find((call) => call.type === "prepare"), {
+    type: "prepare",
+    candidateIds: selectedIds,
+  });
+  assert.deepEqual(calls.find((call) => call.type === "hydrate"), {
+    type: "hydrate",
+    sessionId: freshPayload.sessionId,
+  });
+  assert.deepEqual([...state.selected], selectedIds);
+  assert.equal(state.manualSpatialFallback, false);
+  assert.equal(state.measurementRatioEnabled, false);
+});
+
 test("terminal A/B SAM review exposes explicit restart and manual recovery without automatic work", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const recoveryStart = html.indexOf("async function prepareSpatialRecoveryPayload(");

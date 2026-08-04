@@ -763,6 +763,15 @@ export const personalVisualHarmonySamAbRecoveryChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());
 
+// Covers the bounded fresh generic-V1 capability gate that enters the SAM A/B
+// workflow without changing provider or Core confirmation code.
+export const personalVisualHarmonySamGenericCapabilityChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
 // Covers the bounded SAM provider, bridge, and widget timeout recovery path.
 export const personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
@@ -2224,6 +2233,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonySamAbRecoveryChangedFiles,
+  personalVisualHarmonySamGenericCapabilityChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
