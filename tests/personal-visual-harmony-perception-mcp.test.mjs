@@ -378,13 +378,15 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
     "multiPerceptionObservationCount",
     "eligibleInteractivePerceptionCandidates",
     "multiPerceptionStartBlocked",
+    "updateSpatialRecoveryUi",
     `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
   )(
     state,
     perceptionToggle,
-    () => 0,
+    () => state.payload.prepared.perceptionManifest?.observations.length ?? 0,
     () => state.payload.prepared.candidates,
     () => state.manualSegmentCandidateId !== null,
+    () => {},
   );
 
   updatePerceptionUi();
@@ -400,6 +402,61 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
   updatePerceptionUi();
   assert.equal(perceptionToggle.hidden, false);
   assert.equal(perceptionToggle.disabled, true);
+
+  state.manualSegmentCandidateId = null;
+  state.payload.prepared = {
+    contractVersion: 3,
+    workflowMode: "two-object-spatial",
+    candidates: [{ id: "object-b" }],
+    perceptionManifest: { observations: [{ candidateId: "object-a" }] },
+  };
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, false);
+  assert.equal(perceptionToggle.textContent, "Proposer l’objet B");
+
+  state.payload.prepared.perceptionManifest.observations.push({ candidateId: "object-b" });
+  updatePerceptionUi();
+  assert.equal(perceptionToggle.hidden, true);
+
+  assert.match(
+    html,
+    /freshBoundSpatial=.*?spatialWorkflowBinding\(\)\.status==="bound"/u,
+  );
+  assert.match(html, /state\.measurementRatioEnabled=freshBoundSpatial\|\|/u);
+});
+
+test("terminal A/B SAM review exposes explicit restart and manual recovery without automatic work", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const recoveryStart = html.indexOf("async function prepareSpatialRecoveryPayload(");
+  const recoveryEnd = html.indexOf("\nasync function callConfirmation(", recoveryStart);
+  assert.notEqual(recoveryStart, -1);
+  assert.notEqual(recoveryEnd, -1);
+  const recoverySource = html.slice(recoveryStart, recoveryEnd);
+
+  assert.match(html, />Recommencer la revue SAM A\/B</u);
+  assert.match(html, />Continuer en comparaison manuelle</u);
+  assert.match(html, /MODE MANUEL · preuves non liées · aucune liaison SAM A\/B/u);
+  assert.match(
+    html,
+    /manualSelectedRectangleIds\(\)\.length===2/u,
+  );
+  assert.match(
+    html,
+    /state\.manualSpatialFallback=manual/u,
+  );
+  assert.match(
+    html,
+    /await prepareSpatialRecoveryPayload\(payload,candidateSnapshot\)/u,
+  );
+  assert.doesNotMatch(
+    recoverySource,
+    /callAppTool\(START_PERCEPTION_TOOL/u,
+  );
+  assert.doesNotMatch(
+    recoverySource,
+    /callAppTool\(CONFIRM_TOOL/u,
+  );
 });
 
 test("edited perception geometry preserves explicit triangle requests", () => {
@@ -2064,7 +2121,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,statusTimeoutMs\)/u);
   assert.equal(
     html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:payload\.fileId\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
-    2,
+    3,
   );
   assert.match(
     html,

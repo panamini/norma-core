@@ -40,6 +40,7 @@ import {
   personalVisualHarmonyTriangleMediansChangedFiles,
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
+  personalVisualHarmonySamAbRecoveryChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   personalVisualHarmonyAngleBisectorsChangedFiles,
@@ -1164,6 +1165,41 @@ test("personal visual harmony widget bridge hydration allowlist is exact and rej
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
+});
+
+test("personal visual harmony SAM A/B recovery allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySamAbRecoveryChangedFiles),
+    personalVisualHarmonySamAbRecoveryChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySamAbRecoveryChangedFiles) {
+    const withoutMissing = sharedExactApprovedChangedFiles(
+      personalVisualHarmonySamAbRecoveryChangedFiles.filter((file) => file !== missingFile),
+    );
+    if (missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs") {
+      assert.deepEqual(withoutMissing, personalVisualHarmonyWidgetBridgeHydrationChangedFiles);
+    } else {
+      assert.equal(withoutMissing, null, missingFile);
+    }
+  }
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "src/personal-visual-harmony-perception.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
+    "deploy/modal/server.py",
+    "web-lab/private-web-lab.js",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySamAbRecoveryChangedFiles,
         forbidden,
       ]),
       null,
@@ -4473,7 +4509,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   );
   const isPersonalVisualHarmonyTwoObjectSpatialSet =
     isExactChangedFileSet(changedFiles, personalVisualHarmonyTwoObjectSpatialChangedFiles) ||
-    isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles);
+    isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles) ||
+    isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles);
   const isPersonalVisualHarmonyPerceptionTimeoutRecoverySet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
@@ -4759,7 +4796,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       : isPrivateWebLabLocalCvCandidatesSet
       ? privateWebLabLocalCvCandidatesChangedFiles
       : isPersonalVisualHarmonyTwoObjectSpatialSet
-      ? isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles)
+      ? isExactChangedFileSet(changedFiles, personalVisualHarmonySamAbRecoveryChangedFiles)
+        ? personalVisualHarmonySamAbRecoveryChangedFiles
+        : isExactChangedFileSet(changedFiles, personalVisualHarmonySpatialActivationChangedFiles)
         ? personalVisualHarmonySpatialActivationChangedFiles
         : personalVisualHarmonyTwoObjectSpatialChangedFiles
       : isPersonalVisualHarmonyPerceptionTimeoutRecoverySet

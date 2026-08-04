@@ -150,8 +150,13 @@ test("spatial controls require the versioned A/B binding and reject generic obje
   ];
   const genericState = {
     payload: {
+      sessionId: "session:manual-fallback",
       perceptionModes: ["legacy", "two-object-spatial"],
-      prepared: { contractVersion: 1, candidates: rectangles },
+      prepared: {
+        contractVersion: 1,
+        sourceImageReferenceIdentity: "sha256:manual-source",
+        candidates: rectangles,
+      },
     },
     reviewedCandidates: rectangles,
   };
@@ -189,6 +194,39 @@ test("spatial controls require the versioned A/B binding and reject generic obje
     },
   )();
   assert.deepEqual(genericOptions, []);
+
+  genericState.manualSpatialFallback = true;
+  genericState.manualSpatialFallbackSessionId = "session:manual-fallback";
+  const manualBinding = widgetScriptFunction(
+    "spatialWorkflowBinding",
+    "function selectedSpatialRectangles",
+    { state: genericState, primitiveKind: (item) => item?.primitive?.kind || "rectangle" },
+  );
+  assert.deepEqual(manualBinding(), {
+    status: "manual",
+    candidateIds: ["object-a", "object-b"],
+    message: null,
+  });
+  const manualSelected = widgetScriptFunction(
+    "selectedSpatialRectangles",
+    "function spatialOwnerLabel",
+    {
+      state: genericState,
+      spatialWorkflowBinding: manualBinding,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+      compareSpatialCanonical: (left, right) => left < right ? -1 : left > right ? 1 : 0,
+    },
+  );
+  assert.deepEqual(manualSelected().map(({ candidate }) => candidate.id), [
+    "object-a",
+    "object-b",
+  ]);
+  const manualSourceIdentity = widgetScriptFunction(
+    "declaredSpatialSourceIdentity",
+    "function declaredSpatialPlanInputSnapshot",
+    { state: genericState, spatialWorkflowBinding: manualBinding },
+  );
+  assert.equal(manualSourceIdentity(), "sha256:manual-source");
 
   const v3State = {
     payload: {
@@ -2482,6 +2520,77 @@ test("widget re-prepares an added manual segment before confirmation and adopts 
   assert.deepEqual(state.proposalCandidates, candidates);
   assert.equal(state.pixelRefinementProposals.size, 0);
   assert.equal(state.adoptedPixelRefinements.size, 0);
+});
+
+test("explicit spatial recovery prepares one fresh V1 session without SAM or Core", async () => {
+  const candidates = [{
+    id: "object-a",
+    label: "Personnage A",
+    role: "primary-subject",
+    reason: "Rectangle explicitement sélectionné.",
+    x: 0.1,
+    y: 0.1,
+    width: 0.2,
+    height: 0.4,
+  }, {
+    id: "object-b",
+    label: "Personnage B",
+    role: "secondary-subject",
+    reason: "Rectangle explicitement sélectionné.",
+    x: 0.6,
+    y: 0.2,
+    width: 0.2,
+    height: 0.5,
+  }];
+  const fresh = {
+    stage: "confirmation_required",
+    fileId: "file-spatial-recovery",
+    sessionId: "session:fresh-v1",
+    prepared: { contractVersion: 1, candidates },
+  };
+  const calls = [];
+  const prepareSpatialRecoveryPayload = widgetScriptFunction(
+    "prepareSpatialRecoveryPayload",
+    "async function callConfirmation",
+    {
+      state: { activePayloadIdentity: "active-terminal-payload" },
+      window: {
+        openai: {
+          getFileDownloadUrl: async () => ({
+            downloadUrl: "https://files.example.test/fresh-spatial-recovery",
+          }),
+        },
+      },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      callAppTool: async (name, args) => {
+        calls.push({ name, args });
+        return { payload: fresh };
+      },
+      findPayload: (value) => value.payload,
+      samePreparedReviewCandidates: (requested, prepared) => (
+        JSON.stringify(requested) === JSON.stringify(prepared)
+      ),
+    },
+  );
+
+  const prepared = await prepareSpatialRecoveryPayload({
+    fileId: fresh.fileId,
+    sourceImageMediaType: "image/png",
+  }, candidates);
+
+  assert.equal(prepared, fresh);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+  assert.deepEqual(calls[0].args, {
+    image: {
+      download_url: "https://files.example.test/fresh-spatial-recovery",
+      file_id: fresh.fileId,
+      mime_type: "image/png",
+    },
+    candidates,
+  });
 });
 
 test("widget restores pending review geometry without adopting its missing server session", () => {

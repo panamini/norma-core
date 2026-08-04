@@ -753,6 +753,16 @@ export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze(
   "web-lab/start-private-web-lab.mjs",
 ].sort());
 
+// Covers the bounded widget-only SAM A/B fresh-session activation and explicit
+// terminal recovery paths without changing provider or Core confirmation code.
+export const personalVisualHarmonySamAbRecoveryChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
 // Covers the bounded SAM provider, bridge, and widget timeout recovery path.
 export const personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
@@ -2213,6 +2223,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabLocalCvCandidatesChangedFiles,
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
+  personalVisualHarmonySamAbRecoveryChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   personalVisualHarmonyAxisMeasurementRatioChangedFiles,
