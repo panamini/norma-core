@@ -1174,7 +1174,7 @@ test("personal visual harmony widget bridge hydration allowlist is exact and rej
   }
 });
 
-test("personal visual harmony SAM A/B recovery allowlist is exact and rejects scope drift", () => {
+test("personal visual harmony SAM A/B recovery and manual fallback allowlist is exact and rejects scope drift", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonySamAbRecoveryChangedFiles),
     personalVisualHarmonySamAbRecoveryChangedFiles,

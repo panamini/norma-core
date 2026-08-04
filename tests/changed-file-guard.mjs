@@ -753,8 +753,9 @@ export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze(
   "web-lab/start-private-web-lab.mjs",
 ].sort());
 
-// Covers the bounded widget-only SAM A/B fresh-session activation and explicit
-// terminal recovery paths without changing provider or Core confirmation code.
+// Covers the bounded widget-only SAM A/B fresh-session activation, explicit
+// terminal recovery, and local manual fallback paths without changing provider
+// or Core confirmation code.
 export const personalVisualHarmonySamAbRecoveryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",

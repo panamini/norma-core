@@ -466,6 +466,59 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
   );
 });
 
+test("fresh generic V1 with an explicit A/B pair exposes the first SAM action", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function updatePerceptionUi(){");
+  const end = html.indexOf("\nfunction perceptionPromptFor(", start);
+  const state = {
+    payload: {
+      perceptionAppCapability: "pvh-app:" + "a".repeat(32),
+      perceptionModes: ["two-object-spatial"],
+      prepared: {
+        contractVersion: 1,
+        candidates: [
+          { id: "person.A", role: "primary-subject" },
+          { id: "person.B", role: "secondary-subject" },
+        ],
+      },
+    },
+    guidedAnalysisGoal: "compare-two-lengths",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+    selected: new Set(["person.A", "person.B"]),
+    selectedGuides: new Set(),
+  };
+  const perceptionToggle = {};
+  const updatePerceptionUi = new Function(
+    "state",
+    "perceptionToggle",
+    "multiPerceptionObservationCount",
+    "eligibleInteractivePerceptionCandidates",
+    "multiPerceptionStartBlocked",
+    "updateSpatialRecoveryUi",
+    `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
+  )(
+    state,
+    perceptionToggle,
+    () => 0,
+    () => state.payload.prepared.candidates,
+    () => false,
+    () => {},
+  );
+
+  updatePerceptionUi();
+
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, false);
+  assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
+});
+
 test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded session for 11 candidates", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("function applyGuidedAnalysisGoal(");
