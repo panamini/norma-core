@@ -2714,6 +2714,8 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
     manualSpatialFallback: false,
     manualSpatialFallbackSessionId: null,
     guidedAnalysisGoal: "compare-two-lengths",
+    visibleKinds: new Set(["rectangle"]),
+    selected: new Set(["a", "b"]),
     measurementRatioEnabled: false,
     measurementRatioRefs: [],
   };
@@ -2734,7 +2736,11 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
         state.manualSpatialFallbackSessionId = null;
         state.measurementRatioEnabled = false;
       },
+      GUIDED_ANALYSIS_GOALS: [{ id: "compare-two-lengths", visibleKinds: ["rectangle"] }],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       renderGuidedAnalysisGoals: () => {},
+      updateFamilyFilterButtons: () => {},
+      syncFamilyVisibility: () => {},
       updatePerceptionUi: () => {},
       updateMeasurementRatioControls: () => {},
       persistReviewState: () => { persisted = true; },
@@ -2767,6 +2773,8 @@ test("manual spatial recovery reuses a terminal V1 review without retrying the f
     manualSpatialFallback: false,
     manualSpatialFallbackSessionId: null,
     guidedAnalysisGoal: "compare-two-lengths",
+    visibleKinds: new Set(["rectangle"]),
+    selected: new Set(["a", "b"]),
     measurementRatioEnabled: false,
     measurementRatioRefs: [],
   };
@@ -2783,7 +2791,11 @@ test("manual spatial recovery reuses a terminal V1 review without retrying the f
       setReviewLocked: () => {},
       prepareSpatialRecoveryPayload: async () => { prepareCalls += 1; throw new Error("file API unavailable"); },
       hydrate: async () => { hydrateCalls += 1; },
+      GUIDED_ANALYSIS_GOALS: [{ id: "compare-two-lengths", visibleKinds: ["rectangle"] }],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       renderGuidedAnalysisGoals: () => {},
+      updateFamilyFilterButtons: () => {},
+      syncFamilyVisibility: () => {},
       updatePerceptionUi: () => {},
       updateMeasurementRatioControls: () => {},
       persistReviewState: () => {},

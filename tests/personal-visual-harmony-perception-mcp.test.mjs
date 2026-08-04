@@ -347,6 +347,43 @@ test("ten-candidate preparation issues a capability only for the bounded A/B wor
   }
 });
 
+test("oversized eligible preparation advertises bounded recovery without issuing an unusable SAM capability", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image?file=file-eleven-candidates&sig=fresh",
+          file_id: "file-eleven-candidates",
+          mime_type: "image/png",
+        },
+        candidates: Array.from({ length: 11 }, (_, index) => ({
+          id: `frame-${String(index + 1)}`,
+          label: `Cadre ${String(index + 1)}`,
+          role: index === 0 ? "primary-subject" : index === 1 ? "secondary-subject" : "frame",
+          reason: "Cadre visible.",
+          x: index * 0.01,
+          y: index * 0.01,
+          width: 0.5,
+          height: 0.5,
+        })),
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.equal(payload.perceptionRecoveryAvailable, true);
+    assert.equal("perceptionAppCapability" in payload, false);
+    assert.equal("perceptionModes" in payload, false);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("widget exposes an A/B-only capability only through compare-two-lengths", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("function updatePerceptionUi(){");
@@ -435,8 +472,7 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
   const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
   const state = {
     payload: {
-      perceptionAppCapability: "pvh-app:" + "b".repeat(32),
-      perceptionModes: ["legacy"],
+      perceptionRecoveryAvailable: true,
       prepared: {
         contractVersion: 1,
         candidates: Array.from({ length: 11 }, (_, index) => ({ id: `candidate-${String(index)}` })),
@@ -526,7 +562,7 @@ test("oversized generic V1 entry keeps explicit SAM restart visible until exactl
   const candidateIds = Array.from({ length: 11 }, (_, index) => `candidate-${String(index)}`);
   const state = {
     payload: {
-      perceptionModes: ["legacy"],
+      perceptionRecoveryAvailable: true,
       prepared: {
         contractVersion: 1,
         candidates: candidateIds.map((id) => ({ id })),
@@ -621,6 +657,7 @@ test("fresh two-object recovery re-prepares only the two explicitly selected rec
     payload: initialPayload,
     reviewedCandidates,
     selected: new Set(selectedIds),
+    visibleKinds: new Set(["rectangle"]),
     spatialRecoveryRunning: false,
     confirming: false,
     perceptionRunning: false,
@@ -634,6 +671,7 @@ test("fresh two-object recovery re-prepares only the two explicitly selected rec
     measurementRatioEnabled: false,
   };
   const calls = [];
+  let renderedSelection = null;
   const runSpatialRecovery = new Function(
     "state",
     "spatialRecoveryRequired",
@@ -642,7 +680,11 @@ test("fresh two-object recovery re-prepares only the two explicitly selected rec
     "setReviewLocked",
     "prepareSpatialRecoveryPayload",
     "hydrate",
+    "GUIDED_ANALYSIS_GOALS",
+    "visibleKindsForGuidedAnalysisGoal",
     "renderGuidedAnalysisGoals",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
     "updatePerceptionUi",
     "updateMeasurementRatioControls",
     "persistReviewState",
@@ -666,8 +708,19 @@ test("fresh two-object recovery re-prepares only the two explicitly selected rec
     async (payload) => {
       calls.push({ type: "hydrate", sessionId: payload.sessionId });
       state.payload = payload;
+      state.guidedAnalysisGoal = "general-geometry";
+      state.visibleKinds = new Set(["rectangle", "axis", "segment"]);
+      renderedSelection = new Set(payload.prepared.candidates.map((candidate) => candidate.id));
+      state.selected = renderedSelection;
     },
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle", "axis", "segment"] },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"] },
+    ],
+    (goal) => goal.visibleKinds,
     () => {},
+    () => calls.push({ type: "family-buttons" }),
+    () => calls.push({ type: "family-visibility" }),
     () => {},
     () => {},
     () => {},
@@ -691,6 +744,12 @@ test("fresh two-object recovery re-prepares only the two explicitly selected rec
     sessionId: freshPayload.sessionId,
   });
   assert.deepEqual([...state.selected], selectedIds);
+  assert.equal(state.selected, renderedSelection);
+  renderedSelection.delete(selectedIds[0]);
+  assert.equal(state.selected.has(selectedIds[0]), false);
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.ok(calls.some((call) => call.type === "family-buttons"));
+  assert.ok(calls.some((call) => call.type === "family-visibility"));
   assert.equal(state.manualSpatialFallback, false);
   assert.equal(state.measurementRatioEnabled, false);
 });

@@ -769,6 +769,7 @@ export const personalVisualHarmonySamGenericCapabilityChangedFiles = Object.free
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());
 

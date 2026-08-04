@@ -1183,18 +1183,8 @@ test("personal visual harmony SAM A/B recovery allowlist is exact and rejects sc
     const withoutMissing = sharedExactApprovedChangedFiles(
       personalVisualHarmonySamAbRecoveryChangedFiles.filter((file) => file !== missingFile),
     );
-    if (
-      missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs" ||
-      missingFile === "tests/personal-visual-harmony-mcp.test.mjs"
-    ) {
-      assert.ok(
-        [personalVisualHarmonyWidgetBridgeHydrationChangedFiles, personalVisualHarmonySamGenericCapabilityChangedFiles].some(
-          (expected) =>
-            Array.isArray(withoutMissing) &&
-            withoutMissing.length === expected.length &&
-            withoutMissing.every((file, index) => file === expected[index]),
-        ),
-      );
+    if (missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs") {
+      assert.deepEqual(withoutMissing, personalVisualHarmonyWidgetBridgeHydrationChangedFiles);
     } else {
       assert.equal(withoutMissing, null, missingFile);
     }
@@ -1225,13 +1215,14 @@ test("personal visual harmony generic V1 SAM capability allowlist is exact and r
     personalVisualHarmonySamGenericCapabilityChangedFiles,
   );
   for (const missingFile of personalVisualHarmonySamGenericCapabilityChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonySamGenericCapabilityChangedFiles.filter((file) => file !== missingFile),
-      ),
-      null,
-      missingFile,
+    const withoutMissing = sharedExactApprovedChangedFiles(
+      personalVisualHarmonySamGenericCapabilityChangedFiles.filter((file) => file !== missingFile),
     );
+    if (missingFile === "tests/personal-visual-harmony-perception-mcp.test.mjs") {
+      assert.deepEqual(withoutMissing, personalVisualHarmonyWidgetBridgeHydrationChangedFiles);
+    } else {
+      assert.equal(withoutMissing, null, missingFile);
+    }
   }
   for (const forbidden of [
     "package.json",
