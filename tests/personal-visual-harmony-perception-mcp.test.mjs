@@ -610,6 +610,77 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
   ]);
 });
 
+test("selecting compare-two-lengths auto-enters a fresh SAM session for a selected V1 A/B pair without capability", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function applyGuidedAnalysisGoal(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  const candidates = Array.from({ length: 6 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0", "candidate-1"]),
+    guidedAnalysisGoal: "general-geometry",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const calls = [];
+  const applyGuidedAnalysisGoal = new Function(
+    "state",
+    "GUIDED_ANALYSIS_GOALS",
+    "twoObjectSpatialWorkflowActive",
+    "visibleKindsForGuidedAnalysisGoal",
+    "updateGuidedAnalysisGoalButtons",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updateMeasurementRatioControls",
+    "updatePerceptionUi",
+    "guidedGoalStatus",
+    "persistGuidedAnalysisGoal",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
+  )(
+    state,
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+    ],
+    () => false,
+    (goal) => goal.visibleKinds,
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    { textContent: "" },
+    () => {},
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+});
+
 test("oversized generic V1 entry keeps explicit SAM restart visible until exactly two rectangles are selected", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const candidateIds = Array.from({ length: 11 }, (_, index) => `candidate-${String(index)}`);
