@@ -439,6 +439,10 @@ test("terminal A/B SAM review exposes explicit restart and manual recovery witho
 
   assert.match(html, />Recommencer la revue SAM A\/B</u);
   assert.match(html, />Continuer en comparaison manuelle</u);
+  assert.match(
+    html,
+    /\.spatial-recovery\[hidden\],\.spatial-recovery-actions\[hidden\]\{display:none\}/u,
+  );
   assert.match(html, /MODE MANUEL · preuves non liées · aucune liaison SAM A\/B/u);
   assert.match(
     html,

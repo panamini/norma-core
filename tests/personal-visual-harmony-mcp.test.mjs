@@ -2753,6 +2753,86 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
   assert.equal(persisted, true);
 });
 
+test("manual spatial recovery reuses a terminal V1 review without retrying the failed file API", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    sessionId: "session:terminal-v1",
+    prepared: { contractVersion: 1 },
+  };
+  const state = {
+    payload,
+    spatialRecoveryRunning: false,
+    perceptionReconciliationBlocked: false,
+    multiPerceptionTerminalState: "object-a-failed",
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  let prepareCalls = 0;
+  let hydrateCalls = 0;
+  const runSpatialRecovery = widgetScriptFunction(
+    "runSpatialRecovery",
+    "restartSpatialReview.addEventListener",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      manualSelectedRectangleIds: () => ["a", "b"],
+      spatialRecoveryCandidateSnapshot: () => [{ id: "a" }, { id: "b" }],
+      setReviewLocked: () => {},
+      prepareSpatialRecoveryPayload: async () => { prepareCalls += 1; throw new Error("file API unavailable"); },
+      hydrate: async () => { hydrateCalls += 1; },
+      renderGuidedAnalysisGoals: () => {},
+      updatePerceptionUi: () => {},
+      updateMeasurementRatioControls: () => {},
+      persistReviewState: () => {},
+      multiPerceptionReviewLocked: () => false,
+      updateSpatialRecoveryUi: () => {},
+      statusNode: {},
+    },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(prepareCalls, 0);
+  assert.equal(hydrateCalls, 0);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual([...state.selected], ["a", "b"]);
+});
+
+test("reconciliation lock permits only bounded rectangle pair selection", () => {
+  const state = {
+    perceptionReconciliationBlocked: true,
+    reviewedCandidates: [
+      { id: "rect-a" },
+      { id: "guide", primitive: { kind: "segment" } },
+    ],
+  };
+  const manualSpatialPairSelectionAllowed = widgetScriptFunction(
+    "manualSpatialPairSelectionAllowed",
+    "function updateSpatialRecoveryUi",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      primitiveKind: (item) => item?.primitive?.kind || "rectangle",
+    },
+  );
+
+  assert.equal(manualSpatialPairSelectionAllowed("rect-a"), true);
+  assert.equal(manualSpatialPairSelectionAllowed("guide"), false);
+  assert.equal(manualSpatialPairSelectionAllowed("missing"), false);
+  state.spatialRecoveryRunning = true;
+  assert.equal(manualSpatialPairSelectionAllowed("rect-a"), false);
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /multiPerceptionReviewLocked\(\)&&!manualSpatialPairSelectionAllowed\(item\.id\)/u);
+  assert.match(html, /input\.disabled=disabled&&!manualSpatialPairSelectionAllowed\(candidateId\)/u);
+  assert.match(html, /updateConfirm\(\);updateSpatialRecoveryUi\(\)/u);
+});
+
 test("widget restores pending review geometry without adopting its missing server session", () => {
   const originalIdentity = `sha256:${"a".repeat(64)}`;
   const freshIdentity = `sha256:${"b".repeat(64)}`;
