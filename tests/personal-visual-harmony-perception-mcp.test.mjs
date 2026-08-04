@@ -423,7 +423,10 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
     html,
     /freshBoundSpatial=.*?spatialWorkflowBinding\(\)\.status==="bound"/u,
   );
-  assert.match(html, /state\.measurementRatioEnabled=freshBoundSpatial\|\|/u);
+  assert.match(
+    html,
+    /state\.measurementRatioEnabled=state\.manualSpatialFallback\|\|freshBoundSpatial\|\|/u,
+  );
 });
 
 test("terminal A/B SAM review exposes explicit restart and manual recovery without automatic work", () => {
