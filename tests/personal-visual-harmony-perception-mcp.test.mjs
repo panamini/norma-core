@@ -521,6 +521,78 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
   ]);
 });
 
+test("oversized generic V1 entry keeps explicit SAM restart visible until exactly two rectangles are selected", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const candidateIds = Array.from({ length: 11 }, (_, index) => `candidate-${String(index)}`);
+  const state = {
+    payload: {
+      perceptionModes: ["legacy"],
+      prepared: {
+        contractVersion: 1,
+        candidates: candidateIds.map((id) => ({ id })),
+      },
+    },
+    guidedAnalysisGoal: "compare-two-lengths",
+    selected: new Set(candidateIds),
+    multiPerceptionTerminalState: null,
+    perceptionReconciliationBlocked: false,
+    spatialRecoveryRunning: false,
+    confirming: false,
+    perceptionRunning: false,
+    completed: false,
+  };
+  const spatialWorkflowBinding = () => ({ status: "legacy", candidateIds: [], message: null });
+  const perceptionToggle = { hidden: true };
+  const requiredStart = html.indexOf("function spatialRecoveryRequired(){");
+  const requiredEnd = html.indexOf("\nfunction manualSpatialPairSelectionAllowed", requiredStart);
+  const spatialRecoveryRequired = new Function(
+    "state",
+    "spatialWorkflowBinding",
+    "perceptionToggle",
+    `"use strict";${html.slice(requiredStart, requiredEnd)};return spatialRecoveryRequired;`,
+  )(state, spatialWorkflowBinding, perceptionToggle);
+  const spatialRecovery = {};
+  const spatialRecoveryActions = {};
+  const spatialRecoveryStatus = {};
+  const restartSpatialReview = {};
+  const continueManualSpatial = {};
+  const updateStart = html.indexOf("function updateSpatialRecoveryUi(){");
+  const updateEnd = html.indexOf("\nasync function runSpatialRecovery", updateStart);
+  const updateSpatialRecoveryUi = new Function(
+    "state",
+    "spatialRecovery",
+    "spatialRecoveryActions",
+    "spatialRecoveryStatus",
+    "restartSpatialReview",
+    "continueManualSpatial",
+    "spatialWorkflowBinding",
+    "spatialRecoveryRequired",
+    "manualSelectedRectangleIds",
+    `"use strict";${html.slice(updateStart, updateEnd)};return updateSpatialRecoveryUi;`,
+  )(
+    state,
+    spatialRecovery,
+    spatialRecoveryActions,
+    spatialRecoveryStatus,
+    restartSpatialReview,
+    continueManualSpatial,
+    spatialWorkflowBinding,
+    spatialRecoveryRequired,
+    () => [...state.selected],
+  );
+
+  updateSpatialRecoveryUi();
+  assert.equal(spatialRecovery.hidden, false);
+  assert.equal(restartSpatialReview.disabled, true);
+  assert.match(spatialRecoveryStatus.textContent, /Sélectionnez exactement deux rectangles/u);
+
+  state.selected = new Set(candidateIds.slice(0, 2));
+  updateSpatialRecoveryUi();
+  assert.equal(spatialRecovery.hidden, false);
+  assert.equal(restartSpatialReview.disabled, false);
+  assert.equal(continueManualSpatial.disabled, false);
+});
+
 test("fresh two-object recovery re-prepares only the two explicitly selected rectangles", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("async function runSpatialRecovery(");
