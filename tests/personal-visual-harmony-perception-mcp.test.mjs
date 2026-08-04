@@ -681,6 +681,50 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
   assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
 });
 
+test("restored compare-two-lengths V1 pair starts fresh SAM recovery even when the goal did not change", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  assert.notEqual(start, -1);
+  const candidates = Array.from({ length: 4 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    activePayloadIdentity: "payload-1",
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0", "candidate-1"]),
+    guidedAnalysisGoal: "compare-two-lengths",
+    manualSpatialFallback: false,
+    spatialRecoveryRunning: false,
+    spatialRecoveryEntryIdentity: null,
+    completed: false,
+    confirming: false,
+  };
+  const calls = [];
+  const startFreshSpatialSessionIfNeeded = new Function(
+    "state",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
+  )(
+    state,
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  startFreshSpatialSessionIfNeeded();
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+  assert.match(
+    html,
+    /if\(state\.completed\)return;if\(typeof startFreshSpatialSessionIfNeeded==="function"\)startFreshSpatialSessionIfNeeded\(\);/u,
+  );
+});
+
 test("oversized generic V1 entry keeps explicit SAM restart visible until exactly two rectangles are selected", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const candidateIds = Array.from({ length: 11 }, (_, index) => `candidate-${String(index)}`);
