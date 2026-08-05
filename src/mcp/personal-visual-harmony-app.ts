@@ -78,7 +78,7 @@ export const PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL =
 export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
   "norma.getPersonalVisualHarmonyPerceptionStatusV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
-  "ui://widget/norma-personal-visual-harmony-v14.html";
+  "ui://widget/norma-personal-visual-harmony-v15.html";
 // Keep the ChatGPT connector's window.openai and openai/outputTemplate
 // compatibility while declaring the current MCP Apps resource contract.
 export const PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE = "text/html;profile=mcp-app";
@@ -92,6 +92,7 @@ const PERSONAL_VISUAL_HARMONY_WIDGET_LEGACY_URIS = new Set([
   "ui://widget/norma-personal-visual-harmony-v11.html",
   "ui://widget/norma-personal-visual-harmony-v12.html",
   "ui://widget/norma-personal-visual-harmony-v13.html",
+  "ui://widget/norma-personal-visual-harmony-v14.html",
 ]);
 const PERSONAL_VISUAL_HARMONY_WIDGET_SKYBRIDGE_URIS = new Set([
   "ui://widget/norma-personal-visual-harmony-v6.html",
