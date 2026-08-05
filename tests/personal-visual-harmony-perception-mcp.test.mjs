@@ -281,6 +281,32 @@ test("prepare withholds perception capability for unsupported media and insuffic
   }
 });
 
+test("prepare keeps SAM available when ChatGPT omits the optional image MIME type", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/image-without-mime",
+          file_id: "file-without-mime",
+        },
+        candidates: candidates(),
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.match(payload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(payload.perceptionModes, ["legacy", "two-object-spatial"]);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("ten-candidate preparation issues a capability only for the bounded A/B workflow", async () => {
   const connected = await connect({
     service: new PersonalVisualHarmonySessionServiceV1(),
@@ -387,6 +413,7 @@ test("oversized eligible preparation advertises bounded recovery without issuing
 
 test("widget exposes an A/B-only capability only through compare-two-lengths", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /\.semantic-target-panel\[hidden\]\{display:none\}/u);
   const start = html.indexOf("function updatePerceptionUi(){");
   const end = html.indexOf("\nfunction perceptionPromptFor(", start);
   assert.notEqual(start, -1);
