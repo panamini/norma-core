@@ -3503,12 +3503,18 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             expiresAt: job.expiresAt,
           });
         }
+        const publicJob = publicPerceptionJob(job);
         return {
           content: [{
             type: "text" as const,
             text: "La proposition SAM 3 est en attente. Aucun candidat n’est confirmé et Norma Core reste arrêté.",
           }],
-          structuredContent: publicPerceptionJob(job),
+          structuredContent: publicJob,
+          _meta: {
+            normaPersonalVisualHarmony: {
+              perceptionJob: publicJob,
+            },
+          },
         };
       },
     );
@@ -3593,6 +3599,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             ? {
                 _meta: {
                   normaPersonalVisualHarmony: {
+                    perceptionJob: publicJob,
                     stage: "confirmation_required",
                     fileId: currentContext.fileId,
                     sourceImageDownloadUrl: currentContext.sourceImageDownloadUrl,

@@ -2610,6 +2610,70 @@ test("the widget binds both SAM start modes to the prepared file id", () => {
   );
 });
 
+test("SAM job envelopes survive an app bridge that omits structuredContent", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await prepare(connected.client);
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        sourceFileId: payload.fileId,
+        sourceImageDownloadUrl: payload.sourceImageDownloadUrl,
+        semanticTarget: "person",
+        label: "Personne",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+    assert.deepEqual(
+      started._meta.normaPersonalVisualHarmony.perceptionJob,
+      started.structuredContent,
+    );
+
+    const html = createPersonalVisualHarmonyWidgetHtmlV1();
+    const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+    assert.ok(script);
+    const jobStart = script.indexOf("function findPerceptionJob(");
+    const jobEnd = script.indexOf("\nfunction", jobStart + 1);
+    assert.notEqual(jobStart, -1);
+    assert.notEqual(jobEnd, -1);
+    const findPerceptionJob = new Function(
+      `"use strict";${script.slice(jobStart, jobEnd)};return findPerceptionJob;`,
+    )();
+    const bridgedStart = { _meta: started._meta };
+    assert.deepEqual(findPerceptionJob(bridgedStart), started.structuredContent);
+
+    const status = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        jobId: started.structuredContent.jobId,
+      },
+    });
+    assert.equal(status.isError, undefined, JSON.stringify(status));
+    assert.deepEqual(
+      status._meta.normaPersonalVisualHarmony.perceptionJob,
+      status.structuredContent,
+    );
+    assert.deepEqual(
+      findPerceptionJob({ _meta: status._meta }),
+      status.structuredContent,
+    );
+  } finally {
+    await connected.close();
+  }
+});
+
 test("the semantic SAM runtime preserves the hydrated source file id when a bridge payload omits it", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
