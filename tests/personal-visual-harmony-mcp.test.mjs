@@ -2761,7 +2761,7 @@ test("spatial recovery strips V3 provenance and excludes prior SAM observations 
   assert.equal(manual.some((candidate) => Object.hasOwn(candidate, "sourceImageReferenceIdentity")), false);
 });
 
-test("manual spatial fallback persists only for the exact V1 session and clears for V3", () => {
+test("manual spatial fallback persists only for the exact session across prepared contracts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
@@ -2803,7 +2803,7 @@ test("manual spatial fallback persists only for the exact V1 session and clears 
   assert.equal(storedManualSpatialFallbackFor(stored, {
     ...state.payload,
     prepared: { ...state.payload.prepared, contractVersion: 3 },
-  }, state.selected), false);
+  }, state.selected), true);
   assert.equal(storedManualSpatialFallbackFor(stored, {
     ...state.payload,
     sessionId: "session:other",
@@ -2818,19 +2818,14 @@ test("manual spatial fallback persists only for the exact V1 session and clears 
     ...state.payload,
     prepared: { ...state.payload.prepared, contractVersion: 3 },
   }, stored, state.selected);
-  assert.equal(state.manualSpatialFallback, false);
-  assert.equal(state.manualSpatialFallbackSessionId, null);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, state.payload.sessionId);
 });
 
-test("manual spatial recovery restores its marker and enabled plan after hydration", async () => {
+test("manual spatial recovery restores its marker and enabled plan without hydration", async () => {
   const candidates = [{ id: "a" }, { id: "b" }];
-  const fresh = {
-    stage: "confirmation_required",
-    sessionId: "session:fresh-manual",
-    prepared: { contractVersion: 1 },
-  };
   const state = {
-    payload: { prepared: {} },
+    payload: { sessionId: "session:current-manual", prepared: { contractVersion: 3 } },
     spatialRecoveryRunning: false,
     perceptionReconciliationBlocked: true,
     multiPerceptionTerminalState: "object-b-failed",
@@ -2853,12 +2848,8 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
       spatialRecoveryCandidateSnapshot: () => candidates,
       reviewedCandidateSnapshot: () => candidates,
       setReviewLocked: () => {},
-      prepareSpatialRecoveryPayload: async () => fresh,
-      hydrate: async () => {
-        state.manualSpatialFallback = false;
-        state.manualSpatialFallbackSessionId = null;
-        state.measurementRatioEnabled = false;
-      },
+      prepareSpatialRecoveryPayload: async () => { throw new Error("manual fallback must not prepare"); },
+      hydrate: async () => { throw new Error("manual fallback must not hydrate"); },
       GUIDED_ANALYSIS_GOALS: [{ id: "compare-two-lengths", visibleKinds: ["rectangle"] }],
       visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       renderGuidedAnalysisGoals: () => {},
@@ -2876,7 +2867,7 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
   await runSpatialRecovery(true);
 
   assert.equal(state.manualSpatialFallback, true);
-  assert.equal(state.manualSpatialFallbackSessionId, fresh.sessionId);
+  assert.equal(state.manualSpatialFallbackSessionId, state.payload.sessionId);
   assert.equal(state.measurementRatioEnabled, true);
   assert.deepEqual([...state.selected], ["a", "b"]);
   assert.equal(persisted, true);

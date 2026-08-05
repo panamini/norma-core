@@ -987,6 +987,122 @@ test("terminal A/B SAM review exposes explicit restart and manual recovery witho
   );
 });
 
+test("manual spatial fallback reuses a current prepared payload without provider preparation", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function runSpatialRecovery(");
+  const end = html.indexOf("\nrestartSpatialReview.addEventListener", start);
+  const reviewedCandidates = [
+    {
+      id: "person.A",
+      label: "Personnage A",
+      role: "primary-subject",
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "person.B",
+      label: "Personnage B",
+      role: "secondary-subject",
+      primitive: { kind: "rectangle" },
+    },
+  ];
+  const selectedIds = reviewedCandidates.map((candidate) => candidate.id);
+  const payload = {
+    sessionId: "session:current-prepared",
+    perceptionModes: ["two-object-spatial"],
+    prepared: {
+      contractVersion: 3,
+      candidateSetIdentity: "set:current-prepared",
+      candidates: reviewedCandidates,
+    },
+  };
+  const state = {
+    payload,
+    reviewedCandidates,
+    selected: new Set(selectedIds),
+    visibleKinds: new Set(["rectangle"]),
+    spatialRecoveryRunning: false,
+    confirming: false,
+    perceptionRunning: false,
+    completed: false,
+    perceptionReconciliationBlocked: true,
+    multiPerceptionTerminalState: { code: "provider-rejected" },
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioRefs: [{ old: "reference" }],
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    measurementRatioEnabled: false,
+  };
+  const calls = [];
+  const statusNode = { textContent: "" };
+  const runSpatialRecovery = new Function(
+    "state",
+    "spatialRecoveryRequired",
+    "manualSelectedRectangleIds",
+    "spatialRecoveryCandidateSnapshot",
+    "setReviewLocked",
+    "prepareSpatialRecoveryPayload",
+    "hydrate",
+    "GUIDED_ANALYSIS_GOALS",
+    "visibleKindsForGuidedAnalysisGoal",
+    "renderGuidedAnalysisGoals",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updatePerceptionUi",
+    "updateMeasurementRatioControls",
+    "persistReviewState",
+    "multiPerceptionReviewLocked",
+    "updateSpatialRecoveryUi",
+    "statusNode",
+    "spatialRecoveryFailureMessage",
+    "spatialRecoveryFailureCode",
+    "document",
+    `"use strict";${html.slice(start, end)};return runSpatialRecovery;`,
+  )(
+    state,
+    () => true,
+    () => selectedIds,
+    () => {
+      calls.push({ type: "snapshot" });
+      return reviewedCandidates;
+    },
+    (locked) => calls.push({ type: "lock", locked }),
+    async () => {
+      calls.push({ type: "prepare" });
+      throw new Error("manual fallback must not prepare");
+    },
+    async () => calls.push({ type: "hydrate" }),
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle", "axis", "segment"] },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"] },
+    ],
+    (goal) => goal.visibleKinds,
+    () => calls.push({ type: "goals" }),
+    () => calls.push({ type: "family-buttons" }),
+    () => calls.push({ type: "family-visibility" }),
+    () => calls.push({ type: "perception" }),
+    () => calls.push({ type: "measurement" }),
+    () => calls.push({ type: "persist" }),
+    () => false,
+    () => calls.push({ type: "recovery-ui" }),
+    statusNode,
+    (error) => error.message,
+    () => "test-failure",
+    { documentElement: { setAttribute() {} } },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(calls.some((call) => call.type === "prepare"), false);
+  assert.equal(calls.some((call) => call.type === "hydrate"), false);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual(state.measurementRatioRefs, []);
+  assert.deepEqual([...state.selected], selectedIds);
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
+});
+
 test("edited perception geometry preserves explicit triangle requests", () => {
   const service = new PersonalVisualHarmonySessionServiceV1({
     createSessionId: () => "session:edited-perception-triangle",
