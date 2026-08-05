@@ -6443,7 +6443,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /payload\.stage==="confirmation_required"&&!state\.payload/u);
     assert.match(resource.contents[0].text, /BOOTSTRAP_PENDING_NOTICE_AFTER=50/u);
     assert.match(resource.contents[0].text, /BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000/u);
-    assert.match(resource.contents[0].text, /Connexion au résultat de l’analyse en cours/u);
+    assert.match(resource.contents[0].text, /Résultat d’analyse non reçu par le widget/u);
     assert.doesNotMatch(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",\(\)=>\{const payload=currentPayload\(\);if\(payload&&payload\.stage==="completed"/u);
     assert.match(resource.contents[0].text, /MESURES REVALIDÉES/u);
     assert.match(resource.contents[0].text, /RAPPORT MÉMORISÉ · NON REVALIDÉ/u);
@@ -6592,11 +6592,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   }
 });
 
-test("widget collapses a stale bootstrap instance and restores it for a late matching payload", () => {
+test("widget keeps a stale bootstrap instance visible and restores it for a late matching payload", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /<html lang="fr" data-norma-widget-bootstrap="pending">/u);
   assert.match(html, /html\[data-norma-widget-bootstrap="pending"\] \.content\{display:none\}/u);
-  assert.match(html, /document\.body\.hidden=nextState==="stale"/u);
+  assert.match(html, /document\.body\.hidden=false/u);
 
   const bootstrapAttribute = { value: "pending" };
   const document = {
@@ -6616,7 +6616,7 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
   );
 
   setWidgetBootstrapState("stale");
-  assert.equal(document.body.hidden, true);
+  assert.equal(document.body.hidden, false);
   assert.equal(bootstrapAttribute.value, "stale");
 
   setWidgetBootstrapState("ready");
@@ -6647,7 +6647,10 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
   bootstrap();
 
   assert.deepEqual(bootstrapStates, ["stale"]);
-  assert.equal(loading.textContent, "Connexion au résultat de l’analyse en cours…");
+  assert.equal(
+    loading.textContent,
+    "Résultat d’analyse non reçu par le widget. Ouvrez une nouvelle conversation et relancez l’analyse.",
+  );
   assert.equal(scheduledRetry?.delay, 1_000);
   assert.deepEqual(hydratedPayloads, []);
 

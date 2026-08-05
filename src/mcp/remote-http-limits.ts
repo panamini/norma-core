@@ -10,11 +10,21 @@ const ONE_MINUTE_MS = 60_000;
 const ONE_HOUR_MS = 3_600_000;
 
 export type RemoteMcpAdmissionResult =
-  | { readonly allowed: true; readonly release: () => void }
+  | {
+      readonly allowed: true;
+      readonly release: () => void;
+      readonly promoteToAction: () => RemoteMcpAdmissionPromotionResult;
+    }
   | {
       readonly allowed: false;
       readonly code: "authenticated_capacity" | "subject_rate" | "subject_concurrency";
     };
+
+export type RemoteMcpAdmissionKind = "action" | "non_action";
+
+export type RemoteMcpAdmissionPromotionResult =
+  | { readonly allowed: true }
+  | { readonly allowed: false; readonly code: "subject_rate" };
 
 export type RemoteMcpAuthenticationAdmissionResult =
   | { readonly allowed: true; readonly release: () => void }
@@ -64,16 +74,21 @@ export class RemoteMcpAdmissionController {
     };
   }
 
-  enterAuthenticatedAttempt(subjectId: string): RemoteMcpAdmissionResult {
+  enterAuthenticatedAttempt(
+    subjectId: string,
+    kind: RemoteMcpAdmissionKind = "action",
+  ): RemoteMcpAdmissionResult {
     const now = this.#now();
     this.#pruneSubjectAccounts(now);
     const subject = this.#subjects.get(subjectId) ?? { attempts: [], concurrency: 0 };
     prune(subject.attempts, now - ONE_HOUR_MS);
-    if (subject.attempts.length >= REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR) {
+    if (kind === "action" && subject.attempts.length >= REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR) {
       return { allowed: false, code: "subject_rate" };
     }
     if (subject.concurrency >= REMOTE_MCP_MAX_SUBJECT_CONCURRENCY) {
-      subject.attempts.push(now);
+      if (kind === "action") {
+        subject.attempts.push(now);
+      }
       return { allowed: false, code: "subject_concurrency" };
     }
 
@@ -84,11 +99,31 @@ export class RemoteMcpAdmissionController {
 
     this.#authenticatedAttempts.push(now);
     this.#subjects.set(subjectId, subject);
-    subject.attempts.push(now);
+    let promotedToAction = kind === "action";
+    if (promotedToAction) {
+      subject.attempts.push(now);
+    }
     subject.concurrency += 1;
     let released = false;
     return {
       allowed: true,
+      promoteToAction: () => {
+        if (promotedToAction) {
+          return { allowed: true };
+        }
+        if (released) {
+          return { allowed: false, code: "subject_rate" };
+        }
+        const promotionNow = this.#now();
+        this.#pruneSubjectAccounts(promotionNow);
+        prune(subject.attempts, promotionNow - ONE_HOUR_MS);
+        if (subject.attempts.length >= REMOTE_MCP_MAX_SUBJECT_ATTEMPTS_PER_HOUR) {
+          return { allowed: false, code: "subject_rate" };
+        }
+        subject.attempts.push(promotionNow);
+        promotedToAction = true;
+        return { allowed: true };
+      },
       release: () => {
         if (released) {
           return;
