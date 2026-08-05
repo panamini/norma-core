@@ -6468,7 +6468,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       uri: "ui://widget/norma-personal-visual-harmony-v9.html",
     });
     assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v9.html");
-    assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+    assert.equal(cachedResource.contents[0].mimeType, "text/html+skybridge");
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
     for (const legacyUri of [
       "ui://widget/norma-personal-visual-harmony-v10.html",
@@ -6478,7 +6478,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     ]) {
       const legacyResource = await connected.client.readResource({ uri: legacyUri });
       assert.equal(legacyResource.contents[0].uri, legacyUri);
-      assert.equal(legacyResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+      assert.equal(
+        legacyResource.contents[0].mimeType,
+        legacyUri.endsWith("-v13.html") ? PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE : "text/html+skybridge",
+      );
       assert.equal(legacyResource.contents[0].text, resource.contents[0].text);
     }
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);

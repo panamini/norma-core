@@ -144,7 +144,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   });
   assert.equal(cachedWidget.status, 200);
   assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
-  assert.equal(cachedWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+  assert.equal(cachedWidget.json.result.contents[0].mimeType, "text/html+skybridge");
 
   const prepared = await mcpRequest(port, {
     jsonrpc: "2.0",
