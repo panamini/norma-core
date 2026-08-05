@@ -2601,13 +2601,104 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
 test("the widget binds both SAM start modes to the prepared file id", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.equal(
-    html.match(/sourceFileId:payload\.fileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/gu)?.length,
+    html.match(/sourceFileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/gu)?.length,
     1,
   );
   assert.equal(
-    html.match(/sourceFileId:payload\.fileId,sourceImageDownloadUrl,semanticTarget:target/gu)?.length,
+    html.match(/sourceFileId,sourceImageDownloadUrl,semanticTarget:target/gu)?.length,
     1,
   );
+});
+
+test("the semantic SAM runtime preserves the hydrated source file id when a bridge payload omits it", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const start = script.indexOf('semanticTargetSubmit?.addEventListener("click"');
+  const end = script.indexOf("\nnew MutationObserver", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const semanticTargetSubmit = {
+    disabled: false,
+    addEventListener(_event, handler) {
+      this.handler = handler;
+    },
+  };
+  const payload = {
+    sessionId: "session:semantic-runtime",
+    prepared: { candidateSetIdentity: `sha256:${"a".repeat(64)}` },
+    perceptionAppCapability: `pvh-app:${"b".repeat(32)}`,
+    sourceImageDownloadUrl: "https://files.example.test/semantic-runtime.png",
+  };
+  const state = {
+    payload,
+    imageLoadFileId: "file-semantic-runtime",
+    activePayloadIdentity: "payload:semantic-runtime",
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+  };
+  const sourceFileIdStart = script.indexOf("function perceptionSourceFileId(");
+  const sourceFileIdEnd = script.indexOf("\nasync function perceptionDownloadUrl", sourceFileIdStart);
+  assert.notEqual(sourceFileIdStart, -1);
+  assert.notEqual(sourceFileIdEnd, -1);
+  const perceptionSourceFileId = new Function(
+    "state",
+    `"use strict";${script.slice(sourceFileIdStart, sourceFileIdEnd)};return perceptionSourceFileId;`,
+  )(state);
+  const calls = [];
+  new Function(
+    "semanticTargetSubmit",
+    "state",
+    "selectedSemanticTarget",
+    "multiPerceptionStartBlocked",
+    "perceptionSourceFileId",
+    "perceptionDownloadUrl",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "callAppTool",
+    "findPerceptionJob",
+    "pollPerceptionJob",
+    "setReviewLocked",
+    "recordReviewEvent",
+    "refreshSemanticTargetUi",
+    "statusNode",
+    "perceptionClientFailureIsCurrent",
+    "terminalizePerceptionClientFailure",
+    "multiPerceptionReviewLocked",
+    "START_PERCEPTION_TOOL",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    `"use strict";${script.slice(start, end)}`,
+  )(
+    semanticTargetSubmit,
+    state,
+    () => "person",
+    () => false,
+    perceptionSourceFileId,
+    async () => "https://files.example.test/semantic-runtime-fresh.png",
+    () => ({}),
+    () => 0,
+    async (_name, args) => {
+      calls.push(args);
+      return {};
+    },
+    () => ({ state: "pending", jobId: "job:semantic-runtime", expiresAt: "2026-08-05T00:00:01.000Z" }),
+    async () => {},
+    () => {},
+    () => {},
+    () => {},
+    { textContent: "" },
+    () => true,
+    () => "failed",
+    () => false,
+    PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+    1_000,
+  );
+
+  await semanticTargetSubmit.handler();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].sourceFileId, "file-semantic-runtime");
+  assert.equal(calls[0].semanticTarget, "person");
 });
 
 test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
@@ -2624,8 +2715,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     /normalizedReviewedCandidates=reviewedCandidates\?\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
-  assert.match(html, /sourceFileId:payload\.fileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
-  assert.match(html, /sourceFileId:payload\.fileId,sourceImageDownloadUrl,semanticTarget:target/u);
+  assert.match(html, /sourceFileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
+  assert.match(html, /sourceFileId,sourceImageDownloadUrl,semanticTarget:target/u);
   assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=160/u);
   assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
   assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=345000/u);
@@ -2678,8 +2769,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,statusTimeoutMs\)/u);
   assert.equal(
-    html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:payload\.fileId\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
-    3,
+    html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:perceptionSourceFileId\(payload\)\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
+    1,
   );
   assert.match(
     html,
