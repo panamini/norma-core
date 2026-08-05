@@ -317,6 +317,7 @@ test("ten-candidate preparation issues a capability only for the bounded A/B wor
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl:
         "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
       label: "client label ignored",
@@ -1020,7 +1021,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
     sessionTtlMs: 1_000,
   });
   const downloadedUrls = [];
-  const jobs = perceptionJobs(downloadedUrls);
+  const providerPrompts = [];
+  const jobs = perceptionJobs(downloadedUrls, providerPrompts);
   const owner = await connect({ service, jobs, subjectId: "subject:owner" });
   let other;
   try {
@@ -1046,12 +1048,37 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.match(privatePayload.perceptionAppCapability, /^pvh-app:/u);
     assert.deepEqual(privatePayload.perceptionModes, ["legacy", "two-object-spatial"]);
 
+    for (const sourceImageDownloadUrl of [
+      "http://files.example.test/insecure.png",
+      "https://user:password@files.example.test/credentialed.png",
+      "https://files.example.test/fragment.png#fragment",
+    ]) {
+      const unsafeUrl = await owner.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+        arguments: {
+          sessionId: privatePayload.sessionId,
+          candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+          appCapability: privatePayload.perceptionAppCapability,
+          sourceFileId: privatePayload.fileId,
+          sourceImageDownloadUrl,
+          prompt: {
+            points: [],
+            box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
+          },
+          label: "Zone SAM",
+          role: "structural-region",
+        },
+      });
+      assert.equal(unsafeUrl.isError, true, sourceImageDownloadUrl);
+    }
+
     const unauthorized = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: "x".repeat(32),
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/fresh-unauthorized.png",
         prompt: {
           points: [],
@@ -1064,13 +1091,14 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(unauthorized.isError, true);
     assert.doesNotMatch(JSON.stringify(unauthorized), /private-signed-image|pvh-app:/u);
 
-    const mismatchedSource = await owner.client.callTool({
+    const wrongSourceFile = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=fresh",
+        sourceFileId: "file-different",
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=different-file&sig=fresh",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -1079,8 +1107,11 @@ test("app-only perception enforces capability, subject, session, and explicit co
         role: "structural-region",
       },
     });
-    assert.equal(mismatchedSource.isError, true);
+    assert.equal(wrongSourceFile.isError, true);
+    assert.match(JSON.stringify(wrongSourceFile), /source file identity/u);
+    await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(downloadedUrls, []);
+    assert.deepEqual(providerPrompts, []);
 
     const started = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
@@ -1088,7 +1119,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
+        sourceFileId: privatePayload.fileId,
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -1136,7 +1168,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.visualInterpretationSource, "hybrid");
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.imageBytesObservedByNorma, true);
     assert.deepEqual(downloadedUrls, [
-      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
+      "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
     ]);
     assert.equal("acceptedGeometry" in status.structuredContent, false);
     assert.equal("result" in status.structuredContent, false);
@@ -1399,6 +1431,7 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget,
       label: "client label ignored",
@@ -1622,6 +1655,7 @@ test("a late ready object-A status can be rolled back idempotently before the ol
         sessionId: payload0.sessionId,
         candidateSetIdentity: payload0.prepared.candidateSetIdentity,
         appCapability: payload0.perceptionAppCapability,
+        sourceFileId: payload0.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
         semanticTarget: "person",
         label: "Objet A",
@@ -1770,6 +1804,7 @@ test("a retained late object-A result terminalizes the server workflow before re
         sessionId: payload0.sessionId,
         candidateSetIdentity: payload0.prepared.candidateSetIdentity,
         appCapability: payload0.perceptionAppCapability,
+        sourceFileId: payload0.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
         semanticTarget: "person",
         label: "Objet A",
@@ -1872,6 +1907,7 @@ test("a timed-out object A terminalizes its bound workflow without Core or provi
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget: "person",
       label: "Objet A",
@@ -1966,6 +2002,7 @@ test("an expired object A terminalizes its bound workflow and releases review wi
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget: "person",
       label: "Objet A",
@@ -2082,6 +2119,7 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=terminal",
       semanticTarget,
       label: "ignored",
@@ -2358,6 +2396,7 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
     sessionId: initial.sessionId,
     candidateSetIdentity: preparedA.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
+    sourceFileId: "file-capacity-a",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2408,6 +2447,7 @@ test("a bound two-object provider job keeps its session alive through the advert
     sessionId: initial.sessionId,
     candidateSetIdentity: initial.prepared.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
+    sourceFileId: "file-bound-job-lifetime",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2458,6 +2498,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=invalid",
         semanticTarget: "   ",
         label: "Cible sémantique",
@@ -2473,6 +2514,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=listed",
         semanticTarget: "person, batiment, porte",
         label: "Cible sémantique",
@@ -2488,6 +2530,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=both",
         prompt: { points: [], box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 } },
         semanticTarget: "person",
@@ -2504,7 +2547,8 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=semantic",
+        sourceFileId: "file-different",
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=different-file&sig=semantic",
         semanticTarget: "person",
         label: "Cible sémantique",
         role: "primary-subject",
@@ -2519,7 +2563,8 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=semantic",
+        sourceFileId: privatePayload.fileId,
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=semantic",
         semanticTarget: "  yellow   school bus  ",
         label: "Cible sémantique",
         role: "primary-subject",
@@ -2553,6 +2598,18 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
   }
 });
 
+test("the widget binds both SAM start modes to the prepared file id", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.equal(
+    html.match(/sourceFileId:payload\.fileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/gu)?.length,
+    1,
+  );
+  assert.equal(
+    html.match(/sourceFileId:payload\.fileId,sourceImageDownloadUrl,semanticTarget:target/gu)?.length,
+    1,
+  );
+});
+
 test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /Proposer le masque SAM 3/u);
@@ -2567,7 +2624,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     /normalizedReviewedCandidates=reviewedCandidates\?\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
-  assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
+  assert.match(html, /sourceFileId:payload\.fileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
+  assert.match(html, /sourceFileId:payload\.fileId,sourceImageDownloadUrl,semanticTarget:target/u);
   assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=160/u);
   assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
   assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=345000/u);
