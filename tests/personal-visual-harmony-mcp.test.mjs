@@ -988,6 +988,10 @@ test("widget unwraps nested SAM perception job responses from the host bridge", 
     findPerceptionJob({ result: { structuredContent: pending } }),
     pending,
   );
+  assert.deepEqual(
+    findPerceptionJob(JSON.stringify({ result: { structuredContent: pending } })),
+    pending,
+  );
   assert.equal(
     findPerceptionJob({ result: { structuredContent: { state: "pending" } } }),
     null,
