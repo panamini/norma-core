@@ -6446,7 +6446,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v12.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v13.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -6469,6 +6470,16 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v9.html");
     assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
+    for (const legacyUri of [
+      "ui://widget/norma-personal-visual-harmony-v10.html",
+      "ui://widget/norma-personal-visual-harmony-v11.html",
+      "ui://widget/norma-personal-visual-harmony-v12.html",
+    ]) {
+      const legacyResource = await connected.client.readResource({ uri: legacyUri });
+      assert.equal(legacyResource.contents[0].uri, legacyUri);
+      assert.equal(legacyResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+      assert.equal(legacyResource.contents[0].text, resource.contents[0].text);
+    }
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
