@@ -7234,6 +7234,7 @@ async function runWidgetImageHydrationScenario({
       : { sourceImageDownloadUrl: payloadDownloadUrl },
   });
   let pixelUiUpdates = 0;
+  let perceptionUiUpdates = 0;
   let confirmUpdates = 0;
   const semanticUiRefreshes = [];
   const requestedFileIds = [];
@@ -7280,6 +7281,7 @@ async function runWidgetImageHydrationScenario({
       statusNode: { textContent: "" },
       refreshSemanticTargetUi() { semanticUiRefreshes.push(state.imageReady); },
       updatePixelProposalUi() { pixelUiUpdates += 1; },
+      updatePerceptionUi() { perceptionUiUpdates += 1; },
       updateMeasurementRatioControls() { confirmUpdates += 1; },
     },
   );
@@ -7294,6 +7296,7 @@ async function runWidgetImageHydrationScenario({
     failure,
     maxActiveLoads,
     pixelUiUpdates,
+    perceptionUiUpdates,
     confirmUpdates,
     semanticUiRefreshes,
   };
@@ -7316,6 +7319,7 @@ test("widget image hydration loads a fresh file URL before the payload URL", asy
   assert.deepEqual(result.retryDelays, []);
   assert.equal(result.maxActiveLoads, 1);
   assert.equal(result.pixelUiUpdates, 1);
+  assert.equal(result.perceptionUiUpdates, 1);
   assert.equal(result.confirmUpdates, 1);
   assert.deepEqual(result.semanticUiRefreshes, [true]);
 });
