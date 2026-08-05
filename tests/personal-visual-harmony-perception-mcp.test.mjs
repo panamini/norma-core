@@ -3294,6 +3294,7 @@ test("widget rejects a ready status response that resolves after its client dead
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3311,6 +3312,7 @@ test("widget rejects a ready status response that resolves after its client dead
       await new Promise((resolve) => setTimeout(resolve, 20));
       return { structuredContent: { state: "ready" } };
     },
+    () => null,
     () => null,
     () => null,
     async () => {
@@ -3373,6 +3375,7 @@ test("widget rolls back a ready two-object status that resolves after cutoff bef
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3411,6 +3414,7 @@ test("widget rolls back a ready two-object status that resolves after cutoff bef
         _meta: { normaPersonalVisualHarmony: readyPayload },
       };
     },
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     (payload) => payload.prepared.candidateSetIdentity === originalPayload.prepared.candidateSetIdentity
       ? "payload:original"
@@ -3535,6 +3539,7 @@ test("widget reconciles an applied two-object status discarded by the production
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3551,6 +3556,7 @@ test("widget reconciles an applied two-object status discarded by the production
     5,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     callAppTool,
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     () => "payload:original",
     async () => {
@@ -3637,6 +3643,7 @@ test("widget rejects a ready status whose application completes after its client
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3674,6 +3681,7 @@ test("widget rejects a ready status whose application completes after its client
         },
       };
     },
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     (payload) => payload.id,
     async () => {

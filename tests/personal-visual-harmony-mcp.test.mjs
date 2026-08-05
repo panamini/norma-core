@@ -1510,6 +1510,95 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   assert.match(guidedGoalStatus.textContent, /exactement deux rectangles/u);
 });
 
+test("generic V1 spatial plans use the public candidate-set binding", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:generic-v1-spatial-plan",
+  }));
+  try {
+    const candidateValues = [
+      {
+        id: "generic-rectangle-a",
+        label: "Rectangle A",
+        role: "structural-region",
+        reason: "Rectangle explicitement revu",
+        x: 0.1,
+        y: 0.2,
+        width: 0.3,
+        height: 0.5,
+      },
+      {
+        id: "generic-rectangle-b",
+        label: "Rectangle B",
+        role: "structural-region",
+        reason: "Rectangle explicitement revu",
+        x: 0.55,
+        y: 0.1,
+        width: 0.35,
+        height: 0.6,
+      },
+    ];
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/generic-v1-spatial-plan",
+          file_id: "file-generic-v1-spatial-plan",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    assert.equal(widgetMeta.prepared.sourceImageReferenceIdentity, undefined);
+    const sourceIdentity = widgetMeta.prepared.candidateSetIdentity;
+    const plan = createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity,
+      sourcePixelWidth: 1_200,
+      sourcePixelHeight: 800,
+      candidates: widgetMeta.prepared.candidates,
+      selectedRectangleCandidateIds: candidateValues.map(({ id }) => id),
+      expressions: [
+        {
+          kind: "extent",
+          owner: { kind: "rectangle", candidateId: "generic-rectangle-a" },
+          extent: "width",
+        },
+        {
+          kind: "extent",
+          owner: { kind: "rectangle", candidateId: "generic-rectangle-b" },
+          extent: "height",
+        },
+      ],
+    });
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: candidateValues.map(({ id }) => id),
+        sourcePixelWidth: 1_200,
+        sourcePixelHeight: 800,
+        declaredSpatialMeasurementPlan: plan,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          fileId: "file-generic-v1-spatial-plan",
+          sourceImageMediaType: "image/png",
+          candidates: candidateValues,
+        },
+      },
+    });
+    assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
+    assert.equal(confirmed.structuredContent.mode, "declared_spatial_measurements");
+    assert.equal(
+      confirmed.structuredContent.declaredSpatialMeasurementConfirmation.sourceIdentity,
+      sourceIdentity,
+    );
+  } finally {
+    await connected.close();
+  }
+});
+
 test("widget confirmation sends the ready declared spatial plan through the app-only MCP tool", async () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /function createWidgetDeclaredSpatialMeasurementPlan/u);
@@ -6437,7 +6526,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v15.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v16.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
