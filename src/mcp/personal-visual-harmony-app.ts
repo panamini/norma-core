@@ -78,7 +78,7 @@ export const PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL =
 export const PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL =
   "norma.getPersonalVisualHarmonyPerceptionStatusV1";
 export const PERSONAL_VISUAL_HARMONY_WIDGET_URI =
-  "ui://widget/norma-personal-visual-harmony-v11.html";
+  "ui://widget/norma-personal-visual-harmony-v12.html";
 // The ChatGPT connector still consumes the OpenAI Apps SDK contract: the
 // widget uses window.openai and the tool advertises openai/outputTemplate.
 // Keep the legacy Skybridge MIME type until the widget is migrated to the
@@ -90,6 +90,7 @@ const PERSONAL_VISUAL_HARMONY_WIDGET_LEGACY_URIS = new Set([
   "ui://widget/norma-personal-visual-harmony-v8.html",
   "ui://widget/norma-personal-visual-harmony-v9.html",
   "ui://widget/norma-personal-visual-harmony-v10.html",
+  "ui://widget/norma-personal-visual-harmony-v11.html",
 ]);
 const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
   prefersBorder: true,
@@ -4347,7 +4348,7 @@ trianglePerpendicularBisectorToggle.addEventListener("click",()=>toggleConstruct
 triangleAngleBisectorToggle.addEventListener("click",()=>toggleConstructionLayer("triangle-angle-bisectors"));
 triangleAltitudeToggle.addEventListener("click",()=>toggleConstructionLayer("triangle-altitudes"));
 triangleCentroidToggle.addEventListener("click",()=>toggleConstructionLayer("triangle-centroids"));
-function findPayload(value,depth=0){if(depth>7||value===null||typeof value!=="object")return null;if(value.normaPersonalVisualHarmony&&typeof value.normaPersonalVisualHarmony==="object")return value.normaPersonalVisualHarmony;for(const entry of Object.values(value)){const found=findPayload(entry,depth+1);if(found)return found}return null}
+function findPayload(value,depth=0){if(depth>7||value===null)return null;if(typeof value==="string"){const trimmed=value.trim();if(trimmed.length===0||trimmed.length>100000||(trimmed[0]!=="{"&&trimmed[0]!=="["))return null;try{return findPayload(JSON.parse(trimmed),depth+1)}catch{return null}}if(typeof value!=="object")return null;if(value.normaPersonalVisualHarmony&&typeof value.normaPersonalVisualHarmony==="object")return value.normaPersonalVisualHarmony;for(const entry of Object.values(value)){const found=findPayload(entry,depth+1);if(found)return found}return null}
 function findPerceptionJob(value,depth=0){const debugRoot=typeof document!=="undefined"?document.documentElement:null;if(depth===0&&debugRoot){debugRoot.setAttribute("data-debug-perception-root-type",typeof value);debugRoot.setAttribute("data-debug-perception-root-keys",value&&typeof value==="object"?Object.keys(value).slice(0,20).join(","):"")}if(depth>7||value===null)return null;if(typeof value==="string"){const trimmed=value.trim();if(trimmed.length===0||trimmed.length>100000||(trimmed[0]!=="{"&&trimmed[0]!=="["))return null;try{return findPerceptionJob(JSON.parse(trimmed),depth+1)}catch{return null}}if(typeof value!=="object")return null;if(typeof value.jobId==="string"&&typeof value.state==="string"&&typeof value.expiresAt==="string"){if(debugRoot){debugRoot.setAttribute("data-debug-perception-job-depth",String(depth));debugRoot.setAttribute("data-debug-perception-job-keys",Object.keys(value).slice(0,20).join(","))}return value}for(const entry of Object.values(value)){const found=findPerceptionJob(entry,depth+1);if(found)return found}return null}
 function findCompletedResult(value,depth=0){if(depth>7||value===null||typeof value!=="object")return null;if(value.status==="completed"&&value.coreRun===true&&isStoredIdentity(value.canonicalResultIdentity))return value;for(const entry of Object.values(value)){const found=findCompletedResult(entry,depth+1);if(found)return found}return null}
 function findDeclaredSpatialConfirmation(value,depth=0){if(depth>7||value===null||typeof value!=="object")return null;const confirmation=value.declaredSpatialMeasurementConfirmation;if(value.status==="completed"&&value.coreRun===true&&confirmation?.contractId==="norma.declared-spatial-measurement-confirmation@1"&&isStoredIdentity(confirmation.confirmationIdentity))return confirmation;if(confirmation?.contractId==="norma.declared-spatial-measurement-confirmation@1"&&isStoredIdentity(confirmation.confirmationIdentity))return confirmation;for(const entry of Object.values(value)){const found=findDeclaredSpatialConfirmation(entry,depth+1);if(found)return found}return null}

@@ -1001,6 +1001,23 @@ test("widget unwraps nested SAM perception job responses from the host bridge", 
   assert.ok((html.match(/job=findPerceptionJob\(response\)/gu) ?? []).length >= 2);
 });
 
+test("widget unwraps nested and serialized SAM payload responses from the host bridge", () => {
+  const findPayload = widgetScriptFunction(
+    "findPayload",
+    "function findPerceptionJob",
+    {},
+  );
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-sam-ready",
+    prepared: { candidateSetIdentity: "sha256:payload" },
+  };
+  const nested = { result: { _meta: { normaPersonalVisualHarmony: payload } } };
+
+  assert.deepEqual(findPayload(nested), payload);
+  assert.deepEqual(findPayload(JSON.stringify(nested)), payload);
+});
+
 test("widget reuses the image URL already validated before starting SAM", async () => {
   let refreshCalls = 0;
   const perceptionDownloadUrl = widgetScriptFunction(
@@ -6429,7 +6446,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v11.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v12.html");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
