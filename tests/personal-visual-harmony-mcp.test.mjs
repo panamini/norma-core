@@ -1001,6 +1001,37 @@ test("widget unwraps nested SAM perception job responses from the host bridge", 
   assert.ok((html.match(/job=findPerceptionJob\(response\)/gu) ?? []).length >= 2);
 });
 
+test("widget reuses the image URL already validated before starting SAM", async () => {
+  let refreshCalls = 0;
+  const perceptionDownloadUrl = widgetScriptFunction(
+    "perceptionDownloadUrl",
+    "function rpcRequest",
+    {
+      state: { downloadUrl: "https://files.example/validated" },
+      validPerceptionDownloadUrl: (value) => (
+        typeof value === "string" && value.startsWith("https://")
+      ),
+      window: {
+        openai: {
+          getFileDownloadUrl: async () => {
+            refreshCalls += 1;
+            return { downloadUrl: "https://files.example/refreshed" };
+          },
+        },
+      },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionClientError: (code, message) => ({ code, message }),
+    },
+  );
+
+  assert.equal(
+    await perceptionDownloadUrl({ fileId: "file-validated" }),
+    "https://files.example/validated",
+  );
+  assert.equal(refreshCalls, 0);
+});
+
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /\.shell\{container-type:inline-size\}/u);
@@ -2586,6 +2617,7 @@ test("explicit spatial recovery prepares one fresh V1 session without SAM or Cor
     "async function callConfirmation",
     {
       state: { activePayloadIdentity: "active-terminal-payload" },
+      perceptionDownloadUrl: async () => "https://files.example.test/fresh-spatial-recovery",
       window: {
         openai: {
           getFileDownloadUrl: async () => ({
@@ -2632,6 +2664,7 @@ test("spatial recovery rejects a fresh V1 payload without the SAM A/B capability
     "async function callConfirmation",
     {
       state: { activePayloadIdentity: "active-terminal-payload" },
+      perceptionDownloadUrl: async () => "https://files.example.test/fresh-spatial-recovery",
       window: {
         openai: {
           getFileDownloadUrl: async () => ({
