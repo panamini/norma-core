@@ -972,6 +972,31 @@ test("semantic target input rejects a comma-separated list before submission", (
   assert.match(html, /Saisissez une seule cible courte/u);
 });
 
+test("widget unwraps nested SAM perception job responses from the host bridge", () => {
+  const findPerceptionJob = widgetScriptFunction(
+    "findPerceptionJob",
+    "function findCompletedResult",
+    {},
+  );
+  const pending = {
+    jobId: "pvh-perception:test",
+    state: "pending",
+    expiresAt: "2026-08-05T12:00:00.000Z",
+  };
+
+  assert.deepEqual(
+    findPerceptionJob({ result: { structuredContent: pending } }),
+    pending,
+  );
+  assert.equal(
+    findPerceptionJob({ result: { structuredContent: { state: "pending" } } }),
+    null,
+  );
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.ok((html.match(/job=findPerceptionJob\(response\)/gu) ?? []).length >= 2);
+});
+
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /\.shell\{container-type:inline-size\}/u);
