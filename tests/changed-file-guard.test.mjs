@@ -41,6 +41,7 @@ import {
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonySamAbRecoveryChangedFiles,
+  personalVisualHarmonySamAbSourceBindingChangedFiles,
   personalVisualHarmonySamGenericCapabilityChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,
@@ -1114,13 +1115,16 @@ test("personal visual harmony SAM cold-start async allowlist is exact and reject
     personalVisualHarmonySam3ColdStartAsyncChangedFiles,
   );
   for (const missingFile of personalVisualHarmonySam3ColdStartAsyncChangedFiles) {
-    assert.equal(
-      sharedExactApprovedChangedFiles(
-        personalVisualHarmonySam3ColdStartAsyncChangedFiles.filter((file) => file !== missingFile),
+    const withoutMissing = sharedExactApprovedChangedFiles(
+      personalVisualHarmonySam3ColdStartAsyncChangedFiles.filter(
+        (file) => file !== missingFile,
       ),
-      null,
-      missingFile,
     );
+    if (missingFile === "tests/personal-visual-harmony-mcp.test.mjs") {
+      assert.deepEqual(withoutMissing, personalVisualHarmonySamAbSourceBindingChangedFiles);
+    } else {
+      assert.equal(withoutMissing, null, missingFile);
+    }
   }
   for (const forbidden of [
     "package.json",
@@ -1201,6 +1205,56 @@ test("personal visual harmony SAM A/B recovery and manual fallback allowlist is 
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonySamAbRecoveryChangedFiles,
+        forbidden,
+      ]),
+      null,
+      forbidden,
+    );
+  }
+});
+
+test("personal visual harmony SAM A/B source binding allowlist is exact and rejects scope drift", () => {
+  const actualScopedChangedFiles = [
+    "docs/howto/modal-sam3-perception-sandbox.md",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
+    "src/personal-visual-harmony-segmentation.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/personal-visual-harmony-perception-jobs.test.mjs",
+    "tests/personal-visual-harmony-perception-mcp.test.mjs",
+    "tests/personal-visual-harmony-segmentation.test.mjs",
+  ].sort();
+  assert.deepEqual(
+    personalVisualHarmonySamAbSourceBindingChangedFiles,
+    actualScopedChangedFiles,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(actualScopedChangedFiles),
+    actualScopedChangedFiles,
+  );
+  for (const missingFile of actualScopedChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        actualScopedChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbidden of [
+    "package.json",
+    "package-lock.json",
+    "bin/norma-core-remote-mcp-http.mjs",
+    "deploy/modal/server.py",
+    "web-lab/private-web-lab.js",
+    "../norma-core-wiki/wiki/hot.md",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...actualScopedChangedFiles,
         forbidden,
       ]),
       null,

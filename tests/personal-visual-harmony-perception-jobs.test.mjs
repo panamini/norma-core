@@ -161,6 +161,7 @@ function startInput(prepared = automaticCandidateSet()) {
     sessionId: "session:test",
     sourceFileId: "file-perception-test",
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    expectedSourceImageContentIdentity: sourceImageContentIdentity,
     sourceImageUrl: "https://files.example.test/image.png",
     sourceImageMediaType: "image/png",
     prompt,
@@ -184,6 +185,90 @@ function deferred() {
   const promise = new Promise((settle) => { resolve = settle; });
   return { promise, resolve };
 }
+
+test("prepare-time source captures share the bounded source-image reservation", async (t) => {
+  const fetchGates = [];
+  let activeFetches = 0;
+  let maxActiveFetches = 0;
+  const service = createService({
+    capacity: 32,
+    fetch: async () => {
+      activeFetches += 1;
+      maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+      const gate = deferred();
+      fetchGates.push(gate);
+      try {
+        await gate.promise;
+        return new Response(sourceBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(sourceBytes.byteLength),
+          },
+        });
+      } finally {
+        activeFetches -= 1;
+      }
+    },
+  });
+  t.after(() => fetchGates.forEach((gate) => gate.resolve()));
+
+  const captures = Array.from({ length: 5 }, (_, index) => service.captureSourceImageIdentity({
+    sourceImageUrl: `https://files.example.test/image-${String(index + 1)}.png`,
+    sourceImageMediaType: "image/png",
+  }));
+
+  await waitForCondition(() => fetchGates.length === 4);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(fetchGates.length, 4);
+  assert.equal(maxActiveFetches, 4);
+
+  fetchGates[0].resolve();
+  await waitForCondition(() => fetchGates.length === 5);
+  assert.equal(maxActiveFetches, 4);
+  fetchGates.slice(1).forEach((gate) => gate.resolve());
+
+  const identities = await Promise.all(captures);
+  assert.equal(identities.length, 5);
+  assert.equal(identities.every((identity) => (
+    identity.sourceImageContentIdentity === sourceImageContentIdentity
+  )), true);
+});
+
+test("a failed prepare-time source capture releases its reservation", async () => {
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    fetch: async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) throw new Error("fixture download failed");
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const failed = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/fail.png",
+    sourceImageMediaType: "image/png",
+  });
+  const next = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/next.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  await assert.rejects(failed);
+  assert.deepEqual(await next, {
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+  });
+  assert.equal(fetchCalls, 2);
+});
 
 async function waitForCondition(predicate) {
   for (let attempt = 0; attempt < 100; attempt += 1) {

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   extractPersonalVisualHarmonyObjectRectangleV1,
   extractPersonalVisualHarmonyManualPerceptionV1,
@@ -123,11 +123,17 @@ interface StoredJob {
   errorCode: string | null;
 }
 
-interface QueuedSourceImageReservation {
-  readonly job: StoredJob;
-  readonly executionDeadlineAtMs: number;
-  readonly resolve: (result: SourceImageReservationResult) => void;
-}
+type QueuedSourceImageReservation =
+  | {
+      readonly kind: "capture";
+      readonly resolve: (result: SourceImageReservationResult) => void;
+    }
+  | {
+      readonly kind: "job";
+      readonly job: StoredJob;
+      readonly executionDeadlineAtMs: number;
+      readonly resolve: (result: SourceImageReservationResult) => void;
+    };
 
 interface SourceImageReservationResult {
   readonly acquired: boolean;
@@ -214,11 +220,40 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#createJobId = options.createJobId ?? (() => `pvh-perception:${randomUUID()}`);
   }
 
+  public async captureSourceImageIdentity(input: {
+    readonly sourceImageUrl: string;
+    readonly sourceImageMediaType?: string | null;
+  }): Promise<{
+    readonly sourceImageContentIdentity: string;
+    readonly sourceImageMediaType: string;
+  }> {
+    const reservation = await this.#acquireSourceImageReservation();
+    try {
+      const source = await downloadPersonalVisualHarmonySourceImage({
+        url: input.sourceImageUrl,
+        allowedOrigins: this.#allowedSourceImageOrigins,
+        ...(input.sourceImageMediaType === undefined
+          ? {}
+          : { expectedMediaType: input.sourceImageMediaType }),
+        maxBytes: this.#maxSourceImageBytes,
+        deadlineMs: this.#downloadDeadlineMs,
+        ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
+      });
+      return {
+        sourceImageContentIdentity: contentIdentityForBytes(source.bytes),
+        sourceImageMediaType: source.mediaType,
+      };
+    } finally {
+      if (reservation.acquired) this.#releaseSourceImageReservation();
+    }
+  }
+
   public start(input: {
     readonly subjectId: string;
     readonly sessionId: string;
     readonly sourceFileId: string;
     readonly sourceImageReferenceIdentity: string;
+    readonly expectedSourceImageContentIdentity: string;
     readonly sourceImageUrl: string;
     readonly sourceImageMediaType?: string | null;
     readonly prompt: PersonalVisualHarmonyPerceptionPromptV1 | PersonalVisualHarmonySegmentationPromptV1;
@@ -236,6 +271,10 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     const sourceImageReferenceIdentity = requireSha256(
       input.sourceImageReferenceIdentity,
       "sourceImageReferenceIdentity",
+    );
+    const expectedSourceImageContentIdentity = requireSha256(
+      input.expectedSourceImageContentIdentity,
+      "expectedSourceImageContentIdentity",
     );
     requireBoundedString(input.sourceImageUrl, "sourceImageUrl", 1, 8_192);
     const label = requireBoundedString(input.label, "label", 1, 60);
@@ -327,6 +366,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#jobs.set(jobId, job);
     void this.#execute(job, {
       sourceFileId,
+      expectedSourceImageContentIdentity,
       sourceImageUrl: input.sourceImageUrl,
       ...(input.sourceImageMediaType === undefined
         ? {}
@@ -371,6 +411,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     job: StoredJob,
     input: {
       readonly sourceFileId: string;
+      readonly expectedSourceImageContentIdentity: string;
       readonly sourceImageUrl: string;
       readonly sourceImageMediaType?: string | null;
       readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
@@ -409,6 +450,12 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         deadlineMs: this.#downloadDeadlineMs,
         ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
       });
+      if (contentIdentityForBytes(source.bytes) !== input.expectedSourceImageContentIdentity) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image content does not match the prepared file capability.",
+        );
+      }
       if (job.state !== "pending") return;
       if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
@@ -549,12 +596,19 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     }
   }
 
+  #acquireSourceImageReservation(): Promise<SourceImageReservationResult>;
   #acquireSourceImageReservation(
     job: StoredJob,
     executionDeadlineAtMs: number,
+  ): Promise<SourceImageReservationResult>;
+  #acquireSourceImageReservation(
+    job?: StoredJob,
+    executionDeadlineAtMs?: number,
   ): Promise<SourceImageReservationResult> {
-    if (job.state !== "pending"
-      || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) {
+    if (job !== undefined
+      && executionDeadlineAtMs !== undefined
+      && (job.state !== "pending"
+        || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs))) {
       return Promise.resolve({ acquired: false, waited: false });
     }
     if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
@@ -562,7 +616,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       return Promise.resolve({ acquired: true, waited: false });
     }
     return new Promise((resolve) => {
-      this.#sourceImageReservationQueue.push({ job, executionDeadlineAtMs, resolve });
+      this.#sourceImageReservationQueue.push(job === undefined
+        ? { kind: "capture", resolve }
+        : { kind: "job", job, executionDeadlineAtMs: executionDeadlineAtMs!, resolve });
     });
   }
 
@@ -570,8 +626,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#activeSourceImageReservations -= 1;
     while (this.#sourceImageReservationQueue.length > 0) {
       const next = this.#sourceImageReservationQueue.shift()!;
-      if (next.job.state !== "pending"
-        || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs)) {
+      if (next.kind === "job"
+        && (next.job.state !== "pending"
+          || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs))) {
         next.resolve({ acquired: false, waited: true });
         continue;
       }
@@ -608,7 +665,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   }
 
   #cancelQueuedSourceImageReservation(job: StoredJob): void {
-    const queuedIndex = this.#sourceImageReservationQueue.findIndex((entry) => entry.job === job);
+    const queuedIndex = this.#sourceImageReservationQueue.findIndex(
+      (entry) => entry.kind === "job" && entry.job === job,
+    );
     if (queuedIndex < 0) return;
     const [queued] = this.#sourceImageReservationQueue.splice(queuedIndex, 1);
     queued?.resolve({ acquired: false, waited: true });
@@ -719,6 +778,10 @@ function requireSha256(value: string, field: string): string {
     throw new PersonalVisualHarmonyPerceptionJobError("request_invalid", `${field} is invalid.`);
   }
   return value;
+}
+
+function contentIdentityForBytes(bytes: Uint8Array): string {
+  return `sha256:${createHash("sha256").update(bytes as unknown as string).digest("hex")}`;
 }
 
 function requireBoundedString(

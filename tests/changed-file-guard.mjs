@@ -764,6 +764,20 @@ export const personalVisualHarmonySamAbRecoveryChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());
 
+// Extends the bounded SAM A/B recovery slice so a fresh regional download is
+// accepted only when its bytes match the server-captured prepare identity.
+export const personalVisualHarmonySamAbSourceBindingChangedFiles = Object.freeze([
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-segmentation.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  "tests/personal-visual-harmony-segmentation.test.mjs",
+].sort());
+
 // Covers the bounded fresh generic-V1 capability gate that enters the SAM A/B
 // workflow without changing provider or Core confirmation code.
 export const personalVisualHarmonySamGenericCapabilityChangedFiles = Object.freeze([
@@ -2235,6 +2249,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonySamAbRecoveryChangedFiles,
+  personalVisualHarmonySamAbSourceBindingChangedFiles,
   personalVisualHarmonySamGenericCapabilityChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,

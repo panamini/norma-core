@@ -1696,6 +1696,7 @@ interface PersonalVisualHarmonySessionV1 {
   readonly subjectId?: string;
   readonly fileId: string;
   readonly sourceImageDownloadUrl?: string;
+  readonly sourceImageContentIdentity?: string;
   readonly perceptionAppCapability?: string;
   perceptionBaseCandidateSetIdentity?: string;
   reviewedCandidateSetSourceIdentity?: string;
@@ -1838,6 +1839,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly subjectId?: string;
     readonly fileId: string;
     readonly sourceImageDownloadUrl?: string;
+    readonly sourceImageContentIdentity?: string;
     readonly enablePerception?: boolean;
     readonly mediaType?: string | null;
     readonly candidates: readonly PersonalVisualHarmonyCandidateInputV1[];
@@ -1853,6 +1855,10 @@ export class PersonalVisualHarmonySessionServiceV1 {
     const now = this.now();
     this.pruneExpired(now);
     this.requireCapacity();
+    if (input.sourceImageContentIdentity !== undefined
+      && !SHA256_PATTERN.test(input.sourceImageContentIdentity)) {
+      throw new Error("Prepared source image content identity is invalid.");
+    }
     const prepared = preparePersonalVisualHarmonyCandidateSetV1({
       sourceFileId: input.fileId,
       ...(input.mediaType === undefined ? {} : { sourceImageMediaType: input.mediaType }),
@@ -1881,6 +1887,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
       perceptionModes.push("two-object-spatial");
     }
     const perceptionAppCapability = perceptionModes.length > 0
+      && input.sourceImageContentIdentity !== undefined
       ? `pvh-app:${randomUUID()}`
       : undefined;
     this.sessions.set(sessionId, {
@@ -1890,6 +1897,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
       ...(input.sourceImageDownloadUrl === undefined || perceptionAppCapability === undefined
         ? {}
         : { sourceImageDownloadUrl: input.sourceImageDownloadUrl }),
+      ...(input.sourceImageContentIdentity === undefined || perceptionAppCapability === undefined
+        ? {}
+        : { sourceImageContentIdentity: input.sourceImageContentIdentity }),
       ...(perceptionAppCapability === undefined
         ? {}
         : { perceptionAppCapability }),
@@ -1913,11 +1923,13 @@ export class PersonalVisualHarmonySessionServiceV1 {
     readonly candidateSetIdentity: string;
     readonly appCapability: string;
     readonly sourceFileId: string;
+    readonly sourceImageDownloadUrl: string;
     readonly workflowMode?: "two-object-spatial";
     readonly guidedAnalysisGoal?: "compare-two-lengths";
   }): {
     readonly fileId: string;
     readonly sourceImageDownloadUrl: string;
+    readonly sourceImageContentIdentity: string;
     readonly prepared: PersonalVisualHarmonyPreparedCandidateSet;
     readonly attemptOrdinal?: 1 | 2;
   } {
@@ -1936,7 +1948,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
     }
     if (session.perceptionAppCapability === undefined
       || session.perceptionAppCapability !== input.appCapability
-      || session.sourceImageDownloadUrl === undefined) {
+      || session.sourceImageDownloadUrl === undefined
+      || session.sourceImageContentIdentity === undefined) {
       throw new Error("Visual harmony perception app authorization is missing or invalid.");
     }
     if (session.confirmation !== undefined
@@ -1953,7 +1966,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
       }
       return {
         fileId: session.fileId,
-        sourceImageDownloadUrl: session.sourceImageDownloadUrl,
+        sourceImageDownloadUrl: input.sourceImageDownloadUrl,
+        sourceImageContentIdentity: session.sourceImageContentIdentity,
         prepared: structuredClone(session.prepared),
       };
     }
@@ -2004,7 +2018,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
     workflow.reservedOrdinal = attemptOrdinal;
     return {
       fileId: session.fileId,
-      sourceImageDownloadUrl: session.sourceImageDownloadUrl,
+      sourceImageDownloadUrl: input.sourceImageDownloadUrl,
+      sourceImageContentIdentity: session.sourceImageContentIdentity,
       prepared: structuredClone(session.prepared),
       attemptOrdinal,
     };
@@ -3352,18 +3367,36 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
         },
       },
     },
-    ({ image, candidates, triangleConstructionRequests }) => {
+    async ({ image, candidates, triangleConstructionRequests }) => {
       const observationAttemptId = observationAttemptSequence += 1;
       const handlerEnteredAtMs = now();
       const handlerStartedAtMonotonicMs = monotonicNow();
+      const normalizedCandidates = asPersonalVisualHarmonyCandidates(candidates);
+      const captureEligible = perceptionEnabled
+        && normalizedCandidates.length <= PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES
+        && (image.mime_type === undefined
+          || (PERSONAL_VISUAL_HARMONY_SEGMENTATION_SOURCE_MEDIA_TYPES as readonly string[])
+            .includes(image.mime_type));
+      const sourceCapture = captureEligible
+        ? await perceptionJobs.captureSourceImageIdentity({
+            sourceImageUrl: image.download_url,
+            ...(image.mime_type === undefined ? {} : { sourceImageMediaType: image.mime_type }),
+          })
+        : undefined;
       const prepared = service.prepare({
         ...(subjectId === undefined ? {} : { subjectId }),
         fileId: image.file_id,
-        ...(perceptionEnabled
-          ? { sourceImageDownloadUrl: image.download_url, enablePerception: true }
-          : {}),
-        ...(image.mime_type === undefined ? {} : { mediaType: image.mime_type }),
-        candidates: asPersonalVisualHarmonyCandidates(candidates),
+        ...(sourceCapture === undefined
+          ? {}
+          : {
+              sourceImageDownloadUrl: image.download_url,
+              sourceImageContentIdentity: sourceCapture.sourceImageContentIdentity,
+            }),
+        ...(perceptionEnabled ? { enablePerception: true } : {}),
+        ...((image.mime_type ?? sourceCapture?.sourceImageMediaType) === undefined
+          ? {}
+          : { mediaType: image.mime_type ?? sourceCapture!.sourceImageMediaType }),
+        candidates: normalizedCandidates,
         ...(triangleConstructionRequests === undefined
           ? {}
           : { triangleConstructionRequests: asTriangleConstructionRequests(triangleConstructionRequests) }),
@@ -3451,6 +3484,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           candidateSetIdentity,
           appCapability,
           sourceFileId,
+          sourceImageDownloadUrl,
           ...(workflowMode === undefined ? {} : { workflowMode }),
           ...(guidedAnalysisGoal === undefined ? {} : { guidedAnalysisGoal }),
         });
@@ -3487,7 +3521,8 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             sessionId,
             sourceFileId: context.fileId,
             sourceImageReferenceIdentity: context.prepared.sourceImageReferenceIdentity,
-            sourceImageUrl: sourceImageDownloadUrl,
+            expectedSourceImageContentIdentity: context.sourceImageContentIdentity,
+            sourceImageUrl: context.sourceImageDownloadUrl,
             sourceImageMediaType: context.prepared.sourceImageMediaType,
             prompt: requestedPrompt,
             label,

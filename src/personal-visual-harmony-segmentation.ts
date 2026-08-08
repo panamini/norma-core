@@ -531,10 +531,10 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
     && deadlineMs === undefined) {
     return null;
   }
-  if (!endpointUrl || !modalKey || !modalSecret || !sourceImageAllowedOrigins) {
+  if (!endpointUrl || !modalKey || !modalSecret) {
     throw new PersonalVisualHarmonySegmentationError(
       "configuration_invalid",
-      "Segmentation configuration must provide the endpoint, proxy credentials, and trusted source origins.",
+      "Segmentation configuration must provide the endpoint and proxy credentials.",
     );
   }
   return new PersonalVisualHarmonySegmentationClient({
@@ -549,13 +549,13 @@ export function personalVisualHarmonySourceImageAllowedOriginsFromEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): readonly string[] {
   const value = env.NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS?.trim();
-  if (!value) {
-    throw new PersonalVisualHarmonySegmentationError(
-      "configuration_invalid",
-      "Segmentation configuration requires trusted source image origins.",
-    );
-  }
-  return normalizeAllowedSourceOrigins(value.split(","));
+  const configuredOrigins = value
+    ? value.split(",").filter((origin) => origin.trim() !== OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN)
+    : [];
+  return normalizeAllowedSourceOrigins([
+    OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN,
+    ...configuredOrigins,
+  ]);
 }
 
 function validateProviderResponse(
@@ -894,7 +894,12 @@ function validateSourceUrl(value: string, allowedOrigins: readonly string[]): UR
       || url.username
       || url.password
       || url.hash
-      || !normalizedAllowedOrigins.includes(url.origin)) {
+      || !normalizedAllowedOrigins.some((allowedOrigin) => (
+        allowedOrigin === url.origin
+        || (allowedOrigin === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN
+          && url.port === ""
+          && url.hostname.endsWith(OPENAI_TEMPORARY_FILE_HOST_SUFFIX))
+      ))) {
       throw new Error();
     }
     return url;
@@ -905,6 +910,9 @@ function validateSourceUrl(value: string, allowedOrigins: readonly string[]): UR
     );
   }
 }
+
+const OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN = "https://*.oaiusercontent.com";
+const OPENAI_TEMPORARY_FILE_HOST_SUFFIX = ".oaiusercontent.com";
 
 function validateMediaType(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -928,10 +936,15 @@ function normalizeAllowedSourceOrigins(values: readonly string[]): readonly stri
   }
   const origins = values.map((value) => {
     try {
-      const url = new URL(value.trim());
+      const normalizedValue = value.trim();
+      if (normalizedValue === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN) {
+        return normalizedValue;
+      }
+      const url = new URL(normalizedValue);
       if (url.protocol !== "https:"
         || url.username
         || url.password
+        || url.hostname.includes("*")
         || url.pathname !== "/"
         || url.search
         || url.hash) {

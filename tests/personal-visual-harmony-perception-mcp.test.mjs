@@ -1179,6 +1179,13 @@ test("app-only perception enforces capability, subject, session, and explicit co
       assert.deepEqual(tool._meta.ui.visibility, ["app"]);
       assert.equal(Object.hasOwn(tool._meta.ui, "resourceUri"), false);
     }
+    const startTool = listed.tools.find(
+      ({ name }) => name === PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+    );
+    assert.equal(
+      Object.hasOwn(startTool.inputSchema.properties, "sourceImageDownloadUrl"),
+      true,
+    );
 
     const prepared = await prepare(owner.client);
     assert.equal(prepared.structuredContent.coreRun, false);
@@ -1253,7 +1260,9 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(wrongSourceFile.isError, true);
     assert.match(JSON.stringify(wrongSourceFile), /source file identity/u);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(downloadedUrls, []);
+    assert.deepEqual(downloadedUrls, [
+      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=old&se=2026-07-27",
+    ]);
     assert.deepEqual(providerPrompts, []);
 
     const started = await owner.client.callTool({
@@ -1311,6 +1320,7 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.visualInterpretationSource, "hybrid");
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.imageBytesObservedByNorma, true);
     assert.deepEqual(downloadedUrls, [
+      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=old&se=2026-07-27",
       "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
     ]);
     assert.equal("acceptedGeometry" in status.structuredContent, false);
@@ -1461,6 +1471,89 @@ test("app-only perception enforces capability, subject, session, and explicit co
   } finally {
     await other?.close();
     await owner.close();
+  }
+});
+
+test("a fresh widget URL must match the server-captured prepare bytes before Modal", async () => {
+  const prepareUrl = "https://files.example.test/prepared.png?sig=old";
+  const freshUrl = "https://files.example.test/prepared.png?sig=fresh";
+  const downloads = [];
+  let providerCalls = 0;
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment(input) {
+        providerCalls += 1;
+        return successfulProvider().segment(input);
+      },
+    },
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async (url) => {
+      downloads.push(String(url));
+      const bytes = String(url) === prepareUrl
+        ? sourceBytes
+        : new Uint8Array([9, 8, 7, 6]);
+      return new Response(bytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(bytes.byteLength),
+        },
+      });
+    },
+    createJobId: () => "job:source-substitution",
+  });
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs,
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: prepareUrl,
+          file_id: "file-source-substitution",
+          mime_type: "image/png",
+        },
+        candidates: candidates(),
+      },
+    });
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        sourceFileId: payload.fileId,
+        sourceImageDownloadUrl: freshUrl,
+        prompt: { points: [], box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 } },
+        label: "Zone SAM",
+        role: "structural-region",
+      },
+    });
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      status = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload.sessionId,
+          candidateSetIdentity: payload.prepared.candidateSetIdentity,
+          appCapability: payload.perceptionAppCapability,
+          jobId: started.structuredContent.jobId,
+        },
+      });
+      if (status.structuredContent?.state !== "pending") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(status.structuredContent.state, "failed");
+    assert.equal(status.structuredContent.errorCode, "source_download_failed");
+    assert.equal(status.structuredContent.coreRun, false);
+    assert.deepEqual(downloads, [prepareUrl, freshUrl]);
+    assert.equal(providerCalls, 0);
+  } finally {
+    await connected.close();
   }
 });
 
@@ -2485,6 +2578,7 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
     subjectId: "subject:owner",
     fileId: "file-capacity-a",
     sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a",
+    sourceImageContentIdentity,
     enablePerception: true,
     mediaType: "image/png",
     candidates: candidates(),
@@ -2540,6 +2634,7 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
     candidateSetIdentity: preparedA.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
     sourceFileId: "file-capacity-a",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a&sig=fresh",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2581,6 +2676,7 @@ test("a bound two-object provider job keeps its session alive through the advert
     subjectId: "subject:owner",
     fileId: "file-bound-job-lifetime",
     sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime",
+    sourceImageContentIdentity,
     enablePerception: true,
     mediaType: "image/png",
     candidates: candidates(),
@@ -2591,6 +2687,7 @@ test("a bound two-object provider job keeps its session alive through the advert
     candidateSetIdentity: initial.prepared.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
     sourceFileId: "file-bound-job-lifetime",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime&sig=fresh",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2732,7 +2829,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
     assert.equal(status.isError, undefined, JSON.stringify(status));
     assert.equal(status.structuredContent.state, "ready");
     assert.deepEqual(prompts, [{ kind: "text", text: "yellow school bus" }]);
-    assert.equal(downloadedUrls.length, 1);
+    assert.equal(downloadedUrls.length, 2);
     assert.equal(status.structuredContent.coreRun, false);
     assert.equal(status.structuredContent.explicitSelectionConfirmationRequired, true);
     assert.equal("result" in status.structuredContent, false);
