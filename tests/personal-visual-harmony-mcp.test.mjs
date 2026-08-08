@@ -1018,6 +1018,31 @@ test("widget unwraps nested and serialized SAM payload responses from the host b
   assert.deepEqual(findPayload(JSON.stringify(nested)), payload);
 });
 
+test("widget prefers the canonical complete MCP result over a partial compatibility result", () => {
+  const findPayload = widgetScriptFunction(
+    "findPayload",
+    "function findPerceptionJob",
+    {},
+  );
+  const partialPayload = {
+    stage: "confirmation_required",
+    fileId: "file-sam-partial",
+    prepared: { candidateSetIdentity: "sha256:partial" },
+  };
+  const completePayload = {
+    ...partialPayload,
+    perceptionAppCapability: `pvh-app:${"a".repeat(32)}`,
+    perceptionModes: ["legacy", "two-object-spatial"],
+  };
+  const metadataEnvelope = {
+    status: "success",
+    call_tool_result: { structuredContent: { normaPersonalVisualHarmony: partialPayload } },
+    mcp_tool_result: { _meta: { normaPersonalVisualHarmony: completePayload } },
+  };
+
+  assert.deepEqual(findPayload(metadataEnvelope), completePayload);
+});
+
 test("widget reuses the image URL already validated before starting SAM", async () => {
   let refreshCalls = 0;
   const perceptionDownloadUrl = widgetScriptFunction(
