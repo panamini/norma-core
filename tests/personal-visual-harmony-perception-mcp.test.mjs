@@ -177,6 +177,27 @@ function perceptionJobs(downloadedUrls, prompts) {
   });
 }
 
+test("prepare keeps the manual review available when optional source capture fails", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: new InMemoryPersonalVisualHarmonyPerceptionJobService({
+      provider: successfulProvider(),
+      allowedSourceImageOrigins: ["https://files.example.test"],
+      fetch: async () => { throw new Error("temporary source unavailable"); },
+    }),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await prepare(connected.client);
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    assert.equal(prepared.structuredContent.coreRun, false);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.perceptionAppCapability, undefined);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.perceptionModes, undefined);
+  } finally {
+    await connected.close();
+  }
+});
+
 async function connect({ service, jobs, subjectId }) {
   const server = createPersonalVisualHarmonyMcpServerV1({
     service,
@@ -491,6 +512,43 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
   assert.match(
     html,
     /state\.measurementRatioEnabled=state\.manualSpatialFallback\|\|freshBoundSpatial\|\|/u,
+  );
+});
+
+test("widget rebuilds a reviewed spatial plan against the effective prepared identity", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const helperStart = script.indexOf("async function rebuildReviewedSpatialPlan(");
+  const helperEnd = script.indexOf("\nfunction", helperStart + 1);
+  assert.notEqual(helperStart, -1);
+  assert.notEqual(helperEnd, -1);
+  const rebuildReviewedSpatialPlan = new Function(
+    "createWidgetDeclaredSpatialMeasurementPlan",
+    `"use strict";${script.slice(helperStart, helperEnd)};return rebuildReviewedSpatialPlan;`,
+  )(async (input) => input);
+  const input = {
+    sourceIdentity: `sha256:${"a".repeat(64)}`,
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+    rectangleCandidates: [],
+    selectedRectangleCandidateIds: ["a", "b"],
+    expressions: [],
+  };
+
+  assert.equal(
+    (await rebuildReviewedSpatialPlan(input, {
+      contractVersion: 1,
+      candidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    })).sourceIdentity,
+    `sha256:${"b".repeat(64)}`,
+  );
+  assert.equal(
+    (await rebuildReviewedSpatialPlan(input, {
+      contractVersion: 3,
+      sourceImageContentIdentity: `sha256:${"c".repeat(64)}`,
+    })).sourceIdentity,
+    `sha256:${"c".repeat(64)}`,
   );
 });
 
@@ -2850,10 +2908,31 @@ test("the widget binds both SAM start modes to the prepared file id", () => {
   );
 });
 
-test("SAM job envelopes survive an app bridge that omits structuredContent", async () => {
+test("pending SAM job envelopes survive an app bridge that omits structuredContent", async (t) => {
+  let releaseProvider;
+  const providerGate = new Promise((resolve) => { releaseProvider = resolve; });
+  const terminalProvider = successfulProvider();
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment(input) {
+        await providerGate;
+        return terminalProvider.segment(input);
+      },
+    },
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        "content-length": String(sourceBytes.byteLength),
+      },
+    }),
+    createJobId: () => "job:mcp-pending-envelope-test",
+  });
+  t.after(() => releaseProvider());
   const connected = await connect({
     service: new PersonalVisualHarmonySessionServiceV1(),
-    jobs: perceptionJobs(),
+    jobs,
     subjectId: "subject:owner",
   });
   try {
@@ -2874,7 +2953,7 @@ test("SAM job envelopes survive an app bridge that omits structuredContent", asy
     });
     assert.equal(started.isError, undefined, JSON.stringify(started));
     assert.deepEqual(
-      started._meta.normaPersonalVisualHarmony.perceptionJob,
+      started._meta.normaPersonalVisualHarmonyPerceptionJob,
       started.structuredContent,
     );
 
@@ -2901,8 +2980,9 @@ test("SAM job envelopes survive an app bridge that omits structuredContent", asy
       },
     });
     assert.equal(status.isError, undefined, JSON.stringify(status));
+    assert.equal(status.structuredContent.state, "pending");
     assert.deepEqual(
-      status._meta.normaPersonalVisualHarmony.perceptionJob,
+      status._meta.normaPersonalVisualHarmonyPerceptionJob,
       status.structuredContent,
     );
     assert.deepEqual(

@@ -39,6 +39,7 @@ export const PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION = 9
 
 // Keep cold-start source retention to four default maximum-size images, independent of job capacity.
 const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_RETAINED_SOURCE_IMAGE_BYTES = 48 * 1024 * 1024;
+const MIN_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_DOWNLOAD_DEADLINE_MS = 500;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -230,14 +231,23 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     readonly sourceImageContentIdentity: string;
     readonly sourceImageMediaType: string;
   }> {
-    const reservation = await this.#acquireCaptureSourceImageReservation(
-      this.#now() + this.#downloadDeadlineMs,
-    );
+    const deadlineAtMs = this.#now() + this.#downloadDeadlineMs;
+    const reservation = await this.#acquireCaptureSourceImageReservation(deadlineAtMs);
     try {
       if (!reservation.acquired) {
         throw new PersonalVisualHarmonySegmentationError(
           "source_download_failed",
           "Source image capture capacity is unavailable.",
+        );
+      }
+      const remainingDownloadDeadlineMs = reservation.waited
+        ? deadlineAtMs - this.#now()
+        : this.#downloadDeadlineMs;
+      if (remainingDownloadDeadlineMs
+        < MIN_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_DOWNLOAD_DEADLINE_MS) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image capture deadline expired.",
         );
       }
       const source = await downloadPersonalVisualHarmonySourceImage({
@@ -247,7 +257,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
           ? {}
           : { expectedMediaType: input.sourceImageMediaType }),
         maxBytes: this.#maxSourceImageBytes,
-        deadlineMs: this.#downloadDeadlineMs,
+        deadlineMs: remainingDownloadDeadlineMs,
         ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
       });
       return {

@@ -270,6 +270,39 @@ test("a failed prepare-time source capture releases its reservation", async () =
   assert.equal(fetchCalls, 2);
 });
 
+test("an immediately reserved source capture keeps its full download deadline", async () => {
+  let fetchCalls = 0;
+  let now = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 500,
+    now: () => now,
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const capture = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/immediate.png",
+    sourceImageMediaType: "image/png",
+  });
+  now = 1;
+
+  assert.deepEqual(await capture, {
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+  });
+  assert.equal(fetchCalls, 1);
+});
+
 test("a queued prepare-time source capture does not start after its download deadline", async () => {
   let fetchCalls = 0;
   const service = createService({
@@ -309,6 +342,61 @@ test("a queued prepare-time source capture does not start after its download dea
   assert.equal(activeResult.status, "rejected");
   assert.equal(queuedResult.status, "rejected");
   assert.equal(fetchCalls, 1);
+});
+
+test("a queued prepare-time source capture spends only its remaining download budget", async (t) => {
+  const activeFetchGate = deferred();
+  let fetchCalls = 0;
+  let now = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 1_000,
+    now: () => now,
+    fetch: async (_url, init) => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) {
+        await activeFetchGate.promise;
+        return new Response(sourceBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(sourceBytes.byteLength),
+          },
+        });
+      }
+      return new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        const rejectOnAbort = () => reject(signal?.reason ?? new Error("download aborted"));
+        if (signal?.aborted) {
+          rejectOnAbort();
+          return;
+        }
+        signal?.addEventListener("abort", rejectOnAbort, { once: true });
+      });
+    },
+  });
+  t.after(() => activeFetchGate.resolve());
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  await waitForCondition(() => fetchCalls === 1);
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  now = 400;
+  const releasedAtMs = Date.now();
+  activeFetchGate.resolve();
+  await active;
+  await assert.rejects(queued, (error) => error?.code === "source_download_failed");
+  const elapsedAfterReleaseMs = Date.now() - releasedAtMs;
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(elapsedAfterReleaseMs < 850, true);
 });
 
 test("prepare-time source capture queue rejects work beyond bounded service capacity", async (t) => {
