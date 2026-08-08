@@ -810,7 +810,10 @@ function remoteMcpLogTool(body: unknown): RemoteMcpLogEvent["tool"] {
 }
 
 function remoteMcpAdmissionKind(body: unknown): RemoteMcpAdmissionKind {
-  if (!isRecord(body) || body.method !== "tools/call" || !isRecord(body.params)) {
+  if (!isRecord(body) || body.method !== "tools/call") {
+    return "non_action";
+  }
+  if (!isRecord(body.params)) {
     return "action";
   }
   return body.params.name === PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL

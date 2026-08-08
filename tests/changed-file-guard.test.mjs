@@ -85,6 +85,7 @@ import {
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
+  statelessMcpScaffoldingQuotaFixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
@@ -215,6 +216,39 @@ import {
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
   assert.deepEqual(sharedExactApprovedChangedFiles(r7StructuredAnalyzeHardeningChangedFiles), r7StructuredAnalyzeHardeningChangedFiles);
+});
+
+test("stateless MCP scaffolding quota fix is an exact runtime-only set", () => {
+  const literalChangedFiles = [
+    "src/mcp/remote-http-server.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/mcp-remote-http-runtime.test.mjs",
+  ].sort();
+  assert.deepEqual(statelessMcpScaffoldingQuotaFixChangedFiles, literalChangedFiles);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(literalChangedFiles),
+    literalChangedFiles,
+  );
+  for (const missingFile of literalChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(literalChangedFiles.filter((file) => file !== missingFile)),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbiddenFile of [
+    "src/mcp/remote-http-limits.ts",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
+    "src/personal-visual-harmony-segmentation.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...literalChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
 });
 
 test("PR257 performance truth harness is an exact provider-free scoped set", () => {
