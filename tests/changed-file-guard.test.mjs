@@ -61,6 +61,7 @@ import {
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalReadinessChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
@@ -86,6 +87,7 @@ import {
   personalVisualHarmonyTruthSyncChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   statelessMcpScaffoldingQuotaFixChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
@@ -249,6 +251,23 @@ test("stateless MCP scaffolding quota fix is an exact runtime-only set", () => {
       forbiddenFile,
     );
   }
+});
+
+test("stacked stateless quota fix plus Modal readiness is an exact set", () => {
+  assert.deepEqual(
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+    [
+      "deploy/modal/readiness.py",
+      "deploy/modal/server.py",
+      "deploy/modal/test_readiness.py",
+      "docs/howto/modal-sam3-perception-sandbox.md",
+      ...statelessMcpScaffoldingQuotaFixChangedFiles,
+    ].sort(),
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles),
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  );
 });
 
 test("PR257 performance truth harness is an exact provider-free scoped set", () => {
@@ -887,6 +906,39 @@ test("SAM 3 Modal perception allowlist is exact and rejects deployment scope dri
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonySam3ModalPerceptionChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("SAM 3 Modal readiness allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySam3ModalReadinessChangedFiles),
+    personalVisualHarmonySam3ModalReadinessChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySam3ModalReadinessChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonySam3ModalReadinessChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of [
+    "deploy/modal/secrets.env",
+    "package.json",
+    "src/personal-visual-harmony-segmentation.ts",
+    "tests/personal-visual-harmony-segmentation.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySam3ModalReadinessChangedFiles,
         extra,
       ]),
       null,
@@ -4615,6 +4667,18 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonySam3ModalPerceptionChangedFiles,
   );
+  const isPersonalVisualHarmonySam3ModalReadinessSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonySam3ModalReadinessChangedFiles,
+  );
+  const isStatelessMcpScaffoldingQuotaFixSet = isExactChangedFileSet(
+    changedFiles,
+    statelessMcpScaffoldingQuotaFixChangedFiles,
+  );
+  const isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet = isExactChangedFileSet(
+    changedFiles,
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  );
   const isPersonalVisualHarmonySemanticTargetToolboxSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonySemanticTargetToolboxChangedFiles,
@@ -4673,6 +4737,9 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   );
   const isPersonalVisualHarmonyHybridPerceptionSet = isPersonalVisualHarmonySam3ModalPerceptionSet
+    || isPersonalVisualHarmonySam3ModalReadinessSet
+    || isStatelessMcpScaffoldingQuotaFixSet
+    || isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet
     || isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyHybridPerceptionChangedFiles,
@@ -4947,7 +5014,13 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       : isPersonalVisualHarmonyMcpAppResourceMetadataSet
       ? personalVisualHarmonyMcpAppResourceMetadataChangedFiles
       : isPersonalVisualHarmonyHybridPerceptionSet
-      ? (isPersonalVisualHarmonySam3ModalPerceptionSet
+      ? (isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet
+          ? statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles
+          : isStatelessMcpScaffoldingQuotaFixSet
+          ? statelessMcpScaffoldingQuotaFixChangedFiles
+          : isPersonalVisualHarmonySam3ModalReadinessSet
+          ? personalVisualHarmonySam3ModalReadinessChangedFiles
+          : isPersonalVisualHarmonySam3ModalPerceptionSet
           ? personalVisualHarmonySam3ModalPerceptionChangedFiles
           : personalVisualHarmonyHybridPerceptionChangedFiles)
       : isPersonalVisualHarmonyObservabilitySet

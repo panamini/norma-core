@@ -608,6 +608,15 @@ export const personalVisualHarmonySam3ModalPerceptionChangedFiles = Object.freez
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
+export const personalVisualHarmonySam3ModalReadinessChangedFiles = Object.freeze([
+  "deploy/modal/readiness.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_readiness.py",
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
 export const personalVisualHarmonySemanticTargetToolboxChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-perception-jobs.ts",
@@ -1064,6 +1073,14 @@ export const statelessMcpScaffoldingQuotaFixChangedFiles = Object.freeze([
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/mcp-remote-http-runtime.test.mjs",
+].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles = Object.freeze([
+  "deploy/modal/readiness.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_readiness.py",
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  ...statelessMcpScaffoldingQuotaFixChangedFiles,
 ].sort());
 
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
@@ -2272,6 +2289,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalReadinessChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
@@ -2314,6 +2332,7 @@ const sharedExactApprovedChangedFileSets = [
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   statelessMcpScaffoldingQuotaFixChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,

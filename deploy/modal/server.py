@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -29,8 +30,11 @@ from contract import (
     ready_response,
     validate_request,
 )
+from readiness import ModelReadiness
 
 _INFERENCE_LOCK = threading.Lock()
+_READINESS = ModelReadiness()
+_LOGGER = logging.getLogger("norma.sam3")
 _MODEL = None
 _PROCESSOR = None
 _INTERACTIVE_PREDICTOR = None
@@ -38,36 +42,54 @@ _INTERACTIVE_PREDICTOR = None
 
 def _load_model_once() -> None:
     global _MODEL, _PROCESSOR, _INTERACTIVE_PREDICTOR
-    if _MODEL is not None:
+    if not _READINESS.begin_loading():
         return
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is required")
-    checkpoint_path = hf_hub_download(
-        repo_id=MODEL_REPO_ID,
-        filename=MODEL_FILENAME,
-        revision=MODEL_REVISION,
-        token=token,
-    )
-    model = build_sam3_image_model(
-        checkpoint_path=checkpoint_path,
-        load_from_HF=False,
-        device="cuda",
-        eval_mode=True,
-        enable_segmentation=True,
-        enable_inst_interactivity=True,
-        compile=False,
-    )
+    try:
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            raise RuntimeError("HF_TOKEN is required")
+        checkpoint_path = hf_hub_download(
+            repo_id=MODEL_REPO_ID,
+            filename=MODEL_FILENAME,
+            revision=MODEL_REVISION,
+            token=token,
+        )
+        model = build_sam3_image_model(
+            checkpoint_path=checkpoint_path,
+            load_from_HF=False,
+            device="cuda",
+            eval_mode=True,
+            enable_segmentation=True,
+            enable_inst_interactivity=True,
+            compile=False,
+        )
+        processor = Sam3Processor(model)
+        interactive_predictor = model.inst_interactive_predictor
+        if interactive_predictor is None:
+            raise RuntimeError("SAM 3 interactive image predictor is unavailable")
+    except Exception as error:
+        _READINESS.mark_failed()
+        _LOGGER.error(
+            "sam3_model_load_failed error_type=%s",
+            type(error).__name__,
+        )
+        return
+
+    # Publish the complete inference bundle together. /readyz cannot report
+    # ready while any request dependency is still missing.
     _MODEL = model
-    _PROCESSOR = Sam3Processor(model)
-    _INTERACTIVE_PREDICTOR = model.inst_interactive_predictor
-    if _INTERACTIVE_PREDICTOR is None:
-        raise RuntimeError("SAM 3 interactive image predictor is unavailable")
+    _PROCESSOR = processor
+    _INTERACTIVE_PREDICTOR = interactive_predictor
+    _READINESS.mark_ready()
 
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
-    _load_model_once()
+    threading.Thread(
+        target=_load_model_once,
+        name="sam3-model-loader",
+        daemon=True,
+    ).start()
     yield
 
 
@@ -87,12 +109,18 @@ async def healthz() -> dict[str, str]:
 
 @app.get("/readyz")
 async def readyz() -> JSONResponse:
-    status = 200 if _MODEL is not None else 503
-    return JSONResponse({"status": "ready" if status == 200 else "starting"}, status_code=status)
+    readiness = _READINESS.status()
+    if readiness == "ready":
+        return JSONResponse({"status": "ready"}, status_code=200)
+    if readiness == "failed":
+        return JSONResponse({"status": "unavailable"}, status_code=500)
+    return JSONResponse({"status": "starting"}, status_code=503)
 
 
 @app.post("/")
 async def segment(request: Request) -> JSONResponse:
+    if _READINESS.status() != "ready":
+        return JSONResponse({"error": "provider_unavailable"}, status_code=503)
     try:
         payload = validate_request(await _read_bounded_json(request))
         image = _decode_bounded_image(
