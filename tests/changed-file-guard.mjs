@@ -1059,6 +1059,13 @@ export const permanentRemoteMcpQuotaIsolationHotfixChangedFiles = Object.freeze(
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
 ].sort());
 
+export const statelessMcpScaffoldingQuotaFixChangedFiles = Object.freeze([
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+].sort());
+
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/REMOTE_MCP_PRIVATE_BETA_RUNBOOK.md",
@@ -2306,6 +2313,7 @@ const sharedExactApprovedChangedFileSets = [
   personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
+  statelessMcpScaffoldingQuotaFixChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
