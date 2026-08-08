@@ -685,6 +685,26 @@ test("configuration is disabled only when all provider variables are absent", ()
     "https://*.oaiusercontent.com",
     "https://files.example.test",
   ]);
+  const eightConfiguredOrigins = Array.from(
+    { length: 8 },
+    (_, index) => `https://files-${String(index + 1)}.example.test`,
+  );
+  assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+      eightConfiguredOrigins.join(","),
+  }), [
+    "https://*.oaiusercontent.com",
+    ...eightConfiguredOrigins,
+  ]);
+  assert.throws(
+    () => personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+      ...configured,
+      NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+        [...eightConfiguredOrigins, "https://files-9.example.test"].join(","),
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
   for (const invalidPattern of [
     "https://*.com",
     "https://*.example.test",

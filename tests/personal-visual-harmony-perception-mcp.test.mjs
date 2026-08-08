@@ -707,7 +707,7 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
   const state = {
     payload: {
       perceptionRecoveryAvailable: true,
-      prepared: { contractVersion: 1, candidates },
+      prepared: { candidates },
     },
     reviewedCandidates: candidates,
     selected: new Set(["candidate-0", "candidate-1"]),
@@ -765,6 +765,51 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
   applyGuidedAnalysisGoal("compare-two-lengths");
 
   assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+});
+
+test("selecting the second V1 rectangle re-evaluates fresh SAM recovery", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  assert.notEqual(start, -1);
+  const candidates = Array.from({ length: 4 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    activePayloadIdentity: "payload-selection",
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0"]),
+    guidedAnalysisGoal: "compare-two-lengths",
+    manualSpatialFallback: false,
+    spatialRecoveryRunning: false,
+    spatialRecoveryEntryIdentity: null,
+    completed: false,
+    confirming: false,
+  };
+  const calls = [];
+  const startFreshSpatialSessionIfNeeded = new Function(
+    "state",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
+  )(
+    state,
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  startFreshSpatialSessionIfNeeded();
+  state.selected.add("candidate-1");
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+  assert.match(
+    html,
+    /persistSelection\(\);updateConfirm\(\);updateSpatialRecoveryUi\(\);startFreshSpatialSessionIfNeeded\(\)/u,
+  );
 });
 
 test("restored compare-two-lengths V1 pair starts fresh SAM recovery even when the goal did not change", () => {

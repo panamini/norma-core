@@ -446,7 +446,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     },
   ): Promise<void> {
     const executionDeadlineAtMs = this.#now() + this.#executionDeadlineMs;
+    let providerController: AbortController | undefined;
     const executionTimer = setTimeout(() => {
+      providerController?.abort();
       this.#terminalizePendingJob(job, "job_execution_timeout");
     }, this.#executionDeadlineMs);
     let sourceImageReservationAcquired = false;
@@ -483,11 +485,38 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         this.#terminalizePendingJob(job, "job_expired");
         return;
       }
-      const segmentation = await this.#provider.segment({
-        sourceImageBytes: source.bytes,
-        sourceImageMediaType: source.mediaType,
-        prompt: input.prompt,
-      });
+      providerController = new AbortController();
+      const activeProviderController = providerController;
+      let providerDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+      const providerOutcome = await (async () => {
+        try {
+          return await Promise.race([
+            this.#provider.segment({
+              sourceImageBytes: source.bytes,
+              sourceImageMediaType: source.mediaType,
+              prompt: input.prompt,
+              signal: activeProviderController.signal,
+            }).then((segmentation) => ({ kind: "settled" as const, segmentation })),
+            new Promise<{ readonly kind: "deadline" }>((resolve) => {
+              providerDeadlineTimer = setTimeout(
+                () => {
+                  activeProviderController.abort();
+                  resolve({ kind: "deadline" });
+                },
+                Math.max(0, executionDeadlineAtMs - this.#now()),
+              );
+            }),
+          ]);
+        } finally {
+          if (providerDeadlineTimer !== undefined) clearTimeout(providerDeadlineTimer);
+        }
+      })();
+      providerController = undefined;
+      if (providerOutcome.kind === "deadline") {
+        this.#terminalizePendingJob(job, "job_execution_timeout");
+        return;
+      }
+      const { segmentation } = providerOutcome;
       if (job.state !== "pending") return;
       if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
@@ -612,6 +641,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         ? error.code
         : "perception_failed");
     } finally {
+      providerController?.abort();
       if (sourceImageReservationAcquired) this.#releaseSourceImageReservation();
       clearTimeout(executionTimer);
     }

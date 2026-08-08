@@ -101,6 +101,7 @@ export interface PersonalVisualHarmonySegmentationProvider {
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
     readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
+    readonly signal?: AbortSignal;
   }): Promise<PersonalVisualHarmonySegmentationResultV1>;
 }
 
@@ -213,6 +214,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
     readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
+    readonly signal?: AbortSignal;
   }): Promise<PersonalVisualHarmonySegmentationResultV1> {
     if (!(input.sourceImageBytes instanceof Uint8Array)
       || input.sourceImageBytes.byteLength === 0
@@ -234,6 +236,9 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       promptIdentity,
     });
     const controller = new AbortController();
+    const abortFromCaller = (): void => controller.abort();
+    if (input.signal?.aborted) controller.abort();
+    else input.signal?.addEventListener("abort", abortFromCaller, { once: true });
     const deadlineAtMs = this.#now() + this.#deadlineMs;
     const timeout = setTimeout(() => controller.abort(), this.#deadlineMs);
     try {
@@ -338,6 +343,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         "Segmentation failed with a redacted error.",
       );
     } finally {
+      input.signal?.removeEventListener("abort", abortFromCaller);
       clearTimeout(timeout);
     }
   }
@@ -928,7 +934,11 @@ function validateMediaType(value: string): string {
 }
 
 function normalizeAllowedSourceOrigins(values: readonly string[]): readonly string[] {
-  if (!Array.isArray(values) || values.length === 0 || values.length > 8) {
+  const includesBuiltInOpenAiOrigin = Array.isArray(values)
+    && values.some((value) => typeof value === "string"
+      && value.trim() === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN);
+  const maximumOrigins = includesBuiltInOpenAiOrigin ? 9 : 8;
+  if (!Array.isArray(values) || values.length === 0 || values.length > maximumOrigins) {
     throw new PersonalVisualHarmonySegmentationError(
       "configuration_invalid",
       "Trusted source image origins configuration is invalid.",

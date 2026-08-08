@@ -758,6 +758,44 @@ test("a provider that never settles reaches one deterministic terminal failure",
   assert.equal(providerCalls, 1);
 });
 
+test("a timed-out provider releases its shared source-image reservation", async () => {
+  const providerGate = deferred();
+  const successful = successfulProvider();
+  let providerCalls = 0;
+  let providerSignal;
+  const service = createService({
+    capacity: 1,
+    executionDeadlineMs: 50,
+    downloadDeadlineMs: 500,
+    provider: {
+      async segment(input) {
+        providerCalls += 1;
+        providerSignal = input.signal;
+        await providerGate.promise;
+        return successful.segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  service.start(startInput(prepared));
+  await waitForCondition(() => providerCalls === 1);
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  assert.equal(providerSignal?.aborted, true);
+
+  const capture = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/after-timeout.png",
+    sourceImageMediaType: "image/png",
+  });
+  const outcome = await Promise.race([
+    capture.then(() => "captured"),
+    new Promise((resolve) => setTimeout(() => resolve("blocked"), 50)),
+  ]);
+  providerGate.resolve();
+  await capture;
+
+  assert.equal(outcome, "captured");
+});
+
 test("cold-start source-byte retention stays bounded below full job capacity", async (t) => {
   const providerGates = [];
   let releaseImmediately = false;
