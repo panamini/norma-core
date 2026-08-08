@@ -101,6 +101,7 @@ export interface PersonalVisualHarmonySegmentationProvider {
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
     readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
+    readonly signal?: AbortSignal;
   }): Promise<PersonalVisualHarmonySegmentationResultV1>;
 }
 
@@ -213,6 +214,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
     readonly sourceImageBytes: Uint8Array;
     readonly sourceImageMediaType: string;
     readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
+    readonly signal?: AbortSignal;
   }): Promise<PersonalVisualHarmonySegmentationResultV1> {
     if (!(input.sourceImageBytes instanceof Uint8Array)
       || input.sourceImageBytes.byteLength === 0
@@ -234,6 +236,9 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
       promptIdentity,
     });
     const controller = new AbortController();
+    const abortFromCaller = (): void => controller.abort();
+    if (input.signal?.aborted) controller.abort();
+    else input.signal?.addEventListener("abort", abortFromCaller, { once: true });
     const deadlineAtMs = this.#now() + this.#deadlineMs;
     const timeout = setTimeout(() => controller.abort(), this.#deadlineMs);
     try {
@@ -338,6 +343,7 @@ export class PersonalVisualHarmonySegmentationClient implements PersonalVisualHa
         "Segmentation failed with a redacted error.",
       );
     } finally {
+      input.signal?.removeEventListener("abort", abortFromCaller);
       clearTimeout(timeout);
     }
   }
@@ -531,10 +537,10 @@ export function createPersonalVisualHarmonySegmentationClientFromEnv(
     && deadlineMs === undefined) {
     return null;
   }
-  if (!endpointUrl || !modalKey || !modalSecret || !sourceImageAllowedOrigins) {
+  if (!endpointUrl || !modalKey || !modalSecret) {
     throw new PersonalVisualHarmonySegmentationError(
       "configuration_invalid",
-      "Segmentation configuration must provide the endpoint, proxy credentials, and trusted source origins.",
+      "Segmentation configuration must provide the endpoint and proxy credentials.",
     );
   }
   return new PersonalVisualHarmonySegmentationClient({
@@ -549,13 +555,13 @@ export function personalVisualHarmonySourceImageAllowedOriginsFromEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): readonly string[] {
   const value = env.NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS?.trim();
-  if (!value) {
-    throw new PersonalVisualHarmonySegmentationError(
-      "configuration_invalid",
-      "Segmentation configuration requires trusted source image origins.",
-    );
-  }
-  return normalizeAllowedSourceOrigins(value.split(","));
+  const configuredOrigins = value
+    ? value.split(",").filter((origin) => origin.trim() !== OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN)
+    : [];
+  return normalizeAllowedSourceOrigins([
+    OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN,
+    ...configuredOrigins,
+  ]);
 }
 
 function validateProviderResponse(
@@ -894,7 +900,12 @@ function validateSourceUrl(value: string, allowedOrigins: readonly string[]): UR
       || url.username
       || url.password
       || url.hash
-      || !normalizedAllowedOrigins.includes(url.origin)) {
+      || !normalizedAllowedOrigins.some((allowedOrigin) => (
+        allowedOrigin === url.origin
+        || (allowedOrigin === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN
+          && url.port === ""
+          && url.hostname.endsWith(OPENAI_TEMPORARY_FILE_HOST_SUFFIX))
+      ))) {
       throw new Error();
     }
     return url;
@@ -905,6 +916,9 @@ function validateSourceUrl(value: string, allowedOrigins: readonly string[]): UR
     );
   }
 }
+
+const OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN = "https://*.oaiusercontent.com";
+const OPENAI_TEMPORARY_FILE_HOST_SUFFIX = ".oaiusercontent.com";
 
 function validateMediaType(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -920,7 +934,11 @@ function validateMediaType(value: string): string {
 }
 
 function normalizeAllowedSourceOrigins(values: readonly string[]): readonly string[] {
-  if (!Array.isArray(values) || values.length === 0 || values.length > 8) {
+  const includesBuiltInOpenAiOrigin = Array.isArray(values)
+    && values.some((value) => typeof value === "string"
+      && value.trim() === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN);
+  const maximumOrigins = includesBuiltInOpenAiOrigin ? 9 : 8;
+  if (!Array.isArray(values) || values.length === 0 || values.length > maximumOrigins) {
     throw new PersonalVisualHarmonySegmentationError(
       "configuration_invalid",
       "Trusted source image origins configuration is invalid.",
@@ -928,10 +946,15 @@ function normalizeAllowedSourceOrigins(values: readonly string[]): readonly stri
   }
   const origins = values.map((value) => {
     try {
-      const url = new URL(value.trim());
+      const normalizedValue = value.trim();
+      if (normalizedValue === OPENAI_TEMPORARY_FILE_ORIGIN_PATTERN) {
+        return normalizedValue;
+      }
+      const url = new URL(normalizedValue);
       if (url.protocol !== "https:"
         || url.username
         || url.password
+        || url.hostname.includes("*")
         || url.pathname !== "/"
         || url.search
         || url.hash) {

@@ -1,18 +1,5 @@
 # Codex Project Instructions
 
-Reference: RTK.md
-Required reference path: `@/Users/pana/.codex/RTK.md`
-
-<!-- lean-ctx -->
-## lean-ctx
-
-Prefer lean-ctx MCP tools over native equivalents for token savings.
-
-For compression you can rely on regardless of your Codex surface (CLI, Desktop, or Cloud) or Codex version, route shell commands through `ctx_shell` (or `lean-ctx -c "<cmd>"`), file reads through `ctx_read`, and code search through `ctx_search`. Hook-driven auto-compression may also be active, but the MCP/CLI tools are the path that works everywhere; otherwise large outputs such as builds, typechecks, tests, and logs can reach the model uncompressed.
-
-Full rules: `/Users/pana/.codex/LEAN-CTX.md`
-<!-- /lean-ctx -->
-
 ## Project Focus
 
 Treat this repository as `norma-core`, the core Norma codebase.
@@ -55,12 +42,7 @@ Do not mutate `norma-core-wiki` unless the task is explicitly memory/wiki update
 
 ## Shell And Tooling
 
-- `rtk` is mandatory for shell commands.
-- Prefer `rtk rg` and `rtk rg --files` for search.
 - Prefer existing project scripts over ad hoc commands when both are available.
-- If a command must bypass `rtk`, explain why in the final response.
-- Use `ctx_shell`, `ctx_read`, `ctx_search`, and `ctx_tree` when available.
-- If lean-ctx MCP tools are unavailable, use `lean-ctx -c "<cmd>"` for shell commands.
 - Use the narrowest command that can prove or disprove the current hypothesis.
 - Do not run broad or destructive commands unless the task explicitly requires them.
 
@@ -168,6 +150,5 @@ Before pushing a branch, opening a PR, or merging after substantial implementati
 ## Skills
 
 - `@everything-claude-code/skills`
-- `@/Users/pana/.codex/RTK.md`
 
 Use them in ways that support the active Norma Core path and the scope limits above.

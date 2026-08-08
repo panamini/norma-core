@@ -54,6 +54,7 @@ import {
 } from "./remote-http-config.js";
 import type { RemoteMcpRuntimeConfig } from "./remote-http-config.js";
 import { RemoteMcpAdmissionController } from "./remote-http-limits.js";
+import type { RemoteMcpAdmissionKind } from "./remote-http-limits.js";
 import {
   createPostgreSqlSandboxAuthorizationDataAdapter,
   POSTGRESQL_SANDBOX_SETTING_NAMES,
@@ -293,14 +294,8 @@ async function routeRequest(
     return;
   }
 
-  const admission = admissionController.enterAuthenticatedAttempt(access.subjectId);
-  if (!admission.allowed) {
-    sendJson(response, 429, stableError(admission.code, requestId));
-    logEvent(log, requestId, startedAt, 429, admission.code, access, access.scopes, 0, undefined);
-    return;
-  }
-
   const abortController = new AbortController();
+  let releaseAdmission = (): void => {};
   const requestTask = handleAuthenticatedPost(
     config,
     request,
@@ -309,16 +304,20 @@ async function routeRequest(
     access,
     personalVisualHarmonyService,
     personalVisualHarmonyPerceptionJobs,
+    admissionController,
     authorizationDataAdapter,
     log,
     startedAt,
+    (release) => {
+      releaseAdmission = release;
+    },
     abortController.signal,
   );
   try {
     await withRemoteMcpAdmissionDeadline(
       requestTask,
       remainingRequestTime(startedAt),
-      admission.release,
+      () => releaseAdmission(),
       () => {
         abortController.abort();
         if (!request.destroyed) {
@@ -353,12 +352,22 @@ async function handleAuthenticatedPost(
   access: VerifiedRemoteMcpAccess,
   personalVisualHarmonyService: PersonalVisualHarmonySessionServiceV1,
   personalVisualHarmonyPerceptionJobs: InMemoryPersonalVisualHarmonyPerceptionJobService | undefined,
+  admissionController: RemoteMcpAdmissionController,
   authorizationDataAdapter: AuthorizationDataAdapter | undefined,
   log: (event: RemoteMcpLogEvent) => void,
   startedAt: number,
+  setAdmissionRelease: (release: () => void) => void,
   abortSignal: AbortSignal,
 ): Promise<void> {
   assertRemoteMcpNotAborted(abortSignal);
+  const admission = admissionController.enterAuthenticatedAttempt(access.subjectId, "non_action");
+  if (!admission.allowed) {
+    sendJson(response, 429, stableError(admission.code, requestId));
+    logEvent(log, requestId, startedAt, 429, admission.code, access, access.scopes, 0, undefined);
+    return;
+  }
+  setAdmissionRelease(admission.release);
+
   if (!isJsonContentType(request.headers["content-type"])) {
     sendJson(response, 415, stableError("unsupported_media_type", requestId));
     logEvent(log, requestId, startedAt, 415, "unsupported_media_type", access, access.scopes, 0, undefined);
@@ -410,6 +419,15 @@ async function handleAuthenticatedPost(
   }
 
   const tool = remoteMcpLogTool(parsedBody);
+  if (remoteMcpAdmissionKind(parsedBody) === "action") {
+    const actionPromotion = admission.promoteToAction();
+    if (!actionPromotion.allowed) {
+      sendJson(response, 429, stableError(actionPromotion.code, requestId));
+      logEvent(log, requestId, startedAt, 429, actionPromotion.code, access, access.scopes, body.byteLength, protocolVersion, tool);
+      return;
+    }
+  }
+
   const mcpServer = createRequestMcpServer(
     personalVisualHarmonyService,
     access.subjectId,
@@ -789,6 +807,15 @@ function remoteMcpLogTool(body: unknown): RemoteMcpLogEvent["tool"] {
     return name;
   }
   return "mcp";
+}
+
+function remoteMcpAdmissionKind(body: unknown): RemoteMcpAdmissionKind {
+  if (!isRecord(body) || body.method !== "tools/call" || !isRecord(body.params)) {
+    return "action";
+  }
+  return body.params.name === PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL
+    ? "non_action"
+    : "action";
 }
 
 function latencyBucket(duration: number): RemoteMcpLogEvent["latencyBucket"] {

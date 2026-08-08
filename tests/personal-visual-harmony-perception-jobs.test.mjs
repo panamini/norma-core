@@ -161,6 +161,7 @@ function startInput(prepared = automaticCandidateSet()) {
     sessionId: "session:test",
     sourceFileId: "file-perception-test",
     sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    expectedSourceImageContentIdentity: sourceImageContentIdentity,
     sourceImageUrl: "https://files.example.test/image.png",
     sourceImageMediaType: "image/png",
     prompt,
@@ -184,6 +185,270 @@ function deferred() {
   const promise = new Promise((settle) => { resolve = settle; });
   return { promise, resolve };
 }
+
+test("prepare-time source captures share the bounded source-image reservation", async (t) => {
+  const fetchGates = [];
+  let activeFetches = 0;
+  let maxActiveFetches = 0;
+  const service = createService({
+    capacity: 32,
+    fetch: async () => {
+      activeFetches += 1;
+      maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+      const gate = deferred();
+      fetchGates.push(gate);
+      try {
+        await gate.promise;
+        return new Response(sourceBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(sourceBytes.byteLength),
+          },
+        });
+      } finally {
+        activeFetches -= 1;
+      }
+    },
+  });
+  t.after(() => fetchGates.forEach((gate) => gate.resolve()));
+
+  const captures = Array.from({ length: 5 }, (_, index) => service.captureSourceImageIdentity({
+    sourceImageUrl: `https://files.example.test/image-${String(index + 1)}.png`,
+    sourceImageMediaType: "image/png",
+  }));
+
+  await waitForCondition(() => fetchGates.length === 4);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(fetchGates.length, 4);
+  assert.equal(maxActiveFetches, 4);
+
+  fetchGates[0].resolve();
+  await waitForCondition(() => fetchGates.length === 5);
+  assert.equal(maxActiveFetches, 4);
+  fetchGates.slice(1).forEach((gate) => gate.resolve());
+
+  const identities = await Promise.all(captures);
+  assert.equal(identities.length, 5);
+  assert.equal(identities.every((identity) => (
+    identity.sourceImageContentIdentity === sourceImageContentIdentity
+  )), true);
+});
+
+test("a failed prepare-time source capture releases its reservation", async () => {
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    fetch: async () => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) throw new Error("fixture download failed");
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const failed = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/fail.png",
+    sourceImageMediaType: "image/png",
+  });
+  const next = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/next.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  await assert.rejects(failed);
+  assert.deepEqual(await next, {
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+  });
+  assert.equal(fetchCalls, 2);
+});
+
+test("an immediately reserved source capture keeps its full download deadline", async () => {
+  let fetchCalls = 0;
+  let now = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 500,
+    now: () => now,
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const capture = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/immediate.png",
+    sourceImageMediaType: "image/png",
+  });
+  now = 1;
+
+  assert.deepEqual(await capture, {
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+  });
+  assert.equal(fetchCalls, 1);
+});
+
+test("a queued prepare-time source capture does not start after its download deadline", async () => {
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 500,
+    fetch: async (_url, init) => {
+      fetchCalls += 1;
+      await new Promise((resolve, reject) => {
+        const signal = init?.signal;
+        const timeout = setTimeout(resolve, 2_000);
+        signal?.addEventListener("abort", () => {
+          clearTimeout(timeout);
+          reject(signal.reason ?? new Error("aborted"));
+        }, { once: true });
+      });
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  const [activeResult, queuedResult] = await Promise.allSettled([active, queued]);
+  assert.equal(activeResult.status, "rejected");
+  assert.equal(queuedResult.status, "rejected");
+  assert.equal(fetchCalls, 1);
+});
+
+test("a queued prepare-time source capture spends only its remaining download budget", async (t) => {
+  const activeFetchGate = deferred();
+  let fetchCalls = 0;
+  let now = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 1_000,
+    now: () => now,
+    fetch: async (_url, init) => {
+      fetchCalls += 1;
+      if (fetchCalls === 1) {
+        await activeFetchGate.promise;
+        return new Response(sourceBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(sourceBytes.byteLength),
+          },
+        });
+      }
+      return new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        const rejectOnAbort = () => reject(signal?.reason ?? new Error("download aborted"));
+        if (signal?.aborted) {
+          rejectOnAbort();
+          return;
+        }
+        signal?.addEventListener("abort", rejectOnAbort, { once: true });
+      });
+    },
+  });
+  t.after(() => activeFetchGate.resolve());
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  await waitForCondition(() => fetchCalls === 1);
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  now = 400;
+  const releasedAtMs = Date.now();
+  activeFetchGate.resolve();
+  await active;
+  await assert.rejects(queued, (error) => error?.code === "source_download_failed");
+  const elapsedAfterReleaseMs = Date.now() - releasedAtMs;
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(elapsedAfterReleaseMs < 850, true);
+});
+
+test("prepare-time source capture queue rejects work beyond bounded service capacity", async (t) => {
+  const fetchGate = deferred();
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    fetch: async () => {
+      fetchCalls += 1;
+      await fetchGate.promise;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+  t.after(() => fetchGate.resolve());
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  await waitForCondition(() => fetchCalls === 1);
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+  const overflow = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/overflow.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  const overflowResult = await Promise.race([
+    overflow.then(
+      () => ({ status: "fulfilled" }),
+      (error) => ({ status: "rejected", code: error?.code }),
+    ),
+    new Promise((resolve) => setImmediate(() => resolve({ status: "pending" }))),
+  ]);
+  assert.deepEqual(overflowResult, {
+    status: "rejected",
+    code: "source_download_failed",
+  });
+
+  fetchGate.resolve();
+  await Promise.all([active, queued]);
+  assert.equal(fetchCalls, 2);
+});
 
 async function waitForCondition(predicate) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -491,6 +756,44 @@ test("a provider that never settles reaches one deterministic terminal failure",
   assert.equal(failed.preparedCandidateSet, null);
   assert.equal(failed.coreRun, false);
   assert.equal(providerCalls, 1);
+});
+
+test("a timed-out provider releases its shared source-image reservation", async () => {
+  const providerGate = deferred();
+  const successful = successfulProvider();
+  let providerCalls = 0;
+  let providerSignal;
+  const service = createService({
+    capacity: 1,
+    executionDeadlineMs: 50,
+    downloadDeadlineMs: 500,
+    provider: {
+      async segment(input) {
+        providerCalls += 1;
+        providerSignal = input.signal;
+        await providerGate.promise;
+        return successful.segment(input);
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  service.start(startInput(prepared));
+  await waitForCondition(() => providerCalls === 1);
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  assert.equal(providerSignal?.aborted, true);
+
+  const capture = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/after-timeout.png",
+    sourceImageMediaType: "image/png",
+  });
+  const outcome = await Promise.race([
+    capture.then(() => "captured"),
+    new Promise((resolve) => setTimeout(() => resolve("blocked"), 50)),
+  ]);
+  providerGate.resolve();
+  await capture;
+
+  assert.equal(outcome, "captured");
 });
 
 test("cold-start source-byte retention stays bounded below full job capacity", async (t) => {

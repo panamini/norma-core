@@ -16,6 +16,7 @@ import {
 import { RemoteMcpAdmissionController } from "../dist/src/mcp/remote-http-limits.js";
 import {
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
   PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
@@ -123,7 +124,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
   assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v10.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v16.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -132,7 +133,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   });
   assert.equal(widget.status, 200);
   assert.equal(widget.json.result.contents[0].uri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
-  assert.equal(widget.json.result.contents[0].mimeType, "text/html+skybridge");
+  assert.equal(widget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
   assert.deepEqual(widget.json.result.contents[0]._meta.ui, { prefersBorder: true });
   assert.match(widget.json.result.contents[0].text, /window[.]openai/u);
   const cachedWidget = await mcpRequest(port, {
@@ -143,7 +144,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   });
   assert.equal(cachedWidget.status, 200);
   assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
-  assert.equal(cachedWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+  assert.equal(cachedWidget.json.result.contents[0].mimeType, "text/html+skybridge");
 
   const prepared = await mcpRequest(port, {
     jsonrpc: "2.0",
@@ -462,6 +463,112 @@ test("PR137 keeps anonymous and authenticated admission buckets independent", ()
   assert.equal(currentSubject.allowed, true);
   currentSubject.release();
   assert.equal(cleanupController.snapshot().subjectEntries, 1);
+});
+
+test("PR308 keeps SAM perception status polls outside the subject action quota", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000_000);
+  for (let index = 0; index < 30; index += 1) {
+    const admission = controller.enterAuthenticatedAttempt("rate-subject", "action");
+    assert.equal(admission.allowed, true);
+    admission.release();
+  }
+  assert.deepEqual(controller.enterAuthenticatedAttempt("rate-subject", "action"), {
+    allowed: false,
+    code: "subject_rate",
+  });
+
+  const poll = controller.enterAuthenticatedAttempt("rate-subject", "non_action");
+  assert.equal(poll.allowed, true);
+  poll.release();
+  assert.deepEqual(controller.enterAuthenticatedAttempt("rate-subject", "action"), {
+    allowed: false,
+    code: "subject_rate",
+  });
+});
+
+test("PR308 promotes a provisional authenticated slot into one action attempt", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000_000);
+  const provisional = controller.enterAuthenticatedAttempt("promotion-subject", "non_action");
+  assert.equal(provisional.allowed, true);
+  assert.deepEqual(provisional.promoteToAction(), { allowed: true });
+  provisional.release();
+
+  for (let index = 1; index < 30; index += 1) {
+    const admission = controller.enterAuthenticatedAttempt("promotion-subject", "action");
+    assert.equal(admission.allowed, true);
+    admission.release();
+  }
+  assert.deepEqual(controller.enterAuthenticatedAttempt("promotion-subject", "action"), {
+    allowed: false,
+    code: "subject_rate",
+  });
+});
+
+test("PR308 does not charge action quota for rejected SAM status polls", () => {
+  const controller = new RemoteMcpAdmissionController(() => 1_000_000);
+  const firstPoll = controller.enterAuthenticatedAttempt("poll-subject", "non_action");
+  const secondPoll = controller.enterAuthenticatedAttempt("poll-subject", "non_action");
+  assert.equal(firstPoll.allowed, true);
+  assert.equal(secondPoll.allowed, true);
+  assert.deepEqual(controller.enterAuthenticatedAttempt("poll-subject", "non_action"), {
+    allowed: false,
+    code: "subject_concurrency",
+  });
+  firstPoll.release();
+  secondPoll.release();
+
+  for (let index = 0; index < 30; index += 1) {
+    const admission = controller.enterAuthenticatedAttempt("poll-subject", "action");
+    assert.equal(admission.allowed, true);
+    admission.release();
+  }
+  assert.deepEqual(controller.enterAuthenticatedAttempt("poll-subject", "action"), {
+    allowed: false,
+    code: "subject_rate",
+  });
+});
+
+test("PR308 classifies status polling after request parsing while preserving action denial", async (t) => {
+  const logs = [];
+  const admissionController = new RemoteMcpAdmissionController(() => 1_000_000);
+  for (let index = 0; index < 30; index += 1) {
+    const admission = admissionController.enterAuthenticatedAttempt("pseudonymous-subject-a", "action");
+    assert.equal(admission.allowed, true);
+    admission.release();
+  }
+  const server = createRemoteMcpHttpServer(runtimeConfig(), {
+    admissionController,
+    verifyAccessToken: deterministicVerifier,
+    log: (event) => logs.push(event),
+  });
+  await listen(server);
+  t.after(() => close(server));
+  const port = server.address().port;
+
+  const statusPoll = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "status-after-action-budget",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: "session-missing-for-rate-test",
+        candidateSetIdentity: `sha256:${"a".repeat(64)}`,
+        appCapability: "a".repeat(32),
+        jobId: "job-missing-for-rate-test",
+      },
+    },
+  });
+  assert.notEqual(statusPoll.status, 429);
+  assert.ok(logs.some((event) => (
+    event.tool === PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL
+    && event.outcome === "allow"
+  )), JSON.stringify(logs));
+
+  const actionAfterBudget = await mcpRequest(port, initializeRequest(protocol));
+  assert.equal(actionAfterBudget.status, 429);
+  assert.equal(actionAfterBudget.json.error.code, "subject_rate");
+  assert.ok(logs.some((event) => event.tool === "mcp" && event.errorCode === "subject_rate"));
 });
 
 test("PR137A subject denials cannot consume global authenticated capacity", () => {

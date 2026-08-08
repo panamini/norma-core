@@ -39,21 +39,27 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
    ```
 
    The token secret is shown once. Store the ID and secret directly in the Railway sandbox secret manager; do not paste either into tickets, chat, logs, test fixtures, or command history.
-5. Configure these Railway sandbox variables as one atomic change:
+5. Configure these three required Railway sandbox variables as one atomic change:
 
    - `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL`
    - `NORMA_PERSONAL_VISUAL_HARMONY_MODAL_KEY`
    - `NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET`
-   - `NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS` — a comma-separated,
-     credential-free HTTPS origin allowlist for the trusted ChatGPT file service; never
-     paste a complete signed download URL here
+   - Optional: `NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS` — additional,
+     comma-separated exact HTTPS origins for controlled local fixtures. Ordinary ChatGPT
+     operation needs no value: Norma includes OpenAI's documented regional temporary-file
+     host family internally. Never paste a signed download URL or configure another wildcard
    - Optional: `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS` — a bounded
      readiness/inference deadline in milliseconds (`1000`–`300000`); omit it to use
      the five-minute cold-start window.
 
-   All five absent means disabled. A partial configuration, including the deadline without
-   the four required variables, fails startup. Never configure this provider in production
-   as part of this sandbox action.
+   During `prepare`, the server downloads the host-provided file reference through the
+   built-in OpenAI transport allowlist (plus any optional exact fixture origins) and captures
+   a bounded content hash. A later fresh widget URL is accepted for SAM only when its
+   downloaded bytes match that session-bound hash, before any Modal call.
+
+   All provider variables absent means disabled. The endpoint and two proxy credentials must
+   be present together; either optional variable on its own also fails startup. Never configure
+   this provider in production as part of this sandbox action.
 6. Restart only the Railway sandbox service. Authenticate through the existing OAuth flow with the existing visual-harmony scope, attach an approved non-sensitive image fixture, and use the widget’s **Proposer le masque SAM 3** action. Verify:
 
    - an unauthenticated request cannot list or call the two perception tools;
@@ -64,9 +70,9 @@ After reviewing this PR, an authorized operator performs this sequence from a cl
 
 ## Rollback and stop
 
-Disable the integration first by removing all five Railway sandbox variables together,
-including `NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_DEADLINE_MS`, and restarting that
-sandbox service. The existing ChatGPT V1 path then remains the only registered path.
+Disable the integration first by removing the three required Railway sandbox variables and
+any optional perception variables, then restart that sandbox service. The existing ChatGPT
+V1 path then remains the only registered path.
 
 To roll back the Modal app to its preceding deployed version:
 

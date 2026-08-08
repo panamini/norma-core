@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   extractPersonalVisualHarmonyObjectRectangleV1,
   extractPersonalVisualHarmonyManualPerceptionV1,
@@ -39,6 +39,7 @@ export const PERSONAL_VISUAL_HARMONY_MAX_AUTOMATIC_CANDIDATES_FOR_PERCEPTION = 9
 
 // Keep cold-start source retention to four default maximum-size images, independent of job capacity.
 const DEFAULT_PERSONAL_VISUAL_HARMONY_MAX_RETAINED_SOURCE_IMAGE_BYTES = 48 * 1024 * 1024;
+const MIN_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_DOWNLOAD_DEADLINE_MS = 500;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -123,11 +124,20 @@ interface StoredJob {
   errorCode: string | null;
 }
 
-interface QueuedSourceImageReservation {
-  readonly job: StoredJob;
-  readonly executionDeadlineAtMs: number;
+interface QueuedCaptureSourceImageReservation {
+  readonly kind: "capture";
+  readonly deadlineAtMs: number;
   readonly resolve: (result: SourceImageReservationResult) => void;
 }
+
+type QueuedSourceImageReservation =
+  | QueuedCaptureSourceImageReservation
+  | {
+      readonly kind: "job";
+      readonly job: StoredJob;
+      readonly executionDeadlineAtMs: number;
+      readonly resolve: (result: SourceImageReservationResult) => void;
+    };
 
 interface SourceImageReservationResult {
   readonly acquired: boolean;
@@ -214,11 +224,57 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#createJobId = options.createJobId ?? (() => `pvh-perception:${randomUUID()}`);
   }
 
+  public async captureSourceImageIdentity(input: {
+    readonly sourceImageUrl: string;
+    readonly sourceImageMediaType?: string | null;
+  }): Promise<{
+    readonly sourceImageContentIdentity: string;
+    readonly sourceImageMediaType: string;
+  }> {
+    const deadlineAtMs = this.#now() + this.#downloadDeadlineMs;
+    const reservation = await this.#acquireCaptureSourceImageReservation(deadlineAtMs);
+    try {
+      if (!reservation.acquired) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image capture capacity is unavailable.",
+        );
+      }
+      const remainingDownloadDeadlineMs = reservation.waited
+        ? deadlineAtMs - this.#now()
+        : this.#downloadDeadlineMs;
+      if (remainingDownloadDeadlineMs
+        < MIN_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_DOWNLOAD_DEADLINE_MS) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image capture deadline expired.",
+        );
+      }
+      const source = await downloadPersonalVisualHarmonySourceImage({
+        url: input.sourceImageUrl,
+        allowedOrigins: this.#allowedSourceImageOrigins,
+        ...(input.sourceImageMediaType === undefined
+          ? {}
+          : { expectedMediaType: input.sourceImageMediaType }),
+        maxBytes: this.#maxSourceImageBytes,
+        deadlineMs: remainingDownloadDeadlineMs,
+        ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
+      });
+      return {
+        sourceImageContentIdentity: contentIdentityForBytes(source.bytes),
+        sourceImageMediaType: source.mediaType,
+      };
+    } finally {
+      if (reservation.acquired) this.#releaseSourceImageReservation();
+    }
+  }
+
   public start(input: {
     readonly subjectId: string;
     readonly sessionId: string;
     readonly sourceFileId: string;
     readonly sourceImageReferenceIdentity: string;
+    readonly expectedSourceImageContentIdentity: string;
     readonly sourceImageUrl: string;
     readonly sourceImageMediaType?: string | null;
     readonly prompt: PersonalVisualHarmonyPerceptionPromptV1 | PersonalVisualHarmonySegmentationPromptV1;
@@ -236,6 +292,10 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     const sourceImageReferenceIdentity = requireSha256(
       input.sourceImageReferenceIdentity,
       "sourceImageReferenceIdentity",
+    );
+    const expectedSourceImageContentIdentity = requireSha256(
+      input.expectedSourceImageContentIdentity,
+      "expectedSourceImageContentIdentity",
     );
     requireBoundedString(input.sourceImageUrl, "sourceImageUrl", 1, 8_192);
     const label = requireBoundedString(input.label, "label", 1, 60);
@@ -327,6 +387,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#jobs.set(jobId, job);
     void this.#execute(job, {
       sourceFileId,
+      expectedSourceImageContentIdentity,
       sourceImageUrl: input.sourceImageUrl,
       ...(input.sourceImageMediaType === undefined
         ? {}
@@ -371,6 +432,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     job: StoredJob,
     input: {
       readonly sourceFileId: string;
+      readonly expectedSourceImageContentIdentity: string;
       readonly sourceImageUrl: string;
       readonly sourceImageMediaType?: string | null;
       readonly prompt: PersonalVisualHarmonySegmentationPromptV1;
@@ -384,7 +446,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     },
   ): Promise<void> {
     const executionDeadlineAtMs = this.#now() + this.#executionDeadlineMs;
+    let providerController: AbortController | undefined;
     const executionTimer = setTimeout(() => {
+      providerController?.abort();
       this.#terminalizePendingJob(job, "job_execution_timeout");
     }, this.#executionDeadlineMs);
     let sourceImageReservationAcquired = false;
@@ -409,17 +473,50 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         deadlineMs: this.#downloadDeadlineMs,
         ...(this.#fetch === undefined ? {} : { fetch: this.#fetch }),
       });
+      if (contentIdentityForBytes(source.bytes) !== input.expectedSourceImageContentIdentity) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image content does not match the prepared file capability.",
+        );
+      }
       if (job.state !== "pending") return;
       if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
         this.#terminalizePendingJob(job, "job_expired");
         return;
       }
-      const segmentation = await this.#provider.segment({
-        sourceImageBytes: source.bytes,
-        sourceImageMediaType: source.mediaType,
-        prompt: input.prompt,
-      });
+      providerController = new AbortController();
+      const activeProviderController = providerController;
+      let providerDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+      const providerOutcome = await (async () => {
+        try {
+          return await Promise.race([
+            this.#provider.segment({
+              sourceImageBytes: source.bytes,
+              sourceImageMediaType: source.mediaType,
+              prompt: input.prompt,
+              signal: activeProviderController.signal,
+            }).then((segmentation) => ({ kind: "settled" as const, segmentation })),
+            new Promise<{ readonly kind: "deadline" }>((resolve) => {
+              providerDeadlineTimer = setTimeout(
+                () => {
+                  activeProviderController.abort();
+                  resolve({ kind: "deadline" });
+                },
+                Math.max(0, executionDeadlineAtMs - this.#now()),
+              );
+            }),
+          ]);
+        } finally {
+          if (providerDeadlineTimer !== undefined) clearTimeout(providerDeadlineTimer);
+        }
+      })();
+      providerController = undefined;
+      if (providerOutcome.kind === "deadline") {
+        this.#terminalizePendingJob(job, "job_execution_timeout");
+        return;
+      }
+      const { segmentation } = providerOutcome;
       if (job.state !== "pending") return;
       if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
       if (this.#now() >= job.expiresAtMs) {
@@ -544,6 +641,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
         ? error.code
         : "perception_failed");
     } finally {
+      providerController?.abort();
       if (sourceImageReservationAcquired) this.#releaseSourceImageReservation();
       clearTimeout(executionTimer);
     }
@@ -562,7 +660,42 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       return Promise.resolve({ acquired: true, waited: false });
     }
     return new Promise((resolve) => {
-      this.#sourceImageReservationQueue.push({ job, executionDeadlineAtMs, resolve });
+      this.#sourceImageReservationQueue.push({
+        kind: "job",
+        job,
+        executionDeadlineAtMs,
+        resolve,
+      });
+    });
+  }
+
+  #acquireCaptureSourceImageReservation(
+    deadlineAtMs: number,
+  ): Promise<SourceImageReservationResult> {
+    if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
+      this.#activeSourceImageReservations += 1;
+      return Promise.resolve({ acquired: true, waited: false });
+    }
+    if (this.#sourceImageReservationQueue.length >= this.#capacity) {
+      return Promise.resolve({ acquired: false, waited: false });
+    }
+    return new Promise((resolve) => {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const queued: QueuedCaptureSourceImageReservation = {
+        kind: "capture",
+        deadlineAtMs,
+        resolve: (result) => {
+          if (timeout !== undefined) clearTimeout(timeout);
+          resolve(result);
+        },
+      };
+      timeout = setTimeout(() => {
+        const queuedIndex = this.#sourceImageReservationQueue.indexOf(queued);
+        if (queuedIndex < 0) return;
+        this.#sourceImageReservationQueue.splice(queuedIndex, 1);
+        queued.resolve({ acquired: false, waited: true });
+      }, Math.max(0, deadlineAtMs - this.#now()));
+      this.#sourceImageReservationQueue.push(queued);
     });
   }
 
@@ -570,8 +703,13 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#activeSourceImageReservations -= 1;
     while (this.#sourceImageReservationQueue.length > 0) {
       const next = this.#sourceImageReservationQueue.shift()!;
-      if (next.job.state !== "pending"
-        || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs)) {
+      if (next.kind === "capture" && this.#now() >= next.deadlineAtMs) {
+        next.resolve({ acquired: false, waited: true });
+        continue;
+      }
+      if (next.kind === "job"
+        && (next.job.state !== "pending"
+          || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs))) {
         next.resolve({ acquired: false, waited: true });
         continue;
       }
@@ -608,7 +746,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   }
 
   #cancelQueuedSourceImageReservation(job: StoredJob): void {
-    const queuedIndex = this.#sourceImageReservationQueue.findIndex((entry) => entry.job === job);
+    const queuedIndex = this.#sourceImageReservationQueue.findIndex(
+      (entry) => entry.kind === "job" && entry.job === job,
+    );
     if (queuedIndex < 0) return;
     const [queued] = this.#sourceImageReservationQueue.splice(queuedIndex, 1);
     queued?.resolve({ acquired: false, waited: true });
@@ -719,6 +859,10 @@ function requireSha256(value: string, field: string): string {
     throw new PersonalVisualHarmonyPerceptionJobError("request_invalid", `${field} is invalid.`);
   }
   return value;
+}
+
+function contentIdentityForBytes(bytes: Uint8Array): string {
+  return `sha256:${createHash("sha256").update(bytes as unknown as string).digest("hex")}`;
 }
 
 function requireBoundedString(

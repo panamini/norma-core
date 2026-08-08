@@ -177,6 +177,27 @@ function perceptionJobs(downloadedUrls, prompts) {
   });
 }
 
+test("prepare keeps the manual review available when optional source capture fails", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: new InMemoryPersonalVisualHarmonyPerceptionJobService({
+      provider: successfulProvider(),
+      allowedSourceImageOrigins: ["https://files.example.test"],
+      fetch: async () => { throw new Error("temporary source unavailable"); },
+    }),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await prepare(connected.client);
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    assert.equal(prepared.structuredContent.coreRun, false);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.perceptionAppCapability, undefined);
+    assert.equal(prepared._meta.normaPersonalVisualHarmony.perceptionModes, undefined);
+  } finally {
+    await connected.close();
+  }
+});
+
 async function connect({ service, jobs, subjectId }) {
   const server = createPersonalVisualHarmonyMcpServerV1({
     service,
@@ -281,6 +302,32 @@ test("prepare withholds perception capability for unsupported media and insuffic
   }
 });
 
+test("prepare keeps SAM available when ChatGPT omits the optional image MIME type", async () => {
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs: perceptionJobs(),
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/image-without-mime",
+          file_id: "file-without-mime",
+        },
+        candidates: candidates(),
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    assert.match(payload.perceptionAppCapability, /^pvh-app:/u);
+    assert.deepEqual(payload.perceptionModes, ["legacy", "two-object-spatial"]);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("ten-candidate preparation issues a capability only for the bounded A/B workflow", async () => {
   const connected = await connect({
     service: new PersonalVisualHarmonySessionServiceV1(),
@@ -317,6 +364,7 @@ test("ten-candidate preparation issues a capability only for the bounded A/B wor
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl:
         "https://files.example.test/private-signed-image?file=file-ten-candidates&sig=fresh",
       label: "client label ignored",
@@ -386,6 +434,7 @@ test("oversized eligible preparation advertises bounded recovery without issuing
 
 test("widget exposes an A/B-only capability only through compare-two-lengths", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /\.semantic-target-panel\[hidden\]\{display:none\}/u);
   const start = html.indexOf("function updatePerceptionUi(){");
   const end = html.indexOf("\nfunction perceptionPromptFor(", start);
   assert.notEqual(start, -1);
@@ -464,6 +513,96 @@ test("widget exposes an A/B-only capability only through compare-two-lengths", (
     html,
     /state\.measurementRatioEnabled=state\.manualSpatialFallback\|\|freshBoundSpatial\|\|/u,
   );
+});
+
+test("widget rebuilds a reviewed spatial plan against the effective prepared identity", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const helperStart = script.indexOf("async function rebuildReviewedSpatialPlan(");
+  const helperEnd = script.indexOf("\nfunction", helperStart + 1);
+  assert.notEqual(helperStart, -1);
+  assert.notEqual(helperEnd, -1);
+  const rebuildReviewedSpatialPlan = new Function(
+    "createWidgetDeclaredSpatialMeasurementPlan",
+    `"use strict";${script.slice(helperStart, helperEnd)};return rebuildReviewedSpatialPlan;`,
+  )(async (input) => input);
+  const input = {
+    sourceIdentity: `sha256:${"a".repeat(64)}`,
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 618,
+    rectangleCandidates: [],
+    selectedRectangleCandidateIds: ["a", "b"],
+    expressions: [],
+  };
+
+  assert.equal(
+    (await rebuildReviewedSpatialPlan(input, {
+      contractVersion: 1,
+      candidateSetIdentity: `sha256:${"b".repeat(64)}`,
+    })).sourceIdentity,
+    `sha256:${"b".repeat(64)}`,
+  );
+  assert.equal(
+    (await rebuildReviewedSpatialPlan(input, {
+      contractVersion: 3,
+      sourceImageContentIdentity: `sha256:${"c".repeat(64)}`,
+    })).sourceIdentity,
+    `sha256:${"c".repeat(64)}`,
+  );
+});
+
+test("fresh generic V1 with an explicit A/B pair exposes the first SAM action", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function updatePerceptionUi(){");
+  const end = html.indexOf("\nfunction perceptionPromptFor(", start);
+  const state = {
+    payload: {
+      perceptionAppCapability: "pvh-app:" + "a".repeat(32),
+      perceptionModes: ["two-object-spatial"],
+      prepared: {
+        contractVersion: 1,
+        candidates: [
+          { id: "person.A", role: "primary-subject" },
+          { id: "person.B", role: "secondary-subject" },
+        ],
+      },
+    },
+    guidedAnalysisGoal: "compare-two-lengths",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+    selected: new Set(["person.A", "person.B"]),
+    selectedGuides: new Set(),
+  };
+  const perceptionToggle = {};
+  const updatePerceptionUi = new Function(
+    "state",
+    "perceptionToggle",
+    "multiPerceptionObservationCount",
+    "eligibleInteractivePerceptionCandidates",
+    "multiPerceptionStartBlocked",
+    "updateSpatialRecoveryUi",
+    `"use strict";${html.slice(start, end)};return updatePerceptionUi;`,
+  )(
+    state,
+    perceptionToggle,
+    () => 0,
+    () => state.payload.prepared.candidates,
+    () => false,
+    () => {},
+  );
+
+  updatePerceptionUi();
+
+  assert.equal(perceptionToggle.hidden, false);
+  assert.equal(perceptionToggle.disabled, false);
+  assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
 });
 
 test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded session for 11 candidates", () => {
@@ -555,6 +694,166 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
     { type: "ui", goal: "compare-two-lengths", hidden: true },
     { type: "recovery", args: [false, true] },
   ]);
+});
+
+test("selecting compare-two-lengths auto-enters a fresh SAM session for a selected V1 A/B pair without capability", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function applyGuidedAnalysisGoal(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  const candidates = Array.from({ length: 6 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0", "candidate-1"]),
+    guidedAnalysisGoal: "general-geometry",
+    multiPerceptionTerminalState: null,
+    completed: false,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    pixelRefinementRunning: false,
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+    manualSegmentCandidateId: null,
+    imageReady: true,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const calls = [];
+  const applyGuidedAnalysisGoal = new Function(
+    "state",
+    "GUIDED_ANALYSIS_GOALS",
+    "twoObjectSpatialWorkflowActive",
+    "visibleKindsForGuidedAnalysisGoal",
+    "updateGuidedAnalysisGoalButtons",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updateMeasurementRatioControls",
+    "updatePerceptionUi",
+    "guidedGoalStatus",
+    "persistGuidedAnalysisGoal",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
+  )(
+    state,
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+    ],
+    () => false,
+    (goal) => goal.visibleKinds,
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    { textContent: "" },
+    () => {},
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+});
+
+test("selecting the second V1 rectangle re-evaluates fresh SAM recovery", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  assert.notEqual(start, -1);
+  const candidates = Array.from({ length: 4 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    activePayloadIdentity: "payload-selection",
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0"]),
+    guidedAnalysisGoal: "compare-two-lengths",
+    manualSpatialFallback: false,
+    spatialRecoveryRunning: false,
+    spatialRecoveryEntryIdentity: null,
+    completed: false,
+    confirming: false,
+  };
+  const calls = [];
+  const startFreshSpatialSessionIfNeeded = new Function(
+    "state",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
+  )(
+    state,
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  startFreshSpatialSessionIfNeeded();
+  state.selected.add("candidate-1");
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+  assert.match(
+    html,
+    /persistSelection\(\);updateConfirm\(\);updateSpatialRecoveryUi\(\);startFreshSpatialSessionIfNeeded\(\)/u,
+  );
+});
+
+test("restored compare-two-lengths V1 pair starts fresh SAM recovery even when the goal did not change", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  assert.notEqual(start, -1);
+  const candidates = Array.from({ length: 4 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    activePayloadIdentity: "payload-1",
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(["candidate-0", "candidate-1"]),
+    guidedAnalysisGoal: "compare-two-lengths",
+    manualSpatialFallback: false,
+    spatialRecoveryRunning: false,
+    spatialRecoveryEntryIdentity: null,
+    completed: false,
+    confirming: false,
+  };
+  const calls = [];
+  const startFreshSpatialSessionIfNeeded = new Function(
+    "state",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
+  )(
+    state,
+    (...args) => calls.push({ type: "recovery", args }),
+  );
+
+  startFreshSpatialSessionIfNeeded();
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, [{ type: "recovery", args: [false, true] }]);
+  assert.match(
+    html,
+    /if\(state\.completed\)return;if\(typeof startFreshSpatialSessionIfNeeded==="function"\)startFreshSpatialSessionIfNeeded\(\);/u,
+  );
 });
 
 test("oversized generic V1 entry keeps explicit SAM restart visible until exactly two rectangles are selected", () => {
@@ -791,6 +1090,122 @@ test("terminal A/B SAM review exposes explicit restart and manual recovery witho
   );
 });
 
+test("manual spatial fallback reuses a current prepared payload without provider preparation", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function runSpatialRecovery(");
+  const end = html.indexOf("\nrestartSpatialReview.addEventListener", start);
+  const reviewedCandidates = [
+    {
+      id: "person.A",
+      label: "Personnage A",
+      role: "primary-subject",
+      primitive: { kind: "rectangle" },
+    },
+    {
+      id: "person.B",
+      label: "Personnage B",
+      role: "secondary-subject",
+      primitive: { kind: "rectangle" },
+    },
+  ];
+  const selectedIds = reviewedCandidates.map((candidate) => candidate.id);
+  const payload = {
+    sessionId: "session:current-prepared",
+    perceptionModes: ["two-object-spatial"],
+    prepared: {
+      contractVersion: 3,
+      candidateSetIdentity: "set:current-prepared",
+      candidates: reviewedCandidates,
+    },
+  };
+  const state = {
+    payload,
+    reviewedCandidates,
+    selected: new Set(selectedIds),
+    visibleKinds: new Set(["rectangle"]),
+    spatialRecoveryRunning: false,
+    confirming: false,
+    perceptionRunning: false,
+    completed: false,
+    perceptionReconciliationBlocked: true,
+    multiPerceptionTerminalState: { code: "provider-rejected" },
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioRefs: [{ old: "reference" }],
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    measurementRatioEnabled: false,
+  };
+  const calls = [];
+  const statusNode = { textContent: "" };
+  const runSpatialRecovery = new Function(
+    "state",
+    "spatialRecoveryRequired",
+    "manualSelectedRectangleIds",
+    "spatialRecoveryCandidateSnapshot",
+    "setReviewLocked",
+    "prepareSpatialRecoveryPayload",
+    "hydrate",
+    "GUIDED_ANALYSIS_GOALS",
+    "visibleKindsForGuidedAnalysisGoal",
+    "renderGuidedAnalysisGoals",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updatePerceptionUi",
+    "updateMeasurementRatioControls",
+    "persistReviewState",
+    "multiPerceptionReviewLocked",
+    "updateSpatialRecoveryUi",
+    "statusNode",
+    "spatialRecoveryFailureMessage",
+    "spatialRecoveryFailureCode",
+    "document",
+    `"use strict";${html.slice(start, end)};return runSpatialRecovery;`,
+  )(
+    state,
+    () => true,
+    () => selectedIds,
+    () => {
+      calls.push({ type: "snapshot" });
+      return reviewedCandidates;
+    },
+    (locked) => calls.push({ type: "lock", locked }),
+    async () => {
+      calls.push({ type: "prepare" });
+      throw new Error("manual fallback must not prepare");
+    },
+    async () => calls.push({ type: "hydrate" }),
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle", "axis", "segment"] },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"] },
+    ],
+    (goal) => goal.visibleKinds,
+    () => calls.push({ type: "goals" }),
+    () => calls.push({ type: "family-buttons" }),
+    () => calls.push({ type: "family-visibility" }),
+    () => calls.push({ type: "perception" }),
+    () => calls.push({ type: "measurement" }),
+    () => calls.push({ type: "persist" }),
+    () => false,
+    () => calls.push({ type: "recovery-ui" }),
+    statusNode,
+    (error) => error.message,
+    () => "test-failure",
+    { documentElement: { setAttribute() {} } },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(calls.some((call) => call.type === "prepare"), false);
+  assert.equal(calls.some((call) => call.type === "hydrate"), false);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual(state.measurementRatioRefs, []);
+  assert.deepEqual([...state.selected], selectedIds);
+  assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
+});
+
 test("edited perception geometry preserves explicit triangle requests", () => {
   const service = new PersonalVisualHarmonySessionServiceV1({
     createSessionId: () => "session:edited-perception-triangle",
@@ -852,7 +1267,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
     sessionTtlMs: 1_000,
   });
   const downloadedUrls = [];
-  const jobs = perceptionJobs(downloadedUrls);
+  const providerPrompts = [];
+  const jobs = perceptionJobs(downloadedUrls, providerPrompts);
   const owner = await connect({ service, jobs, subjectId: "subject:owner" });
   let other;
   try {
@@ -866,6 +1282,13 @@ test("app-only perception enforces capability, subject, session, and explicit co
       assert.deepEqual(tool._meta.ui.visibility, ["app"]);
       assert.equal(Object.hasOwn(tool._meta.ui, "resourceUri"), false);
     }
+    const startTool = listed.tools.find(
+      ({ name }) => name === PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+    );
+    assert.equal(
+      Object.hasOwn(startTool.inputSchema.properties, "sourceImageDownloadUrl"),
+      true,
+    );
 
     const prepared = await prepare(owner.client);
     assert.equal(prepared.structuredContent.coreRun, false);
@@ -878,12 +1301,37 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.match(privatePayload.perceptionAppCapability, /^pvh-app:/u);
     assert.deepEqual(privatePayload.perceptionModes, ["legacy", "two-object-spatial"]);
 
+    for (const sourceImageDownloadUrl of [
+      "http://files.example.test/insecure.png",
+      "https://user:password@files.example.test/credentialed.png",
+      "https://files.example.test/fragment.png#fragment",
+    ]) {
+      const unsafeUrl = await owner.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+        arguments: {
+          sessionId: privatePayload.sessionId,
+          candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
+          appCapability: privatePayload.perceptionAppCapability,
+          sourceFileId: privatePayload.fileId,
+          sourceImageDownloadUrl,
+          prompt: {
+            points: [],
+            box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
+          },
+          label: "Zone SAM",
+          role: "structural-region",
+        },
+      });
+      assert.equal(unsafeUrl.isError, true, sourceImageDownloadUrl);
+    }
+
     const unauthorized = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: "x".repeat(32),
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/fresh-unauthorized.png",
         prompt: {
           points: [],
@@ -896,13 +1344,14 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(unauthorized.isError, true);
     assert.doesNotMatch(JSON.stringify(unauthorized), /private-signed-image|pvh-app:/u);
 
-    const mismatchedSource = await owner.client.callTool({
+    const wrongSourceFile = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
       arguments: {
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=fresh",
+        sourceFileId: "file-different",
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=different-file&sig=fresh",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -911,8 +1360,13 @@ test("app-only perception enforces capability, subject, session, and explicit co
         role: "structural-region",
       },
     });
-    assert.equal(mismatchedSource.isError, true);
-    assert.deepEqual(downloadedUrls, []);
+    assert.equal(wrongSourceFile.isError, true);
+    assert.match(JSON.stringify(wrongSourceFile), /source file identity/u);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(downloadedUrls, [
+      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=old&se=2026-07-27",
+    ]);
+    assert.deepEqual(providerPrompts, []);
 
     const started = await owner.client.callTool({
       name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
@@ -920,7 +1374,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
+        sourceFileId: privatePayload.fileId,
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
         prompt: {
           points: [],
           box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
@@ -968,7 +1423,8 @@ test("app-only perception enforces capability, subject, session, and explicit co
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.visualInterpretationSource, "hybrid");
     assert.equal(status._meta.normaPersonalVisualHarmony.prepared.imageBytesObservedByNorma, true);
     assert.deepEqual(downloadedUrls, [
-      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
+      "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=old&se=2026-07-27",
+      "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=fresh&se=2026-07-28",
     ]);
     assert.equal("acceptedGeometry" in status.structuredContent, false);
     assert.equal("result" in status.structuredContent, false);
@@ -1121,6 +1577,89 @@ test("app-only perception enforces capability, subject, session, and explicit co
   }
 });
 
+test("a fresh widget URL must match the server-captured prepare bytes before Modal", async () => {
+  const prepareUrl = "https://files.example.test/prepared.png?sig=old";
+  const freshUrl = "https://files.example.test/prepared.png?sig=fresh";
+  const downloads = [];
+  let providerCalls = 0;
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment(input) {
+        providerCalls += 1;
+        return successfulProvider().segment(input);
+      },
+    },
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async (url) => {
+      downloads.push(String(url));
+      const bytes = String(url) === prepareUrl
+        ? sourceBytes
+        : new Uint8Array([9, 8, 7, 6]);
+      return new Response(bytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(bytes.byteLength),
+        },
+      });
+    },
+    createJobId: () => "job:source-substitution",
+  });
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs,
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: prepareUrl,
+          file_id: "file-source-substitution",
+          mime_type: "image/png",
+        },
+        candidates: candidates(),
+      },
+    });
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        sourceFileId: payload.fileId,
+        sourceImageDownloadUrl: freshUrl,
+        prompt: { points: [], box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 } },
+        label: "Zone SAM",
+        role: "structural-region",
+      },
+    });
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      status = await connected.client.callTool({
+        name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+        arguments: {
+          sessionId: payload.sessionId,
+          candidateSetIdentity: payload.prepared.candidateSetIdentity,
+          appCapability: payload.perceptionAppCapability,
+          jobId: started.structuredContent.jobId,
+        },
+      });
+      if (status.structuredContent?.state !== "pending") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(status.structuredContent.state, "failed");
+    assert.equal(status.structuredContent.errorCode, "source_download_failed");
+    assert.equal(status.structuredContent.coreRun, false);
+    assert.deepEqual(downloads, [prepareUrl, freshUrl]);
+    assert.equal(providerCalls, 0);
+  } finally {
+    await connected.close();
+  }
+});
+
 test("two-object MCP workflow is atomic, bounded to A then B, and emits full reviewed provenance", async () => {
   let providerCallCount = 0;
   let jobCount = 0;
@@ -1231,6 +1770,7 @@ test("two-object MCP workflow is atomic, bounded to A then B, and emits full rev
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget,
       label: "client label ignored",
@@ -1454,6 +1994,7 @@ test("a late ready object-A status can be rolled back idempotently before the ol
         sessionId: payload0.sessionId,
         candidateSetIdentity: payload0.prepared.candidateSetIdentity,
         appCapability: payload0.perceptionAppCapability,
+        sourceFileId: payload0.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
         semanticTarget: "person",
         label: "Objet A",
@@ -1602,6 +2143,7 @@ test("a retained late object-A result terminalizes the server workflow before re
         sessionId: payload0.sessionId,
         candidateSetIdentity: payload0.prepared.candidateSetIdentity,
         appCapability: payload0.perceptionAppCapability,
+        sourceFileId: payload0.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
         semanticTarget: "person",
         label: "Objet A",
@@ -1704,6 +2246,7 @@ test("a timed-out object A terminalizes its bound workflow without Core or provi
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget: "person",
       label: "Objet A",
@@ -1798,6 +2341,7 @@ test("an expired object A terminalizes its bound workflow and releases review wi
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=fresh",
       semanticTarget: "person",
       label: "Objet A",
@@ -1914,6 +2458,7 @@ test("terminal object-B abstention is replay-safe and permits only its one-obser
       sessionId: payload.sessionId,
       candidateSetIdentity: payload.prepared.candidateSetIdentity,
       appCapability: payload.perceptionAppCapability,
+      sourceFileId: payload.fileId,
       sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=terminal",
       semanticTarget,
       label: "ignored",
@@ -2136,6 +2681,7 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
     subjectId: "subject:owner",
     fileId: "file-capacity-a",
     sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a",
+    sourceImageContentIdentity,
     enablePerception: true,
     mediaType: "image/png",
     candidates: candidates(),
@@ -2190,6 +2736,8 @@ test("session capacity eviction terminalizes an active object-B attempt", () => 
     sessionId: initial.sessionId,
     candidateSetIdentity: preparedA.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
+    sourceFileId: "file-capacity-a",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-capacity-a&sig=fresh",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2231,6 +2779,7 @@ test("a bound two-object provider job keeps its session alive through the advert
     subjectId: "subject:owner",
     fileId: "file-bound-job-lifetime",
     sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime",
+    sourceImageContentIdentity,
     enablePerception: true,
     mediaType: "image/png",
     candidates: candidates(),
@@ -2240,6 +2789,8 @@ test("a bound two-object provider job keeps its session alive through the advert
     sessionId: initial.sessionId,
     candidateSetIdentity: initial.prepared.candidateSetIdentity,
     appCapability: initial.perceptionAppCapability,
+    sourceFileId: "file-bound-job-lifetime",
+    sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-bound-job-lifetime&sig=fresh",
     workflowMode: "two-object-spatial",
     guidedAnalysisGoal: "compare-two-lengths",
   });
@@ -2290,6 +2841,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=invalid",
         semanticTarget: "   ",
         label: "Cible sémantique",
@@ -2305,6 +2857,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=listed",
         semanticTarget: "person, batiment, porte",
         label: "Cible sémantique",
@@ -2320,6 +2873,7 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
+        sourceFileId: privatePayload.fileId,
         sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=both",
         prompt: { points: [], box: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 } },
         semanticTarget: "person",
@@ -2336,7 +2890,8 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=different-file&sig=semantic",
+        sourceFileId: "file-different",
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=different-file&sig=semantic",
         semanticTarget: "person",
         label: "Cible sémantique",
         role: "primary-subject",
@@ -2351,7 +2906,8 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
         sessionId: privatePayload.sessionId,
         candidateSetIdentity: privatePayload.prepared.candidateSetIdentity,
         appCapability: privatePayload.perceptionAppCapability,
-        sourceImageDownloadUrl: "https://files.example.test/private-signed-image?file=file-perception-mcp&sig=semantic",
+        sourceFileId: privatePayload.fileId,
+        sourceImageDownloadUrl: "https://files.example.test/rotated-signed-image?file=file-perception-mcp&sig=semantic",
         semanticTarget: "  yellow   school bus  ",
         label: "Cible sémantique",
         role: "primary-subject",
@@ -2376,13 +2932,202 @@ test("app-only semantic targeting accepts exactly one normalized target and pres
     assert.equal(status.isError, undefined, JSON.stringify(status));
     assert.equal(status.structuredContent.state, "ready");
     assert.deepEqual(prompts, [{ kind: "text", text: "yellow school bus" }]);
-    assert.equal(downloadedUrls.length, 1);
+    assert.equal(downloadedUrls.length, 2);
     assert.equal(status.structuredContent.coreRun, false);
     assert.equal(status.structuredContent.explicitSelectionConfirmationRequired, true);
     assert.equal("result" in status.structuredContent, false);
   } finally {
     await owner.close();
   }
+});
+
+test("the widget binds both SAM start modes to the prepared file id", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.equal(
+    html.match(/sourceFileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/gu)?.length,
+    1,
+  );
+  assert.equal(
+    html.match(/sourceFileId,sourceImageDownloadUrl,semanticTarget:target/gu)?.length,
+    1,
+  );
+});
+
+test("pending SAM job envelopes survive an app bridge that omits structuredContent", async (t) => {
+  let releaseProvider;
+  const providerGate = new Promise((resolve) => { releaseProvider = resolve; });
+  const terminalProvider = successfulProvider();
+  const jobs = new InMemoryPersonalVisualHarmonyPerceptionJobService({
+    provider: {
+      async segment(input) {
+        await providerGate;
+        return terminalProvider.segment(input);
+      },
+    },
+    allowedSourceImageOrigins: ["https://files.example.test"],
+    fetch: async () => new Response(sourceBytes, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        "content-length": String(sourceBytes.byteLength),
+      },
+    }),
+    createJobId: () => "job:mcp-pending-envelope-test",
+  });
+  t.after(() => releaseProvider());
+  const connected = await connect({
+    service: new PersonalVisualHarmonySessionServiceV1(),
+    jobs,
+    subjectId: "subject:owner",
+  });
+  try {
+    const prepared = await prepare(connected.client);
+    const payload = prepared._meta.normaPersonalVisualHarmony;
+    const started = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        sourceFileId: payload.fileId,
+        sourceImageDownloadUrl: payload.sourceImageDownloadUrl,
+        semanticTarget: "person",
+        label: "Personne",
+        role: "primary-subject",
+      },
+    });
+    assert.equal(started.isError, undefined, JSON.stringify(started));
+    assert.deepEqual(
+      started._meta.normaPersonalVisualHarmonyPerceptionJob,
+      started.structuredContent,
+    );
+
+    const html = createPersonalVisualHarmonyWidgetHtmlV1();
+    const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+    assert.ok(script);
+    const jobStart = script.indexOf("function findPerceptionJob(");
+    const jobEnd = script.indexOf("\nfunction", jobStart + 1);
+    assert.notEqual(jobStart, -1);
+    assert.notEqual(jobEnd, -1);
+    const findPerceptionJob = new Function(
+      `"use strict";${script.slice(jobStart, jobEnd)};return findPerceptionJob;`,
+    )();
+    const bridgedStart = { _meta: started._meta };
+    assert.deepEqual(findPerceptionJob(bridgedStart), started.structuredContent);
+
+    const status = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
+      arguments: {
+        sessionId: payload.sessionId,
+        candidateSetIdentity: payload.prepared.candidateSetIdentity,
+        appCapability: payload.perceptionAppCapability,
+        jobId: started.structuredContent.jobId,
+      },
+    });
+    assert.equal(status.isError, undefined, JSON.stringify(status));
+    assert.equal(status.structuredContent.state, "pending");
+    assert.deepEqual(
+      status._meta.normaPersonalVisualHarmonyPerceptionJob,
+      status.structuredContent,
+    );
+    assert.deepEqual(
+      findPerceptionJob({ _meta: status._meta }),
+      status.structuredContent,
+    );
+  } finally {
+    await connected.close();
+  }
+});
+
+test("the semantic SAM runtime preserves the hydrated source file id when a bridge payload omits it", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+  const start = script.indexOf('semanticTargetSubmit?.addEventListener("click"');
+  const end = script.indexOf("\nnew MutationObserver", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const semanticTargetSubmit = {
+    disabled: false,
+    addEventListener(_event, handler) {
+      this.handler = handler;
+    },
+  };
+  const payload = {
+    sessionId: "session:semantic-runtime",
+    prepared: { candidateSetIdentity: `sha256:${"a".repeat(64)}` },
+    perceptionAppCapability: `pvh-app:${"b".repeat(32)}`,
+    sourceImageDownloadUrl: "https://files.example.test/semantic-runtime.png",
+  };
+  const state = {
+    payload,
+    imageLoadFileId: "file-semantic-runtime",
+    activePayloadIdentity: "payload:semantic-runtime",
+    perceptionRunning: false,
+    perceptionReconciliationBlocked: false,
+  };
+  const sourceFileIdStart = script.indexOf("function perceptionSourceFileId(");
+  const sourceFileIdEnd = script.indexOf("\nasync function perceptionDownloadUrl", sourceFileIdStart);
+  assert.notEqual(sourceFileIdStart, -1);
+  assert.notEqual(sourceFileIdEnd, -1);
+  const perceptionSourceFileId = new Function(
+    "state",
+    `"use strict";${script.slice(sourceFileIdStart, sourceFileIdEnd)};return perceptionSourceFileId;`,
+  )(state);
+  const calls = [];
+  new Function(
+    "semanticTargetSubmit",
+    "state",
+    "selectedSemanticTarget",
+    "multiPerceptionStartBlocked",
+    "perceptionSourceFileId",
+    "perceptionDownloadUrl",
+    "perceptionWorkflowArgs",
+    "multiPerceptionObservationCount",
+    "callAppTool",
+    "findPerceptionJob",
+    "pollPerceptionJob",
+    "setReviewLocked",
+    "recordReviewEvent",
+    "refreshSemanticTargetUi",
+    "statusNode",
+    "perceptionClientFailureIsCurrent",
+    "terminalizePerceptionClientFailure",
+    "multiPerceptionReviewLocked",
+    "START_PERCEPTION_TOOL",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    `"use strict";${script.slice(start, end)}`,
+  )(
+    semanticTargetSubmit,
+    state,
+    () => "person",
+    () => false,
+    perceptionSourceFileId,
+    async () => "https://files.example.test/semantic-runtime-fresh.png",
+    () => ({}),
+    () => 0,
+    async (_name, args) => {
+      calls.push(args);
+      return {};
+    },
+    () => ({ state: "pending", jobId: "job:semantic-runtime", expiresAt: "2026-08-05T00:00:01.000Z" }),
+    async () => {},
+    () => {},
+    () => {},
+    () => {},
+    { textContent: "" },
+    () => true,
+    () => "failed",
+    () => false,
+    PERSONAL_VISUAL_HARMONY_START_PERCEPTION_TOOL,
+    1_000,
+  );
+
+  await semanticTargetSubmit.handler();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].sourceFileId, "file-semantic-runtime");
+  assert.equal(calls[0].semanticTarget, "person");
 });
 
 test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
@@ -2399,7 +3144,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
     /normalizedReviewedCandidates=reviewedCandidates\?\.map\(\(\{sourceImageReferenceIdentity,\.\.\.candidate\}\)=>candidate\)/u,
   );
   assert.match(html, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
-  assert.match(html, /sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
+  assert.match(html, /sourceFileId,sourceImageDownloadUrl,prompt:perceptionPromptFor\(candidate\)/u);
+  assert.match(html, /sourceFileId,sourceImageDownloadUrl,semanticTarget:target/u);
   assert.match(html, /PERCEPTION_MAX_STATUS_POLLS=160/u);
   assert.match(html, /PERCEPTION_STATUS_POLL_DELAY_MS=2000/u);
   assert.match(html, /PERCEPTION_CLIENT_WORKFLOW_TIMEOUT_MS=345000/u);
@@ -2452,8 +3198,8 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   );
   assert.match(html, /callAppTool\(PERCEPTION_STATUS_TOOL,statusArgs,statusTimeoutMs\)/u);
   assert.equal(
-    html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:payload\.fileId\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
-    3,
+    html.match(/withPerceptionDeadline\(\(\)=>fileApi\(\{fileId:perceptionSourceFileId\(payload\)\}\),PERCEPTION_TOOL_CALL_TIMEOUT_MS,"perception_file_timeout"\)/gu)?.length,
+    1,
   );
   assert.match(
     html,
@@ -2472,7 +3218,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /chip\.disabled=busy/u);
   assert.match(
     html,
-    /state\.imageReady=true;state\.dimensions=\{width:result\.width,height:result\.height\};.*?refreshSemanticTargetUi\(\)/u,
+    /state\.imageReady=true;state\.dimensions=\{width:result\.width,height:result\.height\};.*?refreshSemanticTargetUi\(\).*?updatePerceptionUi\(\)/u,
   );
   assert.match(html, /Raccourcis Norma · pas une liste officielle de SAM 3/u);
   for (const target of PERSONAL_VISUAL_HARMONY_SEMANTIC_TARGETS_V1) {
@@ -2770,6 +3516,7 @@ test("widget rejects a ready status response that resolves after its client dead
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -2787,6 +3534,7 @@ test("widget rejects a ready status response that resolves after its client dead
       await new Promise((resolve) => setTimeout(resolve, 20));
       return { structuredContent: { state: "ready" } };
     },
+    () => null,
     () => null,
     () => null,
     async () => {
@@ -2849,6 +3597,7 @@ test("widget rolls back a ready two-object status that resolves after cutoff bef
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -2887,6 +3636,7 @@ test("widget rolls back a ready two-object status that resolves after cutoff bef
         _meta: { normaPersonalVisualHarmony: readyPayload },
       };
     },
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     (payload) => payload.prepared.candidateSetIdentity === originalPayload.prepared.candidateSetIdentity
       ? "payload:original"
@@ -3011,6 +3761,7 @@ test("widget reconciles an applied two-object status discarded by the production
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3027,6 +3778,7 @@ test("widget reconciles an applied two-object status discarded by the production
     5,
     PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
     callAppTool,
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     () => "payload:original",
     async () => {
@@ -3113,6 +3865,7 @@ test("widget rejects a ready status whose application completes after its client
     "PERCEPTION_FINAL_STATUS_POLL_BUDGET_MS",
     "PERCEPTION_STATUS_TOOL",
     "callAppTool",
+    "findPerceptionJob",
     "findPayload",
     "payloadIdentity",
     "applyPerceptionStatusResponse",
@@ -3150,6 +3903,7 @@ test("widget rejects a ready status whose application completes after its client
         },
       };
     },
+    (response) => response?.structuredContent ?? null,
     (response) => response?._meta?.normaPersonalVisualHarmony ?? null,
     (payload) => payload.id,
     async () => {

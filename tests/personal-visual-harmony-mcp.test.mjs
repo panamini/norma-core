@@ -972,6 +972,108 @@ test("semantic target input rejects a comma-separated list before submission", (
   assert.match(html, /Saisissez une seule cible courte/u);
 });
 
+test("widget unwraps nested SAM perception job responses from the host bridge", () => {
+  const findPerceptionJob = widgetScriptFunction(
+    "findPerceptionJob",
+    "function findCompletedResult",
+    {},
+  );
+  const pending = {
+    jobId: "pvh-perception:test",
+    state: "pending",
+    expiresAt: "2026-08-05T12:00:00.000Z",
+  };
+
+  assert.deepEqual(
+    findPerceptionJob({ result: { structuredContent: pending } }),
+    pending,
+  );
+  assert.deepEqual(
+    findPerceptionJob(JSON.stringify({ result: { structuredContent: pending } })),
+    pending,
+  );
+  assert.equal(
+    findPerceptionJob({ result: { structuredContent: { state: "pending" } } }),
+    null,
+  );
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.ok((html.match(/job=findPerceptionJob\(response\)/gu) ?? []).length >= 2);
+});
+
+test("widget unwraps nested and serialized SAM payload responses from the host bridge", () => {
+  const findPayload = widgetScriptFunction(
+    "findPayload",
+    "function findPerceptionJob",
+    {},
+  );
+  const payload = {
+    stage: "confirmation_required",
+    fileId: "file-sam-ready",
+    prepared: { candidateSetIdentity: "sha256:payload" },
+  };
+  const nested = { result: { _meta: { normaPersonalVisualHarmony: payload } } };
+
+  assert.deepEqual(findPayload(nested), payload);
+  assert.deepEqual(findPayload(JSON.stringify(nested)), payload);
+});
+
+test("widget prefers the canonical complete MCP result over a partial compatibility result", () => {
+  const findPayload = widgetScriptFunction(
+    "findPayload",
+    "function findPerceptionJob",
+    {},
+  );
+  const partialPayload = {
+    stage: "confirmation_required",
+    fileId: "file-sam-partial",
+    prepared: { candidateSetIdentity: "sha256:partial" },
+  };
+  const completePayload = {
+    ...partialPayload,
+    perceptionAppCapability: `pvh-app:${"a".repeat(32)}`,
+    perceptionModes: ["legacy", "two-object-spatial"],
+  };
+  const metadataEnvelope = {
+    status: "success",
+    call_tool_result: { structuredContent: { normaPersonalVisualHarmony: partialPayload } },
+    mcp_tool_result: { _meta: { normaPersonalVisualHarmony: completePayload } },
+  };
+
+  assert.deepEqual(findPayload(metadataEnvelope), completePayload);
+});
+
+test("widget reuses the image URL already validated before starting SAM", async () => {
+  let refreshCalls = 0;
+  const perceptionDownloadUrl = widgetScriptFunction(
+    "perceptionDownloadUrl",
+    "function rpcRequest",
+    {
+      state: { downloadUrl: "https://files.example/validated" },
+      validPerceptionDownloadUrl: (value) => (
+        typeof value === "string" && value.startsWith("https://")
+      ),
+      window: {
+        openai: {
+          getFileDownloadUrl: async () => {
+            refreshCalls += 1;
+            return { downloadUrl: "https://files.example/refreshed" };
+          },
+        },
+      },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionClientError: (code, message) => ({ code, message }),
+    },
+  );
+
+  assert.equal(
+    await perceptionDownloadUrl({ fileId: "file-validated" }),
+    "https://files.example/validated",
+  );
+  assert.equal(refreshCalls, 0);
+});
+
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /\.shell\{container-type:inline-size\}/u);
@@ -1431,6 +1533,95 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   assert.equal(familyPressed.get("axis"), "false");
   assert.equal(familyPressed.get("ellipse"), "false");
   assert.match(guidedGoalStatus.textContent, /exactement deux rectangles/u);
+});
+
+test("generic V1 spatial plans use the public candidate-set binding", async () => {
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    createSessionId: () => "session:generic-v1-spatial-plan",
+  }));
+  try {
+    const candidateValues = [
+      {
+        id: "generic-rectangle-a",
+        label: "Rectangle A",
+        role: "structural-region",
+        reason: "Rectangle explicitement revu",
+        x: 0.1,
+        y: 0.2,
+        width: 0.3,
+        height: 0.5,
+      },
+      {
+        id: "generic-rectangle-b",
+        label: "Rectangle B",
+        role: "structural-region",
+        reason: "Rectangle explicitement revu",
+        x: 0.55,
+        y: 0.1,
+        width: 0.35,
+        height: 0.6,
+      },
+    ];
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/generic-v1-spatial-plan",
+          file_id: "file-generic-v1-spatial-plan",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    assert.equal(widgetMeta.prepared.sourceImageReferenceIdentity, undefined);
+    const sourceIdentity = widgetMeta.prepared.candidateSetIdentity;
+    const plan = createDeclaredSpatialMeasurementPlanV1({
+      sourceIdentity,
+      sourcePixelWidth: 1_200,
+      sourcePixelHeight: 800,
+      candidates: widgetMeta.prepared.candidates,
+      selectedRectangleCandidateIds: candidateValues.map(({ id }) => id),
+      expressions: [
+        {
+          kind: "extent",
+          owner: { kind: "rectangle", candidateId: "generic-rectangle-a" },
+          extent: "width",
+        },
+        {
+          kind: "extent",
+          owner: { kind: "rectangle", candidateId: "generic-rectangle-b" },
+          extent: "height",
+        },
+      ],
+    });
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        selectedCandidateIds: candidateValues.map(({ id }) => id),
+        sourcePixelWidth: 1_200,
+        sourcePixelHeight: 800,
+        declaredSpatialMeasurementPlan: plan,
+        confirmClientReviewedSelection: true,
+        recovery: {
+          fileId: "file-generic-v1-spatial-plan",
+          sourceImageMediaType: "image/png",
+          candidates: candidateValues,
+        },
+      },
+    });
+    assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
+    assert.equal(confirmed.structuredContent.mode, "declared_spatial_measurements");
+    assert.equal(
+      confirmed.structuredContent.declaredSpatialMeasurementConfirmation.sourceIdentity,
+      sourceIdentity,
+    );
+  } finally {
+    await connected.close();
+  }
 });
 
 test("widget confirmation sends the ready declared spatial plan through the app-only MCP tool", async () => {
@@ -2546,6 +2737,9 @@ test("explicit spatial recovery prepares one fresh V1 session without SAM or Cor
     stage: "confirmation_required",
     fileId: "file-spatial-recovery",
     sessionId: "session:fresh-v1",
+    perceptionRecoveryAvailable: true,
+    perceptionAppCapability: `pvh-app:${"a".repeat(32)}`,
+    perceptionModes: ["two-object-spatial"],
     prepared: { contractVersion: 1, candidates },
   };
   const calls = [];
@@ -2554,6 +2748,7 @@ test("explicit spatial recovery prepares one fresh V1 session without SAM or Cor
     "async function callConfirmation",
     {
       state: { activePayloadIdentity: "active-terminal-payload" },
+      perceptionDownloadUrl: async () => "https://files.example.test/fresh-spatial-recovery",
       window: {
         openai: {
           getFileDownloadUrl: async () => ({
@@ -2591,6 +2786,48 @@ test("explicit spatial recovery prepares one fresh V1 session without SAM or Cor
     },
     candidates,
   });
+});
+
+test("spatial recovery rejects a fresh V1 payload without the SAM A/B capability", async () => {
+  const candidateSnapshot = [{ id: "object-a" }, { id: "object-b" }];
+  const prepareSpatialRecoveryPayload = widgetScriptFunction(
+    "prepareSpatialRecoveryPayload",
+    "async function callConfirmation",
+    {
+      state: { activePayloadIdentity: "active-terminal-payload" },
+      perceptionDownloadUrl: async () => "https://files.example.test/fresh-spatial-recovery",
+      window: {
+        openai: {
+          getFileDownloadUrl: async () => ({
+            downloadUrl: "https://files.example.test/fresh-spatial-recovery",
+          }),
+        },
+      },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      PREPARE_TOOL: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      callAppTool: async () => ({
+        payload: {
+          stage: "confirmation_required",
+          fileId: "file-spatial-recovery",
+          sessionId: "session:missing-sam-capability",
+          prepared: { contractVersion: 1, candidates: candidateSnapshot },
+        },
+      }),
+      findPayload: (value) => value.payload,
+      samePreparedReviewCandidates: (requested, prepared) => (
+        JSON.stringify(requested) === JSON.stringify(prepared)
+      ),
+    },
+  );
+
+  await assert.rejects(
+    prepareSpatialRecoveryPayload({
+      fileId: "file-spatial-recovery",
+      sourceImageMediaType: "image/png",
+    }, candidateSnapshot),
+    { message: "spatial recovery SAM capability missing" },
+  );
 });
 
 test("spatial recovery strips V3 provenance and excludes prior SAM observations from restart", () => {
@@ -2638,7 +2875,7 @@ test("spatial recovery strips V3 provenance and excludes prior SAM observations 
   assert.equal(manual.some((candidate) => Object.hasOwn(candidate, "sourceImageReferenceIdentity")), false);
 });
 
-test("manual spatial fallback persists only for the exact V1 session and clears for V3", () => {
+test("manual spatial fallback persists only for the exact session across prepared contracts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
@@ -2680,7 +2917,7 @@ test("manual spatial fallback persists only for the exact V1 session and clears 
   assert.equal(storedManualSpatialFallbackFor(stored, {
     ...state.payload,
     prepared: { ...state.payload.prepared, contractVersion: 3 },
-  }, state.selected), false);
+  }, state.selected), true);
   assert.equal(storedManualSpatialFallbackFor(stored, {
     ...state.payload,
     sessionId: "session:other",
@@ -2695,19 +2932,14 @@ test("manual spatial fallback persists only for the exact V1 session and clears 
     ...state.payload,
     prepared: { ...state.payload.prepared, contractVersion: 3 },
   }, stored, state.selected);
-  assert.equal(state.manualSpatialFallback, false);
-  assert.equal(state.manualSpatialFallbackSessionId, null);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, state.payload.sessionId);
 });
 
-test("manual spatial recovery restores its marker and enabled plan after hydration", async () => {
+test("manual spatial recovery restores its marker and enabled plan without hydration", async () => {
   const candidates = [{ id: "a" }, { id: "b" }];
-  const fresh = {
-    stage: "confirmation_required",
-    sessionId: "session:fresh-manual",
-    prepared: { contractVersion: 1 },
-  };
   const state = {
-    payload: { prepared: {} },
+    payload: { sessionId: "session:current-manual", prepared: { contractVersion: 3 } },
     spatialRecoveryRunning: false,
     perceptionReconciliationBlocked: true,
     multiPerceptionTerminalState: "object-b-failed",
@@ -2730,12 +2962,8 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
       spatialRecoveryCandidateSnapshot: () => candidates,
       reviewedCandidateSnapshot: () => candidates,
       setReviewLocked: () => {},
-      prepareSpatialRecoveryPayload: async () => fresh,
-      hydrate: async () => {
-        state.manualSpatialFallback = false;
-        state.manualSpatialFallbackSessionId = null;
-        state.measurementRatioEnabled = false;
-      },
+      prepareSpatialRecoveryPayload: async () => { throw new Error("manual fallback must not prepare"); },
+      hydrate: async () => { throw new Error("manual fallback must not hydrate"); },
       GUIDED_ANALYSIS_GOALS: [{ id: "compare-two-lengths", visibleKinds: ["rectangle"] }],
       visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
       renderGuidedAnalysisGoals: () => {},
@@ -2753,7 +2981,7 @@ test("manual spatial recovery restores its marker and enabled plan after hydrati
   await runSpatialRecovery(true);
 
   assert.equal(state.manualSpatialFallback, true);
-  assert.equal(state.manualSpatialFallbackSessionId, fresh.sessionId);
+  assert.equal(state.manualSpatialFallbackSessionId, state.payload.sessionId);
   assert.equal(state.measurementRatioEnabled, true);
   assert.deepEqual([...state.selected], ["a", "b"]);
   assert.equal(persisted, true);
@@ -2812,6 +3040,67 @@ test("manual spatial recovery reuses a terminal V1 review without retrying the f
   assert.equal(state.manualSpatialFallback, true);
   assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
   assert.equal(state.measurementRatioEnabled, true);
+  assert.deepEqual([...state.selected], ["a", "b"]);
+});
+
+test("manual spatial recovery stays local when terminal reconciliation is blocked", async () => {
+  const payload = {
+    stage: "confirmation_required",
+    sessionId: "session:terminal-v1-reconciliation-blocked",
+    prepared: { contractVersion: 1 },
+  };
+  const state = {
+    payload,
+    spatialRecoveryRunning: false,
+    perceptionReconciliationBlocked: true,
+    multiPerceptionTerminalState: "object-b-failed",
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    guidedAnalysisGoal: "compare-two-lengths",
+    visibleKinds: new Set(["rectangle"]),
+    selected: new Set(["a", "b"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+  };
+  let prepareCalls = 0;
+  let hydrateCalls = 0;
+  const runSpatialRecovery = widgetScriptFunction(
+    "runSpatialRecovery",
+    "restartSpatialReview.addEventListener",
+    {
+      state,
+      spatialRecoveryRequired: () => true,
+      manualSelectedRectangleIds: () => ["a", "b"],
+      spatialRecoveryCandidateSnapshot: () => [{ id: "a" }, { id: "b" }],
+      setReviewLocked: () => {},
+      prepareSpatialRecoveryPayload: async () => {
+        prepareCalls += 1;
+        throw new Error("file API unavailable");
+      },
+      hydrate: async () => { hydrateCalls += 1; },
+      GUIDED_ANALYSIS_GOALS: [{ id: "compare-two-lengths", visibleKinds: ["rectangle"] }],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      renderGuidedAnalysisGoals: () => {},
+      updateFamilyFilterButtons: () => {},
+      syncFamilyVisibility: () => {},
+      updatePerceptionUi: () => {},
+      updateMeasurementRatioControls: () => {},
+      persistReviewState: () => {},
+      multiPerceptionReviewLocked: () => false,
+      updateSpatialRecoveryUi: () => {},
+      statusNode: {},
+    },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.equal(prepareCalls, 0);
+  assert.equal(hydrateCalls, 0);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, payload.sessionId);
+  assert.equal(state.measurementRatioEnabled, true);
+  assert.equal(state.perceptionReconciliationBlocked, false);
+  assert.equal(state.multiPerceptionTerminalState, null);
   assert.deepEqual([...state.selected], ["a", "b"]);
 });
 
@@ -6262,7 +6551,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v10.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v16.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
       false,
@@ -6283,8 +6573,25 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       uri: "ui://widget/norma-personal-visual-harmony-v9.html",
     });
     assert.equal(cachedResource.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v9.html");
-    assert.equal(cachedResource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+    assert.equal(cachedResource.contents[0].mimeType, "text/html+skybridge");
     assert.equal(cachedResource.contents[0].text, resource.contents[0].text);
+    for (const legacyUri of [
+      "ui://widget/norma-personal-visual-harmony-v10.html",
+      "ui://widget/norma-personal-visual-harmony-v11.html",
+      "ui://widget/norma-personal-visual-harmony-v12.html",
+      "ui://widget/norma-personal-visual-harmony-v13.html",
+      "ui://widget/norma-personal-visual-harmony-v14.html",
+    ]) {
+      const legacyResource = await connected.client.readResource({ uri: legacyUri });
+      assert.equal(legacyResource.contents[0].uri, legacyUri);
+      assert.equal(
+        legacyResource.contents[0].mimeType,
+        legacyUri.endsWith("-v13.html") || legacyUri.endsWith("-v14.html")
+          ? PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE
+          : "text/html+skybridge",
+      );
+      assert.equal(legacyResource.contents[0].text, resource.contents[0].text);
+    }
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);
@@ -6338,7 +6645,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /payload\.stage==="confirmation_required"&&!state\.payload/u);
     assert.match(resource.contents[0].text, /BOOTSTRAP_PENDING_NOTICE_AFTER=50/u);
     assert.match(resource.contents[0].text, /BOOTSTRAP_SLOW_RETRY_DELAY_MS=1000/u);
-    assert.match(resource.contents[0].text, /Connexion au résultat de l’analyse en cours/u);
+    assert.match(resource.contents[0].text, /Résultat d’analyse non reçu par le widget/u);
     assert.doesNotMatch(resource.contents[0].text, /window\.addEventListener\("openai:set_globals",\(\)=>\{const payload=currentPayload\(\);if\(payload&&payload\.stage==="completed"/u);
     assert.match(resource.contents[0].text, /MESURES REVALIDÉES/u);
     assert.match(resource.contents[0].text, /RAPPORT MÉMORISÉ · NON REVALIDÉ/u);
@@ -6487,11 +6794,11 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   }
 });
 
-test("widget collapses a stale bootstrap instance and restores it for a late matching payload", () => {
+test("widget keeps a stale bootstrap instance visible and restores it for a late matching payload", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /<html lang="fr" data-norma-widget-bootstrap="pending">/u);
   assert.match(html, /html\[data-norma-widget-bootstrap="pending"\] \.content\{display:none\}/u);
-  assert.match(html, /document\.body\.hidden=nextState==="stale"/u);
+  assert.match(html, /document\.body\.hidden=false/u);
 
   const bootstrapAttribute = { value: "pending" };
   const document = {
@@ -6511,7 +6818,7 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
   );
 
   setWidgetBootstrapState("stale");
-  assert.equal(document.body.hidden, true);
+  assert.equal(document.body.hidden, false);
   assert.equal(bootstrapAttribute.value, "stale");
 
   setWidgetBootstrapState("ready");
@@ -6542,7 +6849,10 @@ test("widget collapses a stale bootstrap instance and restores it for a late mat
   bootstrap();
 
   assert.deepEqual(bootstrapStates, ["stale"]);
-  assert.equal(loading.textContent, "Connexion au résultat de l’analyse en cours…");
+  assert.equal(
+    loading.textContent,
+    "Résultat d’analyse non reçu par le widget. Ouvrez une nouvelle conversation et relancez l’analyse.",
+  );
   assert.equal(scheduledRetry?.delay, 1_000);
   assert.deepEqual(hydratedPayloads, []);
 
@@ -6949,6 +7259,7 @@ async function runWidgetImageHydrationScenario({
       : { sourceImageDownloadUrl: payloadDownloadUrl },
   });
   let pixelUiUpdates = 0;
+  let perceptionUiUpdates = 0;
   let confirmUpdates = 0;
   const semanticUiRefreshes = [];
   const requestedFileIds = [];
@@ -6995,6 +7306,7 @@ async function runWidgetImageHydrationScenario({
       statusNode: { textContent: "" },
       refreshSemanticTargetUi() { semanticUiRefreshes.push(state.imageReady); },
       updatePixelProposalUi() { pixelUiUpdates += 1; },
+      updatePerceptionUi() { perceptionUiUpdates += 1; },
       updateMeasurementRatioControls() { confirmUpdates += 1; },
     },
   );
@@ -7009,6 +7321,7 @@ async function runWidgetImageHydrationScenario({
     failure,
     maxActiveLoads,
     pixelUiUpdates,
+    perceptionUiUpdates,
     confirmUpdates,
     semanticUiRefreshes,
   };
@@ -7031,6 +7344,7 @@ test("widget image hydration loads a fresh file URL before the payload URL", asy
   assert.deepEqual(result.retryDelays, []);
   assert.equal(result.maxActiveLoads, 1);
   assert.equal(result.pixelUiUpdates, 1);
+  assert.equal(result.perceptionUiUpdates, 1);
   assert.equal(result.confirmUpdates, 1);
   assert.deepEqual(result.semanticUiRefreshes, [true]);
 });

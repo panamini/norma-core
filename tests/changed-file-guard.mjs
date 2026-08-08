@@ -753,14 +753,29 @@ export const personalVisualHarmonySpatialActivationChangedFiles = Object.freeze(
   "web-lab/start-private-web-lab.mjs",
 ].sort());
 
-// Covers the bounded widget-only SAM A/B fresh-session activation and explicit
-// terminal recovery paths without changing provider or Core confirmation code.
+// Covers the bounded widget-only SAM A/B fresh-session activation, explicit
+// terminal recovery, and local manual fallback paths without changing provider
+// or Core confirmation code.
 export const personalVisualHarmonySamAbRecoveryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
   "tests/changed-file-guard.test.mjs",
   "tests/personal-visual-harmony-mcp.test.mjs",
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
+// Extends the bounded SAM A/B recovery slice so a fresh regional download is
+// accepted only when its bytes match the server-captured prepare identity.
+export const personalVisualHarmonySamAbSourceBindingChangedFiles = Object.freeze([
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-segmentation.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
 // Covers the bounded fresh generic-V1 capability gate that enters the SAM A/B
@@ -2234,6 +2249,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyTwoObjectSpatialChangedFiles,
   personalVisualHarmonySpatialActivationChangedFiles,
   personalVisualHarmonySamAbRecoveryChangedFiles,
+  personalVisualHarmonySamAbSourceBindingChangedFiles,
   personalVisualHarmonySamGenericCapabilityChangedFiles,
   personalVisualHarmonyPerceptionTimeoutRecoveryChangedFiles,
   personalVisualHarmonySam3ColdStartAsyncChangedFiles,

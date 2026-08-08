@@ -641,12 +641,17 @@ test("configuration is disabled only when all provider variables are absent", ()
     }),
     (error) => error.code === "configuration_invalid",
   );
+  assert.throws(
+    () => createPersonalVisualHarmonySegmentationClientFromEnv({
+      NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+        "https://files.example.test",
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
   const configured = {
     NORMA_PERSONAL_VISUAL_HARMONY_SEGMENTATION_URL: "https://sam3.example.test/",
     NORMA_PERSONAL_VISUAL_HARMONY_MODAL_KEY: "key",
     NORMA_PERSONAL_VISUAL_HARMONY_MODAL_SECRET: "secret",
-    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
-      "https://files.example.test,https://files-backup.example.test",
   };
   assert(createPersonalVisualHarmonySegmentationClientFromEnv(configured));
   assert.equal(createPersonalVisualHarmonySegmentationClientFromEnv({
@@ -661,9 +666,101 @@ test("configuration is disabled only when all provider variables are absent", ()
     (error) => error.code === "configuration_invalid",
   );
   assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv(configured), [
+    "https://*.oaiusercontent.com",
+  ]);
+  assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+      "https://files.example.test,https://files-backup.example.test",
+  }), [
+    "https://*.oaiusercontent.com",
     "https://files.example.test",
     "https://files-backup.example.test",
   ]);
+  assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+      "https://*.oaiusercontent.com,https://files.example.test",
+  }), [
+    "https://*.oaiusercontent.com",
+    "https://files.example.test",
+  ]);
+  const eightConfiguredOrigins = Array.from(
+    { length: 8 },
+    (_, index) => `https://files-${String(index + 1)}.example.test`,
+  );
+  assert.deepEqual(personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+    ...configured,
+    NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+      eightConfiguredOrigins.join(","),
+  }), [
+    "https://*.oaiusercontent.com",
+    ...eightConfiguredOrigins,
+  ]);
+  assert.throws(
+    () => personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+      ...configured,
+      NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS:
+        [...eightConfiguredOrigins, "https://files-9.example.test"].join(","),
+    }),
+    (error) => error.code === "configuration_invalid",
+  );
+  for (const invalidPattern of [
+    "https://*.com",
+    "https://*.example.test",
+    "http://*.oaiusercontent.com",
+  ]) {
+    assert.throws(
+      () => personalVisualHarmonySourceImageAllowedOriginsFromEnv({
+        ...configured,
+        NORMA_PERSONAL_VISUAL_HARMONY_SOURCE_IMAGE_ALLOWED_ORIGINS: invalidPattern,
+      }),
+      (error) => error.code === "configuration_invalid",
+      invalidPattern,
+    );
+  }
+});
+
+test("source downloads accept only the configured OpenAI temporary-file host family", async () => {
+  const downloadedUrls = [];
+  await downloadPersonalVisualHarmonySourceImage({
+    url: "https://sdmntprnorthcentralus.oaiusercontent.com/files/image.png?sig=fresh",
+    allowedOrigins: ["https://*.oaiusercontent.com"],
+    expectedMediaType: "image/png",
+    fetch: async (url) => {
+      downloadedUrls.push(String(url));
+      return new Response(imageBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(imageBytes.byteLength),
+        },
+      });
+    },
+  });
+  assert.equal(downloadedUrls.length, 1);
+
+  for (const rejectedUrl of [
+    "https://oaiusercontent.com/files/image.png",
+    "https://oaiusercontent.com.evil.example/files/image.png",
+    "https://sdmntprnorthcentralus.oaiusercontent.com:444/files/image.png",
+  ]) {
+    let fetchCount = 0;
+    await assert.rejects(
+      downloadPersonalVisualHarmonySourceImage({
+        url: rejectedUrl,
+        allowedOrigins: ["https://*.oaiusercontent.com"],
+        expectedMediaType: "image/png",
+        fetch: async () => {
+          fetchCount += 1;
+          return new Response(imageBytes);
+        },
+      }),
+      (error) => error.code === "source_download_failed",
+      rejectedUrl,
+    );
+    assert.equal(fetchCount, 0, rejectedUrl);
+  }
 });
 
 test("source downloads reject untrusted origins before fetch and cancel declared oversize bodies", async () => {
