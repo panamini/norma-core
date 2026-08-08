@@ -237,7 +237,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       if (!reservation.acquired) {
         throw new PersonalVisualHarmonySegmentationError(
           "source_download_failed",
-          "Source image capture capacity deadline expired.",
+          "Source image capture capacity is unavailable.",
         );
       }
       const source = await downloadPersonalVisualHarmonySourceImage({
@@ -635,6 +635,9 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
       this.#activeSourceImageReservations += 1;
       return Promise.resolve({ acquired: true, waited: false });
+    }
+    if (this.#sourceImageReservationQueue.length >= this.#capacity) {
+      return Promise.resolve({ acquired: false, waited: false });
     }
     return new Promise((resolve) => {
       let timeout: ReturnType<typeof setTimeout> | undefined;

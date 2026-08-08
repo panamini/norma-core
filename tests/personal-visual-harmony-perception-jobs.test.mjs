@@ -311,6 +311,57 @@ test("a queued prepare-time source capture does not start after its download dea
   assert.equal(fetchCalls, 1);
 });
 
+test("prepare-time source capture queue rejects work beyond bounded service capacity", async (t) => {
+  const fetchGate = deferred();
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    fetch: async () => {
+      fetchCalls += 1;
+      await fetchGate.promise;
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+  t.after(() => fetchGate.resolve());
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  await waitForCondition(() => fetchCalls === 1);
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+  const overflow = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/overflow.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  const overflowResult = await Promise.race([
+    overflow.then(
+      () => ({ status: "fulfilled" }),
+      (error) => ({ status: "rejected", code: error?.code }),
+    ),
+    new Promise((resolve) => setImmediate(() => resolve({ status: "pending" }))),
+  ]);
+  assert.deepEqual(overflowResult, {
+    status: "rejected",
+    code: "source_download_failed",
+  });
+
+  fetchGate.resolve();
+  await Promise.all([active, queued]);
+  assert.equal(fetchCalls, 2);
+});
+
 async function waitForCondition(predicate) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate()) return;
