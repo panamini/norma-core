@@ -123,11 +123,14 @@ interface StoredJob {
   errorCode: string | null;
 }
 
+interface QueuedCaptureSourceImageReservation {
+  readonly kind: "capture";
+  readonly deadlineAtMs: number;
+  readonly resolve: (result: SourceImageReservationResult) => void;
+}
+
 type QueuedSourceImageReservation =
-  | {
-      readonly kind: "capture";
-      readonly resolve: (result: SourceImageReservationResult) => void;
-    }
+  | QueuedCaptureSourceImageReservation
   | {
       readonly kind: "job";
       readonly job: StoredJob;
@@ -227,8 +230,16 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     readonly sourceImageContentIdentity: string;
     readonly sourceImageMediaType: string;
   }> {
-    const reservation = await this.#acquireSourceImageReservation();
+    const reservation = await this.#acquireCaptureSourceImageReservation(
+      this.#now() + this.#downloadDeadlineMs,
+    );
     try {
+      if (!reservation.acquired) {
+        throw new PersonalVisualHarmonySegmentationError(
+          "source_download_failed",
+          "Source image capture capacity deadline expired.",
+        );
+      }
       const source = await downloadPersonalVisualHarmonySourceImage({
         url: input.sourceImageUrl,
         allowedOrigins: this.#allowedSourceImageOrigins,
@@ -596,19 +607,12 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     }
   }
 
-  #acquireSourceImageReservation(): Promise<SourceImageReservationResult>;
   #acquireSourceImageReservation(
     job: StoredJob,
     executionDeadlineAtMs: number,
-  ): Promise<SourceImageReservationResult>;
-  #acquireSourceImageReservation(
-    job?: StoredJob,
-    executionDeadlineAtMs?: number,
   ): Promise<SourceImageReservationResult> {
-    if (job !== undefined
-      && executionDeadlineAtMs !== undefined
-      && (job.state !== "pending"
-        || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs))) {
+    if (job.state !== "pending"
+      || this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) {
       return Promise.resolve({ acquired: false, waited: false });
     }
     if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
@@ -616,9 +620,39 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       return Promise.resolve({ acquired: true, waited: false });
     }
     return new Promise((resolve) => {
-      this.#sourceImageReservationQueue.push(job === undefined
-        ? { kind: "capture", resolve }
-        : { kind: "job", job, executionDeadlineAtMs: executionDeadlineAtMs!, resolve });
+      this.#sourceImageReservationQueue.push({
+        kind: "job",
+        job,
+        executionDeadlineAtMs,
+        resolve,
+      });
+    });
+  }
+
+  #acquireCaptureSourceImageReservation(
+    deadlineAtMs: number,
+  ): Promise<SourceImageReservationResult> {
+    if (this.#activeSourceImageReservations < this.#maxConcurrentSourceImages) {
+      this.#activeSourceImageReservations += 1;
+      return Promise.resolve({ acquired: true, waited: false });
+    }
+    return new Promise((resolve) => {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const queued: QueuedCaptureSourceImageReservation = {
+        kind: "capture",
+        deadlineAtMs,
+        resolve: (result) => {
+          if (timeout !== undefined) clearTimeout(timeout);
+          resolve(result);
+        },
+      };
+      timeout = setTimeout(() => {
+        const queuedIndex = this.#sourceImageReservationQueue.indexOf(queued);
+        if (queuedIndex < 0) return;
+        this.#sourceImageReservationQueue.splice(queuedIndex, 1);
+        queued.resolve({ acquired: false, waited: true });
+      }, Math.max(0, deadlineAtMs - this.#now()));
+      this.#sourceImageReservationQueue.push(queued);
     });
   }
 
@@ -626,6 +660,10 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#activeSourceImageReservations -= 1;
     while (this.#sourceImageReservationQueue.length > 0) {
       const next = this.#sourceImageReservationQueue.shift()!;
+      if (next.kind === "capture" && this.#now() >= next.deadlineAtMs) {
+        next.resolve({ acquired: false, waited: true });
+        continue;
+      }
       if (next.kind === "job"
         && (next.job.state !== "pending"
           || this.#terminalizeAtExecutionDeadline(next.job, next.executionDeadlineAtMs))) {

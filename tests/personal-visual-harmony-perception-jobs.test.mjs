@@ -270,6 +270,47 @@ test("a failed prepare-time source capture releases its reservation", async () =
   assert.equal(fetchCalls, 2);
 });
 
+test("a queued prepare-time source capture does not start after its download deadline", async () => {
+  let fetchCalls = 0;
+  const service = createService({
+    capacity: 1,
+    maxSourceImageBytes: 32 * 1024 * 1024,
+    downloadDeadlineMs: 500,
+    fetch: async (_url, init) => {
+      fetchCalls += 1;
+      await new Promise((resolve, reject) => {
+        const signal = init?.signal;
+        const timeout = setTimeout(resolve, 2_000);
+        signal?.addEventListener("abort", () => {
+          clearTimeout(timeout);
+          reject(signal.reason ?? new Error("aborted"));
+        }, { once: true });
+      });
+      return new Response(sourceBytes, {
+        status: 200,
+        headers: {
+          "content-type": "image/png",
+          "content-length": String(sourceBytes.byteLength),
+        },
+      });
+    },
+  });
+
+  const active = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/active.png",
+    sourceImageMediaType: "image/png",
+  });
+  const queued = service.captureSourceImageIdentity({
+    sourceImageUrl: "https://files.example.test/queued.png",
+    sourceImageMediaType: "image/png",
+  });
+
+  const [activeResult, queuedResult] = await Promise.allSettled([active, queued]);
+  assert.equal(activeResult.status, "rejected");
+  assert.equal(queuedResult.status, "rejected");
+  assert.equal(fetchCalls, 1);
+});
+
 async function waitForCondition(predicate) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate()) return;
