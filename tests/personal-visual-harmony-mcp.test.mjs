@@ -319,9 +319,11 @@ test("spatial controls require the versioned A/B binding and reject generic obje
   )();
   assert.equal(spatialOptions.length, 21);
   const measurementRatioToggle = { disabled: true, title: "", setAttribute() {}, textContent: "" };
-  const createSelect = () => ({ disabled: true, replaceChildren() {}, add() {}, value: "" });
-  const measurementRatioFirst = createSelect();
-  const measurementRatioSecond = createSelect();
+  const createChoice = () => ({ disabled: true, textContent: "" });
+  const measurementRatioFirst = createChoice();
+  const measurementRatioSecond = createChoice();
+  const measurementRatioFirstOptions = {};
+  const measurementRatioSecondOptions = {};
   const updateMeasurementRatioControls = widgetScriptFunction(
     "updateMeasurementRatioControls",
     "measurementRatioToggle.addEventListener",
@@ -334,7 +336,11 @@ test("spatial controls require the versioned A/B binding and reject generic obje
       measurementRatioToggle,
       measurementRatioFirst,
       measurementRatioSecond,
-      Option: class Option {},
+      measurementRatioFirstOptions,
+      measurementRatioSecondOptions,
+      updateMeasurementChoice(_index, trigger, _list, _options, _selected, disabled) {
+        trigger.disabled = disabled;
+      },
       refreshWidgetDeclaredSpatialMeasurementPlan() {},
       syncMeasurementRatioPreview() {},
       updateConfirm() {},
@@ -433,12 +439,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
     setAttribute() {},
     textContent: "",
   };
-  const createSelect = () => ({
-    disabled: false,
-    value: "",
-    replaceChildren() {},
-    add() {},
-  });
+  const createChoice = () => ({ disabled: false, textContent: "" });
   const updateMeasurementRatioControls = widgetScriptFunction(
     "updateMeasurementRatioControls",
     "measurementRatioToggle.addEventListener",
@@ -450,9 +451,11 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
       }],
       measurementRefKey: (reference) => JSON.stringify(reference),
       measurementRatioToggle,
-      measurementRatioFirst: createSelect(),
-      measurementRatioSecond: createSelect(),
-      Option: class Option {},
+      measurementRatioFirst: createChoice(),
+      measurementRatioSecond: createChoice(),
+      measurementRatioFirstOptions: {},
+      measurementRatioSecondOptions: {},
+      updateMeasurementChoice() {},
       syncMeasurementRatioPreview() {},
       updateConfirm() {},
     },
@@ -465,6 +468,50 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
     { kind: "segment", candidateId: "kept" },
     null,
   ]);
+});
+
+test("measurement choices use in-widget buttons and apply the clicked distance", () => {
+  const selected = [];
+  const trigger = {
+    disabled: true,
+    textContent: "",
+    setAttribute() {},
+  };
+  const list = {
+    hidden: false,
+    children: [],
+    replaceChildren() { this.children = []; },
+    append(node) { this.children.push(node); },
+  };
+  const document = {
+    createElement(tagName) {
+      assert.equal(tagName, "button");
+      return {
+        disabled: false,
+        listeners: {},
+        setAttribute() {},
+        addEventListener(type, listener) { this.listeners[type] = listener; },
+      };
+    },
+  };
+  const updateMeasurementChoice = widgetScriptFunction(
+    "updateMeasurementChoice",
+    "function updateMeasurementRatioControls",
+    {
+      measurementRefKey: (reference) => JSON.stringify(reference),
+      closeMeasurementChoice(_trigger, targetList) { targetList.hidden = true; },
+      document,
+      setMeasurementRatioReference(index, key) { selected.push([index, key]); },
+    },
+  );
+  const reference = { kind: "extent", axis: "height", owner: { kind: "candidate", id: "person-left" } };
+
+  updateMeasurementChoice(0, trigger, list, [{ reference, label: "Personne gauche · hauteur" }], null, false);
+
+  assert.equal(trigger.disabled, false);
+  assert.equal(list.children.length, 1);
+  list.children[0].listeners.click();
+  assert.deepEqual(selected, [[0, JSON.stringify(reference)]]);
 });
 
 test("measurement ratio choices expose two confirmed axes without changing their geometry kind", () => {
@@ -965,7 +1012,7 @@ test("measurement ratio selectors update only pending widget state", () => {
   let appToolCalls = 0;
   const setMeasurementRatioReference = widgetScriptFunction(
     "setMeasurementRatioReference",
-    "for(const [index,select]",
+    "for(const [trigger,list,otherTrigger,otherList]",
     {
       state,
       updateMeasurementRatioControls() { controlsUpdated += 1; },
@@ -987,7 +1034,7 @@ test("measurement ratio selectors update only pending widget state", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /select\.addEventListener\("change",\(\)=>setMeasurementRatioReference\(index,select\.value\)\)/u,
+    /option\.addEventListener\("click",\(\)=>\{if\(option\.disabled\)return;setMeasurementRatioReference\(index,key\)\}\)/u,
   );
   assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
 });
@@ -998,7 +1045,7 @@ test("measurement ratio selector B keeps its slot while selector A is empty", ()
   };
   const setMeasurementRatioReference = widgetScriptFunction(
     "setMeasurementRatioReference",
-    "for(const [index,select]",
+    "for(const [trigger,list,otherTrigger,otherList]",
     {
       state,
       updateMeasurementRatioControls() {},
@@ -1480,6 +1527,11 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   assert.match(html, /Outils de précision/u);
   assert.match(html, /<span class="measurement-choice-label"><b[^>]*>A<\/b>Mesure A<\/span>/u);
   assert.match(html, /<span class="measurement-choice-label"><b[^>]*>B<\/b>Mesure B<\/span>/u);
+  assert.match(html, /<button id="measurementRatioFirst"[^>]*aria-haspopup="listbox"/u);
+  assert.match(html, /<button id="measurementRatioSecond"[^>]*aria-haspopup="listbox"/u);
+  assert.match(html, /id="measurementRatioFirstOptions"[^>]*role="listbox"/u);
+  assert.match(html, /id="measurementRatioSecondOptions"[^>]*role="listbox"/u);
+  assert.doesNotMatch(html, /<select id="measurementRatio(?:First|Second)"/u);
   assert.match(html, /function syncAnalysisModeUi\(\)/u);
   assert.match(html, /data-measurement-ratio-label/u);
   assert.match(html, /\.construction-toggle:disabled\{display:none/u);
@@ -6775,7 +6827,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /\.measurement-ratio\{display:grid;gap:6px;[^}]*padding:9px/u);
     assert.match(resource.contents[0].text, /\.measurement-ratio-toggle\{width:100%;padding:7px/u);
     assert.match(resource.contents[0].text, /\.measurement-ratio-selects\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);gap:6px\}/u);
-    assert.match(resource.contents[0].text, /\.measurement-ratio select\{min-width:0;width:100%;padding:7px/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-trigger\{min-width:0;width:100%;padding:7px/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-options\{display:grid;max-height:190px;overflow:auto/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-option\{width:100%;padding:7px/u);
     assert.match(resource.contents[0].text, /appearance:none;border:1px solid var\(--ink\);border-radius:0/u);
     assert.match(resource.contents[0].text, /background:var\(--paper-hover\);color:var\(--ink\)/u);
     assert.match(resource.contents[0].text, /linear-gradient\(45deg,transparent 0 42%,var\(--white\) 42% 58%,transparent 58%\)/u);
