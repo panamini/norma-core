@@ -665,6 +665,67 @@ test("measurement ratio choices expose every selected quadrilateral side and dia
   assert.doesNotMatch(choices.map(({ label }) => label).join("\n"), /non retenu/u);
 });
 
+test("manual A/B spatial expressions resolve to visible overlay segments before confirmation", () => {
+  const state = {
+    reviewedCandidates: [
+      { id: "left", x: 0.2, y: 0.2, width: 0.2, height: 0.6 },
+      { id: "right", x: 0.6, y: 0.4, width: 0.2, height: 0.5 },
+    ],
+  };
+  const spatialExpressionGeometry = widgetScriptFunction(
+    "spatialExpressionGeometry",
+    "function eligibleMeasurementReferences",
+    {
+      state,
+      primitiveKind: () => "rectangle",
+      spatialAnchorPoint: (bounds, anchor) => {
+        const factors = {
+          center: [0.5, 0.5],
+          "top-midpoint": [0.5, 0],
+          "bottom-midpoint": [0.5, 1],
+        };
+        const [x, y] = factors[anchor];
+        return { x: bounds.x + bounds.width * x, y: bounds.y + bounds.height * y };
+      },
+    },
+  );
+
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "extent",
+    owner: { kind: "rectangle", candidateId: "left" },
+    extent: "height",
+  }), {
+    start: { x: 0.30000000000000004, y: 0.2 },
+    end: { x: 0.30000000000000004, y: 0.8 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-distance",
+    metric: "horizontal",
+    from: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    to: { owner: { kind: "rectangle", candidateId: "right" }, anchor: "center" },
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 0.7, y: 0.5 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-distance",
+    metric: "vertical",
+    from: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    to: { owner: { kind: "rectangle", candidateId: "right" }, anchor: "center" },
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 0.30000000000000004, y: 0.65 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-to-frame-edge",
+    anchor: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    edge: "right",
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 1, y: 0.5 },
+  });
+});
+
 test("measurement ratio preview explains the empty and one-length states", () => {
   const state = { completed: false, measurementRatioEnabled: false, measurementRatioRefs: [] };
   const measurementRatioPreview = { textContent: "" };
@@ -762,7 +823,7 @@ test("measurement ratio choices expose pixel lengths and spatial quadrilateral l
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="measurementRatioPreview"[^>]*aria-live="polite"/u);
   assert.match(html, /data-measurement-ratio-preview/u);
-  assert.match(html, /Le rapport harmonique sera calculé seulement après confirmation/u);
+  assert.match(html, /Vérifiez les traits A et B; le rapport sera calculé seulement après confirmation/u);
 });
 
 test("measurement ratio preview rejects a duplicate A/B pair with explicit guidance", () => {
@@ -782,7 +843,7 @@ test("measurement ratio preview rejects a duplicate A/B pair with explicit guida
         querySelector: () => null,
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -797,7 +858,7 @@ test("measurement ratio preview rejects a duplicate A/B pair with explicit guida
 
   syncMeasurementRatioPreview();
 
-  assert.match(measurementRatioPreview.textContent, /Choisissez deux longueurs distinctes/u);
+  assert.match(measurementRatioPreview.textContent, /Choisissez deux distances distinctes/u);
   assert.doesNotMatch(measurementRatioPreview.textContent, /sera calculé/u);
 });
 
@@ -826,7 +887,7 @@ test("measurement ratio preview ignores invalid restored references and complete
         querySelector: () => ({ append() { appendedPreviews += 1; } }),
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -875,7 +936,7 @@ test("measurement ratio preview directs a sparse B-only selection back to A", ()
         querySelector: () => null,
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -891,8 +952,8 @@ test("measurement ratio preview directs a sparse B-only selection back to A", ()
 
   syncMeasurementRatioPreview();
 
-  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la première longueur/u);
-  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la seconde longueur/u);
+  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la mesure A/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la mesure B/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
@@ -1411,10 +1472,21 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
   assert.match(html, /id="guidedGoals"/u);
+  assert.match(html, /data-analysis-mode="automatic"/u);
+  assert.match(html, /Analyse automatique/u);
+  assert.match(html, /Mesure manuelle/u);
+  assert.match(html, /id="advancedModeToggle"[^>]*aria-expanded="false"/u);
+  assert.match(html, /id="expertTools"/u);
+  assert.match(html, /Outils de précision/u);
+  assert.match(html, /<span class="measurement-choice-label"><b[^>]*>A<\/b>Mesure A<\/span>/u);
+  assert.match(html, /<span class="measurement-choice-label"><b[^>]*>B<\/b>Mesure B<\/span>/u);
+  assert.match(html, /function syncAnalysisModeUi\(\)/u);
+  assert.match(html, /data-measurement-ratio-label/u);
+  assert.match(html, /\.construction-toggle:disabled\{display:none/u);
   assert.match(html, /id="originalView"/u);
   assert.match(html, /id="guidesView"/u);
   assert.match(html, /id="guideFocusToggle"/u);
-  assert.match(html, /Le choix filtre l’affichage seulement/u);
+  assert.match(html, /Norma Core reste arrêté jusqu’à votre confirmation/u);
   assert.match(html, /DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry"/u);
   for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
     assert.match(html, new RegExp(goal.id, "u"));
@@ -6663,8 +6735,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
-    assert.match(resource.contents[0].text, /Rapport de deux longueurs/u);
-    assert.match(resource.contents[0].text, /rapport opt-in séparé, sans autorité Core/u);
+    assert.match(resource.contents[0].text, /Quelles distances comparer/u);
+    assert.match(resource.contents[0].text, /Le résultat compare uniquement A et B dans le plan de l’image/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
     assert.match(resource.contents[0].text, /function syncOverlaySelection\(\).*syncPixelProposalOverlay\(\)/u);
     assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
@@ -6911,7 +6983,7 @@ test("message-only hydration cannot make an already-ready widget stale again", (
 test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
-  assert.match(html, /confirmation et Core restent manuels/u);
+  assert.match(html, /Norma Core reste arrêté jusqu’à votre confirmation/u);
   assert.match(html, /guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL/u);
   assert.match(html, /guidedAnalysisGoal:guidedAnalysisGoalSnapshot\(\)/u);
   assert.match(html, /button\.addEventListener\("click",\(\)=>toggleFamilyVisibility\(kind\)\)/u);
