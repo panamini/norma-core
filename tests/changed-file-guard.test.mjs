@@ -88,6 +88,7 @@ import {
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   statelessMcpScaffoldingQuotaFixChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
@@ -1535,7 +1536,13 @@ test("private Web Lab session recovery launcher allowlist is exact and rejects s
   );
 });
 
-test("SAM 3 Modal packaging fix allowlist is exact and rejects scope drift", () => {
+test("SAM 3 Modal checkpoint packaging allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(personalVisualHarmonySam3ModalPackagingFixChangedFiles, [
+    "deploy/modal/modal_app.py",
+    "deploy/modal/test_contract.py",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+  ]);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonySam3ModalPackagingFixChangedFiles),
     personalVisualHarmonySam3ModalPackagingFixChangedFiles,
@@ -1561,6 +1568,30 @@ test("SAM 3 Modal packaging fix allowlist is exact and rejects scope drift", () 
       extra,
     );
   }
+});
+
+test("stacked Railway admission, Modal readiness, and checkpoint packaging is exact", () => {
+  assert.deepEqual(
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    [
+      "deploy/modal/modal_app.py",
+      "deploy/modal/readiness.py",
+      "deploy/modal/server.py",
+      "deploy/modal/test_contract.py",
+      "deploy/modal/test_readiness.py",
+      "docs/howto/modal-sam3-perception-sandbox.md",
+      "src/mcp/remote-http-server.ts",
+      "tests/changed-file-guard.mjs",
+      "tests/changed-file-guard.test.mjs",
+      "tests/mcp-remote-http-runtime.test.mjs",
+    ],
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    ),
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+  );
 });
 
 test("MCP App resource metadata, app-only decoupling, cache-bust, legacy MIME, and stale-read allowlist is exact and rejects scope drift", () => {
@@ -4732,6 +4763,11 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   );
+  const isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet =
+    isExactChangedFileSet(
+      changedFiles,
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    );
   const isPersonalVisualHarmonyMcpAppResourceMetadataSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
@@ -4965,7 +5001,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPersonalVisualHarmonyTwoObjectSpatialSet || isPersonalVisualHarmonyPerceptionTimeoutRecoverySet || isPersonalVisualHarmonySam3ColdStartAsyncSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabAuthoringStatusTestFixSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPersonalVisualHarmonyTwoObjectSpatialSet || isPersonalVisualHarmonyPerceptionTimeoutRecoverySet || isPersonalVisualHarmonySam3ColdStartAsyncSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabAuthoringStatusTestFixSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -5011,6 +5047,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? privateWebLabSessionRecoveryLauncherChangedFiles
       : isPersonalVisualHarmonySam3ModalPackagingFixSet
       ? personalVisualHarmonySam3ModalPackagingFixChangedFiles
+      : isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet
+      ? statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles
       : isPersonalVisualHarmonyMcpAppResourceMetadataSet
       ? personalVisualHarmonyMcpAppResourceMetadataChangedFiles
       : isPersonalVisualHarmonyHybridPerceptionSet

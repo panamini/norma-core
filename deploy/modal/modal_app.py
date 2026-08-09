@@ -7,10 +7,34 @@ import subprocess
 
 import modal
 
+from contract import MODEL_FILENAME, MODEL_REPO_ID, MODEL_REVISION
+
 APP_NAME = "norma-sam3-perception"
 HF_SECRET_NAME = "norma-sam3-hf"
 # Keep this bootstrap module importable before Modal mounts local helper modules.
 MODEL_CODE_REVISION = "46957e47805eaa273f4aa7bbbd25a88bca9108ce"
+MODEL_CACHE_DIR = "/opt/norma-sam3-hf"
+
+
+def _download_model_checkpoint(
+    repo_id: str,
+    filename: str,
+    revision: str,
+    cache_dir: str,
+) -> None:
+    """Bake the pinned gated checkpoint without retaining the build secret."""
+    from huggingface_hub import hf_hub_download
+
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is required")
+    hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        revision=revision,
+        token=token,
+        cache_dir=cache_dir,
+    )
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -36,6 +60,12 @@ image = (
         f"git+https://github.com/facebookresearch/sam3.git@{MODEL_CODE_REVISION}"
     )
     .add_local_python_source("contract")
+    .run_function(
+        _download_model_checkpoint,
+        args=(MODEL_REPO_ID, MODEL_FILENAME, MODEL_REVISION, MODEL_CACHE_DIR),
+        secrets=[modal.Secret.from_name(HF_SECRET_NAME, required_keys=["HF_TOKEN"])],
+        timeout=1_800,
+    )
     .add_local_dir("deploy/modal", remote_path="/opt/norma-sam3")
 )
 
@@ -61,7 +91,7 @@ class NormaSam3Server:
         environment = {
             **os.environ,
             "PYTHONPATH": "/opt/norma-sam3",
-            "HF_HOME": "/tmp/norma-sam3-hf",
+            "HF_HOME": MODEL_CACHE_DIR,
             "TOKENIZERS_PARALLELISM": "false",
         }
         self.process = subprocess.Popen(

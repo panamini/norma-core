@@ -835,6 +835,8 @@ export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "web-lab/start-private-web-lab.mjs",
 ].sort());
 
+// Covers Modal image packaging fixes, including build-time checkpoint caching,
+// without permitting warm capacity, provider runtime, or secret-file changes.
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -1082,6 +1084,13 @@ export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles = Obj
   "docs/howto/modal-sam3-perception-sandbox.md",
   ...statelessMcpScaffoldingQuotaFixChangedFiles,
 ].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles =
+  Object.freeze([
+    "deploy/modal/modal_app.py",
+    "deploy/modal/test_contract.py",
+    ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  ].sort());
 
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -2333,6 +2342,7 @@ const sharedExactApprovedChangedFileSets = [
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
   statelessMcpScaffoldingQuotaFixChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
