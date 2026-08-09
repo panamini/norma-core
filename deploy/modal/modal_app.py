@@ -59,7 +59,7 @@ image = (
     .pip_install(
         f"git+https://github.com/facebookresearch/sam3.git@{MODEL_CODE_REVISION}"
     )
-    .add_local_python_source("contract")
+    .add_local_python_source("contract", copy=True)
     .run_function(
         _download_model_checkpoint,
         args=(MODEL_REPO_ID, MODEL_FILENAME, MODEL_REVISION, MODEL_CACHE_DIR),
