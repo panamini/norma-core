@@ -90,6 +90,16 @@ export interface PersonalVisualHarmonyPerceptionJobServiceOptions {
   readonly fetch?: PersonalVisualHarmonyFetch;
   readonly now?: () => number;
   readonly createJobId?: () => string;
+  readonly onDiagnostic?: (event: PersonalVisualHarmonyPerceptionJobDiagnosticEventV1) => void;
+}
+
+export interface PersonalVisualHarmonyPerceptionJobDiagnosticEventV1 {
+  readonly event: "personal_visual_harmony_perception_job_terminal";
+  readonly jobIdentity: string;
+  readonly state: "failed";
+  readonly errorCode: string;
+  readonly workflowMode: "two-object-spatial" | null;
+  readonly attemptOrdinal: 1 | 2 | null;
 }
 
 export class PersonalVisualHarmonyPerceptionJobError extends Error {
@@ -159,6 +169,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #fetch: PersonalVisualHarmonyFetch | undefined;
   readonly #now: () => number;
   readonly #createJobId: () => string;
+  readonly #onDiagnostic: ((event: PersonalVisualHarmonyPerceptionJobDiagnosticEventV1) => void)
+    | undefined;
   readonly #jobs = new Map<string, StoredJob>();
   readonly #expiredJobs = new Map<string, StoredJob>();
   readonly #sourceImageReservationQueue: QueuedSourceImageReservation[] = [];
@@ -224,6 +236,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#fetch = options.fetch;
     this.#now = options.now ?? Date.now;
     this.#createJobId = options.createJobId ?? (() => `pvh-perception:${randomUUID()}`);
+    this.#onDiagnostic = options.onDiagnostic;
   }
 
   public async captureSourceImageIdentity(input: {
@@ -778,6 +791,18 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     job.perceptionReceiptIdentity = null;
     job.preparedCandidateSet = null;
     this.#cancelQueuedSourceImageReservation(job);
+    try {
+      this.#onDiagnostic?.(Object.freeze({
+        event: "personal_visual_harmony_perception_job_terminal",
+        jobIdentity: `sha256:${createHash("sha256").update(job.jobId).digest("hex")}`,
+        state: "failed",
+        errorCode,
+        workflowMode: job.workflowMode,
+        attemptOrdinal: job.attemptOrdinal,
+      }));
+    } catch {
+      // Diagnostics must never change the terminal job result.
+    }
   }
 
   #cancelQueuedSourceImageReservation(job: StoredJob): void {

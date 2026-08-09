@@ -1072,6 +1072,7 @@ test("a queued job uses the provider's configured shorter deadline for admission
 
 test("a provider failure terminalizes once without candidates or Core", async () => {
   let providerCalls = 0;
+  const diagnostics = [];
   const service = createService({
     provider: {
       async segment() {
@@ -1079,6 +1080,7 @@ test("a provider failure terminalizes once without candidates or Core", async ()
         throw new Error("provider unavailable");
       },
     },
+    onDiagnostic: (event) => diagnostics.push(event),
   });
   const prepared = automaticCandidateSet();
   const pending = service.start(startInput(prepared));
@@ -1094,6 +1096,21 @@ test("a provider failure terminalizes once without candidates or Core", async ()
   assert.equal(failed.preparedCandidateSet, null);
   assert.equal(failed.coreRun, false);
   assert.equal(providerCalls, 1);
+  assert.equal(diagnostics.length, 1);
+  assert.deepEqual(Object.keys(diagnostics[0]).sort(), [
+    "attemptOrdinal",
+    "errorCode",
+    "event",
+    "jobIdentity",
+    "state",
+    "workflowMode",
+  ]);
+  assert.equal(diagnostics[0].event, "personal_visual_harmony_perception_job_terminal");
+  assert.match(diagnostics[0].jobIdentity, /^sha256:[0-9a-f]{64}$/u);
+  assert.equal(diagnostics[0].state, "failed");
+  assert.equal(diagnostics[0].errorCode, "perception_failed");
+  assert.equal(diagnostics[0].workflowMode, null);
+  assert.equal(diagnostics[0].attemptOrdinal, null);
 });
 
 test("perception jobs expire and enforce bounded capacity", () => {
