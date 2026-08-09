@@ -22,6 +22,7 @@ MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_777_216
 MAX_MASK_PIXELS = 262_144
 MAX_MASK_RUNS = 65_536
+MAX_TEXT_MASK_INSTANCES = 2
 MAX_PROMPT_POINTS = 16
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 MEDIA_TYPE_PATTERN = re.compile(r"^image/[a-z0-9.+-]{1,63}$")
@@ -154,6 +155,36 @@ def encode_mask_rle(mask: Sequence[Sequence[Any]]) -> dict[str, Any]:
         "height": height,
         "runs": runs,
     }
+
+
+def merge_text_instance_masks(
+    masks: Sequence[Sequence[Sequence[Any]]],
+    scores: Sequence[float],
+) -> tuple[list[list[bool]], float]:
+    if not masks or len(masks) != len(scores):
+        raise ContractError("text instance masks are invalid")
+    ranked: list[tuple[float, int]] = []
+    for index, score in enumerate(scores):
+        if isinstance(score, bool) or not 0 <= float(score) <= 1:
+            raise ContractError("invalid confidence")
+        ranked.append((float(score), index))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    selected = ranked[:MAX_TEXT_MASK_INSTANCES]
+    first = masks[selected[0][1]]
+    if not first or not first[0]:
+        raise ContractError("invalid mask")
+    height = len(first)
+    width = len(first[0])
+    merged = [[False for _ in range(width)] for _ in range(height)]
+    for _, index in selected:
+        mask = masks[index]
+        if len(mask) != height or any(len(row) != width for row in mask):
+            raise ContractError("text instance masks must share dimensions")
+        for y, row in enumerate(mask):
+            for x, active in enumerate(row):
+                merged[y][x] = merged[y][x] or bool(active)
+    encode_mask_rle(merged)
+    return merged, selected[0][0]
 
 
 def ready_response(

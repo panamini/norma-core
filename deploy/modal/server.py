@@ -27,6 +27,7 @@ from contract import (
     MODEL_REPO_ID,
     MODEL_REVISION,
     abstained_response,
+    merge_text_instance_masks,
     ready_response,
     validate_request,
 )
@@ -219,9 +220,16 @@ def _infer(
         scores = output["scores"]
         if len(masks) == 0:
             return None, None
-        index = int(torch.argmax(scores).item())
-        mask = masks[index, 0].detach().to("cpu").numpy().astype(bool)
-        return mask, float(scores[index].detach().to("cpu").item())
+        instance_masks = [
+            masks[index, 0].detach().to("cpu").numpy().astype(bool).tolist()
+            for index in range(len(masks))
+        ]
+        instance_scores = [
+            float(scores[index].detach().to("cpu").item())
+            for index in range(len(scores))
+        ]
+        merged, confidence = merge_text_instance_masks(instance_masks, instance_scores)
+        return np.asarray(merged, dtype=bool), confidence
 
     _INTERACTIVE_PREDICTOR.set_image(image)
     points = prompt["points"]

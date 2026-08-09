@@ -179,6 +179,114 @@ interface PixelPoint {
   readonly y: number;
 }
 
+export function splitPersonalVisualHarmonySegmentationMaskInstancesV1(
+  mask: PersonalVisualHarmonySegmentationMaskV1,
+): readonly PersonalVisualHarmonySegmentationMaskV1[] {
+  const decoded = decodeMask(mask);
+  if (decoded.connectedComponentCount === 1) return [mask];
+  const visited = new Uint8Array(decoded.active.length);
+  const components: Array<{ readonly offsets: readonly number[]; readonly minX: number; readonly minY: number }> = [];
+  for (let start = 0; start < decoded.active.length; start += 1) {
+    if (decoded.active[start] !== 1 || visited[start] === 1) continue;
+    const { offsets, minX, minY } = collectActiveMaskComponent(
+      decoded.active,
+      visited,
+      start,
+      mask.width,
+      mask.height,
+    );
+    if (offsets.length >= MIN_ACTIVE_PIXELS) components.push({ offsets, minX, minY });
+  }
+  const selected = components
+    .sort((left, right) => right.offsets.length - left.offsets.length
+      || left.minX - right.minX || left.minY - right.minY)
+    .slice(0, 2)
+    .sort((left, right) => left.minX - right.minX || left.minY - right.minY);
+  if (selected.length === 0) {
+    throw new Error("Segmentation mask contains no bounded instance evidence.");
+  }
+  return selected.map(({ offsets }) => maskFromActiveOffsets(mask.width, mask.height, offsets));
+}
+
+function collectActiveMaskComponent(
+  active: Uint8Array,
+  visited: Uint8Array,
+  startOffset: number,
+  width: number,
+  height: number,
+): { readonly offsets: readonly number[]; readonly minX: number; readonly minY: number } {
+  const queue = new Int32Array(active.length);
+  const offsets: number[] = [];
+  let minX = width;
+  let minY = height;
+  let head = 0;
+  let tail = 1;
+  queue[0] = startOffset;
+  visited[startOffset] = 1;
+  while (head < tail) {
+    const offset = queue[head++];
+    if (offset === undefined) continue;
+    offsets.push(offset);
+    const x = offset % width;
+    const y = Math.floor(offset / width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const neighborX = x + dx;
+        const neighborY = y + dy;
+        if ((dx === 0 && dy === 0) || neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height) continue;
+        const neighbor = (neighborY * width) + neighborX;
+        if (active[neighbor] !== 1 || visited[neighbor] === 1) continue;
+        visited[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
+    }
+  }
+  return { offsets, minX, minY };
+}
+
+function maskFromActiveOffsets(
+  width: number,
+  height: number,
+  offsets: readonly number[],
+): PersonalVisualHarmonySegmentationMaskV1 {
+  const runs: PersonalVisualHarmonyMaskRunV1[] = [];
+  const ordered = [...offsets].sort((left, right) => left - right);
+  let runStart = ordered[0];
+  let previous = runStart;
+  for (const offset of ordered.slice(1)) {
+    if (previous !== undefined && offset === previous + 1 && Math.floor(offset / width) === Math.floor(previous / width)) {
+      previous = offset;
+      continue;
+    }
+    if (runStart !== undefined && previous !== undefined) appendMaskRun(runs, runStart, previous, width);
+    runStart = offset;
+    previous = offset;
+  }
+  if (runStart !== undefined && previous !== undefined) appendMaskRun(runs, runStart, previous, width);
+  return {
+    contractId: PERSONAL_VISUAL_HARMONY_SEGMENTATION_MASK_CONTRACT_ID,
+    contractVersion: 1,
+    width,
+    height,
+    runs,
+  };
+}
+
+function appendMaskRun(
+  runs: PersonalVisualHarmonyMaskRunV1[],
+  startOffset: number,
+  endOffset: number,
+  width: number,
+): void {
+  runs.push({
+    y: Math.floor(startOffset / width),
+    startX: startOffset % width,
+    endXExclusive: (endOffset % width) + 1,
+  });
+}
+
 interface PrincipalAxis {
   readonly start: PersonalVisualHarmonyPointV1;
   readonly end: PersonalVisualHarmonyPointV1;

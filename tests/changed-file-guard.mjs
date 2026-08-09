@@ -617,6 +617,18 @@ export const personalVisualHarmonySam3ModalReadinessChangedFiles = Object.freeze
   "tests/changed-file-guard.test.mjs",
 ].sort());
 
+export const personalVisualHarmonySamTextMultiInstanceChangedFiles = Object.freeze([
+  "deploy/modal/contract.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_contract.py",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-perception.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception.test.mjs",
+].sort());
+
 export const personalVisualHarmonySemanticTargetToolboxChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-perception-jobs.ts",
@@ -1091,6 +1103,12 @@ export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagin
     "deploy/modal/test_contract.py",
     ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
   ].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles =
+  Object.freeze([
+    ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    ...personalVisualHarmonySamTextMultiInstanceChangedFiles,
+  ].sort().filter((file, index, files) => index === 0 || file !== files[index - 1]));
 
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
@@ -2299,6 +2317,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
   personalVisualHarmonySam3ModalReadinessChangedFiles,
+  personalVisualHarmonySamTextMultiInstanceChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
@@ -2343,6 +2362,7 @@ const sharedExactApprovedChangedFileSets = [
   statelessMcpScaffoldingQuotaFixChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,

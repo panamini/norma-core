@@ -90,6 +90,31 @@ class ModalSam3ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(contract.ContractError, "run limit"):
                 contract.encode_mask_rle(mask)
 
+    def test_text_instances_keep_the_two_highest_scoring_masks(self) -> None:
+        masks = [
+            [
+                [False, True, False, False],
+                [False, True, False, False],
+            ],
+            [
+                [False, False, False, True],
+                [False, False, False, True],
+            ],
+            [
+                [True, False, False, False],
+                [True, False, False, False],
+            ],
+        ]
+        merged, confidence = contract.merge_text_instance_masks(
+            masks,
+            [0.8, 0.9, 0.1],
+        )
+        self.assertEqual(merged, [
+            [False, True, False, True],
+            [False, True, False, True],
+        ])
+        self.assertEqual(confidence, 0.9)
+
     def test_responses_pin_provider_and_never_claim_core_authority(self) -> None:
         request = contract.validate_request(self.request())
         ready = contract.ready_response(request, [[True]], 0.75)

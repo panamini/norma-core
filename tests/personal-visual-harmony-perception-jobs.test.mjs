@@ -661,6 +661,63 @@ test("perception job forwards one normalized semantic target without confirmatio
   assert.equal(ready.coreRun, false);
 });
 
+test("one semantic provider proposal appends two separate person rectangles without Core", async () => {
+  const twoPersonMask = {
+    ...mask,
+    runs: [
+      { y: 1, startX: 1, endXExclusive: 4 },
+      { y: 2, startX: 1, endXExclusive: 4 },
+      { y: 3, startX: 1, endXExclusive: 4 },
+      { y: 4, startX: 1, endXExclusive: 4 },
+      { y: 2, startX: 6, endXExclusive: 9 },
+      { y: 3, startX: 6, endXExclusive: 9 },
+      { y: 4, startX: 6, endXExclusive: 9 },
+      { y: 5, startX: 6, endXExclusive: 9 },
+    ].sort((left, right) => left.y - right.y || left.startX - right.startX),
+  };
+  const service = createService({
+    provider: {
+      async segment() {
+        const result = await successfulProvider().segment();
+        return {
+          ...result,
+          response: { ...result.response, mask: twoPersonMask },
+        };
+      },
+    },
+  });
+  const prepared = automaticCandidateSet();
+  const pending = service.start({
+    ...startInput(prepared),
+    prompt: { kind: "text", text: "person" },
+    label: "Cible sémantique",
+    role: "primary-subject",
+  });
+  const ready = await waitForTerminal(service, {
+    jobId: pending.jobId,
+    subjectId: "subject:test",
+    sessionId: "session:test",
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+  });
+  assert.equal(ready.state, "ready", JSON.stringify(ready));
+  const semanticRectangles = ready.preparedCandidateSet.candidates.filter(
+    ({ label }) => label.startsWith("Cible sémantique"),
+  );
+  assert.deepEqual(
+    semanticRectangles.map(({ label, x, width, primitive }) => ({
+      label,
+      x,
+      width,
+      kind: primitive.kind,
+    })),
+    [
+      { label: "Cible sémantique 1", x: 0.1, width: 0.3, kind: "rectangle" },
+      { label: "Cible sémantique 2", x: 0.6, width: 0.3, kind: "rectangle" },
+    ],
+  );
+  assert.equal(ready.coreRun, false);
+});
+
 test("perception job rejects invalid semantic targets before creating a provider job", () => {
   let providerCalls = 0;
   const service = createService({
