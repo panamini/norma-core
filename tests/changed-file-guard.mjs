@@ -1110,6 +1110,11 @@ export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagin
     ...personalVisualHarmonySamTextMultiInstanceChangedFiles,
   ].sort().filter((file, index, files) => index === 0 || file !== files[index - 1]));
 
+export const statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles = Object.freeze([
+  "bin/norma-core-remote-mcp-http.mjs",
+  ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+].sort());
+
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
   "docs/BUSINESS_READINESS_ROADMAP.md",
   "docs/REMOTE_MCP_PRIVATE_BETA_RUNBOOK.md",
@@ -2363,6 +2368,7 @@ const sharedExactApprovedChangedFileSets = [
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
   statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,
