@@ -6793,7 +6793,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v21.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v22.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
@@ -6808,6 +6808,10 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.ok(
       Buffer.byteLength(resource.contents[0].text, "utf8") <= 290_000,
       "the inline ChatGPT widget must retain transport headroom below the observed template-fetch boundary",
+    );
+    assert.ok(
+      Buffer.byteLength(JSON.stringify({ jsonrpc: "2.0", id: "widget", result: resource }), "utf8") <= 240_000,
+      "the complete resources/read response must retain headroom below the 256 KiB template-fetch boundary",
     );
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
