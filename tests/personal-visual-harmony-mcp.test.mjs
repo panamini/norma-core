@@ -13,6 +13,7 @@ import {
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
+  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1,
   PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -1475,12 +1476,12 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.match(html, /state\.proposalCandidateSetIdentity=prepared\.candidateSetIdentity/u);
   assert.match(html, /state\.proposalCandidates=prepared\.candidates\.map/u);
   assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
-  assert.match(html, /restoredManual=restoredManualSegmentFor\(activePrepared\)/u);
-  assert.match(html, /state\.manualSegmentCandidateId=state\.reviewedCandidates\.find\(isManualSegmentCandidate\)/u);
+  assert.match(html, /restoredManual=restoredManualSegmentsFor\(activePrepared\)/u);
+  assert.match(html, /state\.manualSegmentCandidateIds=state\.reviewedCandidates\.filter\(isManualSegmentCandidate\)/u);
   assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
   assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
   assert.match(html, /remove\.disabled=state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
-  assert.match(html, /id===null\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
+  assert.match(html, /typeof id!=="string"\|\|!ids\.includes\(id\)\|\|state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
   assert.match(html, /window\.addEventListener\("keydown",event=>\{if\(event\.key==="Escape"&&state\.manualSegmentMode/u);
   assert.match(html, /state\.activePayloadIdentity!==null&&state\.activePayloadIdentity!==identity\)resetManualSegmentGesture\(\)/u);
   assert.match(
@@ -1536,6 +1537,25 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
       { x: 0.8, y: 0.8 },
     ),
     null,
+  );
+});
+
+test("widget direct A/B mode owns exactly two manual segments without a generated picker", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+
+  assert.match(html, /manualSegmentCandidateIds:\[\]/u);
+  assert.match(html, /state\.manualSegmentCandidateIds\.length>=2/u);
+  assert.match(html, /manualSegmentPairState:manualSegmentPairSnapshot\(\)/u);
+  assert.match(html, /manualSegmentCandidateIds\.includes\(item\.id\)/u);
+  assert.match(html, /measurementRatioSelects\.hidden=directPair/u);
+  assert.match(html, /CONFIRM_MEASUREMENT_PAIR_TOOL/u);
+  assert.match(html, /coreSelectedIds\(\)\.length===0&&!directPair/u);
+  assert.match(html, /completedMeasurementPair:\{operation:CONFIRM_MEASUREMENT_PAIR_TOOL/u);
+  assert.match(html, /confirmation\.coreAuthority===false/u);
+  assert.match(html, /renderMeasurementPairResult\([^;]+\{persist:false,cached:true\}/u);
+  assert.doesNotMatch(
+    html,
+    /state\.guidedAnalysisGoal==="compare-two-lengths"\|\|!state\.measurementRatioEnabled/u,
   );
 });
 
@@ -2541,7 +2561,7 @@ test("implicit manual-segment visibility changes clear a pressed guided preset",
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /state\.visibleKinds\.add\("segment"\);markGuidedAnalysisCustom\(\)/u,
+    /state\.visibleKinds\.add\("segment"\);if\(state\.guidedAnalysisGoal!=="compare-two-lengths"\)markGuidedAnalysisCustom\(\)/u,
   );
   const state = {
     confirming: false,
@@ -5999,6 +6019,67 @@ test("direct session confirmation idempotency ignores measurement property inser
   );
 });
 
+test("direct segment pair session confirmation is idempotent and mutually exclusive with Core", () => {
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-13T15:00:00.000Z"),
+    createSessionId: () => "session:direct-segment-pair",
+  });
+  const segmentB = {
+    id: "segment-b",
+    label: "Segment B",
+    role: "structural-region",
+    reason: "Deuxième longueur explicitement tracée",
+    x: 0.3,
+    y: 0.1,
+    width: 0,
+    height: 0.8,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.3, y: 0.1 },
+      end: { x: 0.3, y: 0.9 },
+    },
+  };
+  const prepared = service.prepare({
+    fileId: "file-direct-segment-pair",
+    mediaType: "image/png",
+    candidates: [...mixedPrimitiveCandidates(), segmentB],
+  });
+  const request = {
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    confirmedVisualGuideCandidateIds: ["diagonal", "segment-b"],
+    measurementRatioRequest: {
+      requestId: "declared-ratio:direct-segment-pair",
+      measurements: [
+        { kind: "segment", candidateId: "diagonal" },
+        { kind: "segment", candidateId: "segment-b" },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+  };
+
+  const first = service.confirmMeasurementPair(request);
+  const replay = service.confirmMeasurementPair(structuredClone(request));
+
+  assert.deepEqual(replay, first);
+  assert.equal(first.measurementPairConfirmation.coreRun, false);
+  assert.equal(first.measurementPairConfirmation.coreAuthority, false);
+  assert.equal(first.measurementPairConfirmation.coreExecutionCount, 0);
+  assert.throws(() => service.confirm({
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    selectedCandidateIds: ["major", "minor"],
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+  }), /already confirmed with a different operation/u);
+});
+
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
     now: () => Date.parse("2026-07-13T15:00:00.000Z"),
     createSessionId: () => "session:test-personal-visual-harmony",
@@ -6404,15 +6485,20 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
   try {
     const listed = await connected.client.listTools();
     assert.deepEqual(listed.tools.map(({ name }) => name).sort(), [
+      PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
     ].sort());
 
     const prepareTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL);
+    const measurementPairTool = listed.tools.find(({ name }) => (
+      name === PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL
+    ));
     const confirmTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL);
     const refinePixelsTool = listed.tools.find(({ name }) => name === PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL);
     assert.ok(prepareTool);
+    assert.ok(measurementPairTool);
     assert.ok(confirmTool);
     assert.ok(refinePixelsTool);
     assert.deepEqual(prepareTool._meta["openai/fileParams"], ["image"]);
@@ -6426,6 +6512,14 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(Object.hasOwn(confirmTool._meta.ui, "resourceUri"), false);
     assert.equal(Object.hasOwn(refinePixelsTool._meta.ui, "resourceUri"), false);
     assert.deepEqual(confirmTool._meta.ui.visibility, ["app"]);
+    assert.deepEqual(measurementPairTool._meta.ui.visibility, ["app"]);
+    assert.equal(measurementPairTool.annotations.idempotentHint, true);
+    assert.equal(measurementPairTool.outputSchema.properties.coreRun.const, false);
+    assert.equal(
+      measurementPairTool.outputSchema.properties.measurementPairConfirmation
+        .properties.coreExecutionCount.const,
+      0,
+    );
     assert.deepEqual(refinePixelsTool._meta.ui.visibility, ["app"]);
     assert.equal(refinePixelsTool.annotations.readOnlyHint, false);
     assert.equal(refinePixelsTool.annotations.idempotentHint, false);
@@ -9180,6 +9274,7 @@ test("STDIO entrypoint is disabled by default and initializes the personal app w
     await client.connect(transport);
     const tools = await client.listTools();
     assert.deepEqual(tools.tools.map(({ name }) => name).sort(), [
+      PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,

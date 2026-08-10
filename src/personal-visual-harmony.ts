@@ -64,6 +64,8 @@ export const PERSONAL_VISUAL_HARMONY_IMAGE_PLANE_RELATIONS_CONTRACT_ID =
   "norma.personal-visual-harmony-image-plane-relations@1" as const;
 export const PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_ID =
   "norma.personal-visual-harmony-declared-measurement-ratio-report@1" as const;
+export const PERSONAL_VISUAL_HARMONY_MEASUREMENT_PAIR_CONFIRMATION_CONTRACT_ID =
+  "norma.personal-visual-harmony-measurement-pair-confirmation@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES = 12;
 export const PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES =
   PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2;
@@ -489,6 +491,29 @@ export interface PersonalVisualHarmonyDeclaredMeasurementRatioReportV1 {
   readonly originalGeometryUnchanged: true;
   readonly noIntentInference: true;
   readonly contentIdentity: string;
+}
+
+export interface PersonalVisualHarmonyMeasurementPairConfirmationV1 {
+  readonly contractId:
+    typeof PERSONAL_VISUAL_HARMONY_MEASUREMENT_PAIR_CONFIRMATION_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "completed";
+  readonly candidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+  readonly coordinateSpace: "image_plane_pixels_v1";
+  readonly confirmedVisualGuideCandidateIds: readonly [string, string];
+  readonly report: PersonalVisualHarmonyDeclaredMeasurementRatioReportV1;
+  readonly explicitConfirmation: true;
+  readonly confirmationMode: "client_asserted_widget_interaction";
+  readonly serverVerifiedHumanPresence: false;
+  readonly measurementOnly: true;
+  readonly providerCalls: 0;
+  readonly coreAuthority: false;
+  readonly coreRun: false;
+  readonly coreExecutionCount: 0;
+  readonly confirmationIdentity: string;
 }
 
 export interface PersonalVisualHarmonyImagePlaneRelationsV1 {
@@ -1396,6 +1421,75 @@ export function confirmPersonalVisualHarmonyCandidateSetV1(
       ? { auditAcceptedGeometryContentIdentity: acceptedGeometry.contentIdentity }
       : {}),
   } as PersonalVisualHarmonyConfirmationV1 | PersonalVisualHarmonyManualConfirmationV1;
+}
+
+export function confirmPersonalVisualHarmonyMeasurementPairV1(input: {
+  readonly preparedCandidateSet: PersonalVisualHarmonyConfirmableCandidateSet;
+  readonly expectedCandidateSetIdentity: string;
+  readonly confirmedVisualGuideCandidateIds: readonly string[];
+  readonly measurementRatioRequest: PersonalVisualHarmonyMeasurementRatioRequestV1;
+  readonly sourcePixelWidth: number;
+  readonly sourcePixelHeight: number;
+}): PersonalVisualHarmonyMeasurementPairConfirmationV1 {
+  const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
+  if (prepared.contractVersion === 3) {
+    throw new Error("Two-object candidate sets require session-bound spatial confirmation.");
+  }
+  if (input.expectedCandidateSetIdentity !== prepared.candidateSetIdentity) {
+    throw new Error("Candidate set identity does not match the prepared review.");
+  }
+  requirePositivePixelDimension(input.sourcePixelWidth, "sourcePixelWidth");
+  requirePositivePixelDimension(input.sourcePixelHeight, "sourcePixelHeight");
+  const confirmedVisualGuideCandidateIds = normalizeVisualGuideCandidateIds(
+    prepared,
+    input.confirmedVisualGuideCandidateIds,
+  );
+  if (confirmedVisualGuideCandidateIds.length !== 2) {
+    throw new Error("Direct segment measurement requires exactly two confirmed segment candidates.");
+  }
+  if (input.measurementRatioRequest.measurements.some(({ kind }) => kind !== "segment")) {
+    throw new Error("Direct segment measurement requires exactly two direct segment references.");
+  }
+  const confirmedSet = new Set(confirmedVisualGuideCandidateIds);
+  const requestedIds = new Set(
+    input.measurementRatioRequest.measurements.map(({ candidateId }) => candidateId),
+  );
+  if (requestedIds.size !== 2
+    || confirmedSet.size !== 2
+    || [...requestedIds].some((candidateId) => !confirmedSet.has(candidateId))) {
+    throw new Error("Direct segment measurement references must match the two confirmed segments.");
+  }
+  const report = createDeclaredMeasurementRatioReport(
+    prepared,
+    confirmedVisualGuideCandidateIds,
+    input.measurementRatioRequest,
+    input.sourcePixelWidth,
+    input.sourcePixelHeight,
+  );
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_MEASUREMENT_PAIR_CONFIRMATION_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "completed" as const,
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    sourcePixelWidth: input.sourcePixelWidth,
+    sourcePixelHeight: input.sourcePixelHeight,
+    coordinateSpace: "image_plane_pixels_v1" as const,
+    confirmedVisualGuideCandidateIds: confirmedVisualGuideCandidateIds as [string, string],
+    report,
+    explicitConfirmation: true as const,
+    confirmationMode: "client_asserted_widget_interaction" as const,
+    serverVerifiedHumanPresence: false as const,
+    measurementOnly: true as const,
+    providerCalls: 0 as const,
+    coreAuthority: false as const,
+    coreRun: false as const,
+    coreExecutionCount: 0 as const,
+  };
+  return {
+    ...withoutIdentity,
+    confirmationIdentity: contentIdentityFor(withoutIdentity),
+  };
 }
 
 function createDeclaredMeasurementRatioReport(

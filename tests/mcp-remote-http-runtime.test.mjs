@@ -15,6 +15,7 @@ import {
 } from "../dist/src/mcp/remote-http-server.js";
 import { RemoteMcpAdmissionController } from "../dist/src/mcp/remote-http-limits.js";
 import {
+  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -90,27 +91,30 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.deepEqual(list.json.result.tools.map((tool) => tool.name), [
     PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
     PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+    PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
     PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     analyzeToolName,
   ]);
   const prepareTool = list.json.result.tools[0];
   const refinePixelsTool = list.json.result.tools[1];
-  const confirmTool = list.json.result.tools[2];
+  const measurementPairTool = list.json.result.tools[2];
+  const confirmTool = list.json.result.tools[3];
   assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(Object.hasOwn(refinePixelsTool._meta.ui, "resourceUri"), false);
+  assert.equal(Object.hasOwn(measurementPairTool._meta.ui, "resourceUri"), false);
   assert.equal(Object.hasOwn(confirmTool._meta.ui, "resourceUri"), false);
   assert.deepEqual(prepareTool._meta.securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
   }]);
-  assert.deepEqual(list.json.result.tools[3].annotations, {
+  assert.deepEqual(list.json.result.tools[4].annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,
     idempotentHint: true,
   });
-  assert.deepEqual(list.json.result.tools[3].securitySchemes, [{
+  assert.deepEqual(list.json.result.tools[4].securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
   }]);

@@ -8,6 +8,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
+  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -241,6 +242,7 @@ test("perception tools stay unavailable when the authenticated subject boundary 
   try {
     const listed = await connected.client.listTools();
     assert.deepEqual(listed.tools.map(({ name }) => name).sort(), [
+      PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
@@ -3241,7 +3243,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /if\(reviewEditingBlocked\(\)\|\|event\.isPrimary===false/u);
   assert.match(
     html,
-    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateId!==null&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
+    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateIds\.length>0&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
   );
   assert.match(html, /multiStartBlocked=multiPerceptionStartBlocked\(payload\)/u);
   assert.match(html, /perceptionToggle\.disabled=.*?\|\|multiStartBlocked\|\|/u);
