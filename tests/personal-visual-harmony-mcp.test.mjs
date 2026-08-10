@@ -6803,14 +6803,21 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
     assert.deepEqual(resource.contents[0]._meta.ui, { prefersBorder: true });
-    assert.equal(resource.contents[0].text, createPersonalVisualHarmonyWidgetHtmlV1());
+    const sourceWidget = createPersonalVisualHarmonyWidgetHtmlV1();
+    assert.notEqual(resource.contents[0].text, sourceWidget);
+    assert.ok(
+      Buffer.byteLength(resource.contents[0].text, "utf8") <= 290_000,
+      "the inline ChatGPT widget must retain transport headroom below the observed template-fetch boundary",
+    );
     const widgetScript = resource.contents[0].text.match(/<script type="module">([\s\S]*?)<\/script>/u);
     assert.ok(widgetScript);
     assert.doesNotThrow(() => new Function(widgetScript[1]));
-    assert.match(widgetScript[1], /const DECLARED_SPATIAL_ANCHORS=\["center","top-left","top-right","bottom-left","bottom-right","top-midpoint","right-midpoint","bottom-midpoint","left-midpoint"\]/u);
-    assert.match(widgetScript[1], /DECLARED_SPATIAL_METRICS=\["euclidean","horizontal","vertical"\]/u);
-    assert.match(widgetScript[1], /DECLARED_SPATIAL_EDGES=\["left","right","top","bottom"\]/u);
-    assert.match(resource.contents[0].text, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
+    const sourceWidgetScript = sourceWidget.match(/<script type="module">([\s\S]*?)<\/script>/u);
+    assert.ok(sourceWidgetScript);
+    assert.match(sourceWidgetScript[1], /const DECLARED_SPATIAL_ANCHORS=\["center","top-left","top-right","bottom-left","bottom-right","top-midpoint","right-midpoint","bottom-midpoint","left-midpoint"\]/u);
+    assert.match(sourceWidgetScript[1], /DECLARED_SPATIAL_METRICS=\["euclidean","horizontal","vertical"\]/u);
+    assert.match(sourceWidgetScript[1], /DECLARED_SPATIAL_EDGES=\["left","right","top","bottom"\]/u);
+    assert.match(sourceWidget, /fileApi=window\.openai\?\.getFileDownloadUrl/u);
     const cachedResource = await connected.client.readResource({
       uri: "ui://widget/norma-personal-visual-harmony-v9.html",
     });
@@ -6834,6 +6841,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
       );
       assert.equal(legacyResource.contents[0].text, resource.contents[0].text);
     }
+    // The remaining assertions inspect the readable authoring source; transport
+    // minification is covered above by its byte budget and parse check.
+    resource.contents[0].text = sourceWidget;
     assert.match(resource.contents[0].text, /sourceImageDownloadUrl/u);
     assert.match(resource.contents[0].text, /window\.openai\.callTool/u);
     assert.match(resource.contents[0].text, /window\.openai\.sendFollowUpMessage/u);

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { minify_sync } from "terser";
 import { z } from "zod";
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
@@ -3378,6 +3379,38 @@ function decodeCanonicalLuminanceBase64(value: string | undefined): readonly num
   return Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
+let cachedPersonalVisualHarmonyWidgetTransportHtml: string | undefined;
+
+function personalVisualHarmonyWidgetTransportHtml(): string {
+  if (cachedPersonalVisualHarmonyWidgetTransportHtml !== undefined) {
+    return cachedPersonalVisualHarmonyWidgetTransportHtml;
+  }
+  const source = createPersonalVisualHarmonyWidgetHtmlV1();
+  const moduleScript = source.match(/<script type="module">([\s\S]*?)<\/script>/u);
+  const moduleScriptSource = moduleScript?.[1];
+  if (moduleScript?.index === undefined || moduleScriptSource === undefined) {
+    throw new Error("Personal visual harmony widget module script is unavailable.");
+  }
+  const minified = minify_sync(moduleScriptSource, {
+    compress: true,
+    ecma: 2022,
+    mangle: true,
+    module: false,
+    format: { comments: false },
+  });
+  if (minified.code === undefined) {
+    throw new Error("Personal visual harmony widget module script could not be minified.");
+  }
+  cachedPersonalVisualHarmonyWidgetTransportHtml = [
+    source.slice(0, moduleScript.index),
+    '<script type="module">',
+    minified.code,
+    "</script>",
+    source.slice(moduleScript.index + moduleScript[0].length),
+  ].join("");
+  return cachedPersonalVisualHarmonyWidgetTransportHtml;
+}
+
 function personalVisualHarmonyWidgetResourceResponse(uri: string) {
   return {
     contents: [{
@@ -3385,7 +3418,7 @@ function personalVisualHarmonyWidgetResourceResponse(uri: string) {
       mimeType: PERSONAL_VISUAL_HARMONY_WIDGET_SKYBRIDGE_URIS.has(uri)
         ? PERSONAL_VISUAL_HARMONY_WIDGET_LEGACY_MIME_TYPE
         : PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE,
-      text: createPersonalVisualHarmonyWidgetHtmlV1(),
+      text: personalVisualHarmonyWidgetTransportHtml(),
       _meta: {
         ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
         "openai/widgetDescription": "Interactive image overlay for explicit visual candidate confirmation and deterministic Norma Core harmony results.",
