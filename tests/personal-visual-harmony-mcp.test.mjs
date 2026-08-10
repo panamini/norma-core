@@ -1151,7 +1151,7 @@ test("widget prefers the canonical complete MCP result over a partial compatibil
   assert.deepEqual(findPayload(metadataEnvelope), completePayload);
 });
 
-test("widget reuses the image URL already validated before starting SAM", async () => {
+test("widget refreshes the image URL immediately before starting SAM", async () => {
   let refreshCalls = 0;
   const perceptionDownloadUrl = widgetScriptFunction(
     "perceptionDownloadUrl",
@@ -1171,6 +1171,31 @@ test("widget reuses the image URL already validated before starting SAM", async 
       },
       withPerceptionDeadline: async (task) => task(),
       PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionSourceFileId: (payload) => payload.fileId,
+      perceptionClientError: (code, message) => ({ code, message }),
+    },
+  );
+
+  assert.equal(
+    await perceptionDownloadUrl({ fileId: "file-validated" }),
+    "https://files.example/refreshed",
+  );
+  assert.equal(refreshCalls, 1);
+});
+
+test("widget keeps the validated image URL fallback when the file API is unavailable", async () => {
+  const perceptionDownloadUrl = widgetScriptFunction(
+    "perceptionDownloadUrl",
+    "function rpcRequest",
+    {
+      state: { downloadUrl: "https://files.example/validated" },
+      validPerceptionDownloadUrl: (value) => (
+        typeof value === "string" && value.startsWith("https://")
+      ),
+      window: { openai: {} },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionSourceFileId: (payload) => payload.fileId,
       perceptionClientError: (code, message) => ({ code, message }),
     },
   );
@@ -1179,7 +1204,6 @@ test("widget reuses the image URL already validated before starting SAM", async 
     await perceptionDownloadUrl({ fileId: "file-validated" }),
     "https://files.example/validated",
   );
-  assert.equal(refreshCalls, 0);
 });
 
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
@@ -6675,7 +6699,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v17.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v18.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
