@@ -669,6 +669,7 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
     "updatePerceptionUi",
     "guidedGoalStatus",
     "persistGuidedAnalysisGoal",
+    "MAX_REVIEW_CANDIDATES",
     "runSpatialRecovery",
     `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
   )(
@@ -686,6 +687,7 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
     updatePerceptionUi,
     { textContent: "" },
     () => {},
+    12,
     (...args) => calls.push({ type: "recovery", args }),
   );
 
@@ -744,6 +746,7 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
     "updatePerceptionUi",
     "guidedGoalStatus",
     "persistGuidedAnalysisGoal",
+    "MAX_REVIEW_CANDIDATES",
     "runSpatialRecovery",
     `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
   )(
@@ -761,6 +764,7 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
     () => {},
     { textContent: "" },
     () => {},
+    12,
     (...args) => calls.push({ type: "recovery", args }),
   );
 

@@ -193,6 +193,18 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(prepared.json.result.structuredContent.status, "confirmation_required");
   assert.equal(prepared.json.result.structuredContent.coreRun, false);
 
+  const invalidMeasurementPair = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "invalid-measurement-pair",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
+      arguments: {},
+    },
+  });
+  assert.equal(invalidMeasurementPair.status, 200);
+  assert.equal(invalidMeasurementPair.json.result.isError, true);
+
   const input = JSON.parse(await readFile(
     join(repoRoot, "examples", "structured-analyze", "scenarios", "alignment-basic.json"),
     "utf8",
@@ -214,6 +226,10 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
 
   assert.ok(logs.some((event) => event.outcome === "allow" && event.protocolVersion === protocol));
   assert.ok(logs.some((event) => event.tool === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL && event.outcome === "allow"));
+  assert.ok(logs.some((event) => (
+    event.tool === PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL
+    && event.outcome === "allow"
+  )));
   assert.ok(logs.some((event) => event.tool === analyzeToolName && event.outcome === "allow"));
   assert.ok(logs.some((event) => event.tool === "mcp" && event.outcome === "allow"));
   const serializedLogs = JSON.stringify(logs);

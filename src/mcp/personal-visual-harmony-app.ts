@@ -2028,7 +2028,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
       throw new Error("Visual harmony perception app authorization is missing or invalid.");
     }
     if (session.confirmation !== undefined
-      || session.declaredSpatialMeasurementConfirmation !== undefined) {
+      || session.declaredSpatialMeasurementConfirmation !== undefined
+      || session.measurementPairConfirmation !== undefined) {
       throw new Error("A confirmed visual harmony session cannot start perception.");
     }
     if (input.workflowMode === undefined) {
@@ -2186,6 +2187,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (session.subjectId !== input.subjectId) {
       throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
     }
+    if (session.measurementPairConfirmation !== undefined) {
+      throw new Error("A confirmed visual harmony session cannot apply perception.");
+    }
     if (workflow === undefined
       || input.job.workflowMode !== "two-object-spatial"
       || input.job.attemptOrdinal === null) {
@@ -2326,7 +2330,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
         || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
         || input.job.parentCandidateSetIdentity !== session.prepared.candidateSetIdentity
         || session.confirmation !== undefined
-        || session.declaredSpatialMeasurementConfirmation !== undefined) {
+        || session.declaredSpatialMeasurementConfirmation !== undefined
+        || session.measurementPairConfirmation !== undefined) {
         throw new Error("Timed-out two-object result reconciliation is stale or invalid.");
       }
       this.terminalizeMultiPerceptionAttempt(session, input.job.jobId, attemptOrdinal);
@@ -2338,7 +2343,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
       || workflow.terminalState !== null
       || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
       || session.confirmation !== undefined
-      || session.declaredSpatialMeasurementConfirmation !== undefined) {
+      || session.declaredSpatialMeasurementConfirmation !== undefined
+      || session.measurementPairConfirmation !== undefined) {
       throw new Error("Applied two-object result rollback is stale or invalid.");
     }
     const currentRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(
@@ -2429,7 +2435,8 @@ export class PersonalVisualHarmonySessionServiceV1 {
       || workflow.terminalState !== null
       || workflow.consumedOrdinals.at(-1) !== attemptOrdinal
       || session.confirmation !== undefined
-      || session.declaredSpatialMeasurementConfirmation !== undefined) {
+      || session.declaredSpatialMeasurementConfirmation !== undefined
+      || session.measurementPairConfirmation !== undefined) {
       throw new Error("Retained two-object result terminalization is stale or invalid.");
     }
     const currentRecoveryEvidence = this.multiPerceptionRecoveryEvidence.get(
@@ -2582,6 +2589,7 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
     if (session.subjectId !== input.subjectId
       || session.prepared.candidateSetIdentity !== input.expectedCandidateSetIdentity
+      || session.measurementPairConfirmation !== undefined
       || session.prepared.sourceImageReferenceIdentity
         !== input.preparedCandidateSet.sourceImageReferenceIdentity
       || !((input.preparedCandidateSet.perceptionManifest.observations.length === 2
@@ -2622,6 +2630,9 @@ export class PersonalVisualHarmonySessionServiceV1 {
     if (session === undefined) throw new Error(MISSING_OR_EXPIRED_SESSION_MESSAGE);
     if (session.subjectId !== input.subjectId) {
       throw new Error(PERSONAL_VISUAL_HARMONY_CROSS_SUBJECT_SESSION_MESSAGE);
+    }
+    if (session.measurementPairConfirmation !== undefined) {
+      throw new Error("A confirmed visual harmony session cannot apply perception.");
     }
     if (session.prepared.candidateSetIdentity === input.preparedCandidateSet.candidateSetIdentity) {
       return;
@@ -4614,7 +4625,7 @@ function guidedAnalysisGoalSnapshot(){const scope=guidedAnalysisScope();return s
 function storedGuidedAnalysisGoalFor(value){const scope=guidedAnalysisScope();if(!scope||!value||typeof value!=="object"||Object.keys(value).sort().join("|")!=="analysisIdentity|fileId|goalId|visibleKinds"||value.fileId!==scope.fileId||value.analysisIdentity!==scope.analysisIdentity||value.goalId!==null&&!GUIDED_ANALYSIS_GOALS.some(goal=>goal.id===value.goalId)||!Array.isArray(value.visibleKinds)||value.visibleKinds.length>GUIDED_ANALYSIS_KINDS.length||new Set(value.visibleKinds).size!==value.visibleKinds.length||!value.visibleKinds.every(kind=>GUIDED_ANALYSIS_KINDS.includes(kind)))return null;const goal=GUIDED_ANALYSIS_GOALS.find(item=>item.id===value.goalId);if(goal){const expected=visibleKindsForGuidedAnalysisGoal(goal);if(expected.length!==value.visibleKinds.length||expected.some(kind=>!value.visibleKinds.includes(kind)))return null}return{analysisIdentity:value.analysisIdentity,fileId:value.fileId,goalId:value.goalId,visibleKinds:[...value.visibleKinds]}}
 function persistGuidedAnalysisGoal(){const guidedAnalysisGoal=guidedAnalysisGoalSnapshot();if(guidedAnalysisGoal)window.openai?.setWidgetState?.({...publicWidgetState(),guidedAnalysisGoal})}
 function twoObjectSpatialWorkflowActive(){return state.payload?.prepared?.workflowMode==="two-object-spatial"}
-function applyGuidedAnalysisGoal(id){if(state.confirming||state.spatialRecoveryRunning||twoObjectSpatialWorkflowActive()&&id!=="compare-two-lengths")return;const prepared=state.payload?.prepared,perceptionDirectBlocked=prepared?.workflowMode!=="two-object-spatial"&&Boolean(prepared?.perceptionReceiptIdentity);if(id==="compare-two-lengths"&&perceptionDirectBlocked){state.manualSegmentMode=false;state.manualSegmentAnchor=null;guidedGoalStatus.textContent="La mesure directe A/B sur une préparation assistée appartient à une phase séparée. Revenez à une préparation manuelle pour tracer A et B; SAM reste disponible dans son parcours dédié.";return}const goal=GUIDED_ANALYSIS_GOALS.find(value=>value.id===id)||GUIDED_ANALYSIS_GOALS[0],changed=state.guidedAnalysisGoal!==goal.id;state.guidedAnalysisGoal=goal.id;state.visibleKinds=new Set(visibleKindsForGuidedAnalysisGoal(goal));if(changed){state.measurementRatioEnabled=false;state.measurementRatioRefs=[];state.declaredSpatialMeasurementPlanRevision+=1;state.declaredSpatialMeasurementPlanInputKey=null;state.declaredSpatialMeasurementPlan=null;state.declaredSpatialMeasurementPlanBuilding=false}updateGuidedAnalysisGoalButtons();updateFamilyFilterButtons();syncFamilyVisibility();if(typeof updateMeasurementRatioControls==="function")updateMeasurementRatioControls();if(typeof updatePerceptionUi==="function")updatePerceptionUi();guidedGoalStatus.textContent=goal.effect;persistGuidedAnalysisGoal();if(changed&&goal.id==="compare-two-lengths"){startFreshSpatialSessionIfNeeded();if(state.payload?.prepared?.workflowMode!=="two-object-spatial"&&!state.spatialRecoveryRunning){state.manualSegmentMode=true;state.manualSegmentAnchor=null}}}
+function applyGuidedAnalysisGoal(id){if(state.confirming||state.spatialRecoveryRunning||twoObjectSpatialWorkflowActive()&&id!=="compare-two-lengths")return;const prepared=state.payload?.prepared,perceptionDirectBlocked=prepared?.workflowMode!=="two-object-spatial"&&Boolean(prepared?.perceptionReceiptIdentity),candidateCount=Array.isArray(state.reviewedCandidates)?state.reviewedCandidates.length:Array.isArray(prepared?.candidates)?prepared.candidates.length:0,directPairCapacityBlocked=id==="compare-two-lengths"&&prepared?.workflowMode!=="two-object-spatial"&&candidateCount>MAX_REVIEW_CANDIDATES-2&&state.payload?.perceptionRecoveryAvailable!==true;if(id==="compare-two-lengths"&&perceptionDirectBlocked){state.manualSegmentMode=false;state.manualSegmentAnchor=null;guidedGoalStatus.textContent="La mesure directe A/B sur une préparation assistée appartient à une phase séparée. Revenez à une préparation manuelle pour tracer A et B; SAM reste disponible dans son parcours dédié.";return}if(directPairCapacityBlocked){state.manualSegmentMode=false;state.manualSegmentAnchor=null;guidedGoalStatus.textContent="La mesure directe A/B exige deux emplacements libres. Repréparez l’image avec au plus dix candidats avant de tracer A et B.";return}const goal=GUIDED_ANALYSIS_GOALS.find(value=>value.id===id)||GUIDED_ANALYSIS_GOALS[0],changed=state.guidedAnalysisGoal!==goal.id;state.guidedAnalysisGoal=goal.id;state.visibleKinds=new Set(visibleKindsForGuidedAnalysisGoal(goal));if(changed){state.measurementRatioEnabled=false;state.measurementRatioRefs=[];state.declaredSpatialMeasurementPlanRevision+=1;state.declaredSpatialMeasurementPlanInputKey=null;state.declaredSpatialMeasurementPlan=null;state.declaredSpatialMeasurementPlanBuilding=false}if(goal.id!=="compare-two-lengths"&&(state.manualSegmentMode===true||state.manualSegmentAnchor!==undefined&&state.manualSegmentAnchor!==null)){resetManualSegmentGesture();updateManualSegmentControls()}updateGuidedAnalysisGoalButtons();updateFamilyFilterButtons();syncFamilyVisibility();if(typeof updateMeasurementRatioControls==="function")updateMeasurementRatioControls();if(typeof updatePerceptionUi==="function")updatePerceptionUi();guidedGoalStatus.textContent=goal.effect;persistGuidedAnalysisGoal();if(changed&&goal.id==="compare-two-lengths"){startFreshSpatialSessionIfNeeded();if(candidateCount<=MAX_REVIEW_CANDIDATES-2&&state.payload?.prepared?.workflowMode!=="two-object-spatial"&&!state.spatialRecoveryRunning){state.manualSegmentMode=true;state.manualSegmentAnchor=null}}}
 function startFreshSpatialSessionIfNeeded(){const payload=state.payload,selectedRectangleCount=Array.isArray(state.reviewedCandidates)&&state.selected instanceof Set?state.reviewedCandidates.filter(item=>state.selected.has(item.id)&&(!item.primitive||item.primitive.kind==="rectangle")).length:0,samCapabilityUnavailable=typeof payload?.perceptionAppCapability!=="string"||payload.perceptionAppCapability.length<32||!Array.isArray(payload?.perceptionModes)||!payload.perceptionModes.includes("two-object-spatial"),needsFreshSpatialSession=state.guidedAnalysisGoal==="compare-two-lengths"&&(payload?.prepared?.contractVersion??1)===1&&payload?.prepared?.workflowMode!=="two-object-spatial"&&payload?.perceptionRecoveryAvailable===true&&((payload?.prepared?.candidates?.length??0)>10||samCapabilityUnavailable&&selectedRectangleCount===2);if(!needsFreshSpatialSession||state.spatialRecoveryRunning||state.completed||state.confirming||state.manualSpatialFallback||state.spatialRecoveryEntryIdentity!==undefined&&state.spatialRecoveryEntryIdentity!==null&&state.spatialRecoveryEntryIdentity===state.activePayloadIdentity)return;state.spatialRecoveryEntryIdentity=state.activePayloadIdentity;void runSpatialRecovery(false,true)}
 function restoreGuidedAnalysisGoal(){const stored=storedGuidedAnalysisGoalFor(publicWidgetState().guidedAnalysisGoal),forced=twoObjectSpatialWorkflowActive()?GUIDED_ANALYSIS_GOALS.find(value=>value.id==="compare-two-lengths"):null;let goal=forced||GUIDED_ANALYSIS_GOALS.find(value=>value.id===(stored?.goalId||DEFAULT_GUIDED_ANALYSIS_GOAL))||GUIDED_ANALYSIS_GOALS[0];const prepared=state.payload?.prepared,perceptionDirectBlocked=prepared?.workflowMode!=="two-object-spatial"&&Boolean(prepared?.perceptionReceiptIdentity);if(goal.id==="compare-two-lengths"&&perceptionDirectBlocked)goal=GUIDED_ANALYSIS_GOALS.find(value=>value.id===DEFAULT_GUIDED_ANALYSIS_GOAL)||GUIDED_ANALYSIS_GOALS[0];state.guidedAnalysisGoal=goal.id;state.visibleKinds=new Set(visibleKindsForGuidedAnalysisGoal(goal))}
 function renderGuidedAnalysisGoals(){guidedGoals.replaceChildren();for(const goal of GUIDED_ANALYSIS_GOALS){const presentation=guidedGoalPresentation(goal),button=document.createElement("button");button.type="button";button.className="guided-goal";button.disabled=state.confirming||twoObjectSpatialWorkflowActive()&&goal.id!=="compare-two-lengths";button.setAttribute("data-goal-id",goal.id);button.setAttribute("aria-pressed",String(goal.id===state.guidedAnalysisGoal));const title=document.createElement("strong"),effect=document.createElement("span");title.textContent=presentation.label;effect.textContent=presentation.effect;button.append(title,effect);button.addEventListener("click",()=>applyGuidedAnalysisGoal(goal.id));guidedGoals.append(button)}updateGuidedAnalysisGoalButtons();guidedGoalStatus.textContent=guidedGoalPresentation(GUIDED_ANALYSIS_GOALS.find(value=>value.id===state.guidedAnalysisGoal)||{id:null,label:"",effect:CUSTOM_GUIDED_ANALYSIS_GOAL_EFFECT}).effect}

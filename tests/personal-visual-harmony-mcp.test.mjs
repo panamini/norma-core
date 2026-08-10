@@ -1727,6 +1727,7 @@ test("widget guided analysis entry exposes the declared spatial mode without act
       guidedGoalStatus,
       persistGuidedAnalysisGoal() { persisted += 1; },
       callAppTool() { appToolCalls += 1; },
+      MAX_REVIEW_CANDIDATES: 12,
     },
   );
 
@@ -5370,6 +5371,7 @@ test("direct A/B entry fails closed before drawing on perception-assisted V2 geo
       updatePerceptionUi() {},
       persistGuidedAnalysisGoal() {},
       startFreshSpatialSessionIfNeeded() {},
+      MAX_REVIEW_CANDIDATES: 12,
     },
   );
 
@@ -5378,6 +5380,112 @@ test("direct A/B entry fails closed before drawing on perception-assisted V2 geo
   assert.equal(state.guidedAnalysisGoal, "general-geometry");
   assert.equal(state.manualSegmentMode, false);
   assert.match(guidedGoalStatus.textContent, /phase séparée/u);
+});
+
+test("leaving direct A/B mode clears the pending segment gesture", () => {
+  const state = {
+    guidedAnalysisGoal: "compare-two-lengths",
+    payload: { prepared: { workflowMode: "generic", candidates: [] } },
+    reviewedCandidates: [],
+    manualSegmentMode: true,
+    manualSegmentAnchor: { x: 0.2, y: 0.3 },
+    confirming: false,
+    spatialRecoveryRunning: false,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  let controlUpdates = 0;
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      guidedGoalStatus: { textContent: "" },
+      twoObjectSpatialWorkflowActive: () => false,
+      GUIDED_ANALYSIS_GOALS: [
+        { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+        { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+      ],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      resetManualSegmentGesture() {
+        state.manualSegmentMode = false;
+        state.manualSegmentAnchor = null;
+      },
+      updateManualSegmentControls() { controlUpdates += 1; },
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      updateMeasurementRatioControls() {},
+      updatePerceptionUi() {},
+      persistGuidedAnalysisGoal() {},
+      startFreshSpatialSessionIfNeeded() {},
+      MAX_REVIEW_CANDIDATES: 12,
+    },
+  );
+
+  applyGuidedAnalysisGoal("general-geometry");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.equal(state.manualSegmentMode, false);
+  assert.equal(state.manualSegmentAnchor, null);
+  assert.equal(controlUpdates, 1);
+});
+
+test("direct A/B mode rejects V1 preparations without two free candidate slots", () => {
+  const candidates = Array.from({ length: 11 }, (_, index) => ({ id: `candidate-${index}` }));
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    payload: {
+      prepared: { contractVersion: 1, workflowMode: "generic", candidates },
+      perceptionRecoveryAvailable: false,
+    },
+    reviewedCandidates: candidates,
+    manualSegmentMode: false,
+    manualSegmentAnchor: null,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const guidedGoalStatus = { textContent: "" };
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      guidedGoalStatus,
+      twoObjectSpatialWorkflowActive: () => false,
+      GUIDED_ANALYSIS_GOALS: [
+        { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+        { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+      ],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      updateMeasurementRatioControls() {},
+      updatePerceptionUi() {},
+      persistGuidedAnalysisGoal() {},
+      startFreshSpatialSessionIfNeeded() {},
+      MAX_REVIEW_CANDIDATES: 12,
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.equal(state.manualSegmentMode, false);
+  assert.match(guidedGoalStatus.textContent, /deux emplacements libres/u);
 });
 
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
@@ -6179,6 +6287,87 @@ test("direct segment pair session confirmation is idempotent and mutually exclus
     sourcePixelWidth: 1_000,
     sourcePixelHeight: 500,
   }), /already confirmed with a different operation/u);
+});
+
+test("direct segment pair confirmation closes perception start and result mutation", () => {
+  const sourceImageContentIdentity = `sha256:${"c".repeat(64)}`;
+  const service = new PersonalVisualHarmonySessionServiceV1({
+    now: () => Date.parse("2026-07-13T15:00:00.000Z"),
+    createSessionId: () => "session:direct-segment-pair-perception-closed",
+  });
+  const segmentB = {
+    id: "segment-b",
+    label: "Segment B",
+    role: "structural-region",
+    reason: "Deuxième longueur explicitement tracée",
+    x: 0.3,
+    y: 0.1,
+    width: 0,
+    height: 0.8,
+    primitive: {
+      kind: "segment",
+      start: { x: 0.3, y: 0.1 },
+      end: { x: 0.3, y: 0.9 },
+    },
+  };
+  const prepared = service.prepare({
+    subjectId: "subject:pair-owner",
+    fileId: "file-direct-segment-pair-perception-closed",
+    sourceImageDownloadUrl: "https://files.example.test/direct-pair",
+    sourceImageContentIdentity,
+    enablePerception: true,
+    mediaType: "image/png",
+    candidates: [...mixedPrimitiveCandidates(), segmentB],
+  });
+  service.confirmMeasurementPair({
+    subjectId: "subject:pair-owner",
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    confirmedVisualGuideCandidateIds: ["diagonal", "segment-b"],
+    measurementRatioRequest: {
+      requestId: "declared-ratio:direct-segment-pair",
+      measurements: [
+        { kind: "segment", candidateId: "diagonal" },
+        { kind: "segment", candidateId: "segment-b" },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+  });
+
+  assert.throws(() => service.reservePerceptionStart({
+    subjectId: "subject:pair-owner",
+    sessionId: prepared.sessionId,
+    candidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    appCapability: prepared.perceptionAppCapability,
+    sourceFileId: "file-direct-segment-pair-perception-closed",
+    sourceImageDownloadUrl: "https://files.example.test/direct-pair",
+  }), /confirmed visual harmony session cannot start perception/u);
+
+  const perceived = preparePersonalVisualHarmonyCandidateSetV2({
+    sourceFileId: "file-direct-segment-pair-perception-closed",
+    sourceImageContentIdentity,
+    sourceImageMediaType: "image/png",
+    expectedSourceImageReferenceIdentity: prepared.prepared.sourceImageReferenceIdentity,
+    visualInterpretationSource: "sam3",
+    perceptionReceiptIdentity: `sha256:${"d".repeat(64)}`,
+    candidates: prepared.prepared.candidates,
+  });
+  assert.throws(() => service.applyPerceptionResult({
+    subjectId: "subject:pair-owner",
+    sessionId: prepared.sessionId,
+    expectedCandidateSetIdentity: prepared.prepared.candidateSetIdentity,
+    preparedCandidateSet: perceived,
+  }), /confirmed visual harmony session cannot apply perception/u);
+  assert.equal(
+    service.sessions.get(prepared.sessionId).prepared.candidateSetIdentity,
+    prepared.prepared.candidateSetIdentity,
+  );
 });
 
 async function createConnectedClient(service = new PersonalVisualHarmonySessionServiceV1({
@@ -7362,6 +7551,12 @@ test("guided analysis entry exposes the short default and every goal without act
       guidedGoalStatus,
       persistGuidedAnalysisGoal() { persistCalls += 1; },
       twoObjectSpatialWorkflowActive: () => false,
+      resetManualSegmentGesture() {
+        state.manualSegmentMode = false;
+        state.manualSegmentAnchor = null;
+      },
+      updateManualSegmentControls() {},
+      MAX_REVIEW_CANDIDATES: 12,
     },
   );
 

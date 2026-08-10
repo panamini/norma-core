@@ -9,6 +9,7 @@ import {
   layoutPersonalVisualHarmonyCandidateLabelsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyManualCandidateSetV1,
   preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
@@ -2151,11 +2152,30 @@ test("a confirmed direct segment pair produces one deterministic measurement-onl
   assert.equal(first.report.observedDominantShare, 0.666666666667);
   assert.equal(first.report.match?.ratio.ratioId, "2/3");
   assert.equal(first.explicitConfirmation, true);
+  assert.equal(first.confirmationMode, "client_asserted_widget_interaction");
   assert.equal(first.providerCalls, 0);
   assert.equal(first.coreAuthority, false);
   assert.equal(first.coreRun, false);
   assert.equal(first.coreExecutionCount, 0);
   assert.match(first.confirmationIdentity, /^sha256:[0-9a-f]{64}$/u);
+
+  const manualPrepared = preparePersonalVisualHarmonyManualCandidateSetV1({
+    sourceImageContentIdentity: `sha256:${"a".repeat(64)}`,
+    sourceImageMediaType: "image/png",
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+    perceptionReceiptIdentity: `sha256:${"b".repeat(64)}`,
+    candidates: segments,
+  });
+  const manualConfirmation = confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
+    preparedCandidateSet: manualPrepared,
+    expectedCandidateSetIdentity: manualPrepared.candidateSetIdentity,
+  });
+  assert.equal(
+    manualConfirmation.confirmationMode,
+    "client_asserted_private_web_lab_interaction",
+  );
 
   assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
     ...input,

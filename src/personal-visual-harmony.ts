@@ -506,7 +506,9 @@ export interface PersonalVisualHarmonyMeasurementPairConfirmationV1 {
   readonly confirmedVisualGuideCandidateIds: readonly [string, string];
   readonly report: PersonalVisualHarmonyDeclaredMeasurementRatioReportV1;
   readonly explicitConfirmation: true;
-  readonly confirmationMode: "client_asserted_widget_interaction";
+  readonly confirmationMode:
+    | "client_asserted_widget_interaction"
+    | "client_asserted_private_web_lab_interaction";
   readonly serverVerifiedHumanPresence: false;
   readonly measurementOnly: true;
   readonly providerCalls: 0;
@@ -1478,7 +1480,9 @@ export function confirmPersonalVisualHarmonyMeasurementPairV1(input: {
     confirmedVisualGuideCandidateIds: confirmedVisualGuideCandidateIds as [string, string],
     report,
     explicitConfirmation: true as const,
-    confirmationMode: "client_asserted_widget_interaction" as const,
+    confirmationMode: isManualBrowserCandidateSet(prepared)
+      ? "client_asserted_private_web_lab_interaction" as const
+      : "client_asserted_widget_interaction" as const,
     serverVerifiedHumanPresence: false as const,
     measurementOnly: true as const,
     providerCalls: 0 as const,
