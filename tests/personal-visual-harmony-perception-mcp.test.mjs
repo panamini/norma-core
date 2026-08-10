@@ -3986,6 +3986,7 @@ test("widget preserves a poll timeout after late hydration replaces the payload 
 
 test("widget keeps the review fail-closed when late-result rollback cannot be confirmed", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /data-norma-perception-client-error/u);
   const start = html.indexOf("function perceptionFailureMessage(");
   const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
   const payload = {
