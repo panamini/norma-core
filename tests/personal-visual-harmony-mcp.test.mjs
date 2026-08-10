@@ -1478,6 +1478,7 @@ test("widget manual segment is bounded, deterministic, candidate-only, and canno
   assert.doesNotMatch(html, /state\.payload=\{\.\.\.state\.payload,prepared:activePrepared\}/u);
   assert.match(html, /restoredManual=restoredManualSegmentsFor\(activePrepared\)/u);
   assert.match(html, /state\.manualSegmentCandidateIds=state\.reviewedCandidates\.filter\(isManualSegmentCandidate\)/u);
+  assert.match(html, /directSegmentPairMode\(\)&&state\.manualSegmentCandidateIds\.length<2\)state\.manualSegmentMode=true/u);
   assert.match(html, /pixelEvidence\.setAttribute\("data-pixel-candidate-id",item\.id\)/u);
   assert.match(html, /syncPixelProposalOverlay\(\);syncFamilyVisibility\(\)/u);
   assert.match(html, /remove\.disabled=state\.completed\|\|state\.confirming\|\|state\.pixelRefinementRunning/u);
@@ -1605,6 +1606,10 @@ test("widget guided analysis entry exposes the declared spatial mode without act
     visibleConstructionLayers: new Set(),
     measurementRatioEnabled: false,
     measurementRatioRefs: [],
+    manualSegmentMode: false,
+    manualSegmentAnchor: { x: 0.4, y: 0.5 },
+    spatialRecoveryRunning: false,
+    payload: { prepared: { workflowMode: "generic" } },
   };
   const pressed = new Map();
   const familyPressed = new Map();
@@ -1689,6 +1694,8 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   assert.deepEqual([...state.visibleConstructionLayers], []);
   assert.equal(state.measurementRatioEnabled, false);
   assert.deepEqual(state.measurementRatioRefs, []);
+  assert.equal(state.manualSegmentMode, true);
+  assert.equal(state.manualSegmentAnchor, null);
   assert.equal(familyVisibilitySyncs, 1);
   assert.equal(measurementControlUpdates, 1);
   assert.equal(persisted, 1);
@@ -3118,6 +3125,8 @@ test("manual spatial recovery restores its marker and enabled plan without hydra
     selected: new Set(["a", "b"]),
     measurementRatioEnabled: false,
     measurementRatioRefs: [],
+    manualSegmentMode: false,
+    manualSegmentAnchor: { x: 0.2, y: 0.3 },
   };
   let persisted = false;
   const runSpatialRecovery = widgetScriptFunction(
@@ -3151,6 +3160,8 @@ test("manual spatial recovery restores its marker and enabled plan without hydra
   assert.equal(state.manualSpatialFallback, true);
   assert.equal(state.manualSpatialFallbackSessionId, state.payload.sessionId);
   assert.equal(state.measurementRatioEnabled, true);
+  assert.equal(state.manualSegmentMode, true);
+  assert.equal(state.manualSegmentAnchor, null);
   assert.deepEqual([...state.selected], ["a", "b"]);
   assert.equal(persisted, true);
 });
@@ -6793,7 +6804,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v22.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v23.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
