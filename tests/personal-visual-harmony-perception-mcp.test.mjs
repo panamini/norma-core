@@ -1129,7 +1129,7 @@ test("terminal A/B SAM review exposes explicit restart and manual recovery witho
   );
   assert.match(
     html,
-    /await prepareSpatialRecoveryPayload\(payload,candidateSnapshot\)/u,
+    /await prepareSpatialRecoveryPayload\(payload,candidateSnapshot,!manual\)/u,
   );
   assert.doesNotMatch(
     recoverySource,
@@ -1254,6 +1254,138 @@ test("manual spatial fallback reuses a current prepared payload without provider
   assert.deepEqual(state.measurementRatioRefs, []);
   assert.deepEqual([...state.selected], selectedIds);
   assert.deepEqual([...state.visibleKinds], ["rectangle"]);
+  assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
+});
+
+test("manual spatial fallback re-prepares an oversized candidate set with only the selected pair", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("async function runSpatialRecovery(");
+  const end = html.indexOf("\nrestartSpatialReview.addEventListener", start);
+  const reviewedCandidates = Array.from({ length: 11 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    label: `Candidate ${String(index)}`,
+    role: index === 0 ? "primary-subject" : "secondary-subject",
+    reason: "Visible rectangle",
+    x: index / 20,
+    y: 0.1,
+    width: 0.04,
+    height: 0.2,
+    primitive: { kind: "rectangle" },
+  }));
+  const selectedIds = reviewedCandidates.slice(0, 2).map((candidate) => candidate.id);
+  const payload = {
+    sessionId: "session:oversized-manual",
+    prepared: { contractVersion: 1, candidates: reviewedCandidates },
+  };
+  const freshPayload = {
+    sessionId: "session:bounded-manual",
+    prepared: { contractVersion: 1, candidates: reviewedCandidates.slice(0, 2) },
+  };
+  const state = {
+    payload,
+    reviewedCandidates,
+    selected: new Set(selectedIds),
+    visibleKinds: new Set(["rectangle"]),
+    spatialRecoveryRunning: false,
+    confirming: false,
+    perceptionRunning: false,
+    completed: false,
+    perceptionReconciliationBlocked: true,
+    multiPerceptionTerminalState: { code: "provider-rejected" },
+    guidedAnalysisGoal: "compare-two-lengths",
+    measurementRatioRefs: [],
+    manualSpatialFallback: false,
+    manualSpatialFallbackSessionId: null,
+    manualSegmentMode: false,
+    manualSegmentAnchor: null,
+    measurementRatioEnabled: false,
+  };
+  const calls = [];
+  const statusNode = { textContent: "" };
+  const runSpatialRecovery = new Function(
+    "state",
+    "spatialRecoveryRequired",
+    "manualSelectedRectangleIds",
+    "spatialRecoveryCandidateSnapshot",
+    "setReviewLocked",
+    "prepareSpatialRecoveryPayload",
+    "hydrate",
+    "GUIDED_ANALYSIS_GOALS",
+    "visibleKindsForGuidedAnalysisGoal",
+    "renderGuidedAnalysisGoals",
+    "updateFamilyFilterButtons",
+    "syncFamilyVisibility",
+    "updatePerceptionUi",
+    "updateMeasurementRatioControls",
+    "persistReviewState",
+    "multiPerceptionReviewLocked",
+    "updateSpatialRecoveryUi",
+    "statusNode",
+    "spatialRecoveryFailureMessage",
+    "spatialRecoveryFailureCode",
+    "document",
+    `"use strict";${html.slice(start, end)};return runSpatialRecovery;`,
+  )(
+    state,
+    () => true,
+    () => selectedIds,
+    (_payload, selectedOnly) => {
+      calls.push({ type: "snapshot", selectedOnly });
+      return reviewedCandidates.slice(0, 2);
+    },
+    (locked) => calls.push({ type: "lock", locked }),
+    async (_payload, candidates, requirePerception) => {
+      calls.push({
+        type: "prepare",
+        candidateIds: candidates.map((candidate) => candidate.id),
+        requirePerception,
+      });
+      return freshPayload;
+    },
+    async (fresh) => {
+      calls.push({ type: "hydrate", sessionId: fresh.sessionId });
+      state.payload = fresh;
+      state.reviewedCandidates = [...fresh.prepared.candidates];
+      state.selected = new Set(fresh.prepared.candidates.map((candidate) => candidate.id));
+    },
+    [
+      { id: "general-geometry", visibleKinds: ["rectangle", "axis", "segment"] },
+      { id: "compare-two-lengths", visibleKinds: ["rectangle"] },
+    ],
+    (goal) => goal.visibleKinds,
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => {},
+    () => false,
+    () => {},
+    statusNode,
+    (error) => error.message,
+    () => "test-failure",
+    { documentElement: { setAttribute() {} } },
+  );
+
+  await runSpatialRecovery(true);
+
+  assert.deepEqual(calls.find((call) => call.type === "snapshot"), {
+    type: "snapshot",
+    selectedOnly: true,
+  });
+  assert.deepEqual(calls.find((call) => call.type === "prepare"), {
+    type: "prepare",
+    candidateIds: selectedIds,
+    requirePerception: false,
+  });
+  assert.deepEqual(calls.find((call) => call.type === "hydrate"), {
+    type: "hydrate",
+    sessionId: freshPayload.sessionId,
+  });
+  assert.equal(state.reviewedCandidates.length, 2);
+  assert.equal(state.manualSpatialFallback, true);
+  assert.equal(state.manualSpatialFallbackSessionId, freshPayload.sessionId);
+  assert.equal(state.manualSegmentMode, true);
   assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
 });
 
