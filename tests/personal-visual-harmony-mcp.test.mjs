@@ -5488,6 +5488,111 @@ test("direct A/B mode rejects V1 preparations without two free candidate slots",
   assert.match(guidedGoalStatus.textContent, /deux emplacements libres/u);
 });
 
+test("entering direct A/B mode refreshes the armed segment controls", () => {
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    payload: {
+      prepared: { contractVersion: 1, workflowMode: "generic", candidates: [{ id: "candidate-0" }] },
+      perceptionRecoveryAvailable: false,
+    },
+    reviewedCandidates: [{ id: "candidate-0" }],
+    manualSegmentMode: false,
+    manualSegmentAnchor: null,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  let controlUpdates = 0;
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      guidedGoalStatus: { textContent: "" },
+      twoObjectSpatialWorkflowActive: () => false,
+      GUIDED_ANALYSIS_GOALS: [
+        { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+        { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+      ],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      updateMeasurementRatioControls() {},
+      updatePerceptionUi() {},
+      persistGuidedAnalysisGoal() {},
+      startFreshSpatialSessionIfNeeded() {},
+      updateManualSegmentControls() { controlUpdates += 1; },
+      MAX_REVIEW_CANDIDATES: 12,
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.manualSegmentMode, true);
+  assert.equal(controlUpdates, 1);
+});
+
+test("direct A/B completion sends bounded measurement-only facts to the conversation", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(
+    html,
+    /renderMeasurementPairResult\(completedPayload,confirmation\);void sendMeasurementPairCompletionFollowUp\(completedPayload,confirmation\)/u,
+  );
+  const sent = [];
+  const milestones = [];
+  const sendMeasurementPairCompletionFollowUp = widgetScriptFunction(
+    "sendMeasurementPairCompletionFollowUp",
+    "function clampUnit",
+    {
+      window: {
+        openai: {
+          sendFollowUpMessage: async (message) => { sent.push(message); },
+        },
+      },
+      measurementPairSlots: (confirmation) => confirmation.report.measurements.map((measurement, index) => ({
+        slot: index === 0 ? "A" : "B",
+        measurement,
+      })),
+      recordObservationMilestone: (_payload, milestone) => { milestones.push(milestone); },
+    },
+  );
+  const payload = { fileId: "file-direct-pair" };
+  const confirmation = {
+    confirmationIdentity: `sha256:${"a".repeat(64)}`,
+    sourcePixelWidth: 1_200,
+    sourcePixelHeight: 800,
+    report: {
+      contentIdentity: `sha256:${"b".repeat(64)}`,
+      observedDominantShare: 0.58179,
+      longToShortRatio: 1.391,
+      match: null,
+      measurements: [
+        { candidateLabel: "Segment A", lengthPixels: 164.725 },
+        { candidateLabel: "Segment B", lengthPixels: 229.161 },
+      ],
+    },
+    providerCalls: 0,
+    coreAuthority: false,
+    measurementOnly: true,
+  };
+
+  await sendMeasurementPairCompletionFollowUp(payload, confirmation);
+
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].prompt, /DEUX SEGMENTS DU PLAN IMAGE VÉRIFIÉS/u);
+  assert.match(sent[0].prompt, /"providerCalls":0/u);
+  assert.match(sent[0].prompt, /"coreAuthority":false/u);
+  assert.doesNotMatch(sent[0].prompt, /candidateLabel|sourcePixel/u);
+  assert.deepEqual(milestones, ["follow-up-dispatched"]);
+});
+
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
   const original = {
     id: "oblique",

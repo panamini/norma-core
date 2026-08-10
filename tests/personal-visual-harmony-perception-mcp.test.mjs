@@ -607,7 +607,7 @@ test("fresh generic V1 with an explicit A/B pair exposes the first SAM action", 
   assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
 });
 
-test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded session for 11 candidates", () => {
+test("selecting compare-two-lengths refreshes SAM UI and waits for an explicit pair with 11 candidates", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("function applyGuidedAnalysisGoal(");
   const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
@@ -696,7 +696,6 @@ test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded 
   assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
   assert.deepEqual(calls, [
     { type: "ui", goal: "compare-two-lengths", hidden: true },
-    { type: "recovery", args: [false, true] },
   ]);
 });
 
@@ -816,6 +815,52 @@ test("selecting the second V1 rectangle re-evaluates fresh SAM recovery", () => 
     html,
     /persistSelection\(\);updateConfirm\(\);updateSpatialRecoveryUi\(\);startFreshSpatialSessionIfNeeded\(\)/u,
   );
+});
+
+test("oversized V1 recovery waits for two rectangles before recording its entry identity", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
+  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
+  assert.notEqual(start, -1);
+  const candidates = Array.from({ length: 11 }, (_, index) => ({
+    id: `candidate-${String(index)}`,
+    primitive: { kind: "rectangle" },
+  }));
+  const state = {
+    activePayloadIdentity: "payload-oversized",
+    payload: {
+      perceptionRecoveryAvailable: true,
+      prepared: { contractVersion: 1, candidates },
+    },
+    reviewedCandidates: candidates,
+    selected: new Set(candidates.map((candidate) => candidate.id)),
+    guidedAnalysisGoal: "compare-two-lengths",
+    manualSpatialFallback: false,
+    spatialRecoveryRunning: false,
+    spatialRecoveryEntryIdentity: null,
+    completed: false,
+    confirming: false,
+  };
+  const calls = [];
+  const startFreshSpatialSessionIfNeeded = new Function(
+    "state",
+    "runSpatialRecovery",
+    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
+  )(
+    state,
+    (...args) => calls.push(args),
+  );
+
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, []);
+  assert.equal(state.spatialRecoveryEntryIdentity, null);
+
+  state.selected = new Set(["candidate-0", "candidate-1"]);
+  startFreshSpatialSessionIfNeeded();
+
+  assert.deepEqual(calls, [[false, true]]);
+  assert.equal(state.spatialRecoveryEntryIdentity, "payload-oversized");
 });
 
 test("restored compare-two-lengths V1 pair starts fresh SAM recovery even when the goal did not change", () => {
