@@ -1604,6 +1604,56 @@ test("measurement-only result maps reversed report rows back to explicit A/B can
   assert.match(createPersonalVisualHarmonyWidgetHtmlV1(), /appendMeasurementPairReport\(confirmation\)/u);
 });
 
+test("direct A/B guidance describes segment drawing while spatial guidance keeps rectangle selection", () => {
+  const state = {
+    guidedAnalysisGoal: "compare-two-lengths",
+    completed: false,
+    confirming: false,
+  };
+  let spatial = false;
+  const twoObjectSpatialWorkflowActive = () => spatial;
+  const guidedGoalPresentation = widgetScriptFunction(
+    "guidedGoalPresentation",
+    "function syncAnalysisModeUi",
+    { twoObjectSpatialWorkflowActive },
+  );
+  const analysisPanel = { dataset: {} };
+  const flowStepOne = { innerHTML: "" };
+  const flowStepTwo = { innerHTML: "" };
+  const flowStepThree = { innerHTML: "" };
+  const workflowHintHeading = { textContent: "" };
+  const workflowHintText = { textContent: "" };
+  const confirmButton = { textContent: "" };
+  const measurementRatioToggle = { hidden: false };
+  const syncAnalysisModeUi = widgetScriptFunction(
+    "syncAnalysisModeUi",
+    "function updateGuidedAnalysisGoalButtons",
+    {
+      state,
+      twoObjectSpatialWorkflowActive,
+      analysisPanel,
+      flowStepOne,
+      flowStepTwo,
+      flowStepThree,
+      workflowHintHeading,
+      workflowHintText,
+      confirmButton,
+      measurementRatioToggle,
+    },
+  );
+  const goal = { id: "compare-two-lengths", label: "Mesure manuelle A/B", effect: "legacy" };
+
+  assert.match(guidedGoalPresentation(goal).effect, /Tracez le segment A puis le segment B/u);
+  syncAnalysisModeUi();
+  assert.match(workflowHintText.textContent, /Tracez le segment A puis le segment B/u);
+  assert.doesNotMatch(workflowHintText.textContent, /Cochez deux zones/u);
+
+  spatial = true;
+  assert.match(guidedGoalPresentation(goal).effect, /Choisissez deux zones/u);
+  syncAnalysisModeUi();
+  assert.match(workflowHintText.textContent, /Cochez deux zones/u);
+});
+
 test("widget guided analysis entry exposes the declared spatial mode without activating Core", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
@@ -9478,6 +9528,81 @@ test("expired confirmation sessions are reconstructed from the exact hidden cand
     assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionRecovered, true);
     assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionId, "session:recovery-2");
     assert.equal(confirmed.structuredContent.canonicalResultIdentity.length, 71);
+  } finally {
+    await connected.close();
+  }
+});
+
+test("expired measurement-pair sessions are reconstructed from the exact hidden candidate set", async () => {
+  let nowMs = Date.parse("2026-07-13T15:00:00.000Z");
+  let sequence = 0;
+  const connected = await createConnectedClient(new PersonalVisualHarmonySessionServiceV1({
+    now: () => nowMs,
+    createSessionId: () => `session:pair-recovery-${String(++sequence)}`,
+  }));
+  try {
+    const segmentB = {
+      id: "segment-b",
+      label: "Segment B",
+      role: "structural-region",
+      reason: "Deuxième longueur explicitement tracée",
+      x: 0.3,
+      y: 0.1,
+      width: 0,
+      height: 0.8,
+      primitive: {
+        kind: "segment",
+        start: { x: 0.3, y: 0.1 },
+        end: { x: 0.3, y: 0.9 },
+      },
+    };
+    const candidateValues = [...mixedPrimitiveCandidates(), segmentB];
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/private-signed-image",
+          file_id: "file-pair-recovery",
+          mime_type: "image/png",
+        },
+        candidates: candidateValues,
+      },
+    });
+    const widgetMeta = prepared._meta.normaPersonalVisualHarmony;
+    nowMs += (30 * 60 * 1_000) + 1;
+    const confirmed = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
+      arguments: {
+        sessionId: widgetMeta.sessionId,
+        candidateSetIdentity: widgetMeta.prepared.candidateSetIdentity,
+        confirmedVisualGuideCandidateIds: ["diagonal", "segment-b"],
+        measurementRatioRequest: {
+          requestId: "declared-ratio:expired-direct-segment-pair",
+          measurements: [
+            { kind: "segment", candidateId: "diagonal" },
+            { kind: "segment", candidateId: "segment-b" },
+          ],
+          ratioPackRefs: [
+            "norma.geometry-harmonies@0.1.0",
+            "norma.basic-proportions@0.1.0",
+          ],
+          matchTolerance: 0.025,
+        },
+        sourcePixelWidth: 1_000,
+        sourcePixelHeight: 500,
+        confirmClientReviewedSelection: true,
+        recovery: recoveryInput("file-pair-recovery", candidateValues),
+      },
+    });
+
+    assert.equal(confirmed.isError, undefined, JSON.stringify(confirmed));
+    assert.equal(confirmed.structuredContent.status, "completed");
+    assert.equal(confirmed.structuredContent.coreRun, false);
+    assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionRecovered, true);
+    assert.equal(
+      confirmed._meta.normaPersonalVisualHarmony.sessionId,
+      "session:pair-recovery-2",
+    );
   } finally {
     await connected.close();
   }

@@ -1009,6 +1009,7 @@ const MeasurementPairConfirmInputSchema = z.object({
   sourcePixelWidth: z.number().int().min(1).max(100_000),
   sourcePixelHeight: z.number().int().min(1).max(100_000),
   confirmClientReviewedSelection: z.literal(true),
+  recovery: ReviewRecoverySchema,
 }).strict();
 
 const PublicMatchSchema = z.object({
@@ -3992,16 +3993,63 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       measurementRatioRequest,
       sourcePixelWidth,
       sourcePixelHeight,
+      recovery,
     }) => {
-      const confirmed = service.confirmMeasurementPair({
-        ...(subjectId === undefined ? {} : { subjectId }),
-        sessionId,
+      const confirmationInput = {
         candidateSetIdentity,
         confirmedVisualGuideCandidateIds,
         measurementRatioRequest: measurementRatioRequest as PersonalVisualHarmonyMeasurementRatioRequestV1,
         sourcePixelWidth,
         sourcePixelHeight,
-      });
+      };
+      let effectiveSessionId = sessionId;
+      let sessionRecovered = false;
+      let confirmed;
+      try {
+        confirmed = service.confirmMeasurementPair({
+          ...(subjectId === undefined ? {} : { subjectId }),
+          sessionId,
+          ...confirmationInput,
+        });
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== MISSING_OR_EXPIRED_SESSION_MESSAGE) {
+          throw error;
+        }
+        const candidateMediaTypes = recovery.sourceImageMediaType === null
+          ? [null, "image/png", "image/jpeg", "image/webp", "image/gif"] as const
+          : [recovery.sourceImageMediaType] as const;
+        let matchingMediaType: string | null | undefined;
+        let matchingV2Prepared: PersonalVisualHarmonyPreparedCandidateSetV2 | undefined;
+        let matchingV3Prepared: PersonalVisualHarmonyPreparedCandidateSetV3 | undefined;
+        for (const mediaType of candidateMediaTypes) {
+          const rebuilt = rebuildPersonalVisualHarmonyRecoveryCandidateSet(recovery, mediaType);
+          if (rebuilt.candidateSetIdentity === candidateSetIdentity) {
+            matchingMediaType = mediaType;
+            if (rebuilt.contractVersion === 2) matchingV2Prepared = rebuilt;
+            if (rebuilt.contractVersion === 3) matchingV3Prepared = rebuilt;
+            break;
+          }
+        }
+        if (matchingMediaType === undefined) {
+          throw new Error("Recovered visual harmony candidate identity does not match the measurement pair.");
+        }
+        const recovered = restorePersonalVisualHarmonySessionFromRecovery({
+          service,
+          subjectId,
+          recovery,
+          matchingMediaType,
+          matchingV2Prepared,
+          matchingV3Prepared,
+          receiptSessionId: sessionId,
+        });
+        confirmed = service.confirmMeasurementPair({
+          ...(subjectId === undefined ? {} : { subjectId }),
+          sessionId: recovered.sessionId,
+          ...confirmationInput,
+        });
+        effectiveSessionId = recovered.sessionId;
+        sessionRecovered = true;
+      }
       const structuredContent = {
         status: "completed" as const,
         mode: "measurement_pair" as const,
@@ -4015,6 +4063,15 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
           text: "Deux segments confirmés ont été mesurés dans le plan image. Aucun appel provider ni calcul Core n’a été effectué.",
         }],
         structuredContent,
+        _meta: {
+          normaPersonalVisualHarmony: {
+            stage: "completed",
+            fileId: confirmed.fileId,
+            sessionRecovered,
+            sessionId: effectiveSessionId,
+            measurementPairConfirmation: confirmed.measurementPairConfirmation,
+          },
+        },
       };
     },
   );
@@ -4615,8 +4672,8 @@ function restoreReviewJournal(){const saved=publicWidgetState().reviewJournal,bi
 function recordReviewEvent(kind,atMs=Date.now(),persist=true){const scope=reviewJournalScope();if(!scope||!REVIEW_EVENT_KINDS.includes(kind)||!Number.isSafeInteger(atMs)||atMs<0)return;const current=storedReviewJournalFor(state.reviewJournal),journal=current||{contractId:REVIEW_JOURNAL_CONTRACT_ID,analysisIdentity:scope.analysisIdentity,fileId:scope.fileId,sessionId:scope.sessionId,prepareDurationMs:reviewJournalPrepareDuration(),events:[]};if(journal.events.length>=MAX_REVIEW_EVENTS)return;state.reviewJournal={...journal,events:[...journal.events,{atMs,kind}]};syncReviewJournalAttributes();if(persist)persistReviewState()}
 function recordReviewEventOnce(kind,atMs=Date.now(),persist=true){if(state.reviewJournal?.events?.some(event=>event.kind===kind))return;recordReviewEvent(kind,atMs,persist)}
 function reviewCandidateVisible(node){if(!state.focusMainGuides||state.principalCandidateIds.size===0)return true;const candidateId=node.getAttribute("data-candidate-id")||node.getAttribute("data-pixel-refinement-overlay")||node.getAttribute("data-manual-segment-candidate-id");return candidateId===null||state.manualSegmentCandidateIds?.includes(candidateId)||candidateId===state.manualSegmentCandidateId||state.principalCandidateIds.has(candidateId)}
-function guidedGoalPresentation(goal){if(goal.id==="general-geometry")return{label:"Analyse automatique",effect:"Norma explore les rapports remarquables entre les guides détectés. Vous vérifiez les zones avant un calcul unique."};if(goal.id==="compare-two-lengths")return{label:"Mesure manuelle A/B",effect:"Choisissez deux zones, puis deux distances précises. Les traits A et B seront dessinés sur l’image avant confirmation."};return goal}
-function syncAnalysisModeUi(){const manual=state.guidedAnalysisGoal==="compare-two-lengths";analysisPanel.dataset.analysisMode=manual?"manual":"automatic";flowStepOne.innerHTML=manual?"<b>01</b>Choisir A":"<b>01</b>Explorer";flowStepTwo.innerHTML=manual?"<b>02</b>Choisir B":"<b>02</b>Vérifier";flowStepThree.innerHTML=manual?"<b>03</b>Mesurer":"<b>03</b>Confirmer";workflowHintHeading.textContent=manual?"Comparer deux distances précises":"Explorer les rapports remarquables";workflowHintText.textContent=manual?"Cochez deux zones dans la liste; ajustez-les directement sur l’image si nécessaire. Choisissez ensuite la mesure A et la mesure B : les deux traits apparaîtront avant tout calcul.":"Norma part des zones déjà détectées. Vérifiez les guides utiles, puis confirmez une seule fois pour voir les rapports et leur position dans l’image.";if(!state.completed&&!state.confirming)confirmButton.textContent=manual?"Calculer le rapport A/B":"Analyser les rapports sélectionnés";measurementRatioToggle.hidden=manual}
+function guidedGoalPresentation(goal){if(goal.id==="general-geometry")return{label:"Analyse automatique",effect:"Norma explore les rapports remarquables entre les guides détectés. Vous vérifiez les zones avant un calcul unique."};if(goal.id==="compare-two-lengths")return{label:"Mesure manuelle A/B",effect:twoObjectSpatialWorkflowActive()?"Choisissez deux zones, puis deux distances précises. Les traits A et B seront dessinés sur l’image avant confirmation.":"Tracez le segment A puis le segment B directement sur l’image. Les deux traits apparaissent avant une confirmation unique."};return goal}
+function syncAnalysisModeUi(){const manual=state.guidedAnalysisGoal==="compare-two-lengths",spatial=manual&&twoObjectSpatialWorkflowActive();analysisPanel.dataset.analysisMode=manual?"manual":"automatic";flowStepOne.innerHTML=manual?"<b>01</b>Choisir A":"<b>01</b>Explorer";flowStepTwo.innerHTML=manual?"<b>02</b>Choisir B":"<b>02</b>Vérifier";flowStepThree.innerHTML=manual?"<b>03</b>Mesurer":"<b>03</b>Confirmer";workflowHintHeading.textContent=manual?"Comparer deux distances précises":"Explorer les rapports remarquables";workflowHintText.textContent=manual?(spatial?"Cochez deux zones dans la liste; ajustez-les directement sur l’image si nécessaire. Choisissez ensuite la mesure A et la mesure B : les deux traits apparaîtront avant tout calcul.":"Tracez le segment A puis le segment B directement sur l’image. Chaque clic ou glissement définit une extrémité; les deux traits apparaissent avant une confirmation unique."):"Norma part des zones déjà détectées. Vérifiez les guides utiles, puis confirmez une seule fois pour voir les rapports et leur position dans l’image.";if(!state.completed&&!state.confirming)confirmButton.textContent=manual?"Calculer le rapport A/B":"Analyser les rapports sélectionnés";measurementRatioToggle.hidden=manual}
 function updateGuidedAnalysisGoalButtons(){guidedGoals.querySelectorAll(".guided-goal").forEach(button=>button.setAttribute("aria-pressed",String(button.getAttribute("data-goal-id")===state.guidedAnalysisGoal)));if(typeof syncAnalysisModeUi==="function")syncAnalysisModeUi()}
 function updateFamilyFilterButtons(){familyFilters.querySelectorAll(".family-filter").forEach(button=>button.setAttribute("aria-pressed",String(state.visibleKinds.has(button.getAttribute("data-primitive-kind")))))}
 function guidedAnalysisScope(){const payload=state.displayedPayload||state.activePayload,fileId=payload?.fileId,analysisIdentity=payload?.stage==="confirmation_required"?(state.proposalCandidateSetIdentity||payload?.prepared?.candidateSetIdentity):payload?.result?.contentIdentity||payload?.result?.canonicalResultIdentity||payload?.canonicalResultIdentity;return typeof fileId==="string"&&fileId.length>0&&typeof analysisIdentity==="string"&&analysisIdentity.length>0?{analysisIdentity,fileId}:null}
@@ -4837,7 +4894,7 @@ function perceptionAssistedPrepared(prepared){return Boolean(prepared?.perceptio
 async function prepareReviewedPayload(payload,candidateSnapshot){if(perceptionAssistedPrepared(payload.prepared))throw new Error("perception-assisted geometry cannot be relabeled by V1 preparation");if(typeof state.downloadUrl!=="string")throw new Error("missing temporary image URL");const expectedPayloadIdentity=state.activePayloadIdentity,image={download_url:state.downloadUrl,file_id:payload.fileId};if(typeof payload.sourceImageMediaType==="string"&&payload.sourceImageMediaType.length>0)image.mime_type=payload.sourceImageMediaType;const response=await callAppTool(PREPARE_TOOL,{image,candidates:candidateSnapshot});if(state.activePayloadIdentity!==expectedPayloadIdentity)throw new Error("stale adjusted candidate preparation");const fresh=findPayload(response);if(!fresh||fresh.stage!=="confirmation_required"||fresh.fileId!==payload.fileId||!samePreparedReviewCandidates(candidateSnapshot,fresh.prepared?.candidates))throw new Error("adjusted candidate preparation mismatch");state.payload=fresh;state.proposalCandidateSetIdentity=fresh.prepared.candidateSetIdentity;state.proposalCandidates=fresh.prepared.candidates.map(item=>JSON.parse(JSON.stringify(item)));state.pixelRefinementProposals.clear();state.adoptedPixelRefinements.clear();return fresh}
 async function prepareSpatialRecoveryPayload(payload,candidateSnapshot,requirePerception=true){const expectedPayloadIdentity=state.activePayloadIdentity,downloadUrl=await perceptionDownloadUrl(payload),image={download_url:downloadUrl,file_id:payload.fileId};if(typeof payload.sourceImageMediaType==="string"&&payload.sourceImageMediaType.length>0)image.mime_type=payload.sourceImageMediaType;const response=await callAppTool(PREPARE_TOOL,{image,candidates:candidateSnapshot});if(state.activePayloadIdentity!==expectedPayloadIdentity)throw new Error("stale spatial recovery preparation");const fresh=findPayload(response);if(!fresh||fresh.stage!=="confirmation_required"||fresh.fileId!==payload.fileId||(fresh.prepared?.contractVersion??1)!==1||!samePreparedReviewCandidates(candidateSnapshot,fresh.prepared?.candidates))throw new Error("spatial recovery preparation mismatch");if(requirePerception&&(fresh.perceptionRecoveryAvailable!==true||typeof fresh.perceptionAppCapability!=="string"||fresh.perceptionAppCapability.length<32||!Array.isArray(fresh.perceptionModes)||!fresh.perceptionModes.includes("two-object-spatial")))throw new Error("spatial recovery SAM capability missing");return fresh}
 async function callConfirmation(payload,selectedCandidateIds,confirmedVisualGuideCandidateIds,constructionLayers,dimensions,declaredMeasurementRatioRequest,declaredSpatialMeasurementPlan,reviewedCandidates){const normalizedReviewedCandidates=reviewedCandidates?.map(({sourceImageReferenceIdentity,...candidate})=>candidate),args={sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,...(typeof state.downloadUrl==="string"?{sourceImageDownloadUrl:state.downloadUrl}:{}),selectedCandidateIds,confirmedVisualGuideCandidateIds,constructionLayers,...(declaredMeasurementRatioRequest===undefined?{}:{measurementRatioRequest:declaredMeasurementRatioRequest}),...(declaredSpatialMeasurementPlan===undefined?{}:{declaredSpatialMeasurementPlan}),sourcePixelWidth:dimensions.width,sourcePixelHeight:dimensions.height,...(normalizedReviewedCandidates===undefined?{}:{reviewedCandidates:normalizedReviewedCandidates}),confirmClientReviewedSelection:true,recovery:pixelRecovery(payload)};return callAppTool(CONFIRM_TOOL,args)}
-async function callMeasurementPairConfirmation(payload,confirmedVisualGuideCandidateIds,measurementRatioRequestValue,dimensions){return callAppTool(CONFIRM_MEASUREMENT_PAIR_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,confirmedVisualGuideCandidateIds,measurementRatioRequest:measurementRatioRequestValue,sourcePixelWidth:dimensions.width,sourcePixelHeight:dimensions.height,confirmClientReviewedSelection:true})}
+async function callMeasurementPairConfirmation(payload,confirmedVisualGuideCandidateIds,measurementRatioRequestValue,dimensions){return callAppTool(CONFIRM_MEASUREMENT_PAIR_TOOL,{sessionId:payload.sessionId,candidateSetIdentity:payload.prepared.candidateSetIdentity,confirmedVisualGuideCandidateIds,measurementRatioRequest:measurementRatioRequestValue,sourcePixelWidth:dimensions.width,sourcePixelHeight:dimensions.height,confirmClientReviewedSelection:true,recovery:pixelRecovery(payload)})}
 function finishConfirmingPayload(expectedPayloadIdentity){const replacement=state.activePayloadIdentity!==expectedPayloadIdentity&&state.activePayload?.stage==="confirmation_required"&&!state.completed?state.activePayload:null,structured=state.pendingStructuredContent;state.confirming=false;setReviewLocked(state.completed);if(replacement)void hydrate(replacement,structured)}
 async function revalidateCompleted(payload,completed,expectedPayloadIdentity){if(completed.operation==="norma.confirmPersonalVisualHarmonyMeasurementPairV1"&&completed.measurementPairConfirmation){state.selected=new Set();state.selectedGuides=new Set(completed.confirmedVisualGuideCandidateIds);state.dimensions={width:completed.sourcePixelWidth,height:completed.sourcePixelHeight};renderMeasurementPairResult({stage:"completed",fileId:payload.fileId,measurementPairConfirmation:completed.measurementPairConfirmation},completed.measurementPairConfirmation,{persist:false,cached:true});return}const declaredPlan=completed.declaredSpatialMeasurementPlan,declaredConfirmation=completed.declaredSpatialMeasurementConfirmation,declared=declaredPlan!==undefined,candidateSnapshot=reviewedCandidateSnapshot(),selectedSnapshot=Object.freeze([...completed.selectedCandidateIds]),guideSnapshot=Object.freeze(declared?[]:[...(completed.confirmedVisualGuideCandidateIds||[])]),constructionSnapshot=Object.freeze(declared?[]:[...(completed.constructionGuideState?.layers||[])]),measurementRatioSnapshot=declared?undefined:completed.measurementRatioRequest??undefined,dimensionsSnapshot=Object.freeze({width:completed.sourcePixelWidth,height:completed.sourcePixelHeight}),changed=geometryChanged(candidateSnapshot),perceptionEdited=changed&&perceptionAssistedPrepared(payload.prepared);state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.constructionLayers=new Set(constructionSnapshot);state.visibleConstructionLayers=new Set(constructionSnapshot);state.dimensions={...dimensionsSnapshot};if(declared)state.declaredSpatialMeasurementPlan=declaredPlan;statusNode.textContent="Résultat précédent détecté · revalidation déterministe en cours…";state.confirming=true;setReviewLocked(true);try{const analysisPayload=changed&&!perceptionEdited?await prepareReviewedPayload(payload,candidateSnapshot):payload;if(state.activePayloadIdentity!==expectedPayloadIdentity)return;const response=perceptionEdited?await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot,declaredPlan,candidateSnapshot):await callConfirmation(analysisPayload,selectedSnapshot,guideSnapshot,constructionSnapshot,dimensionsSnapshot,measurementRatioSnapshot,declaredPlan);if(state.activePayloadIdentity!==expectedPayloadIdentity)return;const freshPayload=findPayload(response),freshDeclared=declared?findDeclaredSpatialConfirmation(response):null;if(declared&&!freshDeclared)throw new Error("missing declared spatial confirmation");if(!declared&&(!freshPayload||freshPayload.stage!=="completed"))throw new Error("missing completed metadata");state.reviewedCandidates=candidateSnapshot.map(item=>({...item}));state.selected=new Set(selectedSnapshot);state.selectedGuides=new Set(guideSnapshot);state.constructionLayers=new Set(constructionSnapshot);state.visibleConstructionLayers=new Set(constructionSnapshot);state.dimensions={...dimensionsSnapshot};const structured=response?.structuredContent||response;if(typeof structured?.candidateSetIdentity==="string")state.proposalCandidateSetIdentity=structured.candidateSetIdentity;const completedPayload=freshPayload||(declared?{stage:"completed",fileId:payload.fileId,declaredSpatialMeasurementConfirmation:freshDeclared}:null);recordObservationMilestone(completedPayload,"result-received");if(declared)renderDeclaredSpatialResult(completedPayload,response,freshDeclared,{persist:true,revalidated:true});else renderResult(completedPayload,structured,{persist:true,revalidated:true});recordObservationMilestoneAfterPaint(completedPayload,"core-visible")}catch{if(state.activePayloadIdentity!==expectedPayloadIdentity)return;if(declared&&declaredConfirmation){renderDeclaredSpatialResult({stage:"completed",fileId:payload.fileId,declaredSpatialMeasurementConfirmation:declaredConfirmation},completed,declaredConfirmation,{persist:false,cached:true});return}if(changed){state.completed=false;confirmButton.style.display="";statusNode.textContent="Les corrections sont conservées mais n’ont pas pu être revalidées. Confirmez pour réessayer.";return}renderCachedResult(completed)}finally{finishConfirmingPayload(expectedPayloadIdentity)}}
 function recordObservationMilestone(payload,milestone,atMs=Date.now()){const observation=payload?.observability;if(observation?.contractId!==OBSERVABILITY_CONTRACT_ID||!["prepare","confirm"].includes(observation.handler)||typeof observation.correlationId!=="string"||!OBSERVABILITY_CORRELATION_PATTERN.test(observation.correlationId)||!Number.isInteger(observation.handlerDurationMs)||observation.handlerDurationMs<0||!["result-received","widget-interactive","confirmation-clicked","core-visible","follow-up-dispatched"].includes(milestone)||!Number.isFinite(atMs))return;const root=document.documentElement,currentCorrelation=root.getAttribute("data-norma-observation-correlation"),prepareAttemptKey=observation.handler==="prepare"&&Number.isSafeInteger(observation.attemptId)&&Number.isFinite(observation.handlerEnteredAtMs)?observation.correlationId+":"+String(observation.attemptId)+":"+String(observation.handlerEnteredAtMs):null,newPrepareAttempt=milestone==="result-received"&&prepareAttemptKey!==null&&prepareAttemptKey!==state.observationPrepareAttemptKey;if(currentCorrelation!==null&&(currentCorrelation!==observation.correlationId||newPrepareAttempt))root.getAttributeNames().filter(name=>name.startsWith("data-norma-observation-")).forEach(name=>root.removeAttribute(name));if(newPrepareAttempt)state.observationPrepareAttemptKey=prepareAttemptKey;const prefix="data-norma-observation-"+observation.handler;root.setAttribute("data-norma-observation-contract",OBSERVABILITY_CONTRACT_ID);root.setAttribute("data-norma-observation-correlation",observation.correlationId);root.setAttribute(prefix+"-handler-clock","server");root.setAttribute(prefix+"-handler-duration-ms",String(observation.handlerDurationMs));root.setAttribute(prefix+"-milestone-clock","browser");root.setAttribute(prefix+"-"+milestone+"-at-ms",String(atMs))}
