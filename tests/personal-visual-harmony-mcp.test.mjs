@@ -5488,6 +5488,61 @@ test("direct A/B mode rejects V1 preparations without two free candidate slots",
   assert.match(guidedGoalStatus.textContent, /deux emplacements libres/u);
 });
 
+test("direct A/B mode rejects oversized recovery without two rectangles", () => {
+  const candidates = Array.from({ length: 11 }, (_, index) => ({
+    id: `candidate-${index}`,
+    primitive: { kind: "segment" },
+  }));
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    payload: {
+      prepared: { contractVersion: 1, workflowMode: "generic", candidates },
+      perceptionRecoveryAvailable: true,
+    },
+    reviewedCandidates: candidates,
+    manualSegmentMode: false,
+    manualSegmentAnchor: null,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    visibleKinds: new Set(["segment"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const guidedGoalStatus = { textContent: "" };
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      guidedGoalStatus,
+      twoObjectSpatialWorkflowActive: () => false,
+      GUIDED_ANALYSIS_GOALS: [
+        { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+        { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+      ],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      updateMeasurementRatioControls() {},
+      updatePerceptionUi() {},
+      persistGuidedAnalysisGoal() {},
+      startFreshSpatialSessionIfNeeded() { throw new Error("unavailable recovery must not start"); },
+      MAX_REVIEW_CANDIDATES: 12,
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.equal(state.manualSegmentMode, false);
+  assert.match(guidedGoalStatus.textContent, /deux rectangles/u);
+});
+
 test("entering direct A/B mode refreshes the armed segment controls", () => {
   const state = {
     guidedAnalysisGoal: "general-geometry",
