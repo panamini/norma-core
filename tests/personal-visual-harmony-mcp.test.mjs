@@ -1554,10 +1554,54 @@ test("widget direct A/B mode owns exactly two manual segments without a generate
   assert.match(html, /completedMeasurementPair:\{operation:CONFIRM_MEASUREMENT_PAIR_TOOL/u);
   assert.match(html, /confirmation\.coreAuthority===false/u);
   assert.match(html, /renderMeasurementPairResult\([^;]+\{persist:false,cached:true\}/u);
+  const manualCardStart = html.indexOf("function appendManualSegmentCard(");
+  const manualCardEnd = html.indexOf("\nfunction addManualSegment(", manualCardStart);
+  assert.notEqual(manualCardStart, -1);
+  assert.notEqual(manualCardEnd, -1);
+  assert.doesNotMatch(html.slice(manualCardStart, manualCardEnd), /input\.type="checkbox"/u);
   assert.doesNotMatch(
     html,
     /state\.guidedAnalysisGoal==="compare-two-lengths"\|\|!state\.measurementRatioEnabled/u,
   );
+});
+
+test("restored direct A/B segments are visible before they can be confirmed", () => {
+  const state = {
+    manualSegmentCandidateIds: ["segment-a", "segment-b"],
+    visibleKinds: new Set(["rectangle"]),
+  };
+  const ensureDirectPairSegmentsVisible = widgetScriptFunction(
+    "ensureDirectPairSegmentsVisible",
+    "function renderCandidates",
+    { state },
+  );
+
+  ensureDirectPairSegmentsVisible();
+
+  assert.deepEqual([...state.visibleKinds], ["rectangle", "segment"]);
+});
+
+test("measurement-only result maps reversed report rows back to explicit A/B candidate ids", () => {
+  const measurementPairSlots = widgetScriptFunction(
+    "measurementPairSlots",
+    "function appendMeasurementPairReport",
+    {},
+  );
+  const slots = measurementPairSlots({
+    confirmedVisualGuideCandidateIds: ["segment-a", "segment-b"],
+    report: {
+      measurements: [
+        { reference: { candidateId: "segment-b" }, candidateLabel: "Segment ajouté manuellement", lengthPixels: 229.161 },
+        { reference: { candidateId: "segment-a" }, candidateLabel: "Segment ajouté manuellement", lengthPixels: 164.725 },
+      ],
+    },
+  });
+
+  assert.deepEqual(slots, [
+    { slot: "A", candidateId: "segment-a", measurement: { reference: { candidateId: "segment-a" }, candidateLabel: "Segment ajouté manuellement", lengthPixels: 164.725 } },
+    { slot: "B", candidateId: "segment-b", measurement: { reference: { candidateId: "segment-b" }, candidateLabel: "Segment ajouté manuellement", lengthPixels: 229.161 } },
+  ]);
+  assert.match(createPersonalVisualHarmonyWidgetHtmlV1(), /appendMeasurementPairReport\(confirmation\)/u);
 });
 
 test("widget guided analysis entry exposes the declared spatial mode without activating Core", () => {
@@ -5290,6 +5334,52 @@ test("widget preserves perception provenance for reviewed V2 and V3 geometry", (
   );
 });
 
+test("direct A/B entry fails closed before drawing on perception-assisted V2 geometry", () => {
+  const state = {
+    guidedAnalysisGoal: "general-geometry",
+    payload: { prepared: { perceptionReceiptIdentity: "sha256:receipt" } },
+    manualSegmentMode: false,
+    manualSegmentAnchor: null,
+    confirming: false,
+    spatialRecoveryRunning: false,
+    visibleKinds: new Set(["rectangle"]),
+    measurementRatioEnabled: false,
+    measurementRatioRefs: [],
+    declaredSpatialMeasurementPlanRevision: 0,
+    declaredSpatialMeasurementPlanInputKey: null,
+    declaredSpatialMeasurementPlan: null,
+    declaredSpatialMeasurementPlanBuilding: false,
+  };
+  const guidedGoalStatus = { textContent: "" };
+  const applyGuidedAnalysisGoal = widgetScriptFunction(
+    "applyGuidedAnalysisGoal",
+    "function restoreGuidedAnalysisGoal",
+    {
+      state,
+      guidedGoalStatus,
+      twoObjectSpatialWorkflowActive: () => false,
+      GUIDED_ANALYSIS_GOALS: [
+        { id: "general-geometry", visibleKinds: ["rectangle"], effect: "general" },
+        { id: "compare-two-lengths", visibleKinds: ["rectangle"], effect: "compare" },
+      ],
+      visibleKindsForGuidedAnalysisGoal: (goal) => goal.visibleKinds,
+      updateGuidedAnalysisGoalButtons() {},
+      updateFamilyFilterButtons() {},
+      syncFamilyVisibility() {},
+      updateMeasurementRatioControls() {},
+      updatePerceptionUi() {},
+      persistGuidedAnalysisGoal() {},
+      startFreshSpatialSessionIfNeeded() {},
+    },
+  );
+
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "general-geometry");
+  assert.equal(state.manualSegmentMode, false);
+  assert.match(guidedGoalStatus.textContent, /phase séparée/u);
+});
+
 test("widget re-prepares reviewed geometry before pixel proposals and stops on confirmation", async () => {
   const original = {
     id: "oblique",
@@ -6804,7 +6894,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v23.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v24.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),

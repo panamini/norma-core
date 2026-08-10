@@ -128,7 +128,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
   assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v23.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v24.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -149,6 +149,20 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(cachedWidget.status, 200);
   assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
   assert.equal(cachedWidget.json.result.contents[0].mimeType, "text/html+skybridge");
+  for (const legacyUri of [
+    "ui://widget/norma-personal-visual-harmony-v20.html",
+    "ui://widget/norma-personal-visual-harmony-v23.html",
+  ]) {
+    const legacyWidget = await mcpRequest(port, {
+      jsonrpc: "2.0",
+      id: `legacy-widget-${legacyUri}`,
+      method: "resources/read",
+      params: { uri: legacyUri },
+    });
+    assert.equal(legacyWidget.status, 200);
+    assert.equal(legacyWidget.json.result.contents[0].uri, legacyUri);
+    assert.equal(legacyWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
+  }
 
   const prepared = await mcpRequest(port, {
     jsonrpc: "2.0",
