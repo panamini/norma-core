@@ -5571,7 +5571,6 @@ test("direct A/B completion sends bounded measurement-only facts to the conversa
     report: {
       contentIdentity: `sha256:${"b".repeat(64)}`,
       observedDominantShare: 0.58179,
-      longToShortRatio: 1.391,
       match: null,
       measurements: [
         { candidateLabel: "Segment A", lengthPixels: 164.725 },
@@ -5589,6 +5588,7 @@ test("direct A/B completion sends bounded measurement-only facts to the conversa
   assert.match(sent[0].prompt, /DEUX SEGMENTS DU PLAN IMAGE VÉRIFIÉS/u);
   assert.match(sent[0].prompt, /"providerCalls":0/u);
   assert.match(sent[0].prompt, /"coreAuthority":false/u);
+  assert.match(sent[0].prompt, /"longToShortRatio":1\.391/u);
   assert.doesNotMatch(sent[0].prompt, /candidateLabel|sourcePixel/u);
   assert.deepEqual(milestones, ["follow-up-dispatched"]);
 });

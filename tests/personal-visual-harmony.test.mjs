@@ -2179,6 +2179,13 @@ test("a confirmed direct segment pair produces one deterministic measurement-onl
 
   assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
     ...input,
+    preparedCandidateSet: manualPrepared,
+    expectedCandidateSetIdentity: manualPrepared.candidateSetIdentity,
+    sourcePixelWidth: input.sourcePixelWidth + 1,
+  }), /Manual candidate set source dimensions do not match the prepared review/u);
+
+  assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
     confirmedVisualGuideCandidateIds: ["segment-a"],
   }), /exactly two confirmed segment candidates/u);
   assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
