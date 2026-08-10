@@ -69,6 +69,7 @@ function widgetHydrateFunction(bindings) {
   return widgetScriptFunction("hydrate", "confirmButton.addEventListener", {
     ...bindings,
     resetPerceptionReconciliationForNewSession,
+    findMeasurementPairConfirmation: bindings.findMeasurementPairConfirmation ?? (() => null),
   });
 }
 
@@ -1579,6 +1580,30 @@ test("restored direct A/B segments are visible before they can be confirmed", ()
   ensureDirectPairSegmentsVisible();
 
   assert.deepEqual([...state.visibleKinds], ["rectangle", "segment"]);
+});
+
+test("cached direct A/B completion rejects a truncated measurement report", () => {
+  const findMeasurementPairConfirmation = widgetScriptFunction(
+    "findMeasurementPairConfirmation",
+    "function currentPayload",
+    { isStoredIdentity: (value) => typeof value === "string" && value.startsWith("sha256:") },
+  );
+  const truncated = {
+    measurementPairConfirmation: {
+      contractId: "norma.personal-visual-harmony-measurement-pair-confirmation@1",
+      status: "completed",
+      explicitConfirmation: true,
+      measurementOnly: true,
+      providerCalls: 0,
+      coreAuthority: false,
+      coreRun: false,
+      coreExecutionCount: 0,
+      confirmedVisualGuideCandidateIds: ["segment-a", "segment-b"],
+      confirmationIdentity: `sha256:${"a".repeat(64)}`,
+    },
+  };
+
+  assert.equal(findMeasurementPairConfirmation(truncated), null);
 });
 
 test("measurement-only result maps reversed report rows back to explicit A/B candidate ids", () => {
@@ -5536,6 +5561,19 @@ test("direct A/B mode rejects V1 preparations without two free candidate slots",
   assert.equal(state.guidedAnalysisGoal, "general-geometry");
   assert.equal(state.manualSegmentMode, false);
   assert.match(guidedGoalStatus.textContent, /deux emplacements libres/u);
+  const manualSegment = {
+    id: "manual-segment-1",
+    primitive: { kind: "segment" },
+    provenance: "human-added-candidate",
+  };
+  state.payload.prepared.candidates = candidates.slice(0, 10);
+  state.reviewedCandidates = [...state.payload.prepared.candidates, manualSegment];
+  state.manualSegmentCandidateIds = [manualSegment.id];
+  applyGuidedAnalysisGoal("compare-two-lengths");
+
+  assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
+  assert.equal(state.manualSegmentMode, true);
+  assert.equal(guidedGoalStatus.textContent, "compare");
 });
 
 test("direct A/B mode rejects oversized recovery without two rectangles", () => {
@@ -6490,6 +6528,12 @@ test("direct segment pair session confirmation is idempotent and mutually exclus
   assert.equal(first.measurementPairConfirmation.coreRun, false);
   assert.equal(first.measurementPairConfirmation.coreAuthority, false);
   assert.equal(first.measurementPairConfirmation.coreExecutionCount, 0);
+  const findMeasurementPairConfirmation = widgetScriptFunction(
+    "findMeasurementPairConfirmation",
+    "function currentPayload",
+    { isStoredIdentity: (value) => /^sha256:[0-9a-f]{64}$/u.test(value) },
+  );
+  assert.deepEqual(findMeasurementPairConfirmation(first), first.measurementPairConfirmation);
   assert.throws(() => service.confirm({
     sessionId: prepared.sessionId,
     candidateSetIdentity: prepared.prepared.candidateSetIdentity,
@@ -7879,6 +7923,9 @@ test("completed payload for a new file hydrates and renders over existing widget
     ),
   });
   const rendered = [];
+  const renderedPairs = [];
+  let measurementPairConfirmation = null;
+  let coreVisibleCount = 0;
   let guidedGoalRestores = 0;
   let guidedGoalRenders = 0;
   const hydrate = widgetHydrateFunction({
@@ -7895,9 +7942,12 @@ test("completed payload for a new file hydrates and renders over existing widget
     revalidateCompleted() { throw new Error("completed payload must not revalidate cached confirmation state"); },
     restoreGuidedAnalysisGoal() { guidedGoalRestores += 1; },
     renderGuidedAnalysisGoals() { guidedGoalRenders += 1; },
+    findMeasurementPairConfirmation: () => measurementPairConfirmation,
+    renderMeasurementPairResult: (payload, value, options) => { renderedPairs.push({ payload, value, options }); },
     findDeclaredSpatialConfirmation: () => null,
     renderDeclaredSpatialResult() { throw new Error("legacy completed payload must not render a declared spatial result"); },
     renderResult: (payload, structured) => { rendered.push({ payload, structured }); },
+    recordObservationMilestoneAfterPaint() { coreVisibleCount += 1; },
   });
   const completedPayload = {
     stage: "completed",
@@ -7914,6 +7964,26 @@ test("completed payload for a new file hydrates and renders over existing widget
   assert.equal(state.imageLoadFileId, "file-new");
   assert.equal(guidedGoalRestores, 1);
   assert.equal(guidedGoalRenders, 1);
+  assert.equal(coreVisibleCount, 1);
+
+  measurementPairConfirmation = {
+    contractId: "norma.personal-visual-harmony-measurement-pair-confirmation@1",
+    confirmationIdentity: `sha256:${"a".repeat(64)}`,
+  };
+  const pairPayload = {
+    stage: "completed",
+    fileId: "file-direct-pair",
+    measurementPairConfirmation,
+  };
+  await hydrate(pairPayload, { measurementPairConfirmation });
+
+  assert.deepEqual(renderedPairs, [{
+    payload: pairPayload,
+    value: measurementPairConfirmation,
+    options: { persist: false },
+  }]);
+  assert.deepEqual(rendered, [{ payload: completedPayload, structured }]);
+  assert.equal(coreVisibleCount, 1);
 });
 
 test("completed payload renders even when its temporary image URL cannot be refreshed", async () => {
