@@ -9669,6 +9669,14 @@ test("expired measurement-pair sessions are reconstructed from the exact hidden 
     assert.equal(confirmed.structuredContent.status, "completed");
     assert.equal(confirmed.structuredContent.coreRun, false);
     assert.equal(confirmed._meta.normaPersonalVisualHarmony.sessionRecovered, true);
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-candidate-id="diagonal"/u,
+    );
+    assert.match(
+      confirmed._meta.normaPersonalVisualHarmony.overlaySvg,
+      /data-candidate-id="segment-b"/u,
+    );
     assert.equal(
       confirmed._meta.normaPersonalVisualHarmony.sessionId,
       "session:pair-recovery-2",

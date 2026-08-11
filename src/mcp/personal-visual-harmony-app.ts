@@ -4070,6 +4070,9 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
             sessionRecovered,
             sessionId: effectiveSessionId,
             measurementPairConfirmation: confirmed.measurementPairConfirmation,
+            overlaySvg: createPersonalVisualHarmonyOverlaySvgV1({
+              preparedCandidateSet: confirmed.prepared,
+            }),
           },
         },
       };
