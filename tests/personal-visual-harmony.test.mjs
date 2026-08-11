@@ -7,6 +7,7 @@ import {
   confirmPersonalVisualHarmonyMeasurementPairV1,
   createPersonalVisualHarmonyOverlaySvgV1,
   layoutPersonalVisualHarmonyCandidateLabelsV1,
+  previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV3,
   preparePersonalVisualHarmonyManualCandidateSetV1,
@@ -53,6 +54,40 @@ function goldenCandidates() {
     },
   ];
 }
+
+test("automatic harmonic preview is deterministic rectangle-only candidate evidence before Core", () => {
+  const prepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-preview",
+    candidates: goldenCandidates(),
+  });
+  const preview = previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+    preparedCandidateSet: prepared,
+  });
+
+  assert.equal(preview.candidateSetIdentity, prepared.candidateSetIdentity);
+  assert.equal(preview.candidateEvidenceOnly, true);
+  assert.equal(preview.explicitSelectionConfirmationRequired, true);
+  assert.equal(preview.coreRun, false);
+  assert.equal(preview.providerCalls, 0);
+  assert.ok(preview.relationships.length > 0);
+  assert.ok(preview.relationships.every((entry) => entry.subjectCandidateId === "major" || entry.subjectCandidateId === "minor"));
+  assert.ok(preview.relationships.every((entry) => entry.relatedCandidateIds.includes("major") || entry.relatedCandidateIds.includes("minor")));
+  assert.ok(preview.relationships.some((entry) => entry.ratioLabel.includes("φ")));
+  assert.deepEqual(
+    previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({ preparedCandidateSet: structuredClone(prepared) }),
+    preview,
+  );
+  const reversed = previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+    preparedCandidateSet: preparePersonalVisualHarmonyCandidateSetV1({
+      sourceFileId: "file-preview-reversed",
+      candidates: [...goldenCandidates()].reverse(),
+    }),
+  });
+  assert.deepEqual(
+    reversed.relationships.map((entry) => [entry.subjectCandidateId, entry.relatedCandidateIds[0], entry.metric, entry.ratioId]),
+    preview.relationships.map((entry) => [entry.subjectCandidateId, entry.relatedCandidateIds[0], entry.metric, entry.ratioId]),
+  );
+});
 
 function mixedPrimitiveCandidates() {
   return [

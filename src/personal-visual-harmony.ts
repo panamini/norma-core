@@ -66,6 +66,8 @@ export const PERSONAL_VISUAL_HARMONY_DECLARED_MEASUREMENT_RATIO_REPORT_CONTRACT_
   "norma.personal-visual-harmony-declared-measurement-ratio-report@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MEASUREMENT_PAIR_CONFIRMATION_CONTRACT_ID =
   "norma.personal-visual-harmony-measurement-pair-confirmation@1" as const;
+export const PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID =
+  "norma.personal-visual-harmony-automatic-harmonic-preview@1" as const;
 export const PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES = 12;
 export const PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES =
   PERSONAL_VISUAL_HARMONY_MAX_CANDIDATES - 2;
@@ -310,6 +312,43 @@ export interface PersonalVisualHarmonyExplanationV1 {
   readonly targetPercent: number;
   readonly deltaPercentagePoints: number;
   readonly explanation: string;
+}
+
+export interface PersonalVisualHarmonyAutomaticHarmonicPreviewRelationshipV1 {
+  readonly relationshipId: string;
+  readonly subjectCandidateId: string;
+  readonly relatedCandidateIds: readonly [string];
+  readonly metric: "horizontal-split-share" | "vertical-split-share";
+  readonly quality: HarmonicRelationshipQualityV1;
+  readonly ratioId: string;
+  readonly ratioLabel: string;
+  readonly ratioFamily: string | null;
+  readonly observedPercent: number;
+  readonly targetPercent: number;
+  readonly deltaPercentagePoints: number;
+}
+
+export interface PersonalVisualHarmonyAutomaticHarmonicPreviewV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "candidate_preview";
+  readonly candidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly candidateEvidenceOnly: true;
+  readonly explicitSelectionConfirmationRequired: true;
+  readonly coreRun: false;
+  readonly providerCalls: 0;
+  readonly deterministic: true;
+  readonly ratioPackRefs: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS;
+  readonly matchTolerance: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+  readonly relationships: readonly PersonalVisualHarmonyAutomaticHarmonicPreviewRelationshipV1[];
+  readonly limits: {
+    readonly noAutomaticSelection: true;
+    readonly noRecommendation: true;
+    readonly noBeautyClaims: true;
+    readonly noIntentInference: true;
+  };
+  readonly contentIdentity: string;
 }
 
 export interface PersonalVisualHarmonyResultV1 {
@@ -1227,6 +1266,105 @@ export function preparePersonalVisualHarmonyMergedPerceptionCandidatesV2(input: 
     candidates: merged.candidates,
     triangleConstructionRequests: merged.triangleConstructionRequests,
   });
+}
+
+/**
+ * Candidate-only preview for the automatic path. This intentionally works on
+ * unaccepted rectangles and never invokes the Core harmonic analyzer.
+ */
+export function previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1(input: {
+  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
+}): PersonalVisualHarmonyAutomaticHarmonicPreviewV1 {
+  const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
+  const rectangles = prepared.candidates.filter((candidate) => candidate.primitive?.kind === "rectangle"
+    || candidate.primitive === undefined);
+  const ratios = [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK]
+    .flatMap((pack) => pack.ratios.map((ratio) => ({
+      ratioId: ratio.id,
+      ratioLabel: ratio.id === "phi-major" ? "φ major" : ratio.id === "phi-minor" ? "φ minor" : ratio.id,
+      ratioFamily: ratio.familyRef ?? null,
+      targetValue: ratio.normalizedValue,
+    })))
+    .filter((ratio, index, values) => values.findIndex((candidate) => candidate.targetValue === ratio.targetValue) === index);
+  const relationships: PersonalVisualHarmonyAutomaticHarmonicPreviewRelationshipV1[] = [];
+  const adjacencyTolerance = 0.025;
+  for (let index = 0; index < rectangles.length; index += 1) {
+    const first = rectangles[index]!;
+    for (let relatedIndex = index + 1; relatedIndex < rectangles.length; relatedIndex += 1) {
+      const second = rectangles[relatedIndex]!;
+      const [left, right] = first.x <= second.x ? [first, second] : [second, first];
+      const [top, bottom] = first.y <= second.y ? [first, second] : [second, first];
+      const horizontal = Math.abs(left.y - right.y) <= adjacencyTolerance
+        && Math.abs(left.height - right.height) <= adjacencyTolerance
+        && Math.abs((left.x + left.width) - right.x) <= adjacencyTolerance;
+      const vertical = Math.abs(top.x - bottom.x) <= adjacencyTolerance
+        && Math.abs(top.width - bottom.width) <= adjacencyTolerance
+        && Math.abs((top.y + top.height) - bottom.y) <= adjacencyTolerance;
+      const metric = horizontal ? "horizontal-split-share" as const : vertical ? "vertical-split-share" as const : null;
+      if (metric === null) continue;
+      const firstValue = metric === "horizontal-split-share"
+        ? left.width / (left.width + right.width)
+        : top.height / (top.height + bottom.height);
+      const secondValue = 1 - firstValue;
+      for (const [subject, related, observedValue] of [
+        [metric === "horizontal-split-share" ? left : top, metric === "horizontal-split-share" ? right : bottom, firstValue],
+        [metric === "horizontal-split-share" ? right : bottom, metric === "horizontal-split-share" ? left : top, secondValue],
+      ] as const) {
+        for (const ratio of ratios) {
+          const absoluteDelta = Math.abs(observedValue - ratio.targetValue);
+          if (absoluteDelta > PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE) continue;
+          const quality: HarmonicRelationshipQualityV1 = absoluteDelta <= 0.005
+            ? "exact"
+            : absoluteDelta <= 0.0125 ? "strong" : "near";
+          relationships.push({
+            relationshipId: contentIdentityFor({
+              candidateSetIdentity: prepared.candidateSetIdentity,
+              subjectCandidateId: subject.id,
+              relatedCandidateId: related.id,
+              metric,
+              ratioId: ratio.ratioId,
+            }),
+            subjectCandidateId: subject.id,
+            relatedCandidateIds: [related.id],
+            metric,
+            quality,
+            ratioId: ratio.ratioId,
+            ratioLabel: ratio.ratioLabel,
+            ratioFamily: ratio.ratioFamily,
+            observedPercent: percentage(observedValue),
+            targetPercent: percentage(ratio.targetValue),
+            deltaPercentagePoints: percentage(absoluteDelta),
+          });
+        }
+      }
+    }
+  }
+  relationships.sort((left, right) => left.subjectCandidateId.localeCompare(right.subjectCandidateId)
+    || left.relatedCandidateIds[0].localeCompare(right.relatedCandidateIds[0])
+    || left.metric.localeCompare(right.metric)
+    || left.ratioId.localeCompare(right.ratioId));
+  const withoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "candidate_preview" as const,
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    coreRun: false as const,
+    providerCalls: 0 as const,
+    deterministic: true as const,
+    ratioPackRefs: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
+    matchTolerance: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
+    relationships,
+    limits: {
+      noAutomaticSelection: true as const,
+      noRecommendation: true as const,
+      noBeautyClaims: true as const,
+      noIntentInference: true as const,
+    },
+  };
+  return { ...withoutIdentity, contentIdentity: contentIdentityFor(withoutIdentity) };
 }
 
 export function confirmPersonalVisualHarmonyCandidateSetV1(

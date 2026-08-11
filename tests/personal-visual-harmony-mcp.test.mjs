@@ -79,6 +79,16 @@ function deferred() {
   return { promise, resolve };
 }
 
+test("automatic harmonic preview stays candidate-only and becomes stale after review edits", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="automaticPreview"/u);
+  assert.match(html, /Relations candidates à vérifier/u);
+  assert.match(html, /function renderAutomaticHarmonicPreview\(\)/u);
+  assert.match(html, /function invalidateAutomaticHarmonicPreview\(\)/u);
+  assert.match(html, /state\.automaticPreviewStale=true;renderAutomaticHarmonicPreview\(\)/u);
+  assert.doesNotMatch(html, /automaticHarmonicPreview[^\n]*callAppTool/u);
+});
+
 test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
   const dimensions = { width: 1000, height: 800 };
   const rectangles = [
@@ -8624,6 +8634,10 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     assert.equal(prepared.structuredContent.coreRun, false);
     assert.equal(prepared.structuredContent.candidateEvidenceOnly, true);
     assert.equal(prepared.structuredContent.explicitSelectionConfirmationRequired, true);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.candidateSetIdentity, prepared.structuredContent.candidateSetIdentity);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.coreRun, false);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.providerCalls, 0);
+    assert.ok(prepared.structuredContent.automaticHarmonicPreview.relationships.length > 0);
     assert.doesNotMatch(JSON.stringify(prepared.structuredContent), /file-private-opaque-id|private-signed-image|private-name/u);
     assert.doesNotMatch(JSON.stringify(prepared.content), /file-private-opaque-id|private-signed-image|private-name/u);
 
