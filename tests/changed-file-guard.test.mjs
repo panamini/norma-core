@@ -4931,6 +4931,10 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonyDirectSegmentPairChangedFiles,
   );
+  const isPersonalVisualHarmonyAutomaticHarmonicPreviewSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
+  );
   const isPersonalVisualHarmonyGuidedAnalysisEntrySet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyGuidedAnalysisEntryChangedFiles,
@@ -5152,6 +5156,13 @@ test("shared exact changed-file guard recognizes active controlled provider obse
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
+    return;
+  }
+  if (isPersonalVisualHarmonyAutomaticHarmonicPreviewSet) {
+    assert.deepEqual(
+      sharedExactApprovedChangedFiles(changedFiles),
+      personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
+    );
     return;
   }
   assert.deepEqual(

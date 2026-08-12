@@ -903,6 +903,8 @@ export const personalVisualHarmonyDirectSegmentPairChangedFiles = Object.freeze(
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
+// Covers the bounded automatic harmonic preview and its surface-guide
+// discovery extension; both remain a single six-file change boundary.
 export const personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony.ts",

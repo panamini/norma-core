@@ -1301,7 +1301,7 @@ interface AutomaticHarmonicPreviewCandidate {
   readonly observedValue: number;
 }
 
-interface AutomaticHarmonicPreviewRectangle {
+interface AutomaticHarmonicPreviewGuide {
   readonly candidate: PersonalVisualHarmonyCandidateInputV1;
   readonly x: number;
   readonly y: number;
@@ -1313,10 +1313,10 @@ export function previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1(inp
   readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
 }): PersonalVisualHarmonyAutomaticHarmonicPreviewV1 {
   const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
-  const rectangles = prepared.candidates
-    .filter((candidate) => primitiveKindFor(candidate) === "rectangle")
+  const guides = prepared.candidates
+    .filter(isAutomaticHarmonicPreviewSurfaceCandidate)
     .sort((first, second) => stableStringCompare(first.id, second.id))
-    .map((candidate): AutomaticHarmonicPreviewRectangle => ({
+    .map((candidate): AutomaticHarmonicPreviewGuide => ({
       candidate,
       x: canonicalNumber(candidate.x),
       y: canonicalNumber(1 - candidate.y - candidate.height),
@@ -1324,7 +1324,7 @@ export function previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1(inp
       height: canonicalNumber(candidate.height),
     }));
   const catalog = automaticHarmonicPreviewRatioCatalog();
-  const candidates = automaticHarmonicPreviewCandidates(rectangles);
+  const candidates = automaticHarmonicPreviewCandidates(guides);
   const ranked = candidates.map((candidate) => {
     const ratio = closestAutomaticHarmonicPreviewRatio(candidate.observedValue, catalog);
     return {
@@ -1440,35 +1440,38 @@ function automaticHarmonicPreviewRatioCatalog(): readonly AutomaticHarmonicPrevi
 }
 
 function automaticHarmonicPreviewCandidates(
-  rectangles: readonly AutomaticHarmonicPreviewRectangle[],
+  guides: readonly AutomaticHarmonicPreviewGuide[],
 ): readonly AutomaticHarmonicPreviewCandidate[] {
   const tolerance = PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
   const candidates: AutomaticHarmonicPreviewCandidate[] = [];
-  for (const rectangle of rectangles) {
+  for (const guide of guides) {
+    const area = automaticHarmonicPreviewArea(guide);
     candidates.push(
-      automaticHarmonicPreviewCandidate("width-share", 1, rectangle, [], rectangle.width),
-      automaticHarmonicPreviewCandidate("height-share", 1, rectangle, [], rectangle.height),
-      automaticHarmonicPreviewCandidate("area-share", 3, rectangle, [], rectangle.width * rectangle.height),
+      automaticHarmonicPreviewCandidate("width-share", 1, guide, [], guide.width),
+      automaticHarmonicPreviewCandidate("height-share", 1, guide, [], guide.height),
     );
-    if (rectangle.x > tolerance && rectangle.x < 1 - tolerance) {
-      candidates.push(automaticHarmonicPreviewCandidate("left-edge-position", 2, rectangle, [], rectangle.x));
+    if (area !== null) {
+      candidates.push(automaticHarmonicPreviewCandidate("area-share", 3, guide, [], area));
     }
-    const right = canonicalNumber(rectangle.x + rectangle.width);
+    if (guide.x > tolerance && guide.x < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("left-edge-position", 2, guide, [], guide.x));
+    }
+    const right = canonicalNumber(guide.x + guide.width);
     if (right > tolerance && right < 1 - tolerance) {
-      candidates.push(automaticHarmonicPreviewCandidate("right-edge-position", 2, rectangle, [], right));
+      candidates.push(automaticHarmonicPreviewCandidate("right-edge-position", 2, guide, [], right));
     }
-    if (rectangle.y > tolerance && rectangle.y < 1 - tolerance) {
-      candidates.push(automaticHarmonicPreviewCandidate("bottom-edge-position", 2, rectangle, [], rectangle.y));
+    if (guide.y > tolerance && guide.y < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("bottom-edge-position", 2, guide, [], guide.y));
     }
-    const top = canonicalNumber(rectangle.y + rectangle.height);
+    const top = canonicalNumber(guide.y + guide.height);
     if (top > tolerance && top < 1 - tolerance) {
-      candidates.push(automaticHarmonicPreviewCandidate("top-edge-position", 2, rectangle, [], top));
+      candidates.push(automaticHarmonicPreviewCandidate("top-edge-position", 2, guide, [], top));
     }
   }
-  for (let firstIndex = 0; firstIndex < rectangles.length; firstIndex += 1) {
-    for (let secondIndex = firstIndex + 1; secondIndex < rectangles.length; secondIndex += 1) {
-      const first = rectangles[firstIndex];
-      const second = rectangles[secondIndex];
+  for (let firstIndex = 0; firstIndex < guides.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < guides.length; secondIndex += 1) {
+      const first = guides[firstIndex];
+      const second = guides[secondIndex];
       if (first !== undefined && second !== undefined) {
         addAutomaticHarmonicPreviewAdjacentCandidates(candidates, first, second);
       }
@@ -1479,8 +1482,8 @@ function automaticHarmonicPreviewCandidates(
 
 function addAutomaticHarmonicPreviewAdjacentCandidates(
   candidates: AutomaticHarmonicPreviewCandidate[],
-  first: AutomaticHarmonicPreviewRectangle,
-  second: AutomaticHarmonicPreviewRectangle,
+  first: AutomaticHarmonicPreviewGuide,
+  second: AutomaticHarmonicPreviewGuide,
 ): void {
   const tolerance = PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
   const overlapFraction = 0.8;
@@ -1547,17 +1550,45 @@ function addAutomaticHarmonicPreviewAdjacentCandidates(
 function automaticHarmonicPreviewCandidate(
   metric: HarmonicRelationshipMetricV1,
   priority: number,
-  subject: AutomaticHarmonicPreviewRectangle,
-  related: readonly AutomaticHarmonicPreviewRectangle[],
+  subject: AutomaticHarmonicPreviewGuide,
+  related: readonly AutomaticHarmonicPreviewGuide[],
   observedValue: number,
 ): AutomaticHarmonicPreviewCandidate {
   return {
     metric,
     priority,
     subject: subject.candidate,
-    related: related.map((rectangle) => rectangle.candidate),
+    related: related.map((guide) => guide.candidate),
     observedValue: canonicalNumber(observedValue),
   };
+}
+
+function isAutomaticHarmonicPreviewSurfaceCandidate(
+  candidate: PersonalVisualHarmonyCandidateInputV1,
+): boolean {
+  const kind = primitiveKindFor(candidate);
+  return kind === "rectangle" || kind === "quadrilateral" || kind === "ellipse";
+}
+
+function automaticHarmonicPreviewArea(
+  guide: AutomaticHarmonicPreviewGuide,
+): number | null {
+  const primitive = guide.candidate.primitive;
+  if (primitive?.kind === "ellipse") {
+    // A clipped/off-frame ellipse has no declared visible-area contract here.
+    return null;
+  }
+  if (primitive?.kind !== "quadrilateral") {
+    return canonicalNumber(guide.width * guide.height);
+  }
+  let twiceArea = 0;
+  for (let index = 0; index < primitive.vertices.length; index += 1) {
+    const current = primitive.vertices[index];
+    const next = primitive.vertices[(index + 1) % primitive.vertices.length];
+    if (current === undefined || next === undefined) continue;
+    twiceArea += (current.x * next.y) - (next.x * current.y);
+  }
+  return canonicalNumber(Math.abs(twiceArea) / 2);
 }
 
 function closestAutomaticHarmonicPreviewRatio(
