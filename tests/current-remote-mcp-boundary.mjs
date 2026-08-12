@@ -4,6 +4,7 @@ export const permanentRemoteMcpDependencies = Object.freeze({
   "@modelcontextprotocol/sdk": "1.29.0",
   jose: "6.2.3",
   pg: "8.22.0",
+  terser: "5.49.2",
   zod: "4.4.3",
 });
 

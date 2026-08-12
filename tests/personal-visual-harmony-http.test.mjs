@@ -10,6 +10,7 @@ import {
 } from "../dist/src/mcp/personal-visual-harmony-http-server.js";
 import {
   createPersonalVisualHarmonyWidgetHtmlV1,
+  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
   PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
@@ -114,6 +115,7 @@ test("temporary personal HTTP MCP uses a capability path and keeps state across 
     [
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
+      PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     ],
   );

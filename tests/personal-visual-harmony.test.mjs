@@ -4,10 +4,12 @@ import test from "node:test";
 
 import {
   confirmPersonalVisualHarmonyCandidateSetV1,
+  confirmPersonalVisualHarmonyMeasurementPairV1,
   createPersonalVisualHarmonyOverlaySvgV1,
   layoutPersonalVisualHarmonyCandidateLabelsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV3,
+  preparePersonalVisualHarmonyManualCandidateSetV1,
   preparePersonalVisualHarmonyMultiPerceptionObservationV1,
 } from "../dist/src/personal-visual-harmony.js";
 import {
@@ -2111,6 +2113,91 @@ test("an explicit confirmed image-plane length pair produces one separate non-au
     }),
     /does not match candidate geometry/u,
   );
+});
+
+test("a confirmed direct segment pair produces one deterministic measurement-only receipt", () => {
+  const segments = [
+    lineGuide("segment-a", { x: 0.1, y: 0.2 }, { x: 0.9, y: 0.2 }),
+    lineGuide("segment-b", { x: 0.3, y: 0.1 }, { x: 0.3, y: 0.9 }),
+  ];
+  const prepared = prepare([...goldenCandidates(), ...segments]);
+  const input = {
+    preparedCandidateSet: prepared,
+    expectedCandidateSetIdentity: prepared.candidateSetIdentity,
+    confirmedVisualGuideCandidateIds: ["segment-a", "segment-b"],
+    measurementRatioRequest: {
+      requestId: "declared-ratio:direct-segment-pair",
+      measurements: [
+        { kind: "segment", candidateId: "segment-a" },
+        { kind: "segment", candidateId: "segment-b" },
+      ],
+      ratioPackRefs: [
+        "norma.geometry-harmonies@0.1.0",
+        "norma.basic-proportions@0.1.0",
+      ],
+      matchTolerance: 0.025,
+    },
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+  };
+
+  const first = confirmPersonalVisualHarmonyMeasurementPairV1(input);
+  const second = confirmPersonalVisualHarmonyMeasurementPairV1(structuredClone(input));
+
+  assert.deepEqual(second, first);
+  assert.equal(first.contractId, "norma.personal-visual-harmony-measurement-pair-confirmation@1");
+  assert.equal(first.status, "completed");
+  assert.deepEqual(first.confirmedVisualGuideCandidateIds, ["segment-a", "segment-b"]);
+  assert.deepEqual(first.report.measurements.map(({ lengthPixels }) => lengthPixels), [800, 400]);
+  assert.equal(first.report.observedDominantShare, 0.666666666667);
+  assert.equal(first.report.match?.ratio.ratioId, "2/3");
+  assert.equal(first.explicitConfirmation, true);
+  assert.equal(first.confirmationMode, "client_asserted_widget_interaction");
+  assert.equal(first.providerCalls, 0);
+  assert.equal(first.coreAuthority, false);
+  assert.equal(first.coreRun, false);
+  assert.equal(first.coreExecutionCount, 0);
+  assert.match(first.confirmationIdentity, /^sha256:[0-9a-f]{64}$/u);
+
+  const manualPrepared = preparePersonalVisualHarmonyManualCandidateSetV1({
+    sourceImageContentIdentity: `sha256:${"a".repeat(64)}`,
+    sourceImageMediaType: "image/png",
+    sourcePixelWidth: 1_000,
+    sourcePixelHeight: 500,
+    perceptionReceiptIdentity: `sha256:${"b".repeat(64)}`,
+    candidates: segments,
+  });
+  const manualConfirmation = confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
+    preparedCandidateSet: manualPrepared,
+    expectedCandidateSetIdentity: manualPrepared.candidateSetIdentity,
+  });
+  assert.equal(
+    manualConfirmation.confirmationMode,
+    "client_asserted_private_web_lab_interaction",
+  );
+
+  assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
+    preparedCandidateSet: manualPrepared,
+    expectedCandidateSetIdentity: manualPrepared.candidateSetIdentity,
+    sourcePixelWidth: input.sourcePixelWidth + 1,
+  }), /Manual candidate set source dimensions do not match the prepared review/u);
+
+  assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
+    confirmedVisualGuideCandidateIds: ["segment-a"],
+  }), /exactly two confirmed segment candidates/u);
+  assert.throws(() => confirmPersonalVisualHarmonyMeasurementPairV1({
+    ...input,
+    measurementRatioRequest: {
+      ...input.measurementRatioRequest,
+      measurements: [
+        { kind: "segment", candidateId: "segment-a" },
+        { kind: "axis", candidateId: "segment-b" },
+      ],
+    },
+  }), /direct segment references/u);
 });
 
 test("two confirmed axes produce an explicit non-authoritative length report without geometry conversion", () => {
