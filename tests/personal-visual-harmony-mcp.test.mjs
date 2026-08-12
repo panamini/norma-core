@@ -146,6 +146,28 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   assert.equal(automaticPreview.dataset.stale, "true");
   assert.match(textOf(automaticPreview), /Relations candidates à revoir/u);
   assert.doesNotMatch(textOf(automaticPreview), /Ratio ciblé/u);
+
+  state.guidedAnalysisGoal = "general-geometry";
+  const syncAnalysisModeUi = widgetScriptFunction(
+    "syncAnalysisModeUi",
+    "function updateGuidedAnalysisGoalButtons",
+    {
+      state,
+      analysisPanel: { dataset: {} },
+      flowStepOne: { innerHTML: "" },
+      flowStepTwo: { innerHTML: "" },
+      flowStepThree: { innerHTML: "" },
+      workflowHintHeading: { textContent: "" },
+      workflowHintText: { textContent: "" },
+      confirmButton: { textContent: "" },
+      measurementRatioToggle: { hidden: true },
+      twoObjectSpatialWorkflowActive: () => false,
+      renderAutomaticHarmonicPreview,
+    },
+  );
+  syncAnalysisModeUi();
+  assert.equal(automaticPreview.hidden, false);
+  assert.match(textOf(automaticPreview), /Relations candidates à revoir/u);
 });
 
 test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
