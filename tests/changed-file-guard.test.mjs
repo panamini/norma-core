@@ -51,6 +51,7 @@ import {
   personalVisualHarmonyBrandIdentityChangedFiles,
   personalVisualHarmonyCandidateLabelLayoutChangedFiles,
   personalVisualHarmonyConfirmationValidationFixChangedFiles,
+  personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyGuidedAnalysisEntryChangedFiles,
   personalVisualHarmonyLineEnvelopeCanonicalizationChangedFiles,
@@ -255,6 +256,37 @@ test("direct manual A/B phase two is an exact set with bounded CI repairs", () =
     assert.equal(
       sharedExactApprovedChangedFiles([
         ...personalVisualHarmonyDirectSegmentPairChangedFiles,
+        forbiddenFile,
+      ]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("automatic harmonic preview is one exact bounded change set", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles),
+    personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles.filter((file) => file !== missingFile),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbiddenFile of [
+    "deploy/modal/server.py",
+    "src/harmonic-relationship-analysis.ts",
+    "src/personal-visual-harmony-segmentation.ts",
+    "src/ratio-pack.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
         forbiddenFile,
       ]),
       null,

@@ -7,6 +7,7 @@ import {
   confirmPersonalVisualHarmonyMeasurementPairV1,
   createPersonalVisualHarmonyOverlaySvgV1,
   layoutPersonalVisualHarmonyCandidateLabelsV1,
+  previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1,
   preparePersonalVisualHarmonyCandidateSetV1,
   preparePersonalVisualHarmonyCandidateSetV3,
   preparePersonalVisualHarmonyManualCandidateSetV1,
@@ -53,6 +54,87 @@ function goldenCandidates() {
     },
   ];
 }
+
+function singleRectanglePreview({ width, height }) {
+  const prepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: `file-preview-${width}-${height}`,
+    candidates: [{
+      id: "rectangle",
+      label: "Rectangle observé",
+      role: "structural-region",
+      reason: "Guide rectangulaire existant",
+      x: 0,
+      y: 0,
+      width,
+      height,
+    }],
+  });
+  return {
+    prepared,
+    preview: previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+      preparedCandidateSet: prepared,
+    }),
+  };
+}
+
+test("automatic harmonic preview is bounded, deterministic candidate evidence with explicit qualifications", () => {
+  const cases = [
+    { dimensions: { width: 0.5, height: 0.5 }, qualification: "exact" },
+    { dimensions: { width: 0.625, height: 0.625 }, qualification: "within_tolerance" },
+    { dimensions: { width: 0.75, height: 0.75 }, qualification: "outside_tolerance" },
+  ];
+
+  for (const { dimensions, qualification } of cases) {
+    const { prepared, preview } = singleRectanglePreview(dimensions);
+    assert.equal(preview.status, "candidate_preview");
+    assert.equal(preview.candidateEvidenceOnly, true);
+    assert.equal(preview.explicitSelectionConfirmationRequired, true);
+    assert.equal(preview.providerCalls, 0);
+    assert.equal(preview.samCalls, 0);
+    assert.equal(preview.coreRun, false);
+    assert.equal(preview.coreExecutionCount, 0);
+    assert.equal(preview.maxRelationships, 3);
+    assert.equal(preview.relationshipCount, 3);
+    assert.equal(preview.relationships.length, 3);
+    assert.ok(preview.relationships.every((relationship) => relationship.qualification === qualification));
+    assert.ok(preview.relationships.every((relationship) => (
+      Number.isFinite(relationship.targetValue)
+      && Number.isFinite(relationship.observedValue)
+      && Number.isFinite(relationship.absoluteDelta)
+      && relationship.absoluteDelta >= 0
+    )));
+    assert.deepEqual(
+      previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+        preparedCandidateSet: structuredClone(prepared),
+      }),
+      preview,
+    );
+  }
+});
+
+test("automatic harmonic preview ranks only existing rectangle guides and never exceeds three relationships", () => {
+  const prepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-preview-mixed",
+    candidates: mixedPrimitiveCandidates(),
+  });
+  const preview = previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+    preparedCandidateSet: prepared,
+  });
+
+  assert.ok(preview.relationships.length > 0);
+  assert.ok(preview.relationships.length <= 3);
+  assert.equal(preview.relationshipCount, preview.relationships.length);
+  assert.ok(preview.relationships.every((relationship) => (
+    ["major", "minor"].includes(relationship.subjectCandidateId)
+    && relationship.relatedCandidateIds.every((candidateId) => ["major", "minor"].includes(candidateId))
+  )));
+  assert.deepEqual(
+    previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+      preparedCandidateSet: structuredClone(prepared),
+    }),
+    preview,
+  );
+});
 
 function mixedPrimitiveCandidates() {
   return [
