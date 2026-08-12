@@ -885,6 +885,24 @@ export const personalVisualHarmonyManualSegmentChangedFiles = Object.freeze([
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Covers the validated direct mouse A/B phase-two content plus the single
+// dependency-policy and guard files needed to keep CI exact.
+export const personalVisualHarmonyDirectSegmentPairChangedFiles = Object.freeze([
+  "package-lock.json",
+  "package.json",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/mcp/remote-http-server.ts",
+  "src/personal-visual-harmony.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/current-remote-mcp-boundary.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+  "tests/personal-visual-harmony-http.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  "tests/personal-visual-harmony.test.mjs",
+].sort());
+
 export const personalVisualHarmonyGuidedAnalysisEntryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
@@ -2336,6 +2354,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabSessionRecoveryLauncherChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
+  personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyStaleWidgetInstanceChangedFiles,
   personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
