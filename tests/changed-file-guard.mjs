@@ -1114,6 +1114,7 @@ export const statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles =
   "bin/norma-core-remote-mcp-http.mjs",
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
   ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
 ].sort());
 

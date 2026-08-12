@@ -274,6 +274,19 @@ test("stacked stateless quota fix plus Modal readiness is an exact set", () => {
   );
 });
 
+test("stacked SAM terminal diagnostics include the pre-provider MCP proof", () => {
+  assert.equal(
+    statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles.includes(
+      "tests/personal-visual-harmony-perception-mcp.test.mjs",
+    ),
+    true,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles),
+    statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
+  );
+});
+
 test("PR257 performance truth harness is an exact provider-free scoped set", () => {
   assert.deepEqual(sharedExactApprovedChangedFiles(performanceTruthHarnessChangedFiles), performanceTruthHarnessChangedFiles);
   for (const forbiddenFile of [
