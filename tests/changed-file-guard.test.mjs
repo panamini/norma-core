@@ -61,6 +61,8 @@ import {
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalReadinessChangedFiles,
+  personalVisualHarmonySamTextMultiInstanceChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
@@ -85,6 +87,11 @@ import {
   personalVisualHarmonyPerpendicularBisectorGeometryFixChangedFiles,
   personalVisualHarmonyTruthSyncChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
+  statelessMcpScaffoldingQuotaFixChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
@@ -215,6 +222,69 @@ import {
 
 test("shared exact changed-file guard accepts the exact approved set", () => {
   assert.deepEqual(sharedExactApprovedChangedFiles(r7StructuredAnalyzeHardeningChangedFiles), r7StructuredAnalyzeHardeningChangedFiles);
+});
+
+test("stateless MCP scaffolding quota fix is an exact runtime-only set", () => {
+  const literalChangedFiles = [
+    "src/mcp/remote-http-server.ts",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+    "tests/mcp-remote-http-runtime.test.mjs",
+  ].sort();
+  assert.deepEqual(statelessMcpScaffoldingQuotaFixChangedFiles, literalChangedFiles);
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(literalChangedFiles),
+    literalChangedFiles,
+  );
+  for (const missingFile of literalChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(literalChangedFiles.filter((file) => file !== missingFile)),
+      null,
+      missingFile,
+    );
+  }
+  for (const forbiddenFile of [
+    "src/mcp/remote-http-limits.ts",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "src/personal-visual-harmony-perception-jobs.ts",
+    "src/personal-visual-harmony-segmentation.ts",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([...literalChangedFiles, forbiddenFile]),
+      null,
+      forbiddenFile,
+    );
+  }
+});
+
+test("stacked stateless quota fix plus Modal readiness is an exact set", () => {
+  assert.deepEqual(
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+    [
+      "deploy/modal/readiness.py",
+      "deploy/modal/server.py",
+      "deploy/modal/test_readiness.py",
+      "docs/howto/modal-sam3-perception-sandbox.md",
+      ...statelessMcpScaffoldingQuotaFixChangedFiles,
+    ].sort(),
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles),
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  );
+});
+
+test("stacked SAM terminal diagnostics include the pre-provider MCP proof", () => {
+  assert.equal(
+    statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles.includes(
+      "tests/personal-visual-harmony-perception-mcp.test.mjs",
+    ),
+    true,
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles),
+    statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
+  );
 });
 
 test("PR257 performance truth harness is an exact provider-free scoped set", () => {
@@ -861,6 +931,73 @@ test("SAM 3 Modal perception allowlist is exact and rejects deployment scope dri
   }
 });
 
+test("SAM 3 Modal readiness allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySam3ModalReadinessChangedFiles),
+    personalVisualHarmonySam3ModalReadinessChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySam3ModalReadinessChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonySam3ModalReadinessChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of [
+    "deploy/modal/secrets.env",
+    "package.json",
+    "src/personal-visual-harmony-segmentation.ts",
+    "tests/personal-visual-harmony-segmentation.test.mjs",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySam3ModalReadinessChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
+test("SAM text multi-instance allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(personalVisualHarmonySamTextMultiInstanceChangedFiles),
+    personalVisualHarmonySamTextMultiInstanceChangedFiles,
+  );
+  for (const missingFile of personalVisualHarmonySamTextMultiInstanceChangedFiles) {
+    assert.equal(
+      sharedExactApprovedChangedFiles(
+        personalVisualHarmonySamTextMultiInstanceChangedFiles.filter(
+          (file) => file !== missingFile,
+        ),
+      ),
+      null,
+      missingFile,
+    );
+  }
+  for (const extra of [
+    "package.json",
+    "package-lock.json",
+    "src/mcp/personal-visual-harmony-app.ts",
+    "deploy/modal/modal_app.py",
+    "deploy/modal/secrets.env",
+  ]) {
+    assert.equal(
+      sharedExactApprovedChangedFiles([
+        ...personalVisualHarmonySamTextMultiInstanceChangedFiles,
+        extra,
+      ]),
+      null,
+      extra,
+    );
+  }
+});
+
 test("SAM 3 semantic target toolbox allowlist is exact and rejects scope drift", () => {
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonySemanticTargetToolboxChangedFiles),
@@ -1449,7 +1586,13 @@ test("private Web Lab session recovery launcher allowlist is exact and rejects s
   );
 });
 
-test("SAM 3 Modal packaging fix allowlist is exact and rejects scope drift", () => {
+test("SAM 3 Modal checkpoint packaging allowlist is exact and rejects scope drift", () => {
+  assert.deepEqual(personalVisualHarmonySam3ModalPackagingFixChangedFiles, [
+    "deploy/modal/modal_app.py",
+    "deploy/modal/test_contract.py",
+    "tests/changed-file-guard.mjs",
+    "tests/changed-file-guard.test.mjs",
+  ]);
   assert.deepEqual(
     sharedExactApprovedChangedFiles(personalVisualHarmonySam3ModalPackagingFixChangedFiles),
     personalVisualHarmonySam3ModalPackagingFixChangedFiles,
@@ -1475,6 +1618,39 @@ test("SAM 3 Modal packaging fix allowlist is exact and rejects scope drift", () 
       extra,
     );
   }
+});
+
+test("stacked Railway admission, Modal readiness, and checkpoint packaging is exact", () => {
+  assert.deepEqual(
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    [
+      "deploy/modal/modal_app.py",
+      "deploy/modal/readiness.py",
+      "deploy/modal/server.py",
+      "deploy/modal/test_contract.py",
+      "deploy/modal/test_readiness.py",
+      "docs/howto/modal-sam3-perception-sandbox.md",
+      "src/mcp/remote-http-server.ts",
+      "tests/changed-file-guard.mjs",
+      "tests/changed-file-guard.test.mjs",
+      "tests/mcp-remote-http-runtime.test.mjs",
+    ],
+  );
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    ),
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+  );
+});
+
+test("stacked Railway, Modal, packaging, and SAM text multi-instance set is exact", () => {
+  assert.deepEqual(
+    sharedExactApprovedChangedFiles(
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+    ),
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+  );
 });
 
 test("MCP App resource metadata, app-only decoupling, cache-bust, legacy MIME, and stale-read allowlist is exact and rejects scope drift", () => {
@@ -4581,6 +4757,22 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonySam3ModalPerceptionChangedFiles,
   );
+  const isPersonalVisualHarmonySam3ModalReadinessSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonySam3ModalReadinessChangedFiles,
+  );
+  const isPersonalVisualHarmonySamTextMultiInstanceSet = isExactChangedFileSet(
+    changedFiles,
+    personalVisualHarmonySamTextMultiInstanceChangedFiles,
+  );
+  const isStatelessMcpScaffoldingQuotaFixSet = isExactChangedFileSet(
+    changedFiles,
+    statelessMcpScaffoldingQuotaFixChangedFiles,
+  );
+  const isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet = isExactChangedFileSet(
+    changedFiles,
+    statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  );
   const isPersonalVisualHarmonySemanticTargetToolboxSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonySemanticTargetToolboxChangedFiles,
@@ -4634,11 +4826,28 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     changedFiles,
     personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   );
+  const isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet =
+    isExactChangedFileSet(
+      changedFiles,
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    );
+  const isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceSet =
+    isExactChangedFileSet(
+      changedFiles,
+      statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+    );
+  const isStatelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticSet = isExactChangedFileSet(
+    changedFiles,
+    statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
+  );
   const isPersonalVisualHarmonyMcpAppResourceMetadataSet = isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   );
   const isPersonalVisualHarmonyHybridPerceptionSet = isPersonalVisualHarmonySam3ModalPerceptionSet
+    || isPersonalVisualHarmonySam3ModalReadinessSet
+    || isStatelessMcpScaffoldingQuotaFixSet
+    || isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet
     || isExactChangedFileSet(
     changedFiles,
     personalVisualHarmonyHybridPerceptionChangedFiles,
@@ -4864,7 +5073,7 @@ test("shared exact changed-file guard recognizes active controlled provider obse
     localVisualObservationToCorePilotContractChangedFiles,
   );
 
-  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPersonalVisualHarmonyTwoObjectSpatialSet || isPersonalVisualHarmonyPerceptionTimeoutRecoverySet || isPersonalVisualHarmonySam3ColdStartAsyncSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabAuthoringStatusTestFixSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
+  assert.equal(isCleanBase || isDeclaredImagePlaneMeasurementRatiosSet || isDeclaredSpatialMeasurementsSet || isPersonalVisualHarmonyWidgetRuntimeDebugSet || isPersonalVisualHarmonySemanticTargetToolboxSet || isPersonalVisualHarmonySamTextMultiInstanceSet || isPersonalVisualHarmonyMeasuredReviewUxSet || isPrivateWebLabSet || isPrivateWebLabLocalCvCandidatesSet || isPersonalVisualHarmonyTwoObjectSpatialSet || isPersonalVisualHarmonyPerceptionTimeoutRecoverySet || isPersonalVisualHarmonySam3ColdStartAsyncSet || isPrivateWebLabManualAuthoringSet || isPrivateWebLabAuthoringStatusTestFixSet || isPrivateWebLabManualPrecisionSet || isPrivateWebLabResultPresentationSet || isPrivateWebLabSessionRecoveryLauncherSet || isPersonalVisualHarmonySam3ModalPackagingFixSet || isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet || isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceSet || isStatelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticSet || isPersonalVisualHarmonyMcpAppResourceMetadataSet || isPersonalVisualHarmonyHybridPerceptionSet || isPersonalVisualHarmonyObservabilitySet || isPersonalVisualHarmonyCandidateLabelLayoutSet || isPersonalVisualHarmonyGuidedAnalysisEntrySet || isPersonalVisualHarmonyLineEnvelopeCanonicalizationSet || isPersonalVisualHarmonyManualSegmentSet || isPersonalVisualHarmonyOffFrameEllipseEditingSet || isPersonalVisualHarmonyWidgetEllipseResponsiveSet || isPersonalVisualHarmonyBrandIdentitySet || isPersonalVisualHarmonyTruthSyncSet || isPersonalVisualHarmonyTriangleRequestDiagnosticsSet || isPersonalVisualHarmonyPostPr240TruthClosureSet || isPersonalVisualHarmonyTriangleCentroidSet || isPersonalVisualHarmonyConfirmationValidationFixSet || isPersonalVisualHarmonyTriangleMediansSet || isPersonalVisualHarmonyPerpendicularBisectorsSet || isPersonalVisualHarmonyAngleBisectorsSet || isPersonalVisualHarmonyTriangleAltitudesSet || isPersonalVisualHarmonyPerpendicularBisectorRegressionFixSet || isPersonalVisualHarmonyPerpendicularBisectorGeometryFixSet || isPersonalVisualHarmonyRotatedEllipsePixelIntegrationSet || isPersonalVisualHarmonyRotatedEllipsePixelRefinementKernelSet || isPersonalVisualHarmonyRotatedEllipsesSet || isPersonalVisualHarmonyJunctionAnglesSet || isPersonalVisualHarmonyObliqueFormatConstructionsSet || isPersonalVisualHarmonyPixelRefinementIntegrationSet || isPersonalVisualHarmonyPixelRefinementShadowSet || isPersonalVisualHarmonyImageHydrationSet || isPersonalVisualHarmonySet || isPr257Set || isPerformanceTruthBaselineRunnerSet || isPr258Set || isPr259Set || isPr261Set || isPr262Set || isScalekitScopeAliasSet || isPr263Set || isPr264Set || isPr266Set || isPostgreSqlAuthorizationTransactionSet || isPostgreSqlAuthorizationTransactionRaceFixSet || isRailwayPostgreSqlSandboxVerticalSliceSet || isSandboxQualificationLaunchGatesSet || isRailwayPostgreSqlSandboxAndQualificationSet || isPostgreSqlRuntimePoolWiringSet || isPostgreSqlSandboxTlsAndPoolResetFixSet || isOAuthImmediateRevocationSet || isOAuthImmediateRevocationReviewHotfixSet || isOAuthImmediateRevocationLiveProofTruthSyncSet || isPr124Set || isPr125Set || isPr126Set || isPr127Set || isPr128Set || isPr129Set || isPr130Set || isPr131Set || isPr132Set || isPr133Set || isPr132HardeningSet || isPr134Set || isPr135Set || isPr136Set || isPr137Set || isPr137aSet || isPr138Set, true);
   if (isCleanBase) {
     assert.deepEqual(changedFiles, []);
     assert.equal(sharedExactApprovedChangedFiles(changedFiles), null);
@@ -4880,6 +5089,8 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? personalVisualHarmonyWidgetRuntimeDebugChangedFiles
       : isPersonalVisualHarmonySemanticTargetToolboxSet
       ? personalVisualHarmonySemanticTargetToolboxChangedFiles
+      : isPersonalVisualHarmonySamTextMultiInstanceSet
+      ? personalVisualHarmonySamTextMultiInstanceChangedFiles
       : isPersonalVisualHarmonyMeasuredReviewUxSet
       ? personalVisualHarmonyMeasuredReviewUxChangedFiles
       : isPrivateWebLabSet
@@ -4910,10 +5121,22 @@ test("shared exact changed-file guard recognizes active controlled provider obse
       ? privateWebLabSessionRecoveryLauncherChangedFiles
       : isPersonalVisualHarmonySam3ModalPackagingFixSet
       ? personalVisualHarmonySam3ModalPackagingFixChangedFiles
+      : isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingSet
+      ? statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles
+      : isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceSet
+      ? statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles
+      : isStatelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticSet
+      ? statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles
       : isPersonalVisualHarmonyMcpAppResourceMetadataSet
       ? personalVisualHarmonyMcpAppResourceMetadataChangedFiles
       : isPersonalVisualHarmonyHybridPerceptionSet
-      ? (isPersonalVisualHarmonySam3ModalPerceptionSet
+      ? (isStatelessMcpScaffoldingQuotaFixSam3ModalReadinessSet
+          ? statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles
+          : isStatelessMcpScaffoldingQuotaFixSet
+          ? statelessMcpScaffoldingQuotaFixChangedFiles
+          : isPersonalVisualHarmonySam3ModalReadinessSet
+          ? personalVisualHarmonySam3ModalReadinessChangedFiles
+          : isPersonalVisualHarmonySam3ModalPerceptionSet
           ? personalVisualHarmonySam3ModalPerceptionChangedFiles
           : personalVisualHarmonyHybridPerceptionChangedFiles)
       : isPersonalVisualHarmonyObservabilitySet

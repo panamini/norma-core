@@ -319,9 +319,11 @@ test("spatial controls require the versioned A/B binding and reject generic obje
   )();
   assert.equal(spatialOptions.length, 21);
   const measurementRatioToggle = { disabled: true, title: "", setAttribute() {}, textContent: "" };
-  const createSelect = () => ({ disabled: true, replaceChildren() {}, add() {}, value: "" });
-  const measurementRatioFirst = createSelect();
-  const measurementRatioSecond = createSelect();
+  const createChoice = () => ({ disabled: true, textContent: "" });
+  const measurementRatioFirst = createChoice();
+  const measurementRatioSecond = createChoice();
+  const measurementRatioFirstOptions = {};
+  const measurementRatioSecondOptions = {};
   const updateMeasurementRatioControls = widgetScriptFunction(
     "updateMeasurementRatioControls",
     "measurementRatioToggle.addEventListener",
@@ -334,7 +336,11 @@ test("spatial controls require the versioned A/B binding and reject generic obje
       measurementRatioToggle,
       measurementRatioFirst,
       measurementRatioSecond,
-      Option: class Option {},
+      measurementRatioFirstOptions,
+      measurementRatioSecondOptions,
+      updateMeasurementChoice(_index, trigger, _list, _options, _selected, disabled) {
+        trigger.disabled = disabled;
+      },
       refreshWidgetDeclaredSpatialMeasurementPlan() {},
       syncMeasurementRatioPreview() {},
       updateConfirm() {},
@@ -433,12 +439,7 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
     setAttribute() {},
     textContent: "",
   };
-  const createSelect = () => ({
-    disabled: false,
-    value: "",
-    replaceChildren() {},
-    add() {},
-  });
+  const createChoice = () => ({ disabled: false, textContent: "" });
   const updateMeasurementRatioControls = widgetScriptFunction(
     "updateMeasurementRatioControls",
     "measurementRatioToggle.addEventListener",
@@ -450,9 +451,11 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
       }],
       measurementRefKey: (reference) => JSON.stringify(reference),
       measurementRatioToggle,
-      measurementRatioFirst: createSelect(),
-      measurementRatioSecond: createSelect(),
-      Option: class Option {},
+      measurementRatioFirst: createChoice(),
+      measurementRatioSecond: createChoice(),
+      measurementRatioFirstOptions: {},
+      measurementRatioSecondOptions: {},
+      updateMeasurementChoice() {},
       syncMeasurementRatioPreview() {},
       updateConfirm() {},
     },
@@ -465,6 +468,50 @@ test("measurement ratio controls remain usable to disable an incomplete enabled 
     { kind: "segment", candidateId: "kept" },
     null,
   ]);
+});
+
+test("measurement choices use in-widget buttons and apply the clicked distance", () => {
+  const selected = [];
+  const trigger = {
+    disabled: true,
+    textContent: "",
+    setAttribute() {},
+  };
+  const list = {
+    hidden: false,
+    children: [],
+    replaceChildren() { this.children = []; },
+    append(node) { this.children.push(node); },
+  };
+  const document = {
+    createElement(tagName) {
+      assert.equal(tagName, "button");
+      return {
+        disabled: false,
+        listeners: {},
+        setAttribute() {},
+        addEventListener(type, listener) { this.listeners[type] = listener; },
+      };
+    },
+  };
+  const updateMeasurementChoice = widgetScriptFunction(
+    "updateMeasurementChoice",
+    "function updateMeasurementRatioControls",
+    {
+      measurementRefKey: (reference) => JSON.stringify(reference),
+      closeMeasurementChoice(_trigger, targetList) { targetList.hidden = true; },
+      document,
+      setMeasurementRatioReference(index, key) { selected.push([index, key]); },
+    },
+  );
+  const reference = { kind: "extent", axis: "height", owner: { kind: "candidate", id: "person-left" } };
+
+  updateMeasurementChoice(0, trigger, list, [{ reference, label: "Personne gauche · hauteur" }], null, false);
+
+  assert.equal(trigger.disabled, false);
+  assert.equal(list.children.length, 1);
+  list.children[0].listeners.click();
+  assert.deepEqual(selected, [[0, JSON.stringify(reference)]]);
 });
 
 test("measurement ratio choices expose two confirmed axes without changing their geometry kind", () => {
@@ -665,6 +712,67 @@ test("measurement ratio choices expose every selected quadrilateral side and dia
   assert.doesNotMatch(choices.map(({ label }) => label).join("\n"), /non retenu/u);
 });
 
+test("manual A/B spatial expressions resolve to visible overlay segments before confirmation", () => {
+  const state = {
+    reviewedCandidates: [
+      { id: "left", x: 0.2, y: 0.2, width: 0.2, height: 0.6 },
+      { id: "right", x: 0.6, y: 0.4, width: 0.2, height: 0.5 },
+    ],
+  };
+  const spatialExpressionGeometry = widgetScriptFunction(
+    "spatialExpressionGeometry",
+    "function eligibleMeasurementReferences",
+    {
+      state,
+      primitiveKind: () => "rectangle",
+      spatialAnchorPoint: (bounds, anchor) => {
+        const factors = {
+          center: [0.5, 0.5],
+          "top-midpoint": [0.5, 0],
+          "bottom-midpoint": [0.5, 1],
+        };
+        const [x, y] = factors[anchor];
+        return { x: bounds.x + bounds.width * x, y: bounds.y + bounds.height * y };
+      },
+    },
+  );
+
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "extent",
+    owner: { kind: "rectangle", candidateId: "left" },
+    extent: "height",
+  }), {
+    start: { x: 0.30000000000000004, y: 0.2 },
+    end: { x: 0.30000000000000004, y: 0.8 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-distance",
+    metric: "horizontal",
+    from: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    to: { owner: { kind: "rectangle", candidateId: "right" }, anchor: "center" },
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 0.7, y: 0.5 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-distance",
+    metric: "vertical",
+    from: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    to: { owner: { kind: "rectangle", candidateId: "right" }, anchor: "center" },
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 0.30000000000000004, y: 0.65 },
+  });
+  assert.deepEqual(spatialExpressionGeometry({
+    kind: "anchor-to-frame-edge",
+    anchor: { owner: { kind: "rectangle", candidateId: "left" }, anchor: "center" },
+    edge: "right",
+  }), {
+    start: { x: 0.30000000000000004, y: 0.5 },
+    end: { x: 1, y: 0.5 },
+  });
+});
+
 test("measurement ratio preview explains the empty and one-length states", () => {
   const state = { completed: false, measurementRatioEnabled: false, measurementRatioRefs: [] };
   const measurementRatioPreview = { textContent: "" };
@@ -762,7 +870,7 @@ test("measurement ratio choices expose pixel lengths and spatial quadrilateral l
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="measurementRatioPreview"[^>]*aria-live="polite"/u);
   assert.match(html, /data-measurement-ratio-preview/u);
-  assert.match(html, /Le rapport harmonique sera calculé seulement après confirmation/u);
+  assert.match(html, /Vérifiez les traits A et B; le rapport sera calculé seulement après confirmation/u);
 });
 
 test("measurement ratio preview rejects a duplicate A/B pair with explicit guidance", () => {
@@ -782,7 +890,7 @@ test("measurement ratio preview rejects a duplicate A/B pair with explicit guida
         querySelector: () => null,
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -797,7 +905,7 @@ test("measurement ratio preview rejects a duplicate A/B pair with explicit guida
 
   syncMeasurementRatioPreview();
 
-  assert.match(measurementRatioPreview.textContent, /Choisissez deux longueurs distinctes/u);
+  assert.match(measurementRatioPreview.textContent, /Choisissez deux distances distinctes/u);
   assert.doesNotMatch(measurementRatioPreview.textContent, /sera calculé/u);
 });
 
@@ -826,7 +934,7 @@ test("measurement ratio preview ignores invalid restored references and complete
         querySelector: () => ({ append() { appendedPreviews += 1; } }),
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -875,7 +983,7 @@ test("measurement ratio preview directs a sparse B-only selection back to A", ()
         querySelector: () => null,
       },
       document: {
-        createElementNS: () => ({ setAttribute() {} }),
+        createElementNS: () => ({ setAttribute() {}, appendChild() {} }),
       },
       measurementRatioPreview,
       measurementRefKey: JSON.stringify,
@@ -891,8 +999,8 @@ test("measurement ratio preview directs a sparse B-only selection back to A", ()
 
   syncMeasurementRatioPreview();
 
-  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la première longueur/u);
-  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la seconde longueur/u);
+  assert.match(measurementRatioPreview.textContent, /Choisissez d’abord la mesure A/u);
+  assert.doesNotMatch(measurementRatioPreview.textContent, /Choisissez maintenant la mesure B/u);
 });
 
 test("measurement ratio selectors update only pending widget state", () => {
@@ -904,7 +1012,7 @@ test("measurement ratio selectors update only pending widget state", () => {
   let appToolCalls = 0;
   const setMeasurementRatioReference = widgetScriptFunction(
     "setMeasurementRatioReference",
-    "for(const [index,select]",
+    "for(const [trigger,list,otherTrigger,otherList]",
     {
       state,
       updateMeasurementRatioControls() { controlsUpdated += 1; },
@@ -926,7 +1034,7 @@ test("measurement ratio selectors update only pending widget state", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(
     html,
-    /select\.addEventListener\("change",\(\)=>setMeasurementRatioReference\(index,select\.value\)\)/u,
+    /option\.addEventListener\("click",\(\)=>\{if\(option\.disabled\)return;setMeasurementRatioReference\(index,key\)\}\)/u,
   );
   assert.match(html, /confirmButton\.addEventListener\("click",async\(\)=>/u);
 });
@@ -937,7 +1045,7 @@ test("measurement ratio selector B keeps its slot while selector A is empty", ()
   };
   const setMeasurementRatioReference = widgetScriptFunction(
     "setMeasurementRatioReference",
-    "for(const [index,select]",
+    "for(const [trigger,list,otherTrigger,otherList]",
     {
       state,
       updateMeasurementRatioControls() {},
@@ -1043,7 +1151,7 @@ test("widget prefers the canonical complete MCP result over a partial compatibil
   assert.deepEqual(findPayload(metadataEnvelope), completePayload);
 });
 
-test("widget reuses the image URL already validated before starting SAM", async () => {
+test("widget refreshes the image URL immediately before starting SAM", async () => {
   let refreshCalls = 0;
   const perceptionDownloadUrl = widgetScriptFunction(
     "perceptionDownloadUrl",
@@ -1063,6 +1171,31 @@ test("widget reuses the image URL already validated before starting SAM", async 
       },
       withPerceptionDeadline: async (task) => task(),
       PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionSourceFileId: (payload) => payload.fileId,
+      perceptionClientError: (code, message) => ({ code, message }),
+    },
+  );
+
+  assert.equal(
+    await perceptionDownloadUrl({ fileId: "file-validated" }),
+    "https://files.example/refreshed",
+  );
+  assert.equal(refreshCalls, 1);
+});
+
+test("widget keeps the validated image URL fallback when the file API is unavailable", async () => {
+  const perceptionDownloadUrl = widgetScriptFunction(
+    "perceptionDownloadUrl",
+    "function rpcRequest",
+    {
+      state: { downloadUrl: "https://files.example/validated" },
+      validPerceptionDownloadUrl: (value) => (
+        typeof value === "string" && value.startsWith("https://")
+      ),
+      window: { openai: {} },
+      withPerceptionDeadline: async (task) => task(),
+      PERCEPTION_TOOL_CALL_TIMEOUT_MS: 15_000,
+      perceptionSourceFileId: (payload) => payload.fileId,
       perceptionClientError: (code, message) => ({ code, message }),
     },
   );
@@ -1071,7 +1204,6 @@ test("widget reuses the image URL already validated before starting SAM", async 
     await perceptionDownloadUrl({ fileId: "file-validated" }),
     "https://files.example/validated",
   );
-  assert.equal(refreshCalls, 0);
 });
 
 test("widget ellipses keep bounded off-frame radius editing reachable in responsive layout", () => {
@@ -1411,10 +1543,26 @@ test("widget guided analysis entry exposes the declared spatial mode without act
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
   assert.match(html, /id="guidedGoals"/u);
+  assert.match(html, /data-analysis-mode="automatic"/u);
+  assert.match(html, /Analyse automatique/u);
+  assert.match(html, /Mesure manuelle/u);
+  assert.match(html, /id="advancedModeToggle"[^>]*aria-expanded="false"/u);
+  assert.match(html, /id="expertTools"/u);
+  assert.match(html, /Outils de précision/u);
+  assert.match(html, /<span class="measurement-choice-label"><b[^>]*>A<\/b>Mesure A<\/span>/u);
+  assert.match(html, /<span class="measurement-choice-label"><b[^>]*>B<\/b>Mesure B<\/span>/u);
+  assert.match(html, /<button id="measurementRatioFirst"[^>]*aria-haspopup="listbox"/u);
+  assert.match(html, /<button id="measurementRatioSecond"[^>]*aria-haspopup="listbox"/u);
+  assert.match(html, /id="measurementRatioFirstOptions"[^>]*role="listbox"/u);
+  assert.match(html, /id="measurementRatioSecondOptions"[^>]*role="listbox"/u);
+  assert.doesNotMatch(html, /<select id="measurementRatio(?:First|Second)"/u);
+  assert.match(html, /function syncAnalysisModeUi\(\)/u);
+  assert.match(html, /data-measurement-ratio-label/u);
+  assert.match(html, /\.construction-toggle:disabled\{display:none/u);
   assert.match(html, /id="originalView"/u);
   assert.match(html, /id="guidesView"/u);
   assert.match(html, /id="guideFocusToggle"/u);
-  assert.match(html, /Le choix filtre l’affichage seulement/u);
+  assert.match(html, /Norma Core reste arrêté jusqu’à votre confirmation/u);
   assert.match(html, /DEFAULT_GUIDED_ANALYSIS_GOAL="general-geometry"/u);
   for (const goal of PERSONAL_VISUAL_HARMONY_GUIDED_ANALYSIS_GOALS_V1) {
     assert.match(html, new RegExp(goal.id, "u"));
@@ -6551,7 +6699,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
     assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
-    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v16.html");
+    assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v20.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
         resources.resources.some(({ uri }) => /-v[1-4]\.html$/u.test(uri)),
@@ -6663,8 +6811,8 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /id="measurementRatioToggle"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioFirst"/u);
     assert.match(resource.contents[0].text, /id="measurementRatioSecond"/u);
-    assert.match(resource.contents[0].text, /Rapport de deux longueurs/u);
-    assert.match(resource.contents[0].text, /rapport opt-in séparé, sans autorité Core/u);
+    assert.match(resource.contents[0].text, /Quelles distances comparer/u);
+    assert.match(resource.contents[0].text, /Le résultat compare uniquement A et B dans le plan de l’image/u);
     assert.match(resource.contents[0].text, /syncOverlaySelection/u);
     assert.match(resource.contents[0].text, /function syncOverlaySelection\(\).*syncPixelProposalOverlay\(\)/u);
     assert.match(resource.contents[0].text, /reviewedCandidateGeometry/u);
@@ -6703,7 +6851,9 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /\.measurement-ratio\{display:grid;gap:6px;[^}]*padding:9px/u);
     assert.match(resource.contents[0].text, /\.measurement-ratio-toggle\{width:100%;padding:7px/u);
     assert.match(resource.contents[0].text, /\.measurement-ratio-selects\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);gap:6px\}/u);
-    assert.match(resource.contents[0].text, /\.measurement-ratio select\{min-width:0;width:100%;padding:7px/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-trigger\{min-width:0;width:100%;padding:7px/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-options\{display:grid;max-height:190px;overflow:auto/u);
+    assert.match(resource.contents[0].text, /\.measurement-choice-option\{width:100%;padding:7px/u);
     assert.match(resource.contents[0].text, /appearance:none;border:1px solid var\(--ink\);border-radius:0/u);
     assert.match(resource.contents[0].text, /background:var\(--paper-hover\);color:var\(--ink\)/u);
     assert.match(resource.contents[0].text, /linear-gradient\(45deg,transparent 0 42%,var\(--white\) 42% 58%,transparent 58%\)/u);
@@ -6911,7 +7061,7 @@ test("message-only hydration cannot make an already-ready widget stale again", (
 test("guided analysis entry exposes the short default and every goal without activating analysis", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /id="guidedEntry"/u);
-  assert.match(html, /confirmation et Core restent manuels/u);
+  assert.match(html, /Norma Core reste arrêté jusqu’à votre confirmation/u);
   assert.match(html, /guidedAnalysisGoal:DEFAULT_GUIDED_ANALYSIS_GOAL/u);
   assert.match(html, /guidedAnalysisGoal:guidedAnalysisGoalSnapshot\(\)/u);
   assert.match(html, /button\.addEventListener\("click",\(\)=>toggleFamilyVisibility\(kind\)\)/u);

@@ -90,6 +90,31 @@ class ModalSam3ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(contract.ContractError, "run limit"):
                 contract.encode_mask_rle(mask)
 
+    def test_text_instances_keep_the_two_highest_scoring_masks(self) -> None:
+        masks = [
+            [
+                [False, True, False, False],
+                [False, True, False, False],
+            ],
+            [
+                [False, False, False, True],
+                [False, False, False, True],
+            ],
+            [
+                [True, False, False, False],
+                [True, False, False, False],
+            ],
+        ]
+        merged, confidence = contract.merge_text_instance_masks(
+            masks,
+            [0.8, 0.9, 0.1],
+        )
+        self.assertEqual(merged, [
+            [False, True, False, True],
+            [False, True, False, True],
+        ])
+        self.assertEqual(confidence, 0.9)
+
     def test_responses_pin_provider_and_never_claim_core_authority(self) -> None:
         request = contract.validate_request(self.request())
         ready = contract.ready_response(request, [[True]], 0.75)
@@ -108,7 +133,7 @@ class ModalSam3ContractTest(unittest.TestCase):
 
     def test_modal_app_explicitly_packages_the_contract_module(self) -> None:
         app_source = Path(__file__).with_name("modal_app.py").read_text(encoding="utf-8")
-        self.assertIn('.add_local_python_source("contract")', app_source)
+        self.assertIn('.add_local_python_source("contract", copy=True)', app_source)
         self.assertIn('"einops==0.8.1"', app_source)
         self.assertIn('"psutil==7.0.0"', app_source)
         self.assertIn('"pycocotools==2.0.10"', app_source)
@@ -119,6 +144,17 @@ class ModalSam3ContractTest(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         self.assertEqual(match.group(1), contract.MODEL_CODE_REVISION)
+
+    def test_modal_image_bakes_the_pinned_checkpoint_without_warm_capacity(self) -> None:
+        app_source = Path(__file__).with_name("modal_app.py").read_text(encoding="utf-8")
+        self.assertIn(".run_function(", app_source)
+        self.assertIn("_download_model_checkpoint", app_source)
+        self.assertIn('.add_local_python_source("contract", copy=True)', app_source)
+        self.assertIn('required_keys=["HF_TOKEN"]', app_source)
+        self.assertIn("MODEL_CACHE_DIR", app_source)
+        self.assertIn('"HF_HOME": MODEL_CACHE_DIR', app_source)
+        self.assertIn("min_containers=0", app_source)
+        self.assertNotIn("modal.Volume", app_source)
 
 
 if __name__ == "__main__":

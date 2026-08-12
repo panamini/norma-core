@@ -124,7 +124,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
   assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v16.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v20.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -528,7 +528,7 @@ test("PR308 does not charge action quota for rejected SAM status polls", () => {
   });
 });
 
-test("PR308 classifies status polling after request parsing while preserving action denial", async (t) => {
+test("stateless MCP scaffolding and SAM status polls stay outside the subject action quota", async (t) => {
   const logs = [];
   const admissionController = new RemoteMcpAdmissionController(() => 1_000_000);
   for (let index = 0; index < 30; index += 1) {
@@ -565,10 +565,33 @@ test("PR308 classifies status polling after request parsing while preserving act
     && event.outcome === "allow"
   )), JSON.stringify(logs));
 
-  const actionAfterBudget = await mcpRequest(port, initializeRequest(protocol));
+  for (let index = 0; index < 3; index += 1) {
+    const initialized = await mcpRequest(port, initializeRequest(protocol));
+    assert.equal(initialized.status, 200);
+    const listed = await mcpRequest(port, {
+      jsonrpc: "2.0",
+      id: `list-after-action-budget-${index}`,
+      method: "tools/list",
+      params: {},
+    });
+    assert.equal(listed.status, 200);
+  }
+
+  const actionAfterBudget = await mcpRequest(port, {
+    jsonrpc: "2.0",
+    id: "prepare-after-action-budget",
+    method: "tools/call",
+    params: {
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {},
+    },
+  });
   assert.equal(actionAfterBudget.status, 429);
   assert.equal(actionAfterBudget.json.error.code, "subject_rate");
-  assert.ok(logs.some((event) => event.tool === "mcp" && event.errorCode === "subject_rate"));
+  assert.ok(logs.some((event) => (
+    event.tool === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL
+    && event.errorCode === "subject_rate"
+  )));
 });
 
 test("PR137A subject denials cannot consume global authenticated capacity", () => {

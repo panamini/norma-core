@@ -5,6 +5,7 @@ import {
   extractPersonalVisualHarmonyObjectRectangleV1,
   PERSONAL_VISUAL_HARMONY_MANUAL_PERCEPTION_CONTRACT_ID,
   PERSONAL_VISUAL_HARMONY_SEGMENTATION_MASK_CONTRACT_ID,
+  splitPersonalVisualHarmonySegmentationMaskInstancesV1,
 } from "../dist/src/personal-visual-harmony-perception.js";
 import {
   extractPersonalVisualHarmonyManualPerceptionV1,
@@ -83,6 +84,32 @@ test("two-object perception emits one deterministic bounding rectangle and absta
       ),
     }),
     /exactly one connected mask component/u,
+  );
+});
+
+test("semantic segmentation splits two disconnected people into stable instance masks", () => {
+  const instances = splitPersonalVisualHarmonySegmentationMaskInstancesV1(
+    maskFromPredicate(
+      20,
+      12,
+      (x, y) => (x >= 2 && x < 6 && y >= 1 && y < 10)
+        || (x >= 13 && x < 18 && y >= 2 && y < 11),
+    ),
+  );
+  assert.equal(instances.length, 2);
+  assert.deepEqual(
+    instances.map((instance) => extractPersonalVisualHarmonyObjectRectangleV1({
+      ordinal: 1,
+      sourceImageReferenceIdentity: SOURCE_IDENTITY,
+      provider: PROVIDER,
+      prompt: { kind: "text", text: "person" },
+      mask: instance,
+      label: "Personne",
+    }).originalRectangle),
+    [
+      { x: 0.1, y: 0.083333333, width: 0.2, height: 0.75 },
+      { x: 0.65, y: 0.166666667, width: 0.25, height: 0.75 },
+    ],
   );
 });
 

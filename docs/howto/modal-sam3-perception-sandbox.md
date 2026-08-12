@@ -15,7 +15,7 @@ This is a custom authenticated Modal Server deployed with the Python SDK/CLI. Th
 - Hugging Face revision: `3c879f39826c281e95690f02c7821c4de09afae7`
 - Python 3.12, PyTorch 2.10.0 with CUDA 12.8 wheels, one L4 per container
 - Authenticated Modal Server (`unauthenticated=False`), no Volume, Dict, or durable payload store
-- A bounded five-minute readiness window for cold-start 503 (at most 60 probes); exactly one inference request and no inference replay
+- The HTTP server listens during model cold-start; `/readyz` returns 503 until the complete SAM 3 inference bundle is ready, then 200 (at most 60 bounded probes); exactly one inference request and no inference replay
 
 The server accepts candidate prompts and returns bounded deterministic row-run masks. It is not source truth, does not create accepted geometry, and cannot run Norma Core.
 
@@ -90,7 +90,7 @@ Revoke or delete the dedicated Proxy Token after disabling the Railway variables
 
 ## Operational limits
 
-- Zero-to-one cold start returns 503 until a container is listening; the asynchronous job keeps polling the bounded readiness window and exposes a terminal `provider_unavailable` or `provider_timeout` state when it expires.
+- Zero-to-one cold start keeps the container reachable while the model loads; the asynchronous job polls the bounded readiness window and exposes a terminal `provider_unavailable` or `provider_timeout` state when it expires. A model-load failure returns a redacted provider-unavailable response and never reports readiness.
 - The readiness client makes at most 60 checks and reserves its last check for the configured cutoff instead of adding an undocumented 61st check.
 - The first inference POST is never replayed, including on 503, timeout, connection loss, or container preemption.
 - Jobs are process-memory-only, capacity-bounded, TTL-bound, and may disappear on restart.

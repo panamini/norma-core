@@ -608,6 +608,27 @@ export const personalVisualHarmonySam3ModalPerceptionChangedFiles = Object.freez
   "tests/personal-visual-harmony-segmentation.test.mjs",
 ].sort());
 
+export const personalVisualHarmonySam3ModalReadinessChangedFiles = Object.freeze([
+  "deploy/modal/readiness.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_readiness.py",
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+].sort());
+
+export const personalVisualHarmonySamTextMultiInstanceChangedFiles = Object.freeze([
+  "deploy/modal/contract.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_contract.py",
+  "src/personal-visual-harmony-perception-jobs.ts",
+  "src/personal-visual-harmony-perception.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-perception-jobs.test.mjs",
+  "tests/personal-visual-harmony-perception.test.mjs",
+].sort());
+
 export const personalVisualHarmonySemanticTargetToolboxChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-perception-jobs.ts",
@@ -826,6 +847,8 @@ export const privateWebLabSessionRecoveryLauncherChangedFiles = Object.freeze([
   "web-lab/start-private-web-lab.mjs",
 ].sort());
 
+// Covers Modal image packaging fixes, including build-time checkpoint caching,
+// without permitting warm capacity, provider runtime, or secret-file changes.
 export const personalVisualHarmonySam3ModalPackagingFixChangedFiles = Object.freeze([
   "deploy/modal/modal_app.py",
   "deploy/modal/test_contract.py",
@@ -1057,6 +1080,42 @@ export const permanentRemoteMcpQuotaIsolationHotfixChangedFiles = Object.freeze(
   "tests/local-visual-observation-to-core-pilot-contract.test.mjs",
   "tests/mcp-remote-http-runtime.test.mjs",
   "tests/synthetic-external-evidence-acceptance-proof.test.mjs",
+].sort());
+
+export const statelessMcpScaffoldingQuotaFixChangedFiles = Object.freeze([
+  "src/mcp/remote-http-server.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles = Object.freeze([
+  "deploy/modal/readiness.py",
+  "deploy/modal/server.py",
+  "deploy/modal/test_readiness.py",
+  "docs/howto/modal-sam3-perception-sandbox.md",
+  ...statelessMcpScaffoldingQuotaFixChangedFiles,
+].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles =
+  Object.freeze([
+    "deploy/modal/modal_app.py",
+    "deploy/modal/test_contract.py",
+    ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  ].sort());
+
+export const statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles =
+  Object.freeze([
+    ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+    ...personalVisualHarmonySamTextMultiInstanceChangedFiles,
+  ].sort().filter((file, index, files) => index === 0 || file !== files[index - 1]));
+
+export const statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles = Object.freeze([
+  "bin/norma-core-remote-mcp-http.mjs",
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+  ...statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
 ].sort());
 
 export const remoteMcpRenderPrivateBetaDeploymentChangedFiles = Object.freeze([
@@ -2265,6 +2324,8 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMobileHitTargetsChangedFiles,
   personalVisualHarmonyHybridPerceptionChangedFiles,
   personalVisualHarmonySam3ModalPerceptionChangedFiles,
+  personalVisualHarmonySam3ModalReadinessChangedFiles,
+  personalVisualHarmonySamTextMultiInstanceChangedFiles,
   personalVisualHarmonySemanticTargetToolboxChangedFiles,
   personalVisualHarmonyMeasuredReviewUxChangedFiles,
   privateWebLabChangedFiles,
@@ -2306,6 +2367,11 @@ const sharedExactApprovedChangedFileSets = [
   personalChatGptVisualHarmonyDemoOriginalNonSemgrepMaintenanceChangedFiles,
   remoteMcpRenderPrivateBetaDeploymentChangedFiles,
   permanentRemoteMcpQuotaIsolationHotfixChangedFiles,
+  statelessMcpScaffoldingQuotaFixChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3ModalReadinessCheckpointPackagingMultiInstanceChangedFiles,
+  statelessMcpScaffoldingQuotaFixSam3TerminalDiagnosticChangedFiles,
   permanentRemoteMcpRuntimeChangedFiles,
   statelessRemoteMcpCommercialBetaContractChangedFiles,
   statelessRemoteMcpCommercialBetaContractNonSemgrepMaintenanceChangedFiles,

@@ -4,12 +4,14 @@ import {
   extractPersonalVisualHarmonyManualPerceptionV1,
   mergePersonalVisualHarmonyPerceptionCandidatesV1,
   normalizePersonalVisualHarmonySemanticTargetV1,
+  splitPersonalVisualHarmonySegmentationMaskInstancesV1,
   type PersonalVisualHarmonyManualPromptV1,
   type PersonalVisualHarmonyPerceptionPromptV1,
 } from "./personal-visual-harmony-perception.js";
 import {
   PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES,
   PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_INTERIM_CANDIDATES,
+  preparePersonalVisualHarmonyCandidateSetV2,
   preparePersonalVisualHarmonyCandidateSetV3,
   preparePersonalVisualHarmonyMultiPerceptionObservationV1,
   preparePersonalVisualHarmonyMergedPerceptionCandidatesV2,
@@ -88,6 +90,16 @@ export interface PersonalVisualHarmonyPerceptionJobServiceOptions {
   readonly fetch?: PersonalVisualHarmonyFetch;
   readonly now?: () => number;
   readonly createJobId?: () => string;
+  readonly onDiagnostic?: (event: PersonalVisualHarmonyPerceptionJobDiagnosticEventV1) => void;
+}
+
+export interface PersonalVisualHarmonyPerceptionJobDiagnosticEventV1 {
+  readonly event: "personal_visual_harmony_perception_job_terminal";
+  readonly jobIdentity: string;
+  readonly state: "failed";
+  readonly errorCode: string;
+  readonly workflowMode: "two-object-spatial" | null;
+  readonly attemptOrdinal: 1 | 2 | null;
 }
 
 export class PersonalVisualHarmonyPerceptionJobError extends Error {
@@ -157,6 +169,8 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
   readonly #fetch: PersonalVisualHarmonyFetch | undefined;
   readonly #now: () => number;
   readonly #createJobId: () => string;
+  readonly #onDiagnostic: ((event: PersonalVisualHarmonyPerceptionJobDiagnosticEventV1) => void)
+    | undefined;
   readonly #jobs = new Map<string, StoredJob>();
   readonly #expiredJobs = new Map<string, StoredJob>();
   readonly #sourceImageReservationQueue: QueuedSourceImageReservation[] = [];
@@ -222,6 +236,7 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     this.#fetch = options.fetch;
     this.#now = options.now ?? Date.now;
     this.#createJobId = options.createJobId ?? (() => `pvh-perception:${randomUUID()}`);
+    this.#onDiagnostic = options.onDiagnostic;
   }
 
   public async captureSourceImageIdentity(input: {
@@ -603,6 +618,39 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
       const legacyAutomaticCandidateSet = input.automaticCandidateSet?.contractVersion === 1
         ? input.automaticCandidateSet
         : undefined;
+      const semanticInstanceMasks = input.prompt.kind === "text"
+        ? splitPersonalVisualHarmonySegmentationMaskInstancesV1(segmentation.response.mask)
+        : [segmentation.response.mask];
+      if (semanticInstanceMasks.length > 1) {
+        const instanceRectangles = semanticInstanceMasks.map((instanceMask, index) => (
+          extractPersonalVisualHarmonyObjectRectangleV1({
+            ordinal: index === 0 ? 1 : 2,
+            sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+            provider: segmentation.response.provider,
+            prompt: perceptionPrompt,
+            mask: instanceMask,
+            label: `${input.label} ${String(index + 1)}`,
+          }).candidate
+        ));
+        job.preparedCandidateSet = preparePersonalVisualHarmonyCandidateSetV2({
+          sourceFileId: input.sourceFileId,
+          sourceImageContentIdentity: segmentation.response.sourceImageContentIdentity,
+          sourceImageMediaType: source.mediaType,
+          expectedSourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
+          visualInterpretationSource: legacyAutomaticCandidateSet === undefined ? "sam3" : "hybrid",
+          perceptionReceiptIdentity: segmentation.receipt.receiptIdentity,
+          candidates: [
+            ...structuredClone(legacyAutomaticCandidateSet?.candidates ?? []),
+            ...instanceRectangles,
+          ],
+          triangleConstructionRequests: structuredClone(
+            legacyAutomaticCandidateSet?.triangleConstructionRequests ?? [],
+          ),
+        });
+        if (this.#terminalizeAtExecutionDeadline(job, executionDeadlineAtMs)) return;
+        job.state = "ready";
+        return;
+      }
       const manualPerception = extractPersonalVisualHarmonyManualPerceptionV1({
         interactionId: safeInteractionId(job.jobId),
         sourceImageReferenceIdentity: job.sourceImageReferenceIdentity,
@@ -743,6 +791,18 @@ export class InMemoryPersonalVisualHarmonyPerceptionJobService {
     job.perceptionReceiptIdentity = null;
     job.preparedCandidateSet = null;
     this.#cancelQueuedSourceImageReservation(job);
+    try {
+      this.#onDiagnostic?.(Object.freeze({
+        event: "personal_visual_harmony_perception_job_terminal",
+        jobIdentity: `sha256:${createHash("sha256").update(job.jobId).digest("hex")}`,
+        state: "failed",
+        errorCode,
+        workflowMode: job.workflowMode,
+        attemptOrdinal: job.attemptOrdinal,
+      }));
+    } catch {
+      // Diagnostics must never change the terminal job result.
+    }
   }
 
   #cancelQueuedSourceImageReservation(job: StoredJob): void {

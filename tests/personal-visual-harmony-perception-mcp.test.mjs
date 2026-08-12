@@ -3130,6 +3130,72 @@ test("the semantic SAM runtime preserves the hydrated source file id when a brid
   assert.equal(calls[0].semanticTarget, "person");
 });
 
+test("the widget exposes redacted pre-provider SAM failure stages", async () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  const script = html.match(/<script type="module">([\s\S]*?)<\/script>/u)?.[1];
+  assert.ok(script);
+
+  const fileStart = script.indexOf("function perceptionClientError(");
+  const fileEnd = script.indexOf("\nfunction rpcRequest", fileStart);
+  assert.notEqual(fileStart, -1);
+  assert.notEqual(fileEnd, -1);
+  const perceptionDownloadUrl = new Function(
+    "window",
+    "state",
+    "PERCEPTION_TOOL_CALL_TIMEOUT_MS",
+    `"use strict";${script.slice(fileStart, fileEnd)};return perceptionDownloadUrl;`,
+  )(
+    {
+      openai: {
+        getFileDownloadUrl: async () => {
+          throw new Error("sensitive bridge detail");
+        },
+      },
+    },
+    { imageLoadFileId: "file:redacted-stage" },
+    1_000,
+  );
+  await assert.rejects(
+    () => perceptionDownloadUrl({}),
+    (error) => error.code === "perception_file_refresh_failed"
+      && !error.message.includes("sensitive bridge detail"),
+  );
+
+  const toolStart = script.indexOf("async function callAppTool(");
+  const toolEnd = script.indexOf("\nasync function prepareReviewedPayload", toolStart);
+  assert.notEqual(toolStart, -1);
+  assert.notEqual(toolEnd, -1);
+  const callAppTool = new Function(
+    "window",
+    "withPerceptionDeadline",
+    "perceptionStageError",
+    "bridgeReady",
+    "rpcRequest",
+    "document",
+    `"use strict";${script.slice(toolStart, toolEnd)};return callAppTool;`,
+  )(
+    {
+      openai: {
+        callTool: async () => {
+          throw new Error("sensitive callTool detail");
+        },
+      },
+    },
+    async (task) => task(),
+    (error, code, message) => (
+      typeof error?.code === "string" ? error : Object.assign(new Error(message), { code })
+    ),
+    Promise.resolve(),
+    async () => ({}),
+    { documentElement: { setAttribute() {} } },
+  );
+  await assert.rejects(
+    () => callAppTool("norma.test", {}),
+    (error) => error.code === "perception_tool_call_failed"
+      && !error.message.includes("sensitive callTool detail"),
+  );
+});
+
 test("the widget preserves V2 provenance, bounded polling, and nondegenerate line prompts", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /Proposer le masque SAM 3/u);
@@ -3747,10 +3813,19 @@ test("widget reconciles an applied two-object status discarded by the production
   const callAppTool = new Function(
     "window",
     "perceptionClientError",
+    "perceptionStageError",
     "setTimeout",
     "clearTimeout",
     `"use strict";${html.slice(deadlineStart, deadlineEnd)}\n${html.slice(callStart, callEnd)};return callAppTool;`,
-  )(window, perceptionClientError, controlledSetTimeout, controlledClearTimeout);
+  )(
+    window,
+    perceptionClientError,
+    (error, code, message) => (
+      typeof error?.code === "string" ? error : perceptionClientError(code, message)
+    ),
+    controlledSetTimeout,
+    controlledClearTimeout,
+  );
   const state = { activePayloadIdentity: "payload:original", completed: false };
   const pollPerceptionJob = new Function(
     "state",
@@ -3986,6 +4061,7 @@ test("widget preserves a poll timeout after late hydration replaces the payload 
 
 test("widget keeps the review fail-closed when late-result rollback cannot be confirmed", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /data-norma-perception-client-error/u);
   const start = html.indexOf("function perceptionFailureMessage(");
   const end = html.indexOf("\nasync function applyPerceptionStatusResponse", start);
   const payload = {

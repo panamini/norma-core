@@ -21,6 +21,7 @@ const personalVisualHarmonyPerceptionJobs = segmentationClient === null
   : new InMemoryPersonalVisualHarmonyPerceptionJobService({
       provider: segmentationClient,
       allowedSourceImageOrigins: sourceImageAllowedOrigins,
+      onDiagnostic: (event) => process.stdout.write(`${JSON.stringify(event)}\n`),
     });
 const { config, server } = createRemoteMcpHttpServerFromEnvironment(process.env, {
   postgresqlPool,
