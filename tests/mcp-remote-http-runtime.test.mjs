@@ -15,7 +15,6 @@ import {
 } from "../dist/src/mcp/remote-http-server.js";
 import { RemoteMcpAdmissionController } from "../dist/src/mcp/remote-http-limits.js";
 import {
-  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -91,30 +90,27 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.deepEqual(list.json.result.tools.map((tool) => tool.name), [
     PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
     PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
-    PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
     PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
     analyzeToolName,
   ]);
   const prepareTool = list.json.result.tools[0];
   const refinePixelsTool = list.json.result.tools[1];
-  const measurementPairTool = list.json.result.tools[2];
-  const confirmTool = list.json.result.tools[3];
+  const confirmTool = list.json.result.tools[2];
   assert.equal(prepareTool._meta["openai/outputTemplate"], PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(prepareTool._meta.ui.resourceUri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(Object.hasOwn(refinePixelsTool._meta.ui, "resourceUri"), false);
-  assert.equal(Object.hasOwn(measurementPairTool._meta.ui, "resourceUri"), false);
   assert.equal(Object.hasOwn(confirmTool._meta.ui, "resourceUri"), false);
   assert.deepEqual(prepareTool._meta.securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
   }]);
-  assert.deepEqual(list.json.result.tools[4].annotations, {
+  assert.deepEqual(list.json.result.tools[3].annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,
     idempotentHint: true,
   });
-  assert.deepEqual(list.json.result.tools[4].securitySchemes, [{
+  assert.deepEqual(list.json.result.tools[3].securitySchemes, [{
     type: "oauth2",
     scopes: ["norma:structured_analyze"],
   }]);
@@ -128,7 +124,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
   assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
-  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v24.html");
+  assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v20.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
     id: "widget",
@@ -149,20 +145,6 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(cachedWidget.status, 200);
   assert.equal(cachedWidget.json.result.contents[0].uri, "ui://widget/norma-personal-visual-harmony-v8.html");
   assert.equal(cachedWidget.json.result.contents[0].mimeType, "text/html+skybridge");
-  for (const legacyUri of [
-    "ui://widget/norma-personal-visual-harmony-v20.html",
-    "ui://widget/norma-personal-visual-harmony-v23.html",
-  ]) {
-    const legacyWidget = await mcpRequest(port, {
-      jsonrpc: "2.0",
-      id: `legacy-widget-${legacyUri}`,
-      method: "resources/read",
-      params: { uri: legacyUri },
-    });
-    assert.equal(legacyWidget.status, 200);
-    assert.equal(legacyWidget.json.result.contents[0].uri, legacyUri);
-    assert.equal(legacyWidget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
-  }
 
   const prepared = await mcpRequest(port, {
     jsonrpc: "2.0",
@@ -193,18 +175,6 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(prepared.json.result.structuredContent.status, "confirmation_required");
   assert.equal(prepared.json.result.structuredContent.coreRun, false);
 
-  const invalidMeasurementPair = await mcpRequest(port, {
-    jsonrpc: "2.0",
-    id: "invalid-measurement-pair",
-    method: "tools/call",
-    params: {
-      name: PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
-      arguments: {},
-    },
-  });
-  assert.equal(invalidMeasurementPair.status, 200);
-  assert.equal(invalidMeasurementPair.json.result.isError, true);
-
   const input = JSON.parse(await readFile(
     join(repoRoot, "examples", "structured-analyze", "scenarios", "alignment-basic.json"),
     "utf8",
@@ -226,10 +196,6 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
 
   assert.ok(logs.some((event) => event.outcome === "allow" && event.protocolVersion === protocol));
   assert.ok(logs.some((event) => event.tool === PERSONAL_VISUAL_HARMONY_PREPARE_TOOL && event.outcome === "allow"));
-  assert.ok(logs.some((event) => (
-    event.tool === PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL
-    && event.outcome === "allow"
-  )));
   assert.ok(logs.some((event) => event.tool === analyzeToolName && event.outcome === "allow"));
   assert.ok(logs.some((event) => event.tool === "mcp" && event.outcome === "allow"));
   const serializedLogs = JSON.stringify(logs);

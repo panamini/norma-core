@@ -8,7 +8,6 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
   createPersonalVisualHarmonyMcpServerV1,
   createPersonalVisualHarmonyWidgetHtmlV1,
-  PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
   PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
   PERSONAL_VISUAL_HARMONY_PERCEPTION_STATUS_TOOL,
   PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
@@ -242,7 +241,6 @@ test("perception tools stay unavailable when the authenticated subject boundary 
   try {
     const listed = await connected.client.listTools();
     assert.deepEqual(listed.tools.map(({ name }) => name).sort(), [
-      PERSONAL_VISUAL_HARMONY_CONFIRM_MEASUREMENT_PAIR_TOOL,
       PERSONAL_VISUAL_HARMONY_CONFIRM_TOOL,
       PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
       PERSONAL_VISUAL_HARMONY_REFINE_PIXELS_TOOL,
@@ -607,7 +605,7 @@ test("fresh generic V1 with an explicit A/B pair exposes the first SAM action", 
   assert.equal(perceptionToggle.textContent, "Proposer l’objet A");
 });
 
-test("selecting compare-two-lengths refreshes SAM UI and waits for an explicit pair with 11 candidates", () => {
+test("selecting compare-two-lengths refreshes SAM UI and starts a fresh bounded session for 11 candidates", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   const start = html.indexOf("function applyGuidedAnalysisGoal(");
   const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
@@ -669,7 +667,6 @@ test("selecting compare-two-lengths refreshes SAM UI and waits for an explicit p
     "updatePerceptionUi",
     "guidedGoalStatus",
     "persistGuidedAnalysisGoal",
-    "MAX_REVIEW_CANDIDATES",
     "runSpatialRecovery",
     `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
   )(
@@ -687,7 +684,6 @@ test("selecting compare-two-lengths refreshes SAM UI and waits for an explicit p
     updatePerceptionUi,
     { textContent: "" },
     () => {},
-    12,
     (...args) => calls.push({ type: "recovery", args }),
   );
 
@@ -696,6 +692,7 @@ test("selecting compare-two-lengths refreshes SAM UI and waits for an explicit p
   assert.equal(state.guidedAnalysisGoal, "compare-two-lengths");
   assert.deepEqual(calls, [
     { type: "ui", goal: "compare-two-lengths", hidden: true },
+    { type: "recovery", args: [false, true] },
   ]);
 });
 
@@ -745,7 +742,6 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
     "updatePerceptionUi",
     "guidedGoalStatus",
     "persistGuidedAnalysisGoal",
-    "MAX_REVIEW_CANDIDATES",
     "runSpatialRecovery",
     `"use strict";${html.slice(start, end)};return applyGuidedAnalysisGoal;`,
   )(
@@ -763,7 +759,6 @@ test("selecting compare-two-lengths auto-enters a fresh SAM session for a select
     () => {},
     { textContent: "" },
     () => {},
-    12,
     (...args) => calls.push({ type: "recovery", args }),
   );
 
@@ -815,52 +810,6 @@ test("selecting the second V1 rectangle re-evaluates fresh SAM recovery", () => 
     html,
     /persistSelection\(\);updateConfirm\(\);updateSpatialRecoveryUi\(\);startFreshSpatialSessionIfNeeded\(\)/u,
   );
-});
-
-test("oversized V1 recovery waits for two rectangles before recording its entry identity", () => {
-  const html = createPersonalVisualHarmonyWidgetHtmlV1();
-  const start = html.indexOf("function startFreshSpatialSessionIfNeeded(");
-  const end = html.indexOf("\nfunction restoreGuidedAnalysisGoal(", start);
-  assert.notEqual(start, -1);
-  const candidates = Array.from({ length: 11 }, (_, index) => ({
-    id: `candidate-${String(index)}`,
-    primitive: { kind: "rectangle" },
-  }));
-  const state = {
-    activePayloadIdentity: "payload-oversized",
-    payload: {
-      perceptionRecoveryAvailable: true,
-      prepared: { contractVersion: 1, candidates },
-    },
-    reviewedCandidates: candidates,
-    selected: new Set(candidates.map((candidate) => candidate.id)),
-    guidedAnalysisGoal: "compare-two-lengths",
-    manualSpatialFallback: false,
-    spatialRecoveryRunning: false,
-    spatialRecoveryEntryIdentity: null,
-    completed: false,
-    confirming: false,
-  };
-  const calls = [];
-  const startFreshSpatialSessionIfNeeded = new Function(
-    "state",
-    "runSpatialRecovery",
-    `"use strict";${html.slice(start, end)};return startFreshSpatialSessionIfNeeded;`,
-  )(
-    state,
-    (...args) => calls.push(args),
-  );
-
-  startFreshSpatialSessionIfNeeded();
-
-  assert.deepEqual(calls, []);
-  assert.equal(state.spatialRecoveryEntryIdentity, null);
-
-  state.selected = new Set(["candidate-0", "candidate-1"]);
-  startFreshSpatialSessionIfNeeded();
-
-  assert.deepEqual(calls, [[false, true]]);
-  assert.equal(state.spatialRecoveryEntryIdentity, "payload-oversized");
 });
 
 test("restored compare-two-lengths V1 pair starts fresh SAM recovery even when the goal did not change", () => {
@@ -1129,7 +1078,7 @@ test("terminal A/B SAM review exposes explicit restart and manual recovery witho
   );
   assert.match(
     html,
-    /await prepareSpatialRecoveryPayload\(payload,candidateSnapshot,!manual\)/u,
+    /await prepareSpatialRecoveryPayload\(payload,candidateSnapshot\)/u,
   );
   assert.doesNotMatch(
     recoverySource,
@@ -1254,138 +1203,6 @@ test("manual spatial fallback reuses a current prepared payload without provider
   assert.deepEqual(state.measurementRatioRefs, []);
   assert.deepEqual([...state.selected], selectedIds);
   assert.deepEqual([...state.visibleKinds], ["rectangle"]);
-  assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
-});
-
-test("manual spatial fallback re-prepares an oversized candidate set with only the selected pair", async () => {
-  const html = createPersonalVisualHarmonyWidgetHtmlV1();
-  const start = html.indexOf("async function runSpatialRecovery(");
-  const end = html.indexOf("\nrestartSpatialReview.addEventListener", start);
-  const reviewedCandidates = Array.from({ length: 11 }, (_, index) => ({
-    id: `candidate-${String(index)}`,
-    label: `Candidate ${String(index)}`,
-    role: index === 0 ? "primary-subject" : "secondary-subject",
-    reason: "Visible rectangle",
-    x: index / 20,
-    y: 0.1,
-    width: 0.04,
-    height: 0.2,
-    primitive: { kind: "rectangle" },
-  }));
-  const selectedIds = reviewedCandidates.slice(0, 2).map((candidate) => candidate.id);
-  const payload = {
-    sessionId: "session:oversized-manual",
-    prepared: { contractVersion: 1, candidates: reviewedCandidates },
-  };
-  const freshPayload = {
-    sessionId: "session:bounded-manual",
-    prepared: { contractVersion: 1, candidates: reviewedCandidates.slice(0, 2) },
-  };
-  const state = {
-    payload,
-    reviewedCandidates,
-    selected: new Set(selectedIds),
-    visibleKinds: new Set(["rectangle"]),
-    spatialRecoveryRunning: false,
-    confirming: false,
-    perceptionRunning: false,
-    completed: false,
-    perceptionReconciliationBlocked: true,
-    multiPerceptionTerminalState: { code: "provider-rejected" },
-    guidedAnalysisGoal: "compare-two-lengths",
-    measurementRatioRefs: [],
-    manualSpatialFallback: false,
-    manualSpatialFallbackSessionId: null,
-    manualSegmentMode: false,
-    manualSegmentAnchor: null,
-    measurementRatioEnabled: false,
-  };
-  const calls = [];
-  const statusNode = { textContent: "" };
-  const runSpatialRecovery = new Function(
-    "state",
-    "spatialRecoveryRequired",
-    "manualSelectedRectangleIds",
-    "spatialRecoveryCandidateSnapshot",
-    "setReviewLocked",
-    "prepareSpatialRecoveryPayload",
-    "hydrate",
-    "GUIDED_ANALYSIS_GOALS",
-    "visibleKindsForGuidedAnalysisGoal",
-    "renderGuidedAnalysisGoals",
-    "updateFamilyFilterButtons",
-    "syncFamilyVisibility",
-    "updatePerceptionUi",
-    "updateMeasurementRatioControls",
-    "persistReviewState",
-    "multiPerceptionReviewLocked",
-    "updateSpatialRecoveryUi",
-    "statusNode",
-    "spatialRecoveryFailureMessage",
-    "spatialRecoveryFailureCode",
-    "document",
-    `"use strict";${html.slice(start, end)};return runSpatialRecovery;`,
-  )(
-    state,
-    () => true,
-    () => selectedIds,
-    (_payload, selectedOnly) => {
-      calls.push({ type: "snapshot", selectedOnly });
-      return reviewedCandidates.slice(0, 2);
-    },
-    (locked) => calls.push({ type: "lock", locked }),
-    async (_payload, candidates, requirePerception) => {
-      calls.push({
-        type: "prepare",
-        candidateIds: candidates.map((candidate) => candidate.id),
-        requirePerception,
-      });
-      return freshPayload;
-    },
-    async (fresh) => {
-      calls.push({ type: "hydrate", sessionId: fresh.sessionId });
-      state.payload = fresh;
-      state.reviewedCandidates = [...fresh.prepared.candidates];
-      state.selected = new Set(fresh.prepared.candidates.map((candidate) => candidate.id));
-    },
-    [
-      { id: "general-geometry", visibleKinds: ["rectangle", "axis", "segment"] },
-      { id: "compare-two-lengths", visibleKinds: ["rectangle"] },
-    ],
-    (goal) => goal.visibleKinds,
-    () => {},
-    () => {},
-    () => {},
-    () => {},
-    () => {},
-    () => {},
-    () => false,
-    () => {},
-    statusNode,
-    (error) => error.message,
-    () => "test-failure",
-    { documentElement: { setAttribute() {} } },
-  );
-
-  await runSpatialRecovery(true);
-
-  assert.deepEqual(calls.find((call) => call.type === "snapshot"), {
-    type: "snapshot",
-    selectedOnly: true,
-  });
-  assert.deepEqual(calls.find((call) => call.type === "prepare"), {
-    type: "prepare",
-    candidateIds: selectedIds,
-    requirePerception: false,
-  });
-  assert.deepEqual(calls.find((call) => call.type === "hydrate"), {
-    type: "hydrate",
-    sessionId: freshPayload.sessionId,
-  });
-  assert.equal(state.reviewedCandidates.length, 2);
-  assert.equal(state.manualSpatialFallback, true);
-  assert.equal(state.manualSpatialFallbackSessionId, freshPayload.sessionId);
-  assert.equal(state.manualSegmentMode, true);
   assert.match(statusNode.textContent, /Comparaison manuelle activée/u);
 });
 
@@ -3424,7 +3241,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /if\(reviewEditingBlocked\(\)\|\|event\.isPrimary===false/u);
   assert.match(
     html,
-    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateIds\.length>0&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
+    /function multiPerceptionStartBlocked\(payload=state\.payload\)\{return state\.manualSegmentCandidateId!==null&&perceptionWorkflowArgs\(payload\)\.workflowMode==="two-object-spatial"\}/u,
   );
   assert.match(html, /multiStartBlocked=multiPerceptionStartBlocked\(payload\)/u);
   assert.match(html, /perceptionToggle\.disabled=.*?\|\|multiStartBlocked\|\|/u);
