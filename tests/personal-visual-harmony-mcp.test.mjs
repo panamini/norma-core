@@ -79,6 +79,75 @@ function deferred() {
   return { promise, resolve };
 }
 
+test("automatic harmonic preview renders target, observed value, delta, qualification, and stale review state", () => {
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /id="automaticPreview"/u);
+  assert.match(html, /Relations candidates à vérifier/u);
+  assert.match(html, /Relations candidates à revoir/u);
+  assert.match(html, /function renderAutomaticHarmonicPreview\(\)/u);
+  assert.match(html, /function invalidateAutomaticHarmonicPreview\(\)/u);
+  assert.match(html, /if\(kind==="rectangle"\)invalidateAutomaticHarmonicPreview\(\)/u);
+  assert.doesNotMatch(html, /automaticHarmonicPreview[^\n]*callAppTool/u);
+
+  const createElement = (tagName) => ({
+    tagName,
+    children: [],
+    textContent: "",
+    append(...children) { this.children.push(...children); },
+  });
+  const automaticPreview = {
+    hidden: true,
+    dataset: {},
+    children: [],
+    replaceChildren(...children) { this.children = [...children]; },
+    append(...children) { this.children.push(...children); },
+  };
+  const state = {
+    automaticPreviewStale: false,
+    guidedAnalysisGoal: "general-geometry",
+    payload: {
+      prepared: {
+        automaticHarmonicPreview: {
+          relationships: [{
+            subjectLabel: "Cadre gauche",
+            relatedLabels: ["Cadre droite"],
+            metric: "horizontal-split-share",
+            ratioLabel: "φ major",
+            targetPercent: 61.803,
+            observedPercent: 62.1,
+            deltaPercentagePoints: 0.297,
+            qualification: "within_tolerance",
+          }],
+        },
+      },
+    },
+  };
+  const renderAutomaticHarmonicPreview = widgetScriptFunction(
+    "renderAutomaticHarmonicPreview",
+    "function invalidateAutomaticHarmonicPreview",
+    { state, automaticPreview, document: { createElement } },
+  );
+  const invalidateAutomaticHarmonicPreview = widgetScriptFunction(
+    "invalidateAutomaticHarmonicPreview",
+    "function syncAnalysisModeUi",
+    { state, renderAutomaticHarmonicPreview },
+  );
+  const textOf = (node) => [node.textContent, ...(node.children ?? []).map(textOf)].join(" ");
+
+  renderAutomaticHarmonicPreview();
+  assert.equal(automaticPreview.hidden, false);
+  assert.match(textOf(automaticPreview), /Ratio ciblé φ major · 61,803 %/u);
+  assert.match(textOf(automaticPreview), /Valeur observée 62,1 %/u);
+  assert.match(textOf(automaticPreview), /Écart 0,297 pt/u);
+  assert.match(textOf(automaticPreview), /proche · dans la tolérance/u);
+
+  invalidateAutomaticHarmonicPreview();
+  assert.equal(state.automaticPreviewStale, true);
+  assert.equal(automaticPreview.dataset.stale, "true");
+  assert.match(textOf(automaticPreview), /Relations candidates à revoir/u);
+  assert.doesNotMatch(textOf(automaticPreview), /Ratio ciblé/u);
+});
+
 test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
   const dimensions = { width: 1000, height: 800 };
   const rectangles = [
@@ -8624,6 +8693,13 @@ test("prepare keeps Core stopped and confirm runs deterministic Core only after 
     assert.equal(prepared.structuredContent.coreRun, false);
     assert.equal(prepared.structuredContent.candidateEvidenceOnly, true);
     assert.equal(prepared.structuredContent.explicitSelectionConfirmationRequired, true);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.candidateSetIdentity, prepared.structuredContent.candidateSetIdentity);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.providerCalls, 0);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.samCalls, 0);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.coreRun, false);
+    assert.equal(prepared.structuredContent.automaticHarmonicPreview.coreExecutionCount, 0);
+    assert.ok(prepared.structuredContent.automaticHarmonicPreview.relationships.length > 0);
+    assert.ok(prepared.structuredContent.automaticHarmonicPreview.relationships.length <= 3);
     assert.doesNotMatch(JSON.stringify(prepared.structuredContent), /file-private-opaque-id|private-signed-image|private-name/u);
     assert.doesNotMatch(JSON.stringify(prepared.content), /file-private-opaque-id|private-signed-image|private-name/u);
 

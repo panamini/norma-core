@@ -76,6 +76,62 @@ export const PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS = [
   "norma.basic-proportions@0.1.0",
 ] as const;
 export const PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE = 0.025 as const;
+export const PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID =
+  "norma.personal-visual-harmony-automatic-harmonic-preview@1" as const;
+export const PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_MAX_RELATIONSHIPS = 3 as const;
+export const PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_EXACT_TOLERANCE = 0.002 as const;
+
+export type PersonalVisualHarmonyAutomaticHarmonicQualificationV1 =
+  | "exact"
+  | "within_tolerance"
+  | "outside_tolerance";
+
+export interface PersonalVisualHarmonyAutomaticHarmonicRelationshipV1 {
+  readonly relationshipId: string;
+  readonly subjectCandidateId: string;
+  readonly subjectLabel: string;
+  readonly relatedCandidateIds: readonly string[];
+  readonly relatedLabels: readonly string[];
+  readonly metric: HarmonicRelationshipMetricV1;
+  readonly qualification: PersonalVisualHarmonyAutomaticHarmonicQualificationV1;
+  readonly ratioId: string;
+  readonly ratioLabel: string;
+  readonly ratioFamily: string | null;
+  readonly targetValue: number;
+  readonly observedValue: number;
+  readonly absoluteDelta: number;
+  readonly targetPercent: number;
+  readonly observedPercent: number;
+  readonly deltaPercentagePoints: number;
+}
+
+export interface PersonalVisualHarmonyAutomaticHarmonicPreviewV1 {
+  readonly contractId: typeof PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID;
+  readonly contractVersion: 1;
+  readonly status: "candidate_preview";
+  readonly candidateSetIdentity: string;
+  readonly sourceImageReferenceIdentity: string;
+  readonly candidateEvidenceOnly: true;
+  readonly explicitSelectionConfirmationRequired: true;
+  readonly providerCalls: 0;
+  readonly samCalls: 0;
+  readonly coreRun: false;
+  readonly coreExecutionCount: 0;
+  readonly deterministic: true;
+  readonly ratioPackRefs: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS;
+  readonly exactTolerance: typeof PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_EXACT_TOLERANCE;
+  readonly matchTolerance: typeof PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+  readonly maxRelationships: typeof PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_MAX_RELATIONSHIPS;
+  readonly relationshipCount: number;
+  readonly relationships: readonly PersonalVisualHarmonyAutomaticHarmonicRelationshipV1[];
+  readonly limits: {
+    readonly noAutomaticSelection: true;
+    readonly noRecommendation: true;
+    readonly noBeautyClaims: true;
+    readonly noIntentInference: true;
+  };
+  readonly contentIdentity: string;
+}
 
 export type PersonalVisualHarmonyCandidateRoleV1 =
   | "primary-subject"
@@ -1227,6 +1283,330 @@ export function preparePersonalVisualHarmonyMergedPerceptionCandidatesV2(input: 
     candidates: merged.candidates,
     triangleConstructionRequests: merged.triangleConstructionRequests,
   });
+}
+
+interface AutomaticHarmonicPreviewRatio {
+  readonly packId: string;
+  readonly ratioId: string;
+  readonly ratioFamily: string | null;
+  readonly ratioLabel: string;
+  readonly targetValue: number;
+}
+
+interface AutomaticHarmonicPreviewCandidate {
+  readonly metric: HarmonicRelationshipMetricV1;
+  readonly priority: number;
+  readonly subject: PersonalVisualHarmonyCandidateInputV1;
+  readonly related: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly observedValue: number;
+}
+
+interface AutomaticHarmonicPreviewRectangle {
+  readonly candidate: PersonalVisualHarmonyCandidateInputV1;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export function previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1(input: {
+  readonly preparedCandidateSet: PersonalVisualHarmonyPreparedCandidateSet;
+}): PersonalVisualHarmonyAutomaticHarmonicPreviewV1 {
+  const prepared = validatePreparedCandidateSet(input.preparedCandidateSet);
+  const rectangles = prepared.candidates
+    .filter((candidate) => primitiveKindFor(candidate) === "rectangle")
+    .sort((first, second) => stableStringCompare(first.id, second.id))
+    .map((candidate): AutomaticHarmonicPreviewRectangle => ({
+      candidate,
+      x: canonicalNumber(candidate.x),
+      y: canonicalNumber(1 - candidate.y - candidate.height),
+      width: canonicalNumber(candidate.width),
+      height: canonicalNumber(candidate.height),
+    }));
+  const catalog = automaticHarmonicPreviewRatioCatalog();
+  const candidates = automaticHarmonicPreviewCandidates(rectangles);
+  const ranked = candidates.map((candidate) => {
+    const ratio = closestAutomaticHarmonicPreviewRatio(candidate.observedValue, catalog);
+    return {
+      candidate,
+      ratio,
+      delta: canonicalNumber(Math.abs(candidate.observedValue - ratio.targetValue)),
+    };
+  }).sort((first, second) => (
+    first.delta - second.delta
+    || first.candidate.priority - second.candidate.priority
+    || stableStringCompare(
+      automaticHarmonicPreviewCandidateSortKey(first.candidate, first.ratio),
+      automaticHarmonicPreviewCandidateSortKey(second.candidate, second.ratio),
+    )
+  ));
+  const deduplicated = new Map<string, typeof ranked[number]>();
+  for (const match of ranked) {
+    const key = [
+      match.candidate.subject.id,
+      match.candidate.metric,
+      match.candidate.related.map((candidate) => candidate.id).sort(stableStringCompare).join(","),
+      canonicalNumber(match.candidate.observedValue).toFixed(9),
+      canonicalNumber(match.ratio.targetValue).toFixed(9),
+    ].join("|");
+    if (!deduplicated.has(key)) deduplicated.set(key, match);
+  }
+  const relationships = [...deduplicated.values()]
+    .slice(0, PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_MAX_RELATIONSHIPS)
+    .map(({ candidate, ratio, delta }): PersonalVisualHarmonyAutomaticHarmonicRelationshipV1 => {
+      const observedValue = canonicalNumber(candidate.observedValue);
+      const relationshipSeed = {
+        candidateSetIdentity: prepared.candidateSetIdentity,
+        metric: candidate.metric,
+        subjectCandidateId: candidate.subject.id,
+        relatedCandidateIds: candidate.related.map((related) => related.id),
+        observedValue,
+        packId: ratio.packId,
+        ratioId: ratio.ratioId,
+      };
+      return {
+        relationshipId: `relationship:automatic-preview:${identityToken(contentIdentityFor(relationshipSeed)).slice(0, 16)}`,
+        subjectCandidateId: candidate.subject.id,
+        subjectLabel: candidate.subject.label,
+        relatedCandidateIds: candidate.related.map((related) => related.id),
+        relatedLabels: candidate.related.map((related) => related.label),
+        metric: candidate.metric,
+        qualification: automaticHarmonicPreviewQualification(delta),
+        ratioId: ratio.ratioId,
+        ratioLabel: ratio.ratioLabel,
+        ratioFamily: ratio.ratioFamily,
+        targetValue: ratio.targetValue,
+        observedValue,
+        absoluteDelta: delta,
+        targetPercent: percentage(ratio.targetValue),
+        observedPercent: percentage(observedValue),
+        deltaPercentagePoints: percentage(delta),
+      };
+    });
+  const resultWithoutIdentity = {
+    contractId: PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_CONTRACT_ID,
+    contractVersion: 1 as const,
+    status: "candidate_preview" as const,
+    candidateSetIdentity: prepared.candidateSetIdentity,
+    sourceImageReferenceIdentity: prepared.sourceImageReferenceIdentity,
+    candidateEvidenceOnly: true as const,
+    explicitSelectionConfirmationRequired: true as const,
+    providerCalls: 0 as const,
+    samCalls: 0 as const,
+    coreRun: false as const,
+    coreExecutionCount: 0 as const,
+    deterministic: true as const,
+    ratioPackRefs: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_PACK_REFS,
+    exactTolerance: PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_EXACT_TOLERANCE,
+    matchTolerance: PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE,
+    maxRelationships: PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_MAX_RELATIONSHIPS,
+    relationshipCount: relationships.length,
+    relationships,
+    limits: {
+      noAutomaticSelection: true as const,
+      noRecommendation: true as const,
+      noBeautyClaims: true as const,
+      noIntentInference: true as const,
+    },
+  };
+  return {
+    ...resultWithoutIdentity,
+    contentIdentity: contentIdentityFor(resultWithoutIdentity),
+  };
+}
+
+function automaticHarmonicPreviewRatioCatalog(): readonly AutomaticHarmonicPreviewRatio[] {
+  const seenValues = new Set<string>();
+  const catalog: AutomaticHarmonicPreviewRatio[] = [];
+  for (const pack of [GEOMETRY_HARMONIES_PACK, BASIC_PROPORTIONS_PACK]) {
+    for (const ratio of pack.ratios) {
+      const targetValue = canonicalNumber(ratio.normalizedValue);
+      const key = targetValue.toFixed(12);
+      if (seenValues.has(key)) continue;
+      seenValues.add(key);
+      catalog.push({
+        packId: pack.id,
+        ratioId: ratio.id,
+        ratioFamily: ratio.familyRef ?? null,
+        ratioLabel: automaticHarmonicPreviewRatioLabel(ratio.id),
+        targetValue,
+      });
+    }
+  }
+  return catalog.sort((first, second) => (
+    first.targetValue - second.targetValue
+    || stableStringCompare(`${first.packId}:${first.ratioId}`, `${second.packId}:${second.ratioId}`)
+  ));
+}
+
+function automaticHarmonicPreviewCandidates(
+  rectangles: readonly AutomaticHarmonicPreviewRectangle[],
+): readonly AutomaticHarmonicPreviewCandidate[] {
+  const tolerance = PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+  const candidates: AutomaticHarmonicPreviewCandidate[] = [];
+  for (const rectangle of rectangles) {
+    candidates.push(
+      automaticHarmonicPreviewCandidate("width-share", 1, rectangle, [], rectangle.width),
+      automaticHarmonicPreviewCandidate("height-share", 1, rectangle, [], rectangle.height),
+      automaticHarmonicPreviewCandidate("area-share", 3, rectangle, [], rectangle.width * rectangle.height),
+    );
+    if (rectangle.x > tolerance && rectangle.x < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("left-edge-position", 2, rectangle, [], rectangle.x));
+    }
+    const right = canonicalNumber(rectangle.x + rectangle.width);
+    if (right > tolerance && right < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("right-edge-position", 2, rectangle, [], right));
+    }
+    if (rectangle.y > tolerance && rectangle.y < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("bottom-edge-position", 2, rectangle, [], rectangle.y));
+    }
+    const top = canonicalNumber(rectangle.y + rectangle.height);
+    if (top > tolerance && top < 1 - tolerance) {
+      candidates.push(automaticHarmonicPreviewCandidate("top-edge-position", 2, rectangle, [], top));
+    }
+  }
+  for (let firstIndex = 0; firstIndex < rectangles.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < rectangles.length; secondIndex += 1) {
+      const first = rectangles[firstIndex];
+      const second = rectangles[secondIndex];
+      if (first !== undefined && second !== undefined) {
+        addAutomaticHarmonicPreviewAdjacentCandidates(candidates, first, second);
+      }
+    }
+  }
+  return candidates;
+}
+
+function addAutomaticHarmonicPreviewAdjacentCandidates(
+  candidates: AutomaticHarmonicPreviewCandidate[],
+  first: AutomaticHarmonicPreviewRectangle,
+  second: AutomaticHarmonicPreviewRectangle,
+): void {
+  const tolerance = PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE;
+  const overlapFraction = 0.8;
+  const [left, right] = first.x <= second.x ? [first, second] : [second, first];
+  const horizontalGap = Math.abs((left.x + left.width) - right.x);
+  const verticalOverlap = automaticHarmonicPreviewIntervalOverlap(
+    left.y,
+    left.y + left.height,
+    right.y,
+    right.y + right.height,
+  );
+  const horizontalTotal = left.width + right.width;
+  if (horizontalGap <= tolerance
+    && verticalOverlap / Math.min(left.height, right.height) >= overlapFraction
+    && horizontalTotal > 0) {
+    candidates.push(
+      automaticHarmonicPreviewCandidate(
+        "horizontal-split-share",
+        0,
+        left,
+        [right],
+        left.width / horizontalTotal,
+      ),
+      automaticHarmonicPreviewCandidate(
+        "horizontal-split-share",
+        0,
+        right,
+        [left],
+        right.width / horizontalTotal,
+      ),
+    );
+  }
+  const [bottom, top] = first.y <= second.y ? [first, second] : [second, first];
+  const verticalGap = Math.abs((bottom.y + bottom.height) - top.y);
+  const horizontalOverlap = automaticHarmonicPreviewIntervalOverlap(
+    bottom.x,
+    bottom.x + bottom.width,
+    top.x,
+    top.x + top.width,
+  );
+  const verticalTotal = bottom.height + top.height;
+  if (verticalGap <= tolerance
+    && horizontalOverlap / Math.min(bottom.width, top.width) >= overlapFraction
+    && verticalTotal > 0) {
+    candidates.push(
+      automaticHarmonicPreviewCandidate(
+        "vertical-split-share",
+        0,
+        bottom,
+        [top],
+        bottom.height / verticalTotal,
+      ),
+      automaticHarmonicPreviewCandidate(
+        "vertical-split-share",
+        0,
+        top,
+        [bottom],
+        top.height / verticalTotal,
+      ),
+    );
+  }
+}
+
+function automaticHarmonicPreviewCandidate(
+  metric: HarmonicRelationshipMetricV1,
+  priority: number,
+  subject: AutomaticHarmonicPreviewRectangle,
+  related: readonly AutomaticHarmonicPreviewRectangle[],
+  observedValue: number,
+): AutomaticHarmonicPreviewCandidate {
+  return {
+    metric,
+    priority,
+    subject: subject.candidate,
+    related: related.map((rectangle) => rectangle.candidate),
+    observedValue: canonicalNumber(observedValue),
+  };
+}
+
+function closestAutomaticHarmonicPreviewRatio(
+  observedValue: number,
+  catalog: readonly AutomaticHarmonicPreviewRatio[],
+): AutomaticHarmonicPreviewRatio {
+  const closest = [...catalog].sort((first, second) => (
+    Math.abs(observedValue - first.targetValue) - Math.abs(observedValue - second.targetValue)
+    || first.targetValue - second.targetValue
+    || stableStringCompare(`${first.packId}:${first.ratioId}`, `${second.packId}:${second.ratioId}`)
+  ))[0];
+  if (closest === undefined) throw new Error("Automatic harmonic preview requires declared ratios.");
+  return closest;
+}
+
+function automaticHarmonicPreviewQualification(
+  delta: number,
+): PersonalVisualHarmonyAutomaticHarmonicQualificationV1 {
+  if (delta <= PERSONAL_VISUAL_HARMONY_AUTOMATIC_HARMONIC_PREVIEW_EXACT_TOLERANCE) return "exact";
+  if (delta <= PERSONAL_VISUAL_HARMONY_DECLARED_RATIO_MATCH_TOLERANCE) return "within_tolerance";
+  return "outside_tolerance";
+}
+
+function automaticHarmonicPreviewRatioLabel(ratioId: string): string {
+  if (ratioId === "phi-minor") return "φ minor";
+  if (ratioId === "phi-major") return "φ major";
+  return ratioId;
+}
+
+function automaticHarmonicPreviewCandidateSortKey(
+  candidate: AutomaticHarmonicPreviewCandidate,
+  ratio: AutomaticHarmonicPreviewRatio,
+): string {
+  return [
+    candidate.metric,
+    candidate.subject.id,
+    ...candidate.related.map((related) => related.id),
+    ratio.packId,
+    ratio.ratioId,
+  ].join(":");
+}
+
+function automaticHarmonicPreviewIntervalOverlap(
+  firstStart: number,
+  firstEnd: number,
+  secondStart: number,
+  secondEnd: number,
+): number {
+  return Math.max(0, Math.min(firstEnd, secondEnd) - Math.max(firstStart, secondStart));
 }
 
 export function confirmPersonalVisualHarmonyCandidateSetV1(

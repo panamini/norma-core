@@ -903,6 +903,15 @@ export const personalVisualHarmonyDirectSegmentPairChangedFiles = Object.freeze(
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "src/personal-visual-harmony.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony.test.mjs",
+].sort());
+
 export const personalVisualHarmonyGuidedAnalysisEntryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
@@ -2355,6 +2364,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
+  personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyStaleWidgetInstanceChangedFiles,
   personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
