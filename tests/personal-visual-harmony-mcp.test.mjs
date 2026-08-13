@@ -8523,6 +8523,59 @@ test("prepare tool canonically derives segment and axis envelopes from explicit 
   }
 });
 
+test("prepare tool keeps the review available when a proposed triangle has a duplicated quadrilateral vertex", async () => {
+  const connected = await createConnectedClient();
+  try {
+    const prepared = await connected.client.callTool({
+      name: PERSONAL_VISUAL_HARMONY_PREPARE_TOOL,
+      arguments: {
+        image: {
+          download_url: "https://files.example.test/duplicated-triangle-vertex",
+          file_id: "file-duplicated-triangle-vertex",
+          mime_type: "image/png",
+        },
+        candidates: [
+          ...candidates(),
+          {
+            id: "pink-triangle",
+            label: "Triangle rose",
+            role: "structural-region",
+            reason: "Triangle observé, mais transmis avec un sommet répété.",
+            x: 0.2,
+            y: 0.1,
+            width: 0.5,
+            height: 0.6,
+            primitive: {
+              kind: "quadrilateral",
+              vertices: [
+                { x: 0.45, y: 0.1 },
+                { x: 0.7, y: 0.7 },
+                { x: 0.2, y: 0.7 },
+                { x: 0.45, y: 0.1 },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    assert.equal(prepared.isError, undefined, JSON.stringify(prepared));
+    assert.equal(prepared.structuredContent.status, "confirmation_required");
+    assert.equal(prepared.structuredContent.coreRun, false);
+    assert.deepEqual(
+      prepared.structuredContent.candidates.map(({ id }) => id),
+      ["major", "minor"],
+    );
+    assert.match(prepared.content[0].text, /Triangle rose.*n’a pas été retenu/u);
+    assert.doesNotMatch(
+      JSON.stringify(prepared.structuredContent.candidates),
+      /pink-triangle/u,
+    );
+  } finally {
+    await connected.close();
+  }
+});
+
 test("app-only bounded pixel proposals abstain without adopting geometry or running Core", async () => {
   const connected = await createConnectedClient();
   try {

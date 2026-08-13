@@ -384,6 +384,32 @@ function asPersonalVisualHarmonyCandidates(
   });
 }
 
+function partitionPrepareCandidates(candidates: readonly ParsedCandidate[]): {
+  readonly accepted: readonly PersonalVisualHarmonyCandidateInputV1[];
+  readonly omittedDuplicatedQuadrilaterals: readonly Pick<ParsedCandidate, "id" | "label">[];
+} {
+  const omittedDuplicatedQuadrilaterals = candidates.filter(({ primitive }) => {
+    if (primitive?.kind !== "quadrilateral") return false;
+    return new Set(primitive.vertices.map(({ x, y }) => `${String(x)}:${String(y)}`)).size !== 4;
+  });
+  return {
+    accepted: asPersonalVisualHarmonyCandidates(
+      candidates.filter((candidate) => !omittedDuplicatedQuadrilaterals.includes(candidate)),
+    ),
+    omittedDuplicatedQuadrilaterals,
+  };
+}
+
+function omittedPrepareCandidateText(
+  omitted: readonly Pick<ParsedCandidate, "id" | "label">[],
+): string {
+  if (omitted.length === 0) return "";
+  const labels = omitted.map(({ label }) => label).join(", ");
+  return omitted.length === 1
+    ? ` ${labels} n’a pas été retenu : ses quatre sommets ne sont pas distincts.`
+    : ` ${labels} n’ont pas été retenus : leurs quatre sommets ne sont pas distincts.`;
+}
+
 function asTriangleConstructionRequests(
   requests: readonly ParsedTriangleConstructionRequest[],
 ): readonly PersonalVisualHarmonyTriangleRequestInputV1[] {
@@ -3622,7 +3648,10 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       const observationAttemptId = observationAttemptSequence += 1;
       const handlerEnteredAtMs = now();
       const handlerStartedAtMonotonicMs = monotonicNow();
-      const normalizedCandidates = asPersonalVisualHarmonyCandidates(candidates);
+      const {
+        accepted: normalizedCandidates,
+        omittedDuplicatedQuadrilaterals,
+      } = partitionPrepareCandidates(candidates);
       const captureEligible = perceptionEnabled
         && normalizedCandidates.length <= PERSONAL_VISUAL_HARMONY_MAX_TWO_OBJECT_BASE_CANDIDATES
         && (image.mime_type === undefined
@@ -3663,7 +3692,7 @@ export function createPersonalVisualHarmonyMcpServerV1(options: {
       return {
         content: [{
           type: "text" as const,
-          text: `Norma a préparé ${String(structuredContent.candidateCount)} candidat${structuredContent.candidateCount === 1 ? "" : "s"} visuel${structuredContent.candidateCount === 1 ? "" : "s"}. ${trianglePreparationDiagnosticText(prepared.prepared)} Le Core n’a pas été lancé : la confirmation humaine se fait dans le visuel.`,
+          text: `Norma a préparé ${String(structuredContent.candidateCount)} candidat${structuredContent.candidateCount === 1 ? "" : "s"} visuel${structuredContent.candidateCount === 1 ? "" : "s"}.${omittedPrepareCandidateText(omittedDuplicatedQuadrilaterals)} ${trianglePreparationDiagnosticText(prepared.prepared)} Le Core n’a pas été lancé : la confirmation humaine se fait dans le visuel.`,
         }],
         structuredContent,
         _meta: {
