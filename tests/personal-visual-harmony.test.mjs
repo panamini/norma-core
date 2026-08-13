@@ -112,7 +112,7 @@ test("automatic harmonic preview is bounded, deterministic candidate evidence wi
   }
 });
 
-test("automatic harmonic preview ranks only existing rectangle guides and never exceeds three relationships", () => {
+test("automatic harmonic preview ranks only existing surface guides and never exceeds three relationships", () => {
   const prepared = preparePersonalVisualHarmonyCandidateSetV1({
     sourceFileId: "file-preview-mixed",
     candidates: mixedPrimitiveCandidates(),
@@ -125,9 +125,65 @@ test("automatic harmonic preview ranks only existing rectangle guides and never 
   assert.ok(preview.relationships.length <= 3);
   assert.equal(preview.relationshipCount, preview.relationships.length);
   assert.ok(preview.relationships.every((relationship) => (
-    ["major", "minor"].includes(relationship.subjectCandidateId)
-    && relationship.relatedCandidateIds.every((candidateId) => ["major", "minor"].includes(candidateId))
+    ["major", "minor", "main-ellipse"].includes(relationship.subjectCandidateId)
+    && relationship.relatedCandidateIds.every((candidateId) => ["major", "minor", "main-ellipse"].includes(candidateId))
   )));
+  assert.deepEqual(
+    previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+      preparedCandidateSet: structuredClone(prepared),
+    }),
+    preview,
+  );
+});
+
+test("automatic harmonic preview includes existing quadrilateral and ellipse guides", () => {
+  const prepared = preparePersonalVisualHarmonyCandidateSetV1({
+    sourceFileId: "file-preview-surface-guides",
+    candidates: [
+      {
+        id: "quad",
+        label: "Quadrilatère observé",
+        role: "structural-region",
+        reason: "Quatre sommets observés dans le cadre",
+        x: 0.1,
+        y: 0.2,
+        width: GOLDEN_MAJOR,
+        height: 0.5,
+        primitive: {
+          kind: "quadrilateral",
+          vertices: [
+            { x: 0.1, y: 0.2 },
+            { x: 0.1 + GOLDEN_MAJOR, y: 0.2 },
+            { x: 0.1 + GOLDEN_MAJOR, y: 0.7 },
+            { x: 0.1, y: 0.7 },
+          ],
+        },
+      },
+      {
+        id: "ellipse",
+        label: "Ellipse observée",
+        role: "structural-region",
+        reason: "Contour elliptique observé contre le bord gauche",
+        x: 0,
+        y: 0.25,
+        width: 0.5,
+        height: 0.5,
+        primitive: {
+          kind: "ellipse",
+          center: { x: 0.25, y: 0.5 },
+          radiusX: 0.25,
+          radiusY: 0.25,
+        },
+      },
+    ],
+  });
+  const preview = previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
+    preparedCandidateSet: prepared,
+  });
+
+  assert.ok(preview.relationships.some(({ subjectCandidateId }) => subjectCandidateId === "quad"));
+  assert.ok(preview.relationships.some(({ subjectCandidateId }) => subjectCandidateId === "ellipse"));
+  assert.ok(preview.relationships.every(({ subjectCandidateId }) => ["quad", "ellipse"].includes(subjectCandidateId)));
   assert.deepEqual(
     previewPersonalVisualHarmonyAutomaticHarmonicRelationshipsV1({
       preparedCandidateSet: structuredClone(prepared),

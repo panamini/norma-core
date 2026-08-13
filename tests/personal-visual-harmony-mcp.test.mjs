@@ -86,7 +86,7 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   assert.match(html, /Relations candidates à revoir/u);
   assert.match(html, /function renderAutomaticHarmonicPreview\(\)/u);
   assert.match(html, /function invalidateAutomaticHarmonicPreview\(\)/u);
-  assert.match(html, /if\(kind==="rectangle"\)invalidateAutomaticHarmonicPreview\(\)/u);
+  assert.match(html, /automaticHarmonicPreviewGuideKind\(kind\)/u);
   assert.doesNotMatch(html, /automaticHarmonicPreview[^\n]*callAppTool/u);
 
   const createElement = (tagName) => ({
