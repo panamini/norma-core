@@ -275,6 +275,38 @@ test("rectangle resize supports opposite north-west and south-east handles", () 
   assert.match(html, /handle\.setAttribute\("data-resize-handle",handleKind\)/u);
 });
 
+test("desktop guide editing resolves the enlarged handle target after deselection", () => {
+  const group = {};
+  const handle = { closest: () => group };
+  const hitArea = {};
+  const resolveEditablePointerTarget = widgetScriptFunction(
+    "resolveEditablePointerTarget",
+    "function syncHandleHitArea",
+    {
+      EDIT_HANDLE_SELECTOR: "[data-edit-handle]",
+      mobileHandleTargetsEnabled: () => false,
+      svgViewport: () => ({
+        bounds: { left: 0, top: 0, width: 500, height: 500 },
+        viewBox: { x: 0, y: 0, width: 1000, height: 1000 },
+      }),
+      viewBoxPoint: () => ({ x: 400, y: 400 }),
+      overlay: { querySelectorAll: () => [handle] },
+      matchingHandleHitArea: () => hitArea,
+      editableHandleCenter: () => ({ x: 400, y: 400 }),
+      hitAreaContains: () => true,
+      renderedPoint: () => ({ x: 200, y: 200 }),
+    },
+  );
+  const target = { closest: () => null };
+
+  assert.equal(
+    resolveEditablePointerTarget(target, { clientX: 200, clientY: 200 }, {}),
+    handle,
+  );
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:all\}/u);
+});
+
 test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
   const dimensions = { width: 1000, height: 800 };
   const rectangles = [
@@ -4606,15 +4638,15 @@ test("widget adoption synchronizes ellipse overlay geometry before confirmation"
   assert.equal(measurementPreviewUpdates, 1);
 });
 
-test("widget adds mobile-only transparent hit areas without changing keyboard or desktop controls", () => {
+test("widget adds transparent hit areas for repeated mouse and touch editing", () => {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
   assert.match(html, /const EDIT_HANDLE_HIT_CSS_PIXELS=46,EDIT_HANDLE_ATTRIBUTES=\["data-resize-handle","data-point-handle","data-vertex-handle","data-ellipse-handle"\],EDIT_HANDLE_SELECTOR=/u);
   assert.match(html, /EDIT_HANDLE_ATTRIBUTES=\["data-resize-handle","data-point-handle","data-vertex-handle","data-ellipse-handle"\]/u);
   assert.match(html, /function syncAllHandleHitAreas\(\)\{const svg=overlay\.querySelector\("svg"\)/u);
   assert.match(html, /new ResizeObserver\(\(\)=>syncAllHandleHitAreas\(\)\)/u);
   assert.match(html, /attributeFilter:\["cx","cy","x","y","width","height","viewBox"\]/u);
-  assert.match(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:none\}/u);
-  assert.match(html, /@media\(max-width:720px\) and \(pointer:coarse\)\{\.overlay \[data-handle-hit-area\]\{pointer-events:all\}\}/u);
+  assert.match(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:all\}/u);
+  assert.doesNotMatch(html, /@media\(max-width:720px\) and \(pointer:coarse\)\{\.overlay \[data-handle-hit-area\]\{pointer-events:all\}\}/u);
   assert.match(html, /function mobileHandleTargetsEnabled\(\)\{return window\.matchMedia\?\.\("\(max-width:720px\) and \(pointer:coarse\)"\)\?\.matches===true\}/u);
   assert.match(html, /group\.insertBefore\(hitArea,handle\)/u);
   assert.match(html, /const pointerTarget=resolveEditablePointerTarget\(event\.target,event,svg\),group=pointerTarget\?\.closest\("\[data-candidate-id\]"\)\|\|initialGroup/u);
@@ -4622,7 +4654,6 @@ test("widget adds mobile-only transparent hit areas without changing keyboard or
   assert.match(html, /hitArea\.setAttribute\("tabindex","-1"\)/u);
   assert.match(html, /hitArea\.setAttribute\("data-handle-attribute",match\.attribute\)/u);
   assert.doesNotMatch(html, /hitArea\.setAttribute\(match\.attribute,match\.value\)/u);
-  assert.doesNotMatch(html, /\.overlay \[data-handle-hit-area\]\{fill:transparent;pointer-events:all\}/u);
 });
 
 test("widget synchronizes one bounded transparent target per editable handle", () => {
