@@ -170,6 +170,111 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   assert.match(textOf(automaticPreview), /Relations candidates à revoir/u);
 });
 
+test("completed Core analysis reopens an editable draft on the first guide revision", () => {
+  const classNames = new Set(["locked"]);
+  const resultClassNames = new Set(["visible"]);
+  const input = { disabled: true };
+  const calls = [];
+  const persistedStates = [];
+  const state = {
+    completed: true,
+    completedReviewEditable: true,
+    editableOverlayMarkup: "<svg data-editable-review></svg>",
+    displayedPayload: { stage: "completed" },
+    activePayload: { stage: "confirmation_required" },
+    payload: { stage: "confirmation_required" },
+  };
+  const overlay = {
+    innerHTML: "<svg data-result-overlay></svg>",
+    classList: {
+      remove(name) { classNames.delete(name); },
+    },
+  };
+  const resultNode = {
+    classList: {
+      remove(name) { resultClassNames.delete(name); },
+    },
+  };
+  const confirmButton = { style: { display: "none" } };
+  const stageNode = {
+    textContent: "CORE + PLAN IMAGE VÉRIFIÉS",
+    classList: { remove: (name) => calls.push(`stage:${name}`) },
+  };
+  const statusNode = { textContent: "Analyse terminée." };
+  const publicState = {
+    selectedCandidateIds: ["frame"],
+    completedVisualHarmony: { canonicalResultIdentity: `sha256:${"a".repeat(64)}` },
+  };
+  const reopenCompletedReviewForEditing = widgetScriptFunction(
+    "reopenCompletedReviewForEditing",
+    "function syncAnalysisModeUi",
+    {
+      state,
+      overlay,
+      candidateList: { querySelectorAll: () => [input] },
+      confirmButton,
+      stageNode,
+      statusNode,
+      resultNode,
+      publicWidgetState: () => publicState,
+      window: { openai: { setWidgetState: (value) => persistedStates.push(value) } },
+      decorateEditableOverlay: () => calls.push("decorate"),
+      syncOverlayGeometry: () => calls.push("geometry"),
+      syncOverlaySelection: () => calls.push("selection"),
+      syncGuidePresentation: () => calls.push("presentation"),
+      syncConstructionVisibility: () => calls.push("constructions"),
+      invalidateAutomaticHarmonicPreview: () => calls.push("preview-stale"),
+      updateConfirm: () => calls.push("confirm"),
+    },
+  );
+
+  assert.equal(reopenCompletedReviewForEditing(), true);
+  assert.equal(state.completed, false);
+  assert.equal(state.completedReviewEditable, false);
+  assert.equal(state.displayedPayload, state.activePayload);
+  assert.equal(overlay.innerHTML, state.editableOverlayMarkup);
+  assert.equal(classNames.has("locked"), false);
+  assert.equal(input.disabled, false);
+  assert.equal(confirmButton.style.display, "");
+  assert.equal(resultClassNames.has("visible"), false);
+  assert.equal(stageNode.textContent, "À RECONFIRMER");
+  assert.match(statusNode.textContent, /résultat précédent est périmé/u);
+  assert.deepEqual(calls, [
+    "decorate",
+    "geometry",
+    "selection",
+    "presentation",
+    "constructions",
+    "preview-stale",
+    "stage:done",
+    "confirm",
+  ]);
+  assert.equal(Object.hasOwn(persistedStates.at(-1), "completedVisualHarmony"), false);
+  assert.deepEqual(persistedStates.at(-1).selectedCandidateIds, ["frame"]);
+});
+
+test("rectangle resize supports opposite north-west and south-east handles", () => {
+  const resizedRectangleCandidate = widgetScriptFunction(
+    "resizedRectangleCandidate",
+    "function decorateEditableOverlay",
+    { rounded: (value) => Number(value.toFixed(6)) },
+  );
+  const rectangle = { x: 0.2, y: 0.25, width: 0.3, height: 0.4 };
+
+  assert.deepEqual(
+    resizedRectangleCandidate(rectangle, "south-east", 0.1, 0.05),
+    { x: 0.2, y: 0.25, width: 0.4, height: 0.45 },
+  );
+  assert.deepEqual(
+    resizedRectangleCandidate(rectangle, "north-west", -0.1, -0.05),
+    { x: 0.1, y: 0.2, width: 0.4, height: 0.45 },
+  );
+
+  const html = createPersonalVisualHarmonyWidgetHtmlV1();
+  assert.match(html, /\["north-west","south-east"\]/u);
+  assert.match(html, /handle\.setAttribute\("data-resize-handle",handleKind\)/u);
+});
+
 test("two-object spatial choices stay compact and exactly bounded to 21 expressions", () => {
   const dimensions = { width: 1000, height: 800 };
   const rectangles = [
@@ -7667,7 +7772,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     assert.match(resource.contents[0].text, /state\.reviewedCandidates=candidateSnapshot\.map/u);
     assert.match(
       resource.contents[0].text,
-      /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+      /function reviewEditingBlocked\(\)\{return state\.completed&&!state\.completedReviewEditable\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
     );
     assert.match(
       resource.contents[0].text,

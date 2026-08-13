@@ -3410,7 +3410,7 @@ test("the widget preserves V2 provenance, bounded polling, and nondegenerate lin
   assert.match(html, /multiPerceptionReviewLocked\(\).*count===1/u);
   assert.match(
     html,
-    /function reviewEditingBlocked\(\)\{return state\.completed\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
+    /function reviewEditingBlocked\(\)\{return state\.completed&&!state\.completedReviewEditable\|\|state\.confirming\|\|multiPerceptionReviewLocked\(\)\|\|!state\.imageReady\}/u,
   );
   assert.equal(
     html.match(/state\.perceptionRunning=true;setReviewLocked\(true\);recordReviewEvent\("sam-requested"\)/gu)?.length,

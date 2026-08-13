@@ -921,6 +921,14 @@ export const personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles = O
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+export const personalVisualHarmonyGuideEditingRecoveryChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+  "tests/personal-visual-harmony-perception-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyGuidedAnalysisEntryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
@@ -2375,6 +2383,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles,
+  personalVisualHarmonyGuideEditingRecoveryChangedFiles,
   personalVisualHarmonyWidgetEllipseResponsiveChangedFiles,
   personalVisualHarmonyStaleWidgetInstanceChangedFiles,
   personalVisualHarmonyWidgetBridgeHydrationChangedFiles,
