@@ -28,6 +28,16 @@ import { createInMemoryRlsDataAdapter } from "../dist/src/mcp/remote-http-author
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const analyzeToolName = "norma.analyzeStructuredCompositionV1";
 const protocol = "2025-11-25";
+const PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN =
+  "https://norma-core-remote-mcp-beta-production.up.railway.app";
+const PERSONAL_VISUAL_HARMONY_WIDGET_UI_META = {
+  prefersBorder: true,
+  domain: PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
+  csp: {
+    connectDomains: [],
+    resourceDomains: ["https://*.oaiusercontent.com"],
+  },
+};
 
 test("PR137 runs one authenticated stateless Streamable HTTP tool with local parity", async (t) => {
   const logs = [];
@@ -127,7 +137,7 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   });
   assert.equal(resources.status, 200);
   assert.deepEqual(resources.json.result.resources.map((resource) => resource.uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
-  assert.deepEqual(resources.json.result.resources[0]._meta.ui, { prefersBorder: true });
+  assert.deepEqual(resources.json.result.resources[0]._meta.ui, PERSONAL_VISUAL_HARMONY_WIDGET_UI_META);
   assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v24.html");
   const widget = await mcpRequest(port, {
     jsonrpc: "2.0",
@@ -138,7 +148,15 @@ test("PR137 runs one authenticated stateless Streamable HTTP tool with local par
   assert.equal(widget.status, 200);
   assert.equal(widget.json.result.contents[0].uri, PERSONAL_VISUAL_HARMONY_WIDGET_URI);
   assert.equal(widget.json.result.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
-  assert.deepEqual(widget.json.result.contents[0]._meta.ui, { prefersBorder: true });
+  assert.deepEqual(widget.json.result.contents[0]._meta.ui, PERSONAL_VISUAL_HARMONY_WIDGET_UI_META);
+  assert.deepEqual(widget.json.result.contents[0]._meta["openai/widgetCSP"], {
+    connect_domains: [],
+    resource_domains: ["https://*.oaiusercontent.com"],
+  });
+  assert.equal(
+    widget.json.result.contents[0]._meta["openai/widgetDomain"],
+    PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
+  );
   assert.match(widget.json.result.contents[0].text, /window[.]openai/u);
   const cachedWidget = await mcpRequest(port, {
     jsonrpc: "2.0",

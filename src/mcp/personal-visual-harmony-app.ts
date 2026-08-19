@@ -117,8 +117,22 @@ const PERSONAL_VISUAL_HARMONY_WIDGET_SKYBRIDGE_URIS = new Set([
   "ui://widget/norma-personal-visual-harmony-v11.html",
   "ui://widget/norma-personal-visual-harmony-v12.html",
 ]);
+const PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN =
+  "https://norma-core-remote-mcp-beta-production.up.railway.app";
+const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_DOMAINS = [
+  "https://*.oaiusercontent.com",
+] as const;
 const PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META = {
   prefersBorder: true,
+  domain: PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
+  csp: {
+    connectDomains: [],
+    resourceDomains: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_DOMAINS,
+  },
+} as const;
+const PERSONAL_VISUAL_HARMONY_WIDGET_OPENAI_CSP_META = {
+  connect_domains: [],
+  resource_domains: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_DOMAINS,
 } as const;
 export const PERSONAL_VISUAL_HARMONY_DEFAULT_ENTRY_PROMPT_V1 =
   "Analyse cette image avec Norma";
@@ -3527,6 +3541,8 @@ function personalVisualHarmonyWidgetResourceResponse(uri: string) {
         ui: PERSONAL_VISUAL_HARMONY_WIDGET_RESOURCE_UI_META,
         "openai/widgetDescription": "Interactive image overlay for explicit visual candidate confirmation and deterministic Norma Core harmony results.",
         "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": PERSONAL_VISUAL_HARMONY_WIDGET_OPENAI_CSP_META,
+        "openai/widgetDomain": PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
       },
     }],
   };
