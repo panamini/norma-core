@@ -40,6 +40,20 @@ import {
 
 const repoRoot = new URL("..", import.meta.url).pathname.replace(/\/$/u, "");
 const GOLDEN_MAJOR = 0.6180339887498949;
+const PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN =
+  "https://norma-core-remote-mcp-beta-production.up.railway.app";
+const PERSONAL_VISUAL_HARMONY_WIDGET_UI_META = {
+  prefersBorder: true,
+  domain: PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
+  csp: {
+    connectDomains: [],
+    resourceDomains: ["https://*.oaiusercontent.com"],
+  },
+};
+const PERSONAL_VISUAL_HARMONY_WIDGET_OPENAI_CSP_META = {
+  connect_domains: [],
+  resource_domains: ["https://*.oaiusercontent.com"],
+};
 
 function widgetScriptFunction(name, nextLinePrefix, bindings) {
   const html = createPersonalVisualHarmonyWidgetHtmlV1();
@@ -7563,7 +7577,7 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
 
     const resources = await connected.client.listResources();
     assert.deepEqual(resources.resources.map(({ uri }) => uri), [PERSONAL_VISUAL_HARMONY_WIDGET_URI]);
-    assert.deepEqual(resources.resources[0]._meta.ui, { prefersBorder: true });
+    assert.deepEqual(resources.resources[0]._meta.ui, PERSONAL_VISUAL_HARMONY_WIDGET_UI_META);
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_URI, "ui://widget/norma-personal-visual-harmony-v24.html");
     assert.equal(PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE, "text/html;profile=mcp-app");
     assert.equal(
@@ -7573,7 +7587,15 @@ test("ChatGPT App MCP lists the exact tools, file schema, app-only confirmation,
     const resource = await connected.client.readResource({ uri: PERSONAL_VISUAL_HARMONY_WIDGET_URI });
     assert.equal(resource.contents.length, 1);
     assert.equal(resource.contents[0].mimeType, PERSONAL_VISUAL_HARMONY_WIDGET_MIME_TYPE);
-    assert.deepEqual(resource.contents[0]._meta.ui, { prefersBorder: true });
+    assert.deepEqual(resource.contents[0]._meta.ui, PERSONAL_VISUAL_HARMONY_WIDGET_UI_META);
+    assert.deepEqual(
+      resource.contents[0]._meta["openai/widgetCSP"],
+      PERSONAL_VISUAL_HARMONY_WIDGET_OPENAI_CSP_META,
+    );
+    assert.equal(
+      resource.contents[0]._meta["openai/widgetDomain"],
+      PERSONAL_VISUAL_HARMONY_WIDGET_DOMAIN,
+    );
     const sourceWidget = createPersonalVisualHarmonyWidgetHtmlV1();
     assert.notEqual(resource.contents[0].text, sourceWidget);
     assert.ok(
