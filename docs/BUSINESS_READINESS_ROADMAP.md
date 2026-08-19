@@ -12,18 +12,62 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
-This roadmap is synced through PR86. R22 through R25 are complete; R26, R30
-through R36, and PR81 through PR86 are local/private/manual stabilization, demo,
-boundary, mapper, normalizer, and proof checkpoints. The old PR27-PR46 ladder
-and old PR30-PR33 labels remain historical/gated context, not the current
-execution queue.
+This roadmap is synced through merged PR #318 for the active private Personal
+Visual Harmony track. The bounded automatic-discovery, direct A/B,
+guide-recovery, and widget-metadata rail is complete. Earlier checkpoint
+sections remain historical evidence, not the current execution queue.
 
 Historical R32 wording remains true for that checkpoint: This roadmap is synced
 through R31, and R26, R30, and R31 are roadmap/usecase stabilization
 checkpoints.
 
-Historical R26 wording remains true for that checkpoint: this roadmap is synced
-through R25.
+Historical R26 wording remains true for that checkpoint: This roadmap is synced
+through R25. R22 through R25 are complete.
+
+## Current State After PR318
+
+Current decision reference:
+`docs/decisions/2026-08-19-post-pr318-private-observation-gate.md`.
+
+The active private Personal Visual Harmony rail is closed through exact merged
+`main` commit `1e39e026f8df5d358fbfce62c6acc4bac0cbc8e0`:
+
+- PR #312 added direct mouse A/B measurement with visible A and B traces before
+  confirmation;
+- PR #314 broadened bounded automatic harmonic discovery to existing rectangle,
+  quadrilateral, and ellipse surface guides;
+- PR #315 through PR #317 repaired malformed-candidate recovery and repeated
+  post-analysis guide editing;
+- PR #318 declared `ui.csp`, `ui.domain`, `openai/widgetCSP`, and
+  `openai/widgetDomain` without changing Core, geometry, providers, auth,
+  tools, or deployment configuration.
+
+The exact merge was deployed to the existing private Railway service as
+deployment `bdc416c8-7ff3-4206-b456-e20ead106b77`; `/readyz` was healthy, and a
+fresh private ChatGPT plugin accepted all four metadata fields without a
+warning. These are recorded external closure facts, not facts that a checkout
+can continuously re-prove.
+
+There is no mandatory implementation PR after PR #318. The next gate is
+observation-led maintenance: collect real private usage evidence and open one
+surgical corrective PR only for a reproduced product-code defect or a
+demonstrated user need with a bounded acceptance case. Prefer zero runtime PRs
+when documentation or user guidance is sufficient.
+
+Automatic relationships remain reviewable, non-authoritative candidates.
+Direct A/B remains an explicit image-plane comparison. Neither path may select
+geometry, confirm a review, infer artistic intent, or run Core automatically.
+
+Artistic usefulness, sustained use, end-to-end latency p50/p95, and a real
+mobile ChatGPT viewport remain unproven. The existing review journal can record
+bounded timing and correction evidence, but its twelve-case smoke corpus is not
+a product-quality benchmark.
+
+Widget publication metadata is not public publication. Public ChatGPT app
+submission, collaborator access, commercial or production qualification,
+public npm publication, default SAM expansion, new geometry or harmonic-report
+families, perspective, rhythm, scoring, optimization, beauty, and artistic
+intent remain deferred and require separate explicit authorization.
 
 ## Current State After PR74
 

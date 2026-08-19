@@ -22,6 +22,8 @@ The ChatGPT widget supports:
 - explicit semantic SAM targeting;
 - a fail-closed two-object spatial workflow with at most two sequential SAM attempts, unselected editable rectangle proposals, and no review or Core run between A and B;
 - exactly 21 compact spatial length choices after A and B are ready (six extents, three center distances, eight center-to-frame distances, and four matching-corner distances);
+- a direct mouse A/B path whose colored image-plane traces remain visible before confirmation;
+- a bounded automatic relationship preview over existing rectangle, quadrilateral, and ellipse guides; edits make the preview stale, and the preview never calls a provider, SAM, or Core;
 - an `Original / Guides` comparison;
 - an initial four-candidate focus with an explicit show-all control;
 - bounded, analysis-scoped review metrics containing event codes, timestamps, and counts only;
@@ -36,6 +38,11 @@ public package publication remains blocked. The repository contains CLI, local
 MCP, remote HTTP/MCP, ChatGPT widget, perception-job, and sandbox deployment
 code, but a checkout does not prove that any hosted environment is deployed or
 production-qualified.
+
+The current widget resource declares standard MCP Apps `ui.csp` and `ui.domain`
+metadata plus the `openai/widgetCSP` and `openai/widgetDomain` compatibility
+aliases. This metadata admission supports the installed private ChatGPT app; it
+is not public app publication or commercial qualification.
 
 The private Web Lab is the second local client of the existing Personal Visual
 Harmony preparation and confirmation functions. It reuses that narrow

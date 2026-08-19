@@ -877,6 +877,19 @@ export const personalVisualHarmonyWidgetPublicationMetadataChangedFiles = Object
   "tests/personal-visual-harmony-mcp.test.mjs",
 ].sort());
 
+// Covers the post-PR318 private observation closure as an exact docs/tests
+// truth sync without permitting runtime, deployment, or publication changes.
+export const postPr318PrivateObservationTruthSyncChangedFiles = Object.freeze([
+  "README.md",
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/decisions/2026-08-19-post-pr318-private-observation-gate.md",
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-docs.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -2398,6 +2411,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetPublicationMetadataChangedFiles,
+  postPr318PrivateObservationTruthSyncChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles,
