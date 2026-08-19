@@ -59,8 +59,9 @@ they do not select geometry, call a provider or SAM, confirm a review, infer
 artistic intent, or run Core.
 
 Direct A/B remains an explicit image-plane comparison. The visible A and B
-traces precede confirmation, and Core remains stopped until the user confirms
-the reviewed structured geometry.
+traces precede confirmation. Its confirmation validates only the two declared
+image-plane segment measurements; it does not confirm structured geometry, and
+Core remains stopped after confirmation.
 
 The active implementation remains in:
 
@@ -99,10 +100,15 @@ authorization, and a bounded contract.
 
 ## Verification for this truth sync
 
+Post-edit verification:
+
 - documentation contract tests;
-- `npm run build`;
-- full `npm test`;
 - `git diff --check`.
+
+Earlier full-suite evidence, collected before the final wording correction:
+
+- `npm run build`;
+- full `npm test`.
 
 This decision changes documentation and tests only. It does not modify or
 deploy runtime code.

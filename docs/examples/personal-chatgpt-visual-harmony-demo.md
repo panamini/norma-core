@@ -7,7 +7,7 @@ remain outside this proof.
 
 ## Post-PR318 current closure (2026-08-19)
 
-Exact `main` is
+The PR318 baseline and deployed merge SHA is
 `1e39e026f8df5d358fbfce62c6acc4bac0cbc8e0`. PR312 added the direct mouse A/B
 measurement path, PR314 broadened automatic harmonic discovery to existing
 rectangle, quadrilateral, and ellipse guides, and PR315 through PR317 closed
@@ -22,8 +22,11 @@ private ChatGPT plugin accepted the four metadata fields without a warning.
 
 Automatic relationships remain non-authoritative candidates and become stale
 after a supported guide edit. Direct A/B remains an explicit image-plane
-comparison with visible traces before confirmation. Neither path confirms
-geometry, infers artistic intent, or runs Core automatically.
+comparison with visible traces before confirmation. Direct A/B confirmation
+validates only the two declared image-plane segment measurements; it does not
+confirm structured geometry, and Core remains stopped after confirmation. The
+automatic preview does not confirm geometry, infer artistic intent, or run
+Core.
 
 The next gate is observation-led maintenance. Collect real private usage
 evidence, then prefer zero runtime PRs unless a reproduced product-code defect
