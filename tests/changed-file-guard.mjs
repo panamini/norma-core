@@ -867,6 +867,16 @@ export const personalVisualHarmonyMcpAppResourceMetadataChangedFiles = Object.fr
   "tests/personal-visual-harmony-perception-mcp.test.mjs",
 ].sort());
 
+// Covers the ChatGPT widget CSP/domain publication metadata contract without
+// broadening the prior resource-metadata allowlist or touching Core behavior.
+export const personalVisualHarmonyWidgetPublicationMetadataChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/mcp-remote-http-runtime.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -2387,6 +2397,7 @@ const sharedExactApprovedChangedFileSets = [
   privateWebLabSessionRecoveryLauncherChangedFiles,
   personalVisualHarmonySam3ModalPackagingFixChangedFiles,
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
+  personalVisualHarmonyWidgetPublicationMetadataChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles,
