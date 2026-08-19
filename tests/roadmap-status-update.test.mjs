@@ -80,6 +80,12 @@ const postPr104VisualFixtureRoadmapTruthSyncDocPath = join(
   "decisions",
   "2026-07-06-post-pr104-visual-fixture-roadmap-truth-sync.md",
 );
+const postPr318PrivateObservationGateDocPath = join(
+  repoRoot,
+  "docs",
+  "decisions",
+  "2026-08-19-post-pr318-private-observation-gate.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -467,6 +473,45 @@ test("PR105 roadmap truth sync records the post-PR104 visual fixture boundary", 
     "prompt-derived source truth",
   ]) {
     assertDocMentions(combinedDocs, [blockedSurface]);
+  }
+});
+
+test("post-PR318 truth sync closes the private feature rail and routes to observation", () => {
+  assert.equal(existsSync(postPr318PrivateObservationGateDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const decisionDoc = readDoc(postPr318PrivateObservationGateDocPath);
+  const currentSection = sectionForHeading(
+    businessRoadmapDoc,
+    "## Current State After PR318",
+  );
+  const combinedDocs = `${currentSection}\n${decisionDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "1e39e026f8df5d358fbfce62c6acc4bac0cbc8e0",
+    "PR #312 added the direct mouse A/B measurement path",
+    "PR #314 broadened automatic harmonic discovery",
+    "PR #315 through PR #317",
+    "PR #318 declared standard MCP Apps `ui.csp` and `ui.domain` metadata",
+    "bdc416c8-7ff3-4206-b456-e20ead106b77",
+    "There is no mandatory implementation PR after PR #318",
+    "observation-led maintenance",
+    "one surgical corrective PR",
+    "The existing twelve-case corpus proves instrumentation and gross regressions, not product quality",
+    "Widget publication metadata is not public publication",
+  ]);
+
+  for (const blockedSurface of [
+    "public ChatGPT app submission",
+    "collaborator access",
+    "commercial or production qualification",
+    "public npm publication",
+    "default SAM expansion",
+    "new geometry families",
+    "artistic-intent inference",
+  ]) {
+    assertDocMentions(combinedDocs, [blockedSurface]);
+    assertNoApproval(combinedDocs, blockedSurface);
   }
 });
 

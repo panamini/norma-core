@@ -1,8 +1,41 @@
 # Personal ChatGPT visual harmony demo
 
-Status: local deterministic proof plus a private exact-main ChatGPT A/B. This rail does not use Render, Auth0, a vision provider API, or a commercial deployment.
+Status: private exact-main ChatGPT app installed and verified through PR318. The
+bounded direct A/B, automatic relationship discovery, guide-recovery, and
+widget-metadata rail is complete; public publication and commercial readiness
+remain outside this proof.
 
-## Current truth gate (2026-07-17)
+## Post-PR318 current closure (2026-08-19)
+
+The PR318 baseline and deployed merge SHA is
+`1e39e026f8df5d358fbfce62c6acc4bac0cbc8e0`. PR312 added the direct mouse A/B
+measurement path, PR314 broadened automatic harmonic discovery to existing
+rectangle, quadrilateral, and ellipse guides, and PR315 through PR317 closed
+the observed malformed-candidate and repeated-editing defects.
+
+PR318 added standard MCP Apps `ui.csp` and `ui.domain` metadata plus the
+`openai/widgetCSP` and `openai/widgetDomain` compatibility aliases. It changed
+no Core, geometry, provider, auth, tool, or deployment behavior. The exact merge
+was deployed to the existing private Railway service as deployment
+`bdc416c8-7ff3-4206-b456-e20ead106b77`; `/readyz` was healthy, and a fresh
+private ChatGPT plugin accepted the four metadata fields without a warning.
+
+Automatic relationships remain non-authoritative candidates and become stale
+after a supported guide edit. Direct A/B remains an explicit image-plane
+comparison with visible traces before confirmation. Direct A/B confirmation
+validates only the two declared image-plane segment measurements; it does not
+confirm structured geometry, and Core remains stopped after confirmation. The
+automatic preview does not confirm geometry, infer artistic intent, or run
+Core.
+
+The next gate is observation-led maintenance. Collect real private usage
+evidence, then prefer zero runtime PRs unless a reproduced product-code defect
+or demonstrated user need justifies one bounded corrective changeset. Artistic
+usefulness, sustained use, end-to-end latency p50/p95, and a real mobile
+ChatGPT viewport remain unproven. Public ChatGPT app submission, collaborator
+access, commercial qualification, and public npm publication remain deferred.
+
+## Historical implementation truth gate (2026-07-17)
 
 The geometry and hydration foundation is merged in PR221 (`6a061dbb`), the
 hydration/stale-payload protections are merged in PR222
