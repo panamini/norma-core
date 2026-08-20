@@ -17,6 +17,24 @@ const postPr318DecisionDoc = readFileSync(
   join(repoRoot, "docs/decisions/2026-08-19-post-pr318-private-observation-gate.md"),
   "utf8",
 );
+const postPr319ObservationDoc = readFileSync(
+  join(repoRoot, "docs/audits/2026-08-20-post-pr319-live-browser-observation.md"),
+  "utf8",
+);
+
+test("the active visual-harmony guide records the bounded post-PR319 live observation", () => {
+  assert.match(demoDoc, /Post-PR319 live browser observation \(2026-08-20\)/u);
+  assert.match(postPr319ObservationDoc, /56d70d574d1dc1344258388b1c7cc761b7451aaa/u);
+  assert.match(postPr319ObservationDoc, /The earlier guide-edit freeze was not\s+reproduced/u);
+  assert.match(postPr319ObservationDoc, /south-east and north-west resize handles/u);
+  assert.match(postPr319ObservationDoc, /Multiple sequential edits remained available before Core and after a\s+completed Core result/u);
+  assert.match(postPr319ObservationDoc, /65786931c6fc211d1054e94c110cf743bf5eb30ac8bc70d3f68800425834bf95/u);
+  assert.match(postPr319ObservationDoc, /6,027 ms/u);
+  assert.match(postPr319ObservationDoc, /simultaneously displayed\s+`CORE \+ PLAN IMAGE VÉRIFIÉS` and `RELATIONS CANDIDATES À REVOIR`/u);
+  assert.match(postPr319ObservationDoc, /not p50\/p95 or sustained-load evidence/u);
+  assert.match(postPr319ObservationDoc, /No console or network-cleanliness claim was collected/u);
+  assert.match(postPr319ObservationDoc, /No real mobile viewport, collaborator distribution, public app submission,\s+commercial qualification, or public npm publication was tested or approved/u);
+});
 
 test("the active visual-harmony guide records the post-PR318 private closure", () => {
   assert.match(demoDoc, /Post-PR318 current closure \(2026-08-19\)/u);

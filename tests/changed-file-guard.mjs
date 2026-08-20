@@ -890,6 +890,18 @@ export const postPr318PrivateObservationTruthSyncChangedFiles = Object.freeze([
   "tests/roadmap-status-update.test.mjs",
 ].sort());
 
+// Records the bounded post-PR319 live browser observation without permitting
+// runtime, deployment, publication, or wiki changes.
+export const postPr319LiveBrowserObservationChangedFiles = Object.freeze([
+  "docs/BUSINESS_READINESS_ROADMAP.md",
+  "docs/audits/2026-08-20-post-pr319-live-browser-observation.md",
+  "docs/examples/personal-chatgpt-visual-harmony-demo.md",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-docs.test.mjs",
+  "tests/roadmap-status-update.test.mjs",
+].sort());
+
 export const personalVisualHarmonyOffFrameEllipseEditingChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "src/personal-visual-harmony-pixel-refinement.ts",
@@ -2412,6 +2424,7 @@ const sharedExactApprovedChangedFileSets = [
   personalVisualHarmonyMcpAppResourceMetadataChangedFiles,
   personalVisualHarmonyWidgetPublicationMetadataChangedFiles,
   postPr318PrivateObservationTruthSyncChangedFiles,
+  postPr319LiveBrowserObservationChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
   personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles,

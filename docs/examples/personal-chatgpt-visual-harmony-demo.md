@@ -1,9 +1,30 @@
 # Personal ChatGPT visual harmony demo
 
-Status: private exact-main ChatGPT app installed and verified through PR318. The
+Status: private ChatGPT app installed and observed after merged PR319. The
 bounded direct A/B, automatic relationship discovery, guide-recovery, and
 widget-metadata rail is complete; public publication and commercial readiness
 remain outside this proof.
+
+## Post-PR319 live browser observation (2026-08-20)
+
+The observation used a clean repository base at
+`56d70d574d1dc1344258388b1c7cc761b7451aaa` and a synthetic image in the private
+Chrome/ChatGPT app. Seven candidates were prepared. Rectangle,
+quadrilateral, and ellipse movement and resizing remained available across
+multiple edits, after deselection, and after a completed Core result. The
+previously reported freeze was not reproduced.
+
+Three Core completions were observed. Two successive completions at unchanged
+reviewed geometry returned the same `result.json` identity,
+`65786931c6fc211d1054e94c110cf743bf5eb30ac8bc70d3f68800425834bf95`.
+The third took 6,027 ms from explicit confirmation to the visible result
+identity. This is one live browser sample, not latency p50/p95 evidence.
+
+The run exposed one separate presentation defect: the stale automatic-preview
+notice remained visible above a newly verified Core result. That bounded case
+is routed to a separate corrective changeset. Full evidence and non-claims are
+recorded in
+`docs/audits/2026-08-20-post-pr319-live-browser-observation.md`.
 
 ## Post-PR318 current closure (2026-08-19)
 
