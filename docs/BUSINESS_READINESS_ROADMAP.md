@@ -12,10 +12,11 @@ This roadmap intentionally lives at `docs/BUSINESS_READINESS_ROADMAP.md` as a bu
 
 The core remains deterministic and source-truth driven. Norma truth must stay in explicit structured source objects, pack locks, operation contexts, diagnostics, provenance, and deterministic result envelopes. External surfaces may call the core; they must not define Norma logic.
 
-This roadmap is synced through merged PR #318 for the active private Personal
-Visual Harmony track. The bounded automatic-discovery, direct A/B,
-guide-recovery, and widget-metadata rail is complete. Earlier checkpoint
-sections remain historical evidence, not the current execution queue.
+This roadmap is synced through merged PR #319 and the bounded live private
+browser observation recorded on 2026-08-20 for the active Personal Visual
+Harmony track. The automatic-discovery, direct A/B, guide-recovery, and
+widget-metadata rail is complete. Earlier checkpoint sections remain historical
+evidence, not the current execution queue.
 
 Historical R32 wording remains true for that checkpoint: This roadmap is synced
 through R31, and R26, R30, and R31 are roadmap/usecase stabilization
@@ -23,6 +24,37 @@ checkpoints.
 
 Historical R26 wording remains true for that checkpoint: This roadmap is synced
 through R25. R22 through R25 are complete.
+
+## Current State After PR319 Live Observation
+
+Observation reference:
+`docs/audits/2026-08-20-post-pr319-live-browser-observation.md`.
+
+A private Chrome/ChatGPT session exercised the installed Norma Core app after
+PR #319 merged as exact repository commit
+`56d70d574d1dc1344258388b1c7cc761b7451aaa`. A synthetic image produced seven
+candidate guides. Repeated rectangle, quadrilateral, and ellipse edits remained
+available before and after Core, including opposite-corner rectangle resizing,
+ellipse movement and resizing, deselection followed by a new edit, and more
+than one correction in the same widget. The previously reported freeze was not
+reproduced.
+
+Three Core completions were observed. At unchanged reviewed geometry, two
+successive runs produced the same result identity
+`65786931c6fc211d1054e94c110cf743bf5eb30ac8bc70d3f68800425834bf95`.
+The measured third confirmation took 6,027 ms from the confirmation click to a
+visible `result.json` identity. That single browser sample is not latency
+p50/p95 evidence.
+
+One separate non-blocking product defect was reproduced: after a successful
+recalculation, the stale automatic-preview notice remained visible above the
+new verified Core result. It is routed to one surgical corrective changeset;
+it does not reopen the completed feature rail or justify broader runtime work.
+
+This observation does not prove deployed-artifact byte identity, console or
+network cleanliness, sustained use, artistic usefulness, a real mobile
+viewport, collaborator distribution, commercial readiness, public ChatGPT app
+submission, or public npm publication. Those gates remain deferred.
 
 ## Current State After PR318
 

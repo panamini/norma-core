@@ -86,6 +86,12 @@ const postPr318PrivateObservationGateDocPath = join(
   "decisions",
   "2026-08-19-post-pr318-private-observation-gate.md",
 );
+const postPr319LiveBrowserObservationDocPath = join(
+  repoRoot,
+  "docs",
+  "audits",
+  "2026-08-20-post-pr319-live-browser-observation.md",
+);
 const businessRoadmapDocPath = join(repoRoot, "docs", "BUSINESS_READINESS_ROADMAP.md");
 const docsDir = join(repoRoot, "docs");
 const packageJsonPath = join(repoRoot, "package.json");
@@ -509,6 +515,44 @@ test("post-PR318 truth sync closes the private feature rail and routes to observ
     "default SAM expansion",
     "new geometry families",
     "artistic-intent inference",
+  ]) {
+    assertDocMentions(combinedDocs, [blockedSurface]);
+    assertNoApproval(combinedDocs, blockedSurface);
+  }
+});
+
+test("post-PR319 live browser observation records proof, defect routing, and non-claims", () => {
+  assert.equal(existsSync(postPr319LiveBrowserObservationDocPath), true);
+
+  const businessRoadmapDoc = readDoc(businessRoadmapDocPath);
+  const observationDoc = readDoc(postPr319LiveBrowserObservationDocPath);
+  const currentSection = sectionForHeading(
+    businessRoadmapDoc,
+    "## Current State After PR319 Live Observation",
+  );
+  const combinedDocs = `${currentSection}\n${observationDoc}`;
+
+  assertDocMentions(combinedDocs, [
+    "56d70d574d1dc1344258388b1c7cc761b7451aaa",
+    "seven candidate guides",
+    "The previously reported freeze was not reproduced",
+    "65786931c6fc211d1054e94c110cf743bf5eb30ac8bc70d3f68800425834bf95",
+    "6,027 ms",
+    "stale automatic-preview notice remained visible",
+    "one surgical corrective changeset",
+  ]);
+
+  for (const blockedSurface of [
+    "deployed-artifact byte identity",
+    "console or network cleanliness",
+    "latency p50/p95",
+    "sustained use",
+    "artistic usefulness",
+    "real mobile viewport",
+    "collaborator distribution",
+    "commercial readiness",
+    "public ChatGPT app submission",
+    "public npm publication",
   ]) {
     assertDocMentions(combinedDocs, [blockedSurface]);
     assertNoApproval(combinedDocs, blockedSurface);
