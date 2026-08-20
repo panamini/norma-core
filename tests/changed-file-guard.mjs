@@ -949,6 +949,15 @@ export const personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles = Object.
   "tests/personal-visual-harmony.test.mjs",
 ].sort());
 
+// Hides stale automatic preview copy while any completed result is visible,
+// then restores it when the editable review reopens.
+export const personalVisualHarmonyCompletedPreviewVisibilityChangedFiles = Object.freeze([
+  "src/mcp/personal-visual-harmony-app.ts",
+  "tests/changed-file-guard.mjs",
+  "tests/changed-file-guard.test.mjs",
+  "tests/personal-visual-harmony-mcp.test.mjs",
+].sort());
+
 export const personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles = Object.freeze([
   "src/mcp/personal-visual-harmony-app.ts",
   "tests/changed-file-guard.mjs",
@@ -2427,6 +2436,7 @@ const sharedExactApprovedChangedFileSets = [
   postPr319LiveBrowserObservationChangedFiles,
   personalVisualHarmonyDirectSegmentPairChangedFiles,
   personalVisualHarmonyAutomaticHarmonicPreviewChangedFiles,
+  personalVisualHarmonyCompletedPreviewVisibilityChangedFiles,
   personalVisualHarmonyMalformedQuadrilateralRecoveryChangedFiles,
   personalVisualHarmonyGuideEditingRecoveryChangedFiles,
   personalVisualHarmonyRepeatGuideEditingChangedFiles,
