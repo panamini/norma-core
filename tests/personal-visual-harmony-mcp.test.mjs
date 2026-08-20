@@ -102,6 +102,16 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   assert.match(html, /function invalidateAutomaticHarmonicPreview\(\)/u);
   assert.match(html, /automaticHarmonicPreviewGuideKind\(kind\)/u);
   assert.doesNotMatch(html, /automaticHarmonicPreview[^\n]*callAppTool/u);
+  for (const renderer of [
+    "renderMeasurementPairResult",
+    "renderDeclaredSpatialResult",
+    "renderResult",
+    "renderCachedResult",
+  ]) {
+    const start = html.indexOf(`function ${renderer}`);
+    assert.notEqual(start, -1, renderer);
+    assert.match(html.slice(start, html.indexOf("function ", start + 9)), /state\.completed=true;renderAutomaticHarmonicPreview\(\)/u);
+  }
 
   const createElement = (tagName) => ({
     tagName,
@@ -118,6 +128,7 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   };
   const state = {
     automaticPreviewStale: false,
+    completed: false,
     guidedAnalysisGoal: "general-geometry",
     payload: {
       prepared: {
@@ -154,6 +165,12 @@ test("automatic harmonic preview renders target, observed value, delta, qualific
   assert.match(textOf(automaticPreview), /Valeur observée 62,1 %/u);
   assert.match(textOf(automaticPreview), /Écart 0,297 pt/u);
   assert.match(textOf(automaticPreview), /proche · dans la tolérance/u);
+
+  state.completed = true;
+  renderAutomaticHarmonicPreview();
+  assert.equal(automaticPreview.hidden, true);
+
+  state.completed = false;
 
   invalidateAutomaticHarmonicPreview();
   assert.equal(state.automaticPreviewStale, true);
@@ -3897,6 +3914,7 @@ test("completed widget cache round-trips related candidates, guided scope, and r
   const classList = { add() {}, remove() {} };
   const renderResult = widgetScriptFunction("renderResult", "function renderCachedResult", {
     state,
+    renderAutomaticHarmonicPreview() {},
     overlay: { classList, innerHTML: "" },
     candidateList: { querySelectorAll: () => [] },
     confirmButton: { style: {} },
